@@ -14,7 +14,7 @@ export default function BlogPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header*/}
+      {/*d Header*/}
 
       <Header />
 
@@ -22,7 +22,19 @@ export default function BlogPage() {
 
 
       {/* Navigation Breadcrumb */}
-
+      {/* <div className="bg-gray-50 border-b border-gray-100">
+        <div className="container mx-auto px-4 py-4">
+          <div className="max-w-6xl mx-auto">
+            <nav className="flex items-center space-x-2 text-sm text-gray-600">
+              <Link href="/" className="hover:text-teal-600">
+                Home
+              </Link>
+              <span>/</span>
+              <span className="text-gray-900 font-medium">Blog</span>
+            </nav>
+          </div>
+        </div>
+      </div> */}
 
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-7xl mx-auto">
