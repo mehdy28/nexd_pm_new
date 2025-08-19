@@ -58,10 +58,10 @@ export function Hero() {
           {/* Left Content */}
           <div className="space-y-8">
             {/* Launch Badge */}
-            <Badge variant="secondary" className="bg-teal-50 text-teal-700 border-teal-200 px-4 py-2 w-fit">
+            {/* <Badge variant="secondary" className="bg-teal-50 text-teal-700 border-teal-200 px-4 py-2 w-fit">
               <Sparkles className="w-4 h-4 mr-2" />
               Coming Soon: Revolutionary AI Project Management
-            </Badge>
+            </Badge> */}
 
             {/* Enhanced Headline */}
             <div className="space-y-4">

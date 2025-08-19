@@ -49,12 +49,12 @@ export default function BlogPage() {
             </div>
 
             {/* Blog Title and Description */}
-            <div className="text-center">
+            {/* <div className="text-center">
               <h1 className="text-5xl font-bold text-gray-900 mb-4">NEXD.PM Insights</h1>
               <p className="text-xl text-gray-600 leading-relaxed max-w-3xl mx-auto">
                 The latest in AI-powered project management, visual prompt engineering, and the future of work
               </p>
-            </div>
+            </div> */}
           </div>
         </div>
       </div>
