@@ -5,6 +5,8 @@ import { Calendar, Clock, User, TrendingUp } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
 import { WaitlistForm } from "@/components/blog/waitlist-form"
+import { Header } from "@/components/sections/header"
+
 
 export default function BlogPage() {
   const posts = getAllBlogPosts()
@@ -14,8 +16,12 @@ export default function BlogPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+
+
+            <Header />
+      
       {/* Header with Logo */}
-      <div className="bg-white border-b border-gray-200">
+      {/* <div className="bg-white border-b border-gray-200">
         <div className="container mx-auto px-4 py-2">
           <div className="max-w-6xl mx-auto">
             {/* Logo and Navigation */}
@@ -57,7 +63,7 @@ export default function BlogPage() {
             </div> */}
           </div>
         </div>
-      </div>
+      </div> */}
 
       {/* Navigation Breadcrumb */}
       <div className="bg-gray-50 border-b border-gray-100">
