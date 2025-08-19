@@ -17,3 +17,4 @@ npm install @prisma/client prisma
 npm install next-auth @next-auth/prisma-adapter
 npm install bcryptjs jsonwebtoken
 npm install @types/bcryptjs @types/jsonwebtoken --save-dev
+.
