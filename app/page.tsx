@@ -1,35 +1,26 @@
 "use client"
+import { Header } from "@/components/sections/header"
+import { Hero } from "@/components/sections/hero"
+import { HowItWorks } from "@/components/sections/how-it-works"
+import { AIFeatures } from "@/components/sections/ai-features"
+import { Features } from "@/components/sections/features"
+import { EarlyAccess } from "@/components/sections/early-access"
+import { WaitlistCTA } from "@/components/sections/waitlist-cta"
+import { Footer } from "@/components/sections/footer"
 
-import { useEffect } from "react"
-import { useRouter } from "next/navigation"
-import { Loader2 } from "lucide-react"
-
-export default function Index() {
-  const router = useRouter()
-
-  useEffect(() => {
-    const user = localStorage.getItem("user")
-
-    if (!user) {
-      router.push("/login")
-      return
-    }
-
-    const hasCompletedSetup = localStorage.getItem("hasCompletedSetup")
-    if (!hasCompletedSetup) {
-      router.push("/setup")
-      return
-    }
-
-    router.push("/workspace")
-  }, [router])
-
+export default function WaitlistLandingPage() {
   return (
-    <div className="min-h-screen grid place-items-center bg-slate-50">
-      <div className="flex flex-col items-center gap-3">
-        <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
-        <p className="text-sm text-slate-600">Loading...</p>
-      </div>
+    <div className="flex flex-col min-h-screen bg-white">
+      <Header />
+      <main className="flex-1">
+        <Hero />
+        <HowItWorks />
+        <AIFeatures />
+        <Features />
+        <EarlyAccess />
+        <WaitlistCTA />
+      </main>
+      <Footer />
     </div>
   )
 }
