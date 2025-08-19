@@ -47,14 +47,15 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
                 />
               </Link>
               <div className="w-[120px]">
+              <Link href="/" className="flex items-center">
+
                   <Button
                     className="bg-teal-600 hover:bg-teal-700 text-white"
-                    onClick={() => {
-                      window.location.href = "/";
-                    }}
                   >
                     Join Wait List
                   </Button>
+                  </Link>
+
                 </div>
             </div>
           </div>
