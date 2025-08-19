@@ -14,67 +14,15 @@ export default function BlogPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Header*/}
+
+      <Header />
 
 
-<Header />
 
-      {/* Header with Logo */}
-      {/* <div className="bg-white border-b border-gray-200">
-        <div className="container mx-auto px-4 py-6">
-          <div className="max-w-6xl mx-auto">
-            <div className="flex items-center justify-between mb-8">
-              <Link href="/" className="flex items-center">
-                <Image
-                  src="/nexd-logo-horizontal.png"
-                  alt="NEXD.PM Logo"
-                  width={160}
-                  height={40}
-                  className="h-10 w-auto"
-                />
-              </Link>
-              <nav className="hidden md:flex items-center gap-6">
-                <Link
-                  href="/#features"
-                  className="text-sm font-medium text-gray-600 hover:text-teal-600 transition-colors"
-                >
-                  Features
-                </Link>
-                <Link
-                  href="/#ai-prompts"
-                  className="text-sm font-medium text-gray-600 hover:text-teal-600 transition-colors"
-                >
-                  AI Prompts
-                </Link>
-                <Link href="/blog" className="text-sm font-medium text-teal-600 font-semibold">
-                  Blog
-                </Link>
-              </nav>
-            </div>
-
-            <div className="text-center">
-              <h1 className="text-5xl font-bold text-gray-900 mb-4">NEXD.PM Insights</h1>
-              <p className="text-xl text-gray-600 leading-relaxed max-w-3xl mx-auto">
-                The latest in AI-powered project management, visual prompt engineering, and the future of work
-              </p>
-            </div>
-          </div>
-        </div>
-      </div> */}
 
       {/* Navigation Breadcrumb */}
-      <div className="bg-gray-50 border-b border-gray-100">
-        <div className="container mx-auto px-4 py-4">
-          <div className="max-w-6xl mx-auto">
-            <nav className="flex items-center space-x-2 text-sm text-gray-600">
-              <Link href="/" className="hover:text-teal-600">
-                Home
-              </Link>
-              <span>/</span>
-              <span className="text-gray-900 font-medium">Blog</span>
-            </nav>
-          </div>
-        </div>
-      </div>
+
 
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-7xl mx-auto">

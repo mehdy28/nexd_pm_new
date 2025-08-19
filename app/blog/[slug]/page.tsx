@@ -1,28 +1,28 @@
-import { getBlogPost, getRelatedPosts } from "@/lib/blog"
-import { Badge } from "@/components/ui/badge"
-import { Card, CardContent } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Calendar, Clock, User, ArrowLeft } from "lucide-react"
-import Image from "next/image"
-import Link from "next/link"
-import { notFound } from "next/navigation"
-import ReactMarkdown from "react-markdown"
-import { WaitlistForm } from "@/components/blog/waitlist-form"
+import { getBlogPost, getRelatedPosts } from "@/lib/blog";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Calendar, Clock, User, ArrowLeft } from "lucide-react";
+import Image from "next/image";
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import ReactMarkdown from "react-markdown";
+import { WaitlistForm } from "@/components/blog/waitlist-form";
 
 interface BlogPostPageProps {
   params: {
-    slug: string
-  }
+    slug: string;
+  };
 }
 
 export default function BlogPostPage({ params }: BlogPostPageProps) {
-  const post = getBlogPost(params.slug)
+  const post = getBlogPost(params.slug);
 
   if (!post) {
-    notFound()
+    notFound();
   }
 
-  const relatedPosts = getRelatedPosts(post.slug, post.tags)
+  const relatedPosts = getRelatedPosts(post.slug, post.tags);
 
   return (
     <div className="min-h-screen bg-white">
@@ -46,7 +46,19 @@ export default function BlogPostPage({ params }: BlogPostPageProps) {
                   className="h-12 w-auto"
                 />
               </Link>
-              <div className="w-[120px]"></div> {/* Spacer to balance the layout */}
+              <div className="w-[120px]">
+                <Button
+                  className="bg-teal-600 hover:bg-teal-700 text-white"
+                  onClick={() => {
+                    document
+                      .getElementById("waitlist-form")
+                      ?.scrollIntoView({ behavior: "smooth" });
+                  }}
+                >
+                  Join Wait List
+                </Button>
+              </div>{" "}
+              {/* Spacer to balance the layout */}
             </div>
           </div>
         </div>
@@ -63,11 +75,12 @@ export default function BlogPostPage({ params }: BlogPostPageProps) {
                 </Badge>
               ))}
             </div>
-
-            <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-6 leading-tight">{post.title}</h1>
-
-            <p className="text-xl text-gray-600 mb-8 leading-relaxed">{post.description}</p>
-
+            <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-6 leading-tight">
+              {post.title}
+            </h1>
+            <p className="text-xl text-gray-600 mb-8 leading-relaxed">
+              {post.description}
+            </p>
             <div className="flex items-center justify-between mb-8">
               <div className="flex items-center gap-6 text-gray-500">
                 <div className="flex items-center gap-2">
@@ -90,26 +103,49 @@ export default function BlogPostPage({ params }: BlogPostPageProps) {
                 </div>
               </div>
             </div>
-
             {/* Featured Image */}
             <div className="aspect-[2/1] relative overflow-hidden rounded-xl mb-12">
-              <Image src={post.image || "/placeholder.svg"} alt={post.title} fill className="object-cover" />
+              <Image
+                src={post.image || "/placeholder.svg"}
+                alt={post.title}
+                fill
+                className="object-cover"
+              />
             </div>
           </header>
-
           {/* Article Content */}
           <div className="prose prose-lg max-w-none mb-12">
             <ReactMarkdown
               components={{
-                h1: ({ children }) => <h1 className="text-3xl font-bold text-gray-900 mt-12 mb-6">{children}</h1>,
-                h2: ({ children }) => <h2 className="text-2xl font-bold text-gray-900 mt-10 mb-4">{children}</h2>,
-                h3: ({ children }) => <h3 className="text-xl font-bold text-gray-900 mt-8 mb-3">{children}</h3>,
-                p: ({ children }) => <p className="text-gray-700 leading-relaxed mb-6">{children}</p>,
+                h1: ({ children }) => (
+                  <h1 className="text-3xl font-bold text-gray-900 mt-12 mb-6">
+                    {children}
+                  </h1>
+                ),
+                h2: ({ children }) => (
+                  <h2 className="text-2xl font-bold text-gray-900 mt-10 mb-4">
+                    {children}
+                  </h2>
+                ),
+                h3: ({ children }) => (
+                  <h3 className="text-xl font-bold text-gray-900 mt-8 mb-3">
+                    {children}
+                  </h3>
+                ),
+                p: ({ children }) => (
+                  <p className="text-gray-700 leading-relaxed mb-6">
+                    {children}
+                  </p>
+                ),
                 ul: ({ children }) => (
-                  <ul className="list-disc list-inside text-gray-700 mb-6 space-y-2">{children}</ul>
+                  <ul className="list-disc list-inside text-gray-700 mb-6 space-y-2">
+                    {children}
+                  </ul>
                 ),
                 ol: ({ children }) => (
-                  <ol className="list-decimal list-inside text-gray-700 mb-6 space-y-2">{children}</ol>
+                  <ol className="list-decimal list-inside text-gray-700 mb-6 space-y-2">
+                    {children}
+                  </ol>
                 ),
                 blockquote: ({ children }) => (
                   <blockquote className="border-l-4 border-teal-500 pl-6 italic text-gray-600 my-8">
@@ -117,29 +153,41 @@ export default function BlogPostPage({ params }: BlogPostPageProps) {
                   </blockquote>
                 ),
                 code: ({ children }) => (
-                  <code className="bg-gray-100 px-2 py-1 rounded text-sm font-mono text-gray-800">{children}</code>
+                  <code className="bg-gray-100 px-2 py-1 rounded text-sm font-mono text-gray-800">
+                    {children}
+                  </code>
                 ),
                 pre: ({ children }) => (
-                  <pre className="bg-gray-900 text-gray-100 p-6 rounded-lg overflow-x-auto mb-6">{children}</pre>
+                  <pre className="bg-gray-900 text-gray-100 p-6 rounded-lg overflow-x-auto mb-6">
+                    {children}
+                  </pre>
                 ),
               }}
             >
               {post.content}
             </ReactMarkdown>
           </div>
-
           {/* Inline CTA */}
-          <div className="mb-16">
+          {/* <div className="mb-16">
             <WaitlistForm variant="inline" />
+          </div> */}
+          {/* MAIN CTA */}
+          <div id="waitlist-form">
+            <WaitlistForm variant="full" />
           </div>
-
           {/* Related Posts */}
           {relatedPosts.length > 0 && (
             <div className="mb-16">
-              <h3 className="text-2xl font-bold text-gray-900 mb-8">Related Articles</h3>
+              <h3 className="text-2xl font-bold text-gray-900 mb-8">
+                Related Articles
+              </h3>
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {relatedPosts.map((relatedPost) => (
-                  <Link key={relatedPost.slug} href={`/blog/${relatedPost.slug}`} className="group">
+                  <Link
+                    key={relatedPost.slug}
+                    href={`/blog/${relatedPost.slug}`}
+                    className="group"
+                  >
                     <Card className="overflow-hidden hover:shadow-md transition-shadow duration-300 border-0 shadow-sm h-full">
                       <div className="aspect-[4/3] relative overflow-hidden">
                         <Image
@@ -152,7 +200,11 @@ export default function BlogPostPage({ params }: BlogPostPageProps) {
                       <CardContent className="p-4">
                         <div className="flex flex-wrap gap-1 mb-2">
                           {relatedPost.tags.slice(0, 2).map((tag) => (
-                            <Badge key={tag} variant="outline" className="text-xs">
+                            <Badge
+                              key={tag}
+                              variant="outline"
+                              className="text-xs"
+                            >
                               {tag}
                             </Badge>
                           ))}
@@ -160,7 +212,9 @@ export default function BlogPostPage({ params }: BlogPostPageProps) {
                         <h4 className="font-bold text-gray-900 mb-2 group-hover:text-teal-600 transition-colors line-clamp-2">
                           {relatedPost.title}
                         </h4>
-                        <p className="text-sm text-gray-600 line-clamp-2">{relatedPost.description}</p>
+                        <p className="text-sm text-gray-600 line-clamp-2">
+                          {relatedPost.description}
+                        </p>
                         <div className="flex items-center gap-2 mt-3 text-xs text-gray-500">
                           <Clock className="w-3 h-3" />
                           {relatedPost.readTime}
@@ -172,11 +226,10 @@ export default function BlogPostPage({ params }: BlogPostPageProps) {
               </div>
             </div>
           )}
-
           {/* Bottom Newsletter Signup */}
-          <WaitlistForm variant="full" />
+          {/* <WaitlistForm variant="full" /> */}
         </div>
       </article>
     </div>
-  )
+  );
 }
