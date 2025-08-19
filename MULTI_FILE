@@ -1,0 +1,221 @@
+// components/documents/editor.tsx
+"use client"
+
+import { useEffect } from "react"
+import { useEditor, EditorContent, BubbleMenu } from "@tiptap/react"
+import StarterKit from "@tiptap/starter-kit"
+import Placeholder from "@tiptap/extension-placeholder"
+import { Bold, Italic, Heading1, Heading2, List, ListOrdered, Quote, Code } from 'lucide-react'
+import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
+
+export function DocumentEditor({
+html,
+onChange,
+}: {
+html: string
+onChange: (html: string) => void
+}) {
+const editor = useEditor({
+  extensions: [
+    StarterKit.configure({
+      heading: { levels: [1, 2, 3] },
+    }),
+    Placeholder.configure({ placeholder: "Start typing your document..." }),
+  ],
+  content: html || "<p></p>",
+  editorProps: {
+    attributes: {
+      class: "prose prose-slate max-w-none focus:outline-none min-h-[400px] p-3",
+    },
+  },
+  onUpdate: ({ editor }) => onChange(editor.getHTML()),
+})
+
+useEffect(() => {
+  if (editor && html !== editor.getHTML()) {
+    editor.commands.setContent(html || "<p></p>", false)
+  }
+}, [editor, html])
+
+if (!editor) return null
+
+return (
+  <div className="min-h-0 flex-1 overflow-auto rounded-md border bg-white">
+    <BubbleMenu editor={editor} tippyOptions={{ duration: 100 }}>
+      <div className="flex items-center gap-1 rounded-md border bg-white p-1 shadow-sm">
+        <ToolbarBtn active={editor.isActive('bold')} onClick={() => editor.chain().focus().toggleBold().run()} icon={<Bold className="h-4 w-4" />} />
+        <ToolbarBtn active={editor.isActive('italic')} onClick={() => editor.chain().focus().toggleItalic().run()} icon={<Italic className="h-4 w-4" />} />
+        <div className="mx-1 h-4 w-px bg-slate-200" />
+        <ToolbarBtn active={editor.isActive('heading', { level: 1 })} onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} icon={<Heading1 className="h-4 w-4" />} />
+        <ToolbarBtn active={editor.isActive('heading', { level: 2 })} onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} icon={<Heading2 className="h-4 w-4" />} />
+        <div className="mx-1 h-4 w-px bg-slate-200" />
+        <ToolbarBtn active={editor.isActive('bulletList')} onClick={() => editor.chain().focus().toggleBulletList().run()} icon={<List className="h-4 w-4" />} />
+        <ToolbarBtn active={editor.isActive('orderedList')} onClick={() => editor.chain().focus().toggleOrderedList().run()} icon={<ListOrdered className="h-4 w-4" />} />
+        <ToolbarBtn active={editor.isActive('blockquote')} onClick={() => editor.chain().focus().toggleBlockquote().run()} icon={<Quote className="h-4 w-4" />} />
+        <ToolbarBtn active={editor.isActive('codeBlock')} onClick={() => editor.chain().focus().toggleCodeBlock().run()} icon={<Code className="h-4 w-4" />} />
+      </div>
+    </BubbleMenu>
+
+    <EditorContent editor={editor} />
+  </div>
+)
+}
+
+function ToolbarBtn({
+active,
+onClick,
+icon,
+}: { active?: boolean; onClick: () => void; icon: React.ReactNode }) {
+return (
+  <Button
+    type="button"
+    size="sm"
+    variant="ghost"
+    className={cn("h-8 px-2", active && "bg-slate-100")}
+    onClick={onClick}
+  >
+    {icon}
+  </Button>
+)
+}
+
+// components/documents/types.ts
+export type Doc = {
+id: string
+title: string
+content: string // HTML content for the TipTap editor
+updatedAt: number
+}
+
+// components/documents/use-documents.ts
+"use client"
+
+import { useEffect, useState } from "react"
+import type { Doc } from "./types"
+
+const STORAGE_KEY = "nexdpm:documents"
+
+function load(): Doc[] {
+if (typeof window === "undefined") return []
+try {
+  const raw = localStorage.getItem(STORAGE_KEY)
+  if (!raw) return []
+  const parsed = JSON.parse(raw) as Doc[]
+  return Array.isArray(parsed) ? parsed : []
+} catch {
+  return []
+}
+}
+function save(docs: Doc[]) {
+if (typeof window === "undefined") return
+localStorage.setItem(STORAGE_KEY, JSON.stringify(docs))
+}
+
+export function useDocuments() {
+const [docs, setDocs] = useState<Doc[]>([])
+
+useEffect(() => {
+  setDocs(load())
+}, [])
+
+useEffect(() => {
+  if (docs.length) save(docs)
+  else if (typeof window !== "undefined") localStorage.removeItem(STORAGE_KEY)
+}, [docs])
+
+function create(title = "Untitled"): Doc {
+  const doc: Doc = {
+    id: crypto.randomUUID(),
+    title,
+    content: "<p></p>",
+    updatedAt: Date.now(),
+  }
+  setDocs((prev) => [doc, ...prev])
+  return doc
+}
+
+function update(id: string, patch: Partial<Doc>) {
+  setDocs((prev) => prev.map((d) => (d.id === id ? { ...d, ...patch, updatedAt: Date.now() } : d)))
+}
+
+function remove(id: string) {
+  setDocs((prev) => prev.filter((d) => d.id !== id))
+}
+
+return { docs, create, update, remove }
+}
+
+// components/documents/documents-view.tsx
+"use client"
+
+import { useEffect, useMemo, useState } from "react"
+import { Input } from "@/components/ui/input"
+import { useDocuments } from "./use-documents"
+import { DocumentEditor } from "./editor"
+import { DocumentList } from "./document-list"
+
+export function DocumentsView() {
+const { docs, create, update, remove } = useDocuments()
+const [selectedId, setSelectedId] = useState<string | null>(null)
+
+useEffect(() => {
+  if (docs.length === 0) {
+    setSelectedId(null)
+    return
+  }
+  if (!selectedId || !docs.some((d) => d.id === selectedId)) {
+    setSelectedId(docs[0].id)
+  }
+}, [docs, selectedId])
+
+const selected = useMemo(() => docs.find((d) => d.id === selectedId) || null, [docs, selectedId])
+
+function handleCreate() {
+  const doc = create("Untitled")
+  setSelectedId(doc.id)
+}
+function handleRename(id: string, title: string) {
+  update(id, { title })
+}
+function handleDelete(id: string) {
+  remove(id)
+  if (selectedId === id) setSelectedId(null)
+}
+
+return (
+  <div className="page-scroller p-4">
+    <div className="grid h-full min-h-[640px] grid-cols-1 gap-4 md:grid-cols-[320px_1fr]">
+      <div className="rounded-lg border bg-white">
+        <DocumentList
+          docs={docs}
+          selectedId={selectedId}
+          onSelect={setSelectedId}
+          onCreate={handleCreate}
+          onRename={handleRename}
+          onDelete={handleDelete}
+        />
+      </div>
+
+      <div className="min-h-0 overflow-auto rounded-lg border bg-white p-4">
+        {selected ? (
+          <div className="flex h-full min-h-0 flex-col gap-3">
+            <Input
+              value={selected.title}
+              onChange={(e) => update(selected.id, { title: e.target.value || "Untitled" })}
+              className="h-11 text-lg font-semibold"
+              placeholder="Untitled"
+            />
+            <DocumentEditor
+              html={selected.content}
+              onChange={(html) => update(selected.id, { content: html })}
+            />
+          </div>
+        ) : (
+          <div className="grid h-full place-items-center text-sm text-slate-500">Select or create a document.</div>
+        )}
+      </div>
+    </div>
+  </div>
+)
+}

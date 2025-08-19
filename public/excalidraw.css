@@ -1,0 +1,41 @@
+/* Minimal, safe styles to improve Excalidraw look without node CSS import.
+   You can extend this as needed, but avoid @import from node_modules. */
+
+:root {
+  --ex-bg: #ffffff;
+  --ex-fg: #0f172a;
+  --ex-muted: #64748b;
+  --ex-border: #e2e8f0;
+}
+
+.excalidraw,
+.excalidraw .App {
+  background: var(--ex-bg);
+  color: var(--ex-fg);
+}
+
+.excalidraw .Stack,
+.excalidraw .App-menu,
+.excalidraw .layer-ui__wrapper,
+.excalidraw .sidebar {
+  border-color: var(--ex-border);
+}
+
+.excalidraw .Island,
+.excalidraw .ToolIcon_type_button {
+  border-radius: 8px;
+}
+
+.excalidraw button {
+  font: inherit;
+}
+
+.excalidraw .help-icon {
+  color: var(--ex-muted);
+}
+
+/* Ensure the canvas area grows to fill */
+.excalidraw .excalidraw__viewport,
+.excalidraw .canvas-container {
+  min-height: 60vh;
+}

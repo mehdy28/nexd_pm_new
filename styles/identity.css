@@ -1,0 +1,220 @@
+/* Visual identity and layout shell */
+
+:root {
+  --brand-50: #ecfdf5;
+  --brand-100: #d1fae5;
+  --brand-200: #a7f3d0;
+  --brand-300: #6ee7b7;
+  --brand-400: #34d399;
+  --brand-500: #10b981;
+  --brand-600: #059669;
+  --brand-700: #047857;
+  --brand-800: #065f46;
+  --brand-900: #064e3b;
+
+  --slate-50: #f8fafc;
+  --slate-100: #f1f5f9;
+  --slate-200: #e2e8f0;
+  --slate-300: #cbd5e1;
+  --slate-400: #94a3b8;
+  --slate-500: #64748b;
+  --slate-600: #475569;
+  --slate-700: #334155;
+  --slate-800: #1f2937;
+  --slate-900: #0f172a;
+
+  --surface: #ffffff;
+  --muted: #f6f7f9;
+
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 2px 6px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 10px 20px rgba(0, 0, 0, 0.1);
+
+  /* Minimal BlockNote look without importing module CSS */
+  --bn-bg: #ffffff;
+  --bn-text: #0f172a;
+  --bn-muted: #94a3b8;
+  --bn-border: #e2e8f0;
+}
+
+/* Thin consistent scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--slate-300) transparent;
+}
+*::-webkit-scrollbar {
+  height: 10px;
+  width: 10px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background-color: var(--slate-300);
+  border-radius: 10px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+/* Fixed shell */
+.app-sidebar {
+  position: fixed;
+  inset: 0 auto 0 0;
+  width: 72px;
+  background: var(--slate-900);
+  color: #ecfeff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 14px 0;
+  z-index: 30;
+}
+.app-topbar {
+  position: fixed;
+  left: 72px;
+  right: 0;
+  top: 0;
+  height: 64px;
+  background: rgba(255, 255, 255, 0.9);
+  -webkit-backdrop-filter: saturate(150%) blur(8px);
+  backdrop-filter: saturate(150%) blur(8px);
+  border-bottom: 1px solid var(--slate-200);
+  z-index: 25;
+}
+.app-content {
+  position: fixed;
+  left: 72px;
+  right: 0;
+  top: 64px;
+  bottom: 0;
+  background: var(--surface);
+  overflow: hidden;
+}
+
+/* Page wrapper: contained scroll only here */
+.page-scroller {
+  height: 100%;
+  width: 100%;
+  overflow: hidden; /* Remove vertical scrollbar from main container */
+  background: var(--surface);
+}
+
+/* Kanban specifics */
+.columns-scroll {
+  display: flex;
+  gap: 16px;
+  height: calc(100vh - 64px); /* Set fixed height to viewport minus topbar */
+  overflow-x: auto; /* Only allow horizontal scrolling */
+  overflow-y: hidden; /* Prevent vertical scrolling at container level */
+  padding: 16px;
+  background: var(--slate-50);
+}
+.column {
+  width: 320px;
+  min-width: 320px;
+  height: calc(100vh - 64px - 32px); /* Set fixed height minus padding */
+  background: #fff;
+  border: 1px solid var(--slate-200);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+}
+.column-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: space-between;
+  padding: 12px;
+  border-bottom: 1px solid var(--slate-200);
+}
+.column-body {
+  padding: 10px;
+  flex: 1; /* Use flex to fill remaining space */
+  min-height: 0; /* Allow flex child to shrink below content size */
+  overflow-y: auto; /* Keep individual column scrolling */
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.card {
+  background: #fff;
+  border: 1px solid var(--slate-200);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  padding: 12px;
+}
+
+/* Priority badges */
+.badge-low {
+  background: #e7f7eb;
+  color: #0f8f3d;
+  border: 1px solid #cdeed6;
+  border-radius: 9999px;
+  padding: 2px 8px;
+  font-size: 11px;
+}
+.badge-medium {
+  background: #fff1e6;
+  color: #b45309;
+  border: 1px solid #fde1c9;
+  border-radius: 9999px;
+  padding: 2px 8px;
+  font-size: 11px;
+}
+.badge-high {
+  background: #fee2e2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+  border-radius: 9999px;
+  padding: 2px 8px;
+  font-size: 11px;
+}
+
+/* Minimal BlockNote look without importing module CSS */
+.bn-surface {
+  background: var(--bn-bg);
+  color: var(--bn-text);
+  border: 1px solid var(--bn-border);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+}
+.bn-surface p {
+  margin: 0.5rem 0;
+  line-height: 1.6;
+}
+.bn-surface h1 {
+  font-size: 1.5rem;
+  line-height: 1.3;
+  font-weight: 700;
+  margin: 1rem 0 0.5rem;
+}
+.bn-surface h2 {
+  font-size: 1.25rem;
+  line-height: 1.35;
+  font-weight: 700;
+  margin: 0.75rem 0 0.5rem;
+}
+.bn-surface ul,
+.bn-surface ol {
+  padding-left: 1.25rem;
+  margin: 0.5rem 0;
+}
+.bn-surface blockquote {
+  margin: 0.75rem 0;
+  padding-left: 0.75rem;
+  border-left: 3px solid var(--slate-300);
+  color: var(--slate-600);
+}
+.bn-surface pre {
+  background: #0f172a;
+  color: #e2e8f0;
+  border-radius: 8px;
+  padding: 10px 12px;
+  overflow: auto;
+  font-size: 0.875rem;
+}

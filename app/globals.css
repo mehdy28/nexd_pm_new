@@ -1,0 +1,117 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Updated to NEXD.PM brand colors - teal primary, dark blue-gray backgrounds */
+    --background: 0 0% 100%;
+    --foreground: 210 20% 25%;
+    --card: 0 0% 98%;
+    --card-foreground: 210 20% 25%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 210 20% 25%;
+    --primary: 174 70% 54%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 174 70% 60%;
+    --secondary-foreground: 0 0% 100%;
+    --muted: 210 40% 96%;
+    --muted-foreground: 210 15% 50%;
+    --accent: 174 70% 60%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 220 13% 91%;
+    --input: 0 0% 100%;
+    --ring: 174 70% 54%;
+    --chart-1: 174 70% 54%;
+    --chart-2: 174 70% 60%;
+    --chart-3: 210 40% 96%;
+    --chart-4: 210 20% 25%;
+    --chart-5: 210 15% 50%;
+    --radius: 0.75rem;
+    /* Updated sidebar to use NEXD.PM dark blue-gray background */
+    --sidebar-background: 210 25% 25%;
+    --sidebar-foreground: 0 0% 100%;
+    --sidebar-primary: 174 70% 54%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 210 25% 30%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 210 25% 35%;
+    --sidebar-ring: 174 70% 54%;
+  }
+
+  .dark {
+    /* Updated dark mode to use NEXD.PM colors */
+    --background: 210 25% 20%;
+    --foreground: 0 0% 100%;
+    --card: 210 25% 25%;
+    --card-foreground: 0 0% 100%;
+    --popover: 210 25% 20%;
+    --popover-foreground: 0 0% 100%;
+    --primary: 174 70% 54%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 174 70% 60%;
+    --secondary-foreground: 0 0% 100%;
+    --muted: 210 25% 30%;
+    --muted-foreground: 210 10% 70%;
+    --accent: 174 70% 54%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 63% 31%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 210 25% 35%;
+    --input: 210 25% 30%;
+    --ring: 174 70% 54%;
+    --chart-1: 174 70% 54%;
+    --chart-2: 174 70% 60%;
+    --chart-3: 210 25% 30%;
+    --chart-4: 0 0% 100%;
+    --chart-5: 210 10% 70%;
+    --sidebar-background: 210 25% 18%;
+    --sidebar-foreground: 0 0% 100%;
+    --sidebar-primary: 174 70% 54%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 210 25% 25%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 210 25% 30%;
+    --sidebar-ring: 174 70% 54%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    /* Added smooth font rendering for better text quality */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+/* Added modern utility classes for shadows and effects */
+@layer utilities {
+  .shadow-soft {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04), 0 1px 3px rgba(0, 0, 0, 0.06);
+  }
+
+  .shadow-medium {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08), 0 2px 4px rgba(0, 0, 0, 0.06);
+  }
+
+  .shadow-strong {
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12), 0 4px 8px rgba(0, 0, 0, 0.08);
+  }
+
+  .glass-effect {
+    backdrop-filter: blur(12px) saturate(150%);
+    background: rgba(255, 255, 255, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+  }
+
+  .dark .glass-effect {
+    background: rgba(51, 65, 85, 0.8);
+    border: 1px solid rgba(71, 85, 105, 0.3);
+  }
+}
