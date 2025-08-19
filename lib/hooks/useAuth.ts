@@ -1,20 +1,30 @@
 "use client"
 
-import { useSession, signIn, signOut } from "next-auth/react"
-import { useQuery } from "@apollo/client"
-import { GET_ME } from "@/graphql/queries/user"
+import { useEffect, useState } from "react"
+import { auth } from "@/lib/firebase"
+import { onAuthStateChanged, signOut as firebaseSignOut } from "firebase/auth"
 
 export function useAuth() {
-  const { data: session, status } = useSession()
-  const { data: userData, loading: userLoading } = useQuery(GET_ME, {
-    skip: !session?.user,
-  })
+  const [user, setUser] = useState(null)
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      setUser(firebaseUser)
+      setIsLoading(false)
+    })
+
+    return () => unsubscribe()
+  }, [])
+
+  const signOut = async () => {
+    await firebaseSignOut(auth)
+  }
 
   return {
-    user: userData?.me || session?.user,
-    isLoading: status === "loading" || userLoading,
-    isAuthenticated: !!session?.user,
-    signIn,
+    user,
+    isLoading,
+    isAuthenticated: !!user,
     signOut,
   }
 }
