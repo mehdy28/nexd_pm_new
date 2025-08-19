@@ -1,5 +1,3 @@
-"use client";
-
 import { getBlogPost, getRelatedPosts } from "@/lib/blog";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -17,14 +15,14 @@ interface BlogPostPageProps {
   };
 }
 
-export default function BlogPostPage({ params }: BlogPostPageProps) {
-  const post = getBlogPost(params.slug);
+export default async function BlogPostPage({ params }: BlogPostPageProps) {
+  const post = await getBlogPost(params.slug);
 
   if (!post) {
     notFound();
   }
 
-  const relatedPosts = getRelatedPosts(post.slug, post.tags);
+  const relatedPosts = await getRelatedPosts(post.slug, post.tags);
 
   return (
     <div className="min-h-screen bg-white">
@@ -48,19 +46,7 @@ export default function BlogPostPage({ params }: BlogPostPageProps) {
                   className="h-12 w-auto"
                 />
               </Link>
-              <div className="w-[120px]">
-                <Button
-                  className="bg-teal-600 hover:bg-teal-700 text-white"
-                  onClick={() => {
-                    document
-                      .getElementById("waitlist-form")
-                      ?.scrollIntoView({ behavior: "smooth" });
-                  }}
-                >
-                  Join Wait List
-                </Button>
-              </div>{" "}
-              {/* Spacer to balance the layout */}
+              <div className="w-[120px]"></div>
             </div>
           </div>
         </div>

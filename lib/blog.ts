@@ -123,9 +123,6 @@
 
 
 
-
-
-
 import path from "path";
 import matter from "gray-matter";
 import { cache } from "react";
@@ -157,7 +154,7 @@ export interface BlogMetadata {
 
 const blogsDirectory = path.join(process.cwd(), "public/blogs");
 
-const getAllBlogPosts = cache(async (): Promise<BlogPost[]> => {
+export const getAllBlogPosts = cache(async (): Promise<BlogPost[]> => {
   if (typeof window !== "undefined") {
     console.warn(
       "getAllBlogPosts should not be called from the client; returning an empty array."
