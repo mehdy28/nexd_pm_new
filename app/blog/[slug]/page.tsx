@@ -46,7 +46,18 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
                   className="h-12 w-auto"
                 />
               </Link>
-              <div className="w-[120px]"></div>
+              <div className="w-[120px]">
+                  <Button
+                    className="bg-teal-600 hover:bg-teal-700 text-white"
+                    onClick={() => {
+                      document
+                        .getElementById("waitlist-form")
+                        ?.scrollIntoView({ behavior: "smooth" });
+                    }}
+                  >
+                    Join Wait List
+                  </Button>
+                </div>
             </div>
           </div>
         </div>
