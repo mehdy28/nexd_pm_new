@@ -6,8 +6,6 @@ import Image from "next/image"
 import Link from "next/link"
 import { WaitlistForm } from "@/components/blog/waitlist-form"
 import { Header } from "@/components/sections/header"
-
-
 export default function BlogPage() {
   const posts = getAllBlogPosts()
   const featuredPost = posts[0]
@@ -18,14 +16,13 @@ export default function BlogPage() {
     <div className="min-h-screen bg-gray-50">
 
 
-            <Header />
-      
+<Header />
+
       {/* Header with Logo */}
       {/* <div className="bg-white border-b border-gray-200">
-        <div className="container mx-auto px-4 py-2">
+        <div className="container mx-auto px-4 py-6">
           <div className="max-w-6xl mx-auto">
-            {/* Logo and Navigation */}
-            <div className="flex items-center justify-between mb-0">
+            <div className="flex items-center justify-between mb-8">
               <Link href="/" className="flex items-center">
                 <Image
                   src="/nexd-logo-horizontal.png"
@@ -54,13 +51,12 @@ export default function BlogPage() {
               </nav>
             </div>
 
-            {/* Blog Title and Description */}
-            {/* <div className="text-center">
+            <div className="text-center">
               <h1 className="text-5xl font-bold text-gray-900 mb-4">NEXD.PM Insights</h1>
               <p className="text-xl text-gray-600 leading-relaxed max-w-3xl mx-auto">
                 The latest in AI-powered project management, visual prompt engineering, and the future of work
               </p>
-            </div> */}
+            </div>
           </div>
         </div>
       </div> */}
