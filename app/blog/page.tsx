@@ -19,7 +19,7 @@ export default function BlogPage() {
         <div className="container mx-auto px-4 py-6">
           <div className="max-w-6xl mx-auto">
             {/* Logo and Navigation */}
-            <div className="flex items-center justify-between mb-8">
+            <div className="flex items-center justify-between mb-2">
               <Link href="/" className="flex items-center">
                 <Image
                   src="/nexd-logo-horizontal.png"
