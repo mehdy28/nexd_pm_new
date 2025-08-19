@@ -1,3 +1,5 @@
+"use client";
+
 import { getBlogPost, getRelatedPosts } from "@/lib/blog";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
