@@ -221,14 +221,14 @@ export default function SetupPage() {
               <p className="text-gray-600 text-sm">See how your workspace will look</p>
             </div> */}
 
-            <div className="  ">
+          <div className="flex items-center justify-center h-full">
               <WorkspacePreview
                 workspaceTitle={setupData.workspaceTitle}
                 projectTitle={setupData.projectName}
                 viewType={setupData.preferredView as "list" | "board" | "calendar"}
                 template={setupData.template as "blank" | "marketing" | "development" | "design"}
               />
-            </div>
+          </div>
           </div>
         </div>
       </div>
