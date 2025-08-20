@@ -1,12 +1,15 @@
+// ./graphql/resolvers/project.ts
+
 import type { Context } from "@/lib/apollo-server"
 import { requireAuth, requireProjectAccess } from "@/lib/utils/auth"
+import { prisma } from "@/lib/prisma" // Import Prisma client
 
 export const projectResolvers = {
   Query: {
     project: async (_: any, { id }: { id: string }, context: Context) => {
       requireProjectAccess(context, id)
 
-      return await context.prisma.project.findUnique({
+      return await prisma.project.findUnique({
         where: { id },
         include: {
           workspace: true,
@@ -31,7 +34,7 @@ export const projectResolvers = {
     projects: async (_: any, { workspaceId }: { workspaceId: string }, context: Context) => {
       const user = requireAuth(context)
 
-      return await context.prisma.project.findMany({
+      return await prisma.project.findMany({
         where: {
           workspaceId,
           OR: [
@@ -62,7 +65,7 @@ export const projectResolvers = {
     createProject: async (_: any, { input }: { input: any }, context: Context) => {
       const user = requireAuth(context)
 
-      const project = await context.prisma.project.create({
+      const project = await prisma.project.create({
         data: {
           name: input.name,
           description: input.description,
@@ -76,7 +79,7 @@ export const projectResolvers = {
       })
 
       // Add creator as project member
-      await context.prisma.projectMember.create({
+      await prisma.projectMember.create({
         data: {
           projectId: project.id,
           userId: user.id,
@@ -85,7 +88,7 @@ export const projectResolvers = {
       })
 
       // Create activity
-      await context.prisma.activity.create({
+      await prisma.activity.create({
         data: {
           type: "PROJECT_CREATED",
           data: { projectName: project.name },
@@ -101,7 +104,7 @@ export const projectResolvers = {
       const user = requireAuth(context)
       requireProjectAccess(context, id)
 
-      const project = await context.prisma.project.update({
+      const project = await prisma.project.update({
         where: { id },
         data: {
           name: input.name,
@@ -123,7 +126,7 @@ export const projectResolvers = {
       })
 
       // Create activity
-      await context.prisma.activity.create({
+      await prisma.activity.create({
         data: {
           type: "PROJECT_UPDATED",
           data: { projectName: project.name },
@@ -138,7 +141,7 @@ export const projectResolvers = {
     deleteProject: async (_: any, { id }: { id: string }, context: Context) => {
       requireProjectAccess(context, id)
 
-      await context.prisma.project.delete({
+      await prisma.project.delete({
         where: { id },
       })
 
@@ -147,13 +150,13 @@ export const projectResolvers = {
   },
 
   Project: {
-    workspace: async (parent: any, _: any, { prisma }: Context) => {
+    workspace: async (parent: any, _: any, context: Context) => {
       return await prisma.workspace.findUnique({
         where: { id: parent.workspaceId },
       })
     },
 
-    members: async (parent: any, _: any, { prisma }: Context) => {
+    members: async (parent: any, _: any, context: Context) => {
       return await prisma.projectMember.findMany({
         where: { projectId: parent.id },
         include: {
@@ -163,7 +166,7 @@ export const projectResolvers = {
       })
     },
 
-    tasks: async (parent: any, _: any, { prisma }: Context) => {
+    tasks: async (parent: any, _: any, context: Context) => {
       return await prisma.task.findMany({
         where: { projectId: parent.id },
         include: {
@@ -179,21 +182,21 @@ export const projectResolvers = {
       })
     },
 
-    documents: async (parent: any, _: any, { prisma }: Context) => {
+    documents: async (parent: any, _: any, context: Context) => {
       return await prisma.document.findMany({
         where: { projectId: parent.id },
         orderBy: { createdAt: "desc" },
       })
     },
 
-    wireframes: async (parent: any, _: any, { prisma }: Context) => {
+    wireframes: async (parent: any, _: any, context: Context) => {
       return await prisma.wireframe.findMany({
         where: { projectId: parent.id },
         orderBy: { createdAt: "desc" },
       })
     },
 
-    activities: async (parent: any, _: any, { prisma }: Context) => {
+    activities: async (parent: any, _: any, context: Context) => {
       return await prisma.activity.findMany({
         where: { projectId: parent.id },
         include: {

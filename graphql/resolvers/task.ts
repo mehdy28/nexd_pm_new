@@ -1,12 +1,15 @@
+// ./graphql/resolvers/task.ts
+
 import type { Context } from "@/lib/apollo-server"
 import { requireAuth, requireProjectAccess } from "@/lib/utils/auth"
+import { prisma } from "@/lib/prisma" // Import Prisma client
 
 export const taskResolvers = {
   Query: {
     task: async (_: any, { id }: { id: string }, context: Context) => {
       const user = requireAuth(context)
 
-      const task = await context.prisma.task.findUnique({
+      const task = await prisma.task.findUnique({
         where: { id },
         include: {
           project: true,
@@ -37,7 +40,7 @@ export const taskResolvers = {
     tasks: async (_: any, { projectId }: { projectId: string }, context: Context) => {
       requireProjectAccess(context, projectId)
 
-      return await context.prisma.task.findMany({
+      return await prisma.task.findMany({
         where: { projectId },
         include: {
           assignee: true,
@@ -60,7 +63,7 @@ export const taskResolvers = {
       const user = requireAuth(context)
       requireProjectAccess(context, input.projectId)
 
-      const task = await context.prisma.task.create({
+      const task = await prisma.task.create({
         data: {
           title: input.title,
           description: input.description,
@@ -79,7 +82,7 @@ export const taskResolvers = {
       })
 
       // Create activity
-      await context.prisma.activity.create({
+      await prisma.activity.create({
         data: {
           type: "TASK_CREATED",
           data: { taskTitle: task.title },
@@ -95,7 +98,7 @@ export const taskResolvers = {
     updateTask: async (_: any, { id, input }: { id: string; input: any }, context: Context) => {
       const user = requireAuth(context)
 
-      const existingTask = await context.prisma.task.findUnique({
+      const existingTask = await prisma.task.findUnique({
         where: { id },
       })
 
@@ -103,7 +106,7 @@ export const taskResolvers = {
         requireProjectAccess(context, existingTask.projectId)
       }
 
-      const task = await context.prisma.task.update({
+      const task = await prisma.task.update({
         where: { id },
         data: {
           title: input.title,
@@ -126,7 +129,7 @@ export const taskResolvers = {
       })
 
       // Create activity
-      await context.prisma.activity.create({
+      await prisma.activity.create({
         data: {
           type: "TASK_UPDATED",
           data: { taskTitle: task.title },
@@ -142,7 +145,7 @@ export const taskResolvers = {
     deleteTask: async (_: any, { id }: { id: string }, context: Context) => {
       const user = requireAuth(context)
 
-      const task = await context.prisma.task.findUnique({
+      const task = await prisma.task.findUnique({
         where: { id },
       })
 
@@ -150,7 +153,7 @@ export const taskResolvers = {
         requireProjectAccess(context, task.projectId)
       }
 
-      await context.prisma.task.delete({
+      await prisma.task.delete({
         where: { id },
       })
 
@@ -159,33 +162,33 @@ export const taskResolvers = {
   },
 
   Task: {
-    project: async (parent: any, _: any, { prisma }: Context) => {
+    project: async (parent: any, _: any, context: Context) => {
       return await prisma.project.findUnique({
         where: { id: parent.projectId },
       })
     },
 
-    assignee: async (parent: any, _: any, { prisma }: Context) => {
+    assignee: async (parent: any, _: any, context: Context) => {
       if (!parent.assigneeId) return null
       return await prisma.user.findUnique({
         where: { id: parent.assigneeId },
       })
     },
 
-    creator: async (parent: any, _: any, { prisma }: Context) => {
+    creator: async (parent: any, _: any, context: Context) => {
       return await prisma.user.findUnique({
         where: { id: parent.creatorId },
       })
     },
 
-    parent: async (parent: any, _: any, { prisma }: Context) => {
+    parent: async (parent: any, _: any, context: Context) => {
       if (!parent.parentId) return null
       return await prisma.task.findUnique({
         where: { id: parent.parentId },
       })
     },
 
-    subtasks: async (parent: any, _: any, { prisma }: Context) => {
+    subtasks: async (parent: any, _: any, context: Context) => {
       return await prisma.task.findMany({
         where: { parentId: parent.id },
         include: {
@@ -195,7 +198,7 @@ export const taskResolvers = {
       })
     },
 
-    comments: async (parent: any, _: any, { prisma }: Context) => {
+    comments: async (parent: any, _: any, context: Context) => {
       return await prisma.comment.findMany({
         where: { taskId: parent.id },
         include: {
@@ -205,7 +208,7 @@ export const taskResolvers = {
       })
     },
 
-    activities: async (parent: any, _: any, { prisma }: Context) => {
+    activities: async (parent: any, _: any, context: Context) => {
       return await prisma.activity.findMany({
         where: { taskId: parent.id },
         include: {
@@ -215,7 +218,7 @@ export const taskResolvers = {
       })
     },
 
-    labels: async (parent: any, _: any, { prisma }: Context) => {
+    labels: async (parent: any, _: any, context: Context) => {
       const taskLabels = await prisma.taskLabel.findMany({
         where: { taskId: parent.id },
         include: {

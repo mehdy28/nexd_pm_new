@@ -6,7 +6,8 @@ import {
   getRecentActivity,
 } from "@/lib/admin/analytics"
 import { getSupportTickets, getChatMessages, getTicketInfo, sendSupportMessage } from "@/lib/admin/support"
-import { requireAdmin } from "@/lib/middleware"
+import { requireAdmin } from "@/lib/admin/auth"
+
 
 export const adminResolvers = {
   Query: {

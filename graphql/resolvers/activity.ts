@@ -1,5 +1,8 @@
+// ./graphql/resolvers/activity.ts
+
 import type { Context } from "@/lib/apollo-server"
 import { requireAuth } from "@/lib/utils/auth"
+import { prisma } from "@/lib/prisma" // Import Prisma client
 
 export const activityResolvers = {
   Query: {
@@ -12,7 +15,7 @@ export const activityResolvers = {
         where.projectId = projectId
       } else {
         // Get activities from user's workspaces
-        const userWorkspaces = await context.prisma.workspaceMember.findMany({
+        const userWorkspaces = await prisma.workspaceMember.findMany({
           where: { userId: user.id },
           select: { workspaceId: true },
         })
@@ -26,7 +29,7 @@ export const activityResolvers = {
         }
       }
 
-      return await context.prisma.activity.findMany({
+      return await prisma.activity.findMany({
         where,
         include: {
           user: true,
@@ -42,34 +45,34 @@ export const activityResolvers = {
   },
 
   Activity: {
-    user: async (parent: any, _: any, { prisma }: Context) => {
+    user: async (parent: any, _: any, context: Context) => {
       return await prisma.user.findUnique({
         where: { id: parent.userId },
       })
     },
 
-    project: async (parent: any, _: any, { prisma }: Context) => {
+    project: async (parent: any, _: any, context: Context) => {
       if (!parent.projectId) return null
       return await prisma.project.findUnique({
         where: { id: parent.projectId },
       })
     },
 
-    task: async (parent: any, _: any, { prisma }: Context) => {
+    task: async (parent: any, _: any, context: Context) => {
       if (!parent.taskId) return null
       return await prisma.task.findUnique({
         where: { id: parent.taskId },
       })
     },
 
-    document: async (parent: any, _: any, { prisma }: Context) => {
+    document: async (parent: any, _: any, context: Context) => {
       if (!parent.documentId) return null
       return await prisma.document.findUnique({
         where: { id: parent.documentId },
       })
     },
 
-    wireframe: async (parent: any, _: any, { prisma }: Context) => {
+    wireframe: async (parent: any, _: any, context: Context) => {
       if (!parent.wireframeId) return null
       return await prisma.wireframe.findUnique({
         where: { id: parent.wireframeId },

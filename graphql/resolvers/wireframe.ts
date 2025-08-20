@@ -1,12 +1,15 @@
+// ./graphql/resolvers/wireframe.ts
+
 import type { Context } from "@/lib/apollo-server"
 import { requireAuth, requireProjectAccess } from "@/lib/utils/auth"
+import { prisma } from "@/lib/prisma" // Import Prisma client
 
 export const wireframeResolvers = {
   Query: {
     wireframe: async (_: any, { id }: { id: string }, context: Context) => {
       const user = requireAuth(context)
 
-      const wireframe = await context.prisma.wireframe.findUnique({
+      const wireframe = await prisma.wireframe.findUnique({
         where: { id },
         include: {
           project: true,
@@ -28,7 +31,7 @@ export const wireframeResolvers = {
     wireframes: async (_: any, { projectId }: { projectId: string }, context: Context) => {
       requireProjectAccess(context, projectId)
 
-      return await context.prisma.wireframe.findMany({
+      return await prisma.wireframe.findMany({
         where: { projectId },
         orderBy: { createdAt: "desc" },
       })
@@ -40,7 +43,7 @@ export const wireframeResolvers = {
       const user = requireAuth(context)
       requireProjectAccess(context, input.projectId)
 
-      const wireframe = await context.prisma.wireframe.create({
+      const wireframe = await prisma.wireframe.create({
         data: {
           title: input.title,
           data: input.data,
@@ -53,7 +56,7 @@ export const wireframeResolvers = {
       })
 
       // Create activity
-      await context.prisma.activity.create({
+      await prisma.activity.create({
         data: {
           type: "WIREFRAME_CREATED",
           data: { wireframeTitle: wireframe.title },
@@ -69,7 +72,7 @@ export const wireframeResolvers = {
     updateWireframe: async (_: any, { id, input }: { id: string; input: any }, context: Context) => {
       const user = requireAuth(context)
 
-      const existingWireframe = await context.prisma.wireframe.findUnique({
+      const existingWireframe = await prisma.wireframe.findUnique({
         where: { id },
       })
 
@@ -77,7 +80,7 @@ export const wireframeResolvers = {
         requireProjectAccess(context, existingWireframe.projectId)
       }
 
-      const wireframe = await context.prisma.wireframe.update({
+      const wireframe = await prisma.wireframe.update({
         where: { id },
         data: {
           title: input.title,
@@ -90,7 +93,7 @@ export const wireframeResolvers = {
       })
 
       // Create activity
-      await context.prisma.activity.create({
+      await prisma.activity.create({
         data: {
           type: "WIREFRAME_UPDATED",
           data: { wireframeTitle: wireframe.title },
@@ -104,7 +107,7 @@ export const wireframeResolvers = {
     },
 
     deleteWireframe: async (_: any, { id }: { id: string }, context: Context) => {
-      const wireframe = await context.prisma.wireframe.findUnique({
+      const wireframe = await prisma.wireframe.findUnique({
         where: { id },
       })
 
@@ -112,7 +115,7 @@ export const wireframeResolvers = {
         requireProjectAccess(context, wireframe.projectId)
       }
 
-      await context.prisma.wireframe.delete({
+      await prisma.wireframe.delete({
         where: { id },
       })
 
@@ -121,13 +124,13 @@ export const wireframeResolvers = {
   },
 
   Wireframe: {
-    project: async (parent: any, _: any, { prisma }: Context) => {
+    project: async (parent: any, _: any, context: Context) => {
       return await prisma.project.findUnique({
         where: { id: parent.projectId },
       })
     },
 
-    comments: async (parent: any, _: any, { prisma }: Context) => {
+    comments: async (parent: any, _: any, context: Context) => {
       return await prisma.comment.findMany({
         where: { wireframeId: parent.id },
         include: {
@@ -137,7 +140,7 @@ export const wireframeResolvers = {
       })
     },
 
-    activities: async (parent: any, _: any, { prisma }: Context) => {
+    activities: async (parent: any, _: any, context: Context) => {
       return await prisma.activity.findMany({
         where: { wireframeId: parent.id },
         include: {

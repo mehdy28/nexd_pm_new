@@ -1,12 +1,15 @@
+// ./graphql/resolvers/workspace.ts
+
 import type { Context } from "@/lib/apollo-server"
 import { requireAuth, requireWorkspaceAccess } from "@/lib/utils/auth"
+import { prisma } from "@/lib/prisma" // Import Prisma client
 
 export const workspaceResolvers = {
   Query: {
     workspace: async (_: any, { id }: { id: string }, context: Context) => {
       requireWorkspaceAccess(context, id)
 
-      return await context.prisma.workspace.findUnique({
+      return await prisma.workspace.findUnique({
         where: { id },
         include: {
           owner: true,
@@ -25,7 +28,7 @@ export const workspaceResolvers = {
     workspaces: async (_: any, __: any, context: Context) => {
       const user = requireAuth(context)
 
-      return await context.prisma.workspace.findMany({
+      return await prisma.workspace.findMany({
         where: {
           OR: [
             { ownerId: user.id },
@@ -55,7 +58,7 @@ export const workspaceResolvers = {
     createWorkspace: async (_: any, { input }: { input: any }, context: Context) => {
       const user = requireAuth(context)
 
-      const workspace = await context.prisma.workspace.create({
+      const workspace = await prisma.workspace.create({
         data: {
           name: input.name,
           slug: input.slug,
@@ -76,7 +79,7 @@ export const workspaceResolvers = {
       })
 
       // Add owner as workspace member
-      await context.prisma.workspaceMember.create({
+      await prisma.workspaceMember.create({
         data: {
           workspaceId: workspace.id,
           userId: user.id,
@@ -90,7 +93,7 @@ export const workspaceResolvers = {
     updateWorkspace: async (_: any, { id, input }: { id: string; input: any }, context: Context) => {
       requireWorkspaceAccess(context, id)
 
-      return await context.prisma.workspace.update({
+      return await prisma.workspace.update({
         where: { id },
         data: {
           name: input.name,
@@ -111,7 +114,7 @@ export const workspaceResolvers = {
     deleteWorkspace: async (_: any, { id }: { id: string }, context: Context) => {
       requireWorkspaceAccess(context, id)
 
-      await context.prisma.workspace.delete({
+      await prisma.workspace.delete({
         where: { id },
       })
 
@@ -120,13 +123,13 @@ export const workspaceResolvers = {
   },
 
   Workspace: {
-    owner: async (parent: any, _: any, { prisma }: Context) => {
+    owner: async (parent: any, _: any, context: Context) => {
       return await prisma.user.findUnique({
         where: { id: parent.ownerId },
       })
     },
 
-    members: async (parent: any, _: any, { prisma }: Context) => {
+    members: async (parent: any, _: any, context: Context) => {
       return await prisma.workspaceMember.findMany({
         where: { workspaceId: parent.id },
         include: {
@@ -136,20 +139,20 @@ export const workspaceResolvers = {
       })
     },
 
-    projects: async (parent: any, _: any, { prisma }: Context) => {
+    projects: async (parent: any, _: any, context: Context) => {
       return await prisma.project.findMany({
         where: { workspaceId: parent.id },
         orderBy: { createdAt: "desc" },
       })
     },
 
-    subscription: async (parent: any, _: any, { prisma }: Context) => {
+    subscription: async (parent: any, _: any, context: Context) => {
       return await prisma.subscription.findUnique({
         where: { workspaceId: parent.id },
       })
     },
 
-    settings: async (parent: any, _: any, { prisma }: Context) => {
+    settings: async (parent: any, _: any, context: Context) => {
       return await prisma.workspaceSettings.findUnique({
         where: { workspaceId: parent.id },
       })
