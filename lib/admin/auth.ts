@@ -1,16 +1,12 @@
-import { prisma } from "@/lib/prisma"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/app/api/auth/[...nextauth]/route"
+import { db } from "@/lib/firebase"
+import { doc, getDoc, updateDoc, addDoc, collection } from "firebase/firestore"
+import { auth } from "firebase-admin/auth"
 
 export async function requireAdmin(context?: any) {
   let user = context?.user
 
   if (!user) {
-    const session = await getServerSession(authOptions)
-    if (!session?.user) {
-      throw new Error("Authentication required")
-    }
-    user = session.user
+    throw new Error("Authentication required")
   }
 
   if (user.role !== "ADMIN") {
@@ -21,53 +17,50 @@ export async function requireAdmin(context?: any) {
 }
 
 export async function isUserAdmin(userId: string): Promise<boolean> {
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { role: true },
-  })
+  const userDoc = await getDoc(doc(db, "users", userId))
+  const userData = userDoc.data()
 
-  return user?.role === "ADMIN"
+  return userData?.role === "ADMIN"
 }
 
 export async function promoteUserToAdmin(userId: string, promotedBy: string) {
-  const promoter = await prisma.user.findUnique({
-    where: { id: promotedBy },
-    select: { role: true },
-  })
+  const promoterDoc = await getDoc(doc(db, "users", promotedBy))
+  const promoterData = promoterDoc.data()
 
-  if (promoter?.role !== "ADMIN") {
+  if (promoterData?.role !== "ADMIN") {
     throw new Error("Only admins can promote users")
   }
 
-  const updatedUser = await prisma.user.update({
-    where: { id: userId },
-    data: { role: "ADMIN" },
+  // Update user role in Firestore
+  await updateDoc(doc(db, "users", userId), {
+    role: "ADMIN",
+    updatedAt: new Date(),
   })
+
+  // Set custom claims in Firebase Auth
+  await auth.setCustomUserClaims(userId, { role: "ADMIN" })
 
   // Log the promotion
-  await prisma.activity.create({
+  await addDoc(collection(db, "activities"), {
+    type: "USER_PROMOTED",
     data: {
-      action: "PROMOTED_TO_ADMIN",
-      entityType: "USER",
-      entityId: userId,
-      userId: promotedBy,
-      metadata: {
-        targetUserId: userId,
-        promotedBy: promotedBy,
-      },
+      targetUserId: userId,
+      promotedBy: promotedBy,
     },
+    userId: promotedBy,
+    createdAt: new Date(),
   })
 
-  return updatedUser
+  // Get updated user data
+  const updatedUserDoc = await getDoc(doc(db, "users", userId))
+  return { id: userId, ...updatedUserDoc.data() }
 }
 
 export async function demoteAdminUser(userId: string, demotedBy: string) {
-  const demoter = await prisma.user.findUnique({
-    where: { id: demotedBy },
-    select: { role: true },
-  })
+  const demoterDoc = await getDoc(doc(db, "users", demotedBy))
+  const demoterData = demoterDoc.data()
 
-  if (demoter?.role !== "ADMIN") {
+  if (demoterData?.role !== "ADMIN") {
     throw new Error("Only admins can demote users")
   }
 
@@ -76,24 +69,27 @@ export async function demoteAdminUser(userId: string, demotedBy: string) {
     throw new Error("Cannot demote yourself")
   }
 
-  const updatedUser = await prisma.user.update({
-    where: { id: userId },
-    data: { role: "USER" },
+  // Update user role in Firestore
+  await updateDoc(doc(db, "users", userId), {
+    role: "MEMBER",
+    updatedAt: new Date(),
   })
+
+  // Remove custom claims in Firebase Auth
+  await auth.setCustomUserClaims(userId, { role: "MEMBER" })
 
   // Log the demotion
-  await prisma.activity.create({
+  await addDoc(collection(db, "activities"), {
+    type: "USER_DEMOTED",
     data: {
-      action: "DEMOTED_FROM_ADMIN",
-      entityType: "USER",
-      entityId: userId,
-      userId: demotedBy,
-      metadata: {
-        targetUserId: userId,
-        demotedBy: demotedBy,
-      },
+      targetUserId: userId,
+      demotedBy: demotedBy,
     },
+    userId: demotedBy,
+    createdAt: new Date(),
   })
 
-  return updatedUser
+  // Get updated user data
+  const updatedUserDoc = await getDoc(doc(db, "users", userId))
+  return { id: userId, ...updatedUserDoc.data() }
 }

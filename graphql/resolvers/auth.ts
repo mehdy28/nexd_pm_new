@@ -1,63 +1,75 @@
 import type { Context } from "@/lib/apollo-server"
-import bcrypt from "bcryptjs"
-import jwt from "jsonwebtoken"
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from "firebase/auth"
+import { auth } from "@/lib/firebase"
+import { doc, setDoc } from "firebase/firestore"
 
 export const authResolvers = {
   Mutation: {
     signUp: async (_: any, { input }: { input: any }, { prisma }: Context) => {
       const { email, password, name } = input
 
-      // Check if user already exists
-      const existingUser = await prisma.user.findUnique({
-        where: { email },
-      })
+      try {
+        // Create user with Firebase Auth
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password)
+        const firebaseUser = userCredential.user
 
-      if (existingUser) {
-        throw new Error("User already exists with this email")
-      }
-
-      // Hash password
-      const hashedPassword = await bcrypt.hash(password, 12)
-
-      // Create user
-      const user = await prisma.user.create({
-        data: {
+        // Create user document in Firestore
+        const userData = {
           email,
-          password: hashedPassword,
           name,
-        },
-      })
+          role: "MEMBER",
+          createdAt: new Date(),
+        }
+        
+        await setDoc(doc(db, "users", firebaseUser.uid), userData)
 
-      // Generate JWT token
-      const token = jwt.sign({ userId: user.id }, process.env.JWT_SECRET || "fallback-secret", { expiresIn: "7d" })
+        // Get ID token
+        const token = await firebaseUser.getIdToken()
 
-      return {
-        user,
-        token,
+        return {
+          user: {
+            id: firebaseUser.uid,
+            email: firebaseUser.email,
+            name,
+            role: "MEMBER",
+          },
+          token,
+        }
+      } catch (error: any) {
+        throw new Error(error.message || "Failed to create user")
       }
     },
 
-    signIn: async (_: any, { input }: { input: any }, { prisma }: Context) => {
+    signIn: async (_: any, { input }: { input: any }, { db }: Context) => {
       const { email, password } = input
 
-      // Find user
-      const user = await prisma.user.findUnique({
-        where: { email },
-      })
+      try {
+        // Sign in with Firebase Auth
+        const userCredential = await signInWithEmailAndPassword(auth, email, password)
+        const firebaseUser = userCredential.user
 
-      if (!user) {
+        // Get user data from Firestore
+        const userDoc = await getDoc(doc(db, "users", firebaseUser.uid))
+        const userData = userDoc.data()
+
+        // Get ID token
+        const token = await firebaseUser.getIdToken()
+
+        return {
+          user: {
+            id: firebaseUser.uid,
+            email: firebaseUser.email,
+            name: userData?.name || firebaseUser.displayName,
+            role: userData?.role || "MEMBER",
+          },
+          token,
+        }
+      } catch (error: any) {
         throw new Error("Invalid email or password")
       }
-
-      // Verify password
-      const isPasswordValid = await bcrypt.compare(password, user.password)
-
-      if (!isPasswordValid) {
-        throw new Error("Invalid email or password")
-      }
-
-      // Generate JWT token
-      const token = jwt.sign({ userId: user.id }, process.env.JWT_SECRET || "fallback-secret", { expiresIn: "7d" })
+    },
+  },
+}
 
       return {
         user,

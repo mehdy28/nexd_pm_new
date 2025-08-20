@@ -1,6 +1,8 @@
 import type React from "react"
 import type { Metadata } from "next"
 import { Geist, Manrope } from "next/font/google"
+import { ApolloProvider } from "@apollo/client"
+import { apolloClient } from "@/lib/apollo-client"
 import "./globals.css"
 
 const geist = Geist({
@@ -28,7 +30,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${geist.variable} ${manrope.variable} antialiased`}>
-      <body className="font-sans">{children}</body>
+      <body className="font-sans">
+        <ApolloProvider client={apolloClient}>
+          {children}
+        </ApolloProvider>
+      </body>
     </html>
   )
 }

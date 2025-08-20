@@ -55,17 +55,19 @@ export function Sidebar() {
   const pathname = usePathname()
 
   const handleLogout = () => {
-    localStorage.removeItem("user")
-    localStorage.removeItem("hasCompletedSetup")
-    window.location.href = "/login"
+    // Use Firebase signOut
+    import("@/lib/firebase").then(({ auth }) => {
+      import("firebase/auth").then(({ signOut }) => {
+        signOut(auth).then(() => {
+          localStorage.removeItem("hasCompletedSetup")
+          window.location.href = "/login"
+        })
+      })
+    })
   }
 
   const getUserInitial = () => {
-    const userStr = localStorage.getItem("user")
-    if (userStr) {
-      const user = JSON.parse(userStr)
-      return user?.firstName?.[0] || "U"
-    }
+    // This will be handled by Firebase auth state
     return "U"
   }
 

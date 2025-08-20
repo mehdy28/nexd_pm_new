@@ -1,4 +1,5 @@
-import { prisma } from "@/lib/prisma"
+import { db } from "@/lib/firebase"
+import { collection, getDocs, query, where, orderBy, limit, addDoc, updateDoc, doc } from "firebase/firestore"
 
 export interface SupportTicket {
   id: string
@@ -31,179 +32,107 @@ export interface ChatMessage {
 }
 
 export async function getSupportTickets(searchQuery?: string): Promise<SupportTicket[]> {
-  const whereClause = searchQuery
-    ? {
-        OR: [
-          { subject: { contains: searchQuery, mode: "insensitive" as const } },
-          { user: { name: { contains: searchQuery, mode: "insensitive" as const } } },
-          { workspace: { name: { contains: searchQuery, mode: "insensitive" as const } } },
-        ],
-      }
-    : {}
+  // Get support tickets from Firestore
+  let ticketsQuery = query(
+    collection(db, "supportTickets"),
+    orderBy("updatedAt", "desc")
+  )
+  
+  const ticketsSnapshot = await getDocs(ticketsQuery)
+  const tickets = ticketsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
 
-  const tickets = await prisma.supportTicket.findMany({
-    where: whereClause,
-    include: {
-      user: {
-        select: {
-          name: true,
-          email: true,
-          avatar: true,
-        },
-      },
-      workspace: {
-        select: {
-          name: true,
-          subscription: {
-            select: {
-              plan: true,
-            },
-          },
-        },
-      },
-      messages: {
-        take: 1,
-        orderBy: {
-          createdAt: "desc",
-        },
-        select: {
-          content: true,
-        },
-      },
-      _count: {
-        select: {
-          messages: {
-            where: {
-              isRead: false,
-              sender: "USER",
-            },
-          },
-        },
-      },
-    },
-    orderBy: {
-      updatedAt: "desc",
-    },
-  })
+  // Filter by search query if provided (client-side filtering for simplicity)
+  const filteredTickets = searchQuery 
+    ? tickets.filter(ticket => 
+        ticket.subject?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        ticket.user?.name?.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    : tickets
 
-  return tickets.map((ticket) => ({
+  return filteredTickets.map((ticket: any) => ({
     id: ticket.id,
     user: {
-      name: ticket.user.name || "Unknown User",
-      email: ticket.user.email,
-      avatar: ticket.user.avatar,
+      name: ticket.user?.name || "Unknown User",
+      email: ticket.user?.email || "",
+      avatar: ticket.user?.avatar || null,
     },
     workspace: {
       name: ticket.workspace?.name || "Personal",
-      plan: ticket.workspace?.subscription?.plan || "FREE",
+      plan: ticket.workspace?.plan || "FREE",
     },
     subject: ticket.subject,
-    lastMessage: ticket.messages[0]?.content || "No messages yet",
-    status: ticket.status.toLowerCase(),
-    priority: ticket.priority.toLowerCase(),
-    createdAt: formatTimeAgo(ticket.createdAt),
-    unreadCount: ticket._count.messages,
+    lastMessage: ticket.lastMessage || "No messages yet",
+    status: ticket.status?.toLowerCase() || "open",
+    priority: ticket.priority?.toLowerCase() || "medium",
+    createdAt: formatTimeAgo(ticket.createdAt?.toDate() || new Date()),
+    unreadCount: ticket.unreadCount || 0,
   }))
 }
 
 export async function getChatMessages(ticketId: string): Promise<ChatMessage[]> {
-  const messages = await prisma.supportMessage.findMany({
-    where: {
-      ticketId,
-    },
-    include: {
-      user: {
-        select: {
-          name: true,
-          avatar: true,
-        },
-      },
-    },
-    orderBy: {
-      createdAt: "asc",
-    },
-  })
+  const messagesQuery = query(
+    collection(db, "supportMessages"),
+    where("ticketId", "==", ticketId),
+    orderBy("createdAt", "asc")
+  )
+  const messagesSnapshot = await getDocs(messagesQuery)
+  const messages = messagesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
 
-  return messages.map((message) => ({
+  return messages.map((message: any) => ({
     id: message.id,
     sender: message.sender === "USER" ? "user" : "admin",
     message: message.content,
-    timestamp: formatTimeAgo(message.createdAt),
+    timestamp: formatTimeAgo(message.createdAt?.toDate() || new Date()),
     user: {
       name: message.user?.name || (message.sender === "ADMIN" ? "Support Agent" : "Unknown User"),
-      avatar: message.user?.avatar,
+      avatar: message.user?.avatar || null,
     },
   }))
 }
 
 export async function getTicketInfo(ticketId: string) {
-  const ticket = await prisma.supportTicket.findUnique({
-    where: { id: ticketId },
-    include: {
-      user: {
-        select: {
-          name: true,
-          email: true,
-          avatar: true,
-        },
-      },
-      workspace: {
-        select: {
-          name: true,
-          subscription: {
-            select: {
-              plan: true,
-            },
-          },
-          _count: {
-            select: {
-              members: true,
-            },
-          },
-        },
-      },
-    },
-  })
+  const ticketDoc = await getDoc(doc(db, "supportTickets", ticketId))
+  const ticket = ticketDoc.data()
 
   if (!ticket) return null
 
   return {
-    id: ticket.id,
+    id: ticketId,
     user: {
-      name: ticket.user.name || "Unknown User",
-      email: ticket.user.email,
-      avatar: ticket.user.avatar,
+      name: ticket.user?.name || "Unknown User",
+      email: ticket.user?.email || "",
+      avatar: ticket.user?.avatar || null,
     },
     workspace: {
       name: ticket.workspace?.name || "Personal",
-      plan: ticket.workspace?.subscription?.plan || "FREE",
-      members: ticket.workspace?._count.members || 1,
+      plan: ticket.workspace?.plan || "FREE",
+      members: ticket.workspace?.members || 1,
     },
     subject: ticket.subject,
-    status: ticket.status.toLowerCase(),
-    priority: ticket.priority.toLowerCase(),
-    createdAt: ticket.createdAt.toISOString().split("T")[0],
+    status: ticket.status?.toLowerCase() || "open",
+    priority: ticket.priority?.toLowerCase() || "medium",
+    createdAt: ticket.createdAt?.toDate().toISOString().split("T")[0] || new Date().toISOString().split("T")[0],
     tags: ticket.tags || [],
   }
 }
 
 export async function sendSupportMessage(ticketId: string, content: string, senderId: string) {
-  const message = await prisma.supportMessage.create({
-    data: {
-      ticketId,
-      content,
-      sender: "ADMIN",
-      userId: senderId,
-    },
-  })
+  const messageData = {
+    ticketId,
+    content,
+    sender: "ADMIN",
+    userId: senderId,
+    createdAt: new Date(),
+  }
+  
+  const messageRef = await addDoc(collection(db, "supportMessages"), messageData)
 
   // Update ticket's updatedAt timestamp
-  await prisma.supportTicket.update({
-    where: { id: ticketId },
-    data: { updatedAt: new Date() },
+  await updateDoc(doc(db, "supportTickets", ticketId), {
+    updatedAt: new Date(),
   })
 
-  return message
+  return { id: messageRef.id, ...messageData }
 }
 
 function formatTimeAgo(date: Date): string {

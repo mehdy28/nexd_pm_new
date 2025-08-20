@@ -1,36 +1,35 @@
 "use client"
 
 import type React from "react"
-
-import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { ShieldX } from "lucide-react"
+import { useFirebaseAuth } from "@/lib/hooks/useFirebaseAuth"
 
 interface AdminGuardProps {
   children: React.ReactNode
 }
 
 export function AdminGuard({ children }: AdminGuardProps) {
-  const { data: session, status } = useSession()
+  const { user, loading } = useFirebaseAuth()
   const router = useRouter()
 
   useEffect(() => {
-    if (status === "loading") return
+    if (loading) return
 
-    if (!session) {
-      router.push("/auth/signin")
+    if (!user) {
+      router.push("/login")
       return
     }
 
-    if (session.user.role !== "ADMIN") {
+    if (user.role !== "ADMIN") {
       router.push("/dashboard")
       return
     }
-  }, [session, status, router])
+  }, [user, loading, router])
 
-  if (status === "loading") {
+  if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[hsl(174,70%,54%)]"></div>
@@ -38,7 +37,7 @@ export function AdminGuard({ children }: AdminGuardProps) {
     )
   }
 
-  if (!session || session.user.role !== "ADMIN") {
+  if (!user || user.role !== "ADMIN") {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <Card className="w-full max-w-md">

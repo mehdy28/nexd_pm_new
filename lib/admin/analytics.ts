@@ -1,4 +1,5 @@
-import { prisma } from "@/lib/prisma"
+import { db } from "@/lib/firebase"
+import { collection, getDocs, query, where, orderBy, limit } from "firebase/firestore"
 
 export interface DashboardMetrics {
   totalUsers: number
@@ -35,31 +36,32 @@ export interface ContentCreationData {
 }
 
 export async function getDashboardMetrics(): Promise<DashboardMetrics> {
-  const [totalUsers, activeWorkspaces, totalProjects, tasksCreated, documentsCount, wireframesCount] =
+  // Get counts from Firestore collections
+  const [usersSnapshot, workspacesSnapshot, projectsSnapshot, tasksSnapshot, documentsSnapshot, wireframesSnapshot] =
     await Promise.all([
-      prisma.user.count(),
-      prisma.workspace.count({
-        where: {
-          isActive: true,
-        },
-      }),
-      prisma.project.count(),
-      prisma.task.count(),
-      prisma.document.count(),
-      prisma.wireframe.count(),
+      getDocs(collection(db, "users")),
+      getDocs(collection(db, "workspaces")),
+      getDocs(collection(db, "projects")),
+      getDocs(collection(db, "tasks")),
+      getDocs(collection(db, "documents")),
+      getDocs(collection(db, "wireframes")),
     ])
 
+  const totalUsers = usersSnapshot.size
+  const activeWorkspaces = workspacesSnapshot.size
+  const totalProjects = projectsSnapshot.size
+  const tasksCreated = tasksSnapshot.size
+  const documentsCount = documentsSnapshot.size
+  const wireframesCount = wireframesSnapshot.size
   // Calculate monthly revenue from subscriptions
-  const subscriptions = await prisma.subscription.findMany({
-    where: {
-      status: "active",
-    },
-    include: {
-      workspace: true,
-    },
-  })
+  const subscriptionsQuery = query(
+    collection(db, "subscriptions"),
+    where("status", "==", "active")
+  )
+  const subscriptionsSnapshot = await getDocs(subscriptionsQuery)
 
-  const monthlyRevenue = subscriptions.reduce((total, sub) => {
+  const monthlyRevenue = subscriptionsSnapshot.docs.reduce((total, doc) => {
+    const sub = doc.data()
     const planPrices = {
       FREE: 0,
       PRO: 20,
@@ -73,24 +75,20 @@ export async function getDashboardMetrics(): Promise<DashboardMetrics> {
   const thirtyDaysAgo = new Date()
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
 
-  const [canceledSubscriptions, totalSubscriptionsStart] = await Promise.all([
-    prisma.subscription.count({
-      where: {
-        status: "canceled",
-        updatedAt: {
-          gte: thirtyDaysAgo,
-        },
-      },
-    }),
-    prisma.subscription.count({
-      where: {
-        createdAt: {
-          lt: thirtyDaysAgo,
-        },
-      },
-    }),
-  ])
+  const canceledQuery = query(
+    collection(db, "subscriptions"),
+    where("status", "==", "canceled"),
+    where("updatedAt", ">=", thirtyDaysAgo)
+  )
+  const canceledSnapshot = await getDocs(canceledQuery)
+  const canceledSubscriptions = canceledSnapshot.size
 
+  const oldSubscriptionsQuery = query(
+    collection(db, "subscriptions"),
+    where("createdAt", "<", thirtyDaysAgo)
+  )
+  const oldSubscriptionsSnapshot = await getDocs(oldSubscriptionsQuery)
+  const totalSubscriptionsStart = oldSubscriptionsSnapshot.size
   const churnRate = totalSubscriptionsStart > 0 ? (canceledSubscriptions / totalSubscriptionsStart) * 100 : 0
 
   return {
