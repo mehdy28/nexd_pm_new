@@ -40,12 +40,9 @@
 // }
 
 
-
-// ./app/layout.tsx
 "use client";
 
 import type React from "react";
-import type { Metadata } from "next";
 import { Geist, Manrope } from "next/font/google";
 import { ApolloProvider } from "@apollo/client";
 import { initializeApollo } from "@/lib/apollo-client";
@@ -63,11 +60,7 @@ const manrope = Manrope({
   variable: "--font-manrope",
 });
 
-export const metadata: Metadata = {
-  title: "NEXD.PM - Project Management",
-  description: "Modern project management platform",
-  generator: "v0.dev",
-};
+// Metadata is no longer defined here
 
 export default function RootLayout({
   children,
