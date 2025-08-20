@@ -1,10 +1,11 @@
 import { ApolloServer } from "@apollo/server"
-import { startServerAndCreateNextHandler } from "@apollo/server/integrations/next"
+import { startServerAndCreateNextHandler } from '@as-integrations/next';
+
 import { makeExecutableSchema } from "@graphql-tools/schema"
 import { typeDefs } from "@/graphql/schema"
 import { resolvers } from "@/graphql/resolvers"
 import { db } from "@/lib/firebase"
-import { auth } from "firebase-admin/auth"
+import { Auth } from "firebase-admin/auth"
 import { initializeApp, getApps, cert } from "firebase-admin/app"
 import { doc, getDoc } from "firebase/firestore"
 
@@ -46,7 +47,7 @@ export default startServerAndCreateNextHandler(server, {
     
     if (token) {
       try {
-        const decodedToken = await auth.verifyIdToken(token)
+        const decodedToken = await Auth.verifyIdToken(token)
         const userDoc = await getDoc(doc(db, "users", decodedToken.uid))
         const userData = userDoc.data()
         
