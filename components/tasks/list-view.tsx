@@ -270,7 +270,7 @@ export function ListView({ projectId }: ListViewProps) {
   return (
     <div className="p-6">
       <div className="flex items-center gap-3">
-        <Button onClick={addSection} className="bg-emerald-600 hover:bg-emerald-700 text-white h-9 rounded-md">
+        <Button onClick={addSection} className="bg-[#4ab5ae] text-white h-9 rounded-md">
           + Add section
         </Button>
         <DropdownMenu>
