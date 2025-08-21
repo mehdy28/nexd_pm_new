@@ -10,7 +10,7 @@ export function Topbar() {
   const { title, tabs, activeKey, setActiveKey, showShare } = useTopbar()
 
   return (
-    <header className="fixed left-20 right-0 top-0 h-20 bg-background/80 glass-effect border-b border-border z-25">
+    <header className="fixed left-20 right-0 top-0 h-25 bg-background/80 glass-effect border-b border-border z-25">
       <div className="flex flex-col h-full px-6">
         <div className="flex items-center justify-between gap-6 h-10 pt-3">
           <h1 className="text-xl font-semibold text-foreground">{title}</h1>
@@ -38,7 +38,7 @@ export function Topbar() {
         </div>
 
         {tabs.length > 0 && (
-          <div className="flex items-center py-4"> {/* Added py-4 for padding top and bottom */}
+          <div className="flex items-center pb-4  pt-4 "> {/* Added py-4 for padding top and bottom */}
             <nav aria-label="Primary" role="tablist" className="flex items-center gap-6">
               {tabs.map((t) => {
                 const isActive = activeKey === t.key
