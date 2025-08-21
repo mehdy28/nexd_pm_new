@@ -23,14 +23,14 @@ function IconButton({
   const className = cn(
     "flex h-11 w-11 items-center justify-center rounded-xl transition-all duration-200 group relative",
     isActive
-      ? "bg-[#4ab5ae] text-[#19222d] shadow-medium scale-105" // Active state: Updated BG and text color
-      : "text-[#4ab5ae] hover:bg-white hover:text-[#19222d] hover:scale-105 shadow-soft", // Inactive state: Updated text and hover colors
+      ? "bg-[#4ab5ae] text-white shadow-medium scale-105" // Active state: Updated BG and text color
+      : "text-[#4ab5ae] hover:bg-[#4ab5ae] hover:text-white hover:scale-105 shadow-soft", // Inactive state: Updated text and hover colors
   )
 
   const content = (
     <>
       {children}
-      <span className="absolute left-full ml-3 px-2 py-1 bg-white text-[#19222d] text-xs rounded-md opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-50">
+      <span className="absolute left-full ml-3 px-2 py-1 bg-white text-[#19222d] text-xs rounded-md opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-50 group-hover:bg-[#4ab5ae] group-hover:text-white">
         {label}
       </span>
     </>
@@ -73,25 +73,25 @@ export function Sidebar() {
 
   return (
     <aside className="fixed inset-y-0 left-0 w-20 bg-[#19222d] border-r border-gray-700 shadow-strong z-30 flex flex-col items-center py-6">
-      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-transparent shadow-medium hover:shadow-strong transition-all duration-200 hover:scale-105 overflow-hidden">
+      <div className="flex h-32 w-32 items-center justify-center rounded-xl bg-transparent shadow-medium hover:shadow-strong transition-all duration-200 hover:scale-105 overflow-hidden">
         <Image src="/square_logo.png" alt="NEXD.PM" width={32} height={32} className="object-contain" />
       </div>
 
       <nav className="mt-8 flex flex-col gap-4">
         <IconButton label="Workspace" href="/workspace" isActive={pathname === "/workspace"}>
-          <LayoutGrid className="h-5 w-5 text-[#4ab5ae]" />
+          <LayoutGrid className={cn("h-5 w-5", pathname === "/workspace" ? "text-white" : "text-[#4ab5ae]")} />
         </IconButton>
         <IconButton label="My Tasks" href="/my_tasks" isActive={pathname === "/my_tasks"}>
-          <Home className="h-5 w-5 text-[#4ab5ae]" />
+          <Home className={cn("h-5 w-5", pathname === "/my_tasks" ? "text-white" : "text-[#4ab5ae]")} />
         </IconButton>
         <IconButton label="Activity" href="/activity" isActive={pathname === "/activity"}>
-          <Activity className="h-5 w-5 text-[#4ab5ae]" />
+          <Activity className={cn("h-5 w-5", pathname === "/activity" ? "text-white" : "text-[#4ab5ae]")} />
         </IconButton>
         <IconButton label="Dashboard" href="/dashboard" isActive={pathname === "/dashboard"}>
-          <Gauge className="h-5 w-5 text-[#4ab5ae]" />
+          <Gauge className={cn("h-5 w-5", pathname === "/dashboard" ? "text-white" : "text-[#4ab5ae]")} />
         </IconButton>
         <IconButton label="Billing" href="/billing" isActive={pathname === "/billing"}>
-          <CreditCard className="h-5 w-5 text-[#4ab5ae]" />
+          <CreditCard className={cn("h-5 w-5", pathname === "/billing" ? "text-white" : "text-[#4ab5ae]")} />
         </IconButton>
       </nav>
 
