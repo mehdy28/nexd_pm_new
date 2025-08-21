@@ -1,216 +1,303 @@
-"use client"
+"use client";
+import React, {
+  memo,
+  useCallback,
+  useMemo,
+  useState,
+  useEffect,
+  useRef,
+} from "react";
+import { Wand2 } from "lucide-react";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import Link from "next/link"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { ArrowLeft, Save } from "lucide-react"
-import { wireframesStore, type Wireframe } from "./store"
+import type { ExcalidrawAPI } from "./escalidraw/excalidraw";
+import ExcalidrawWrapper from "./escalidraw/ExcalidrawWrapper";
+import { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
+import {
+  AppState as ExcalidrawAppState,
+  Collaborator,
+  SocketId,
+} from "@excalidraw/excalidraw/types";
 
-// Types + wrapper requested
-import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types"
-import type { AppState as ExcalidrawAppState } from "@excalidraw/excalidraw/types"
-import type { ExcalidrawAPI } from "./escalidraw/excalidraw"
-import ExcalidrawWrapper from "./escalidraw/ExcalidrawWrapper"
-
-const exportToBlob = async (...args: any[]) => {
-  const mod: any = await import("@excalidraw/excalidraw")
-  return mod.exportToBlob(...(args as any))
+// --- Type definitions ---
+interface WireframeAppState
+  extends Partial<Omit<ExcalidrawAppState, "collaborators">> {
+  collaborators?: Map<SocketId, Readonly<Collaborator>> | object;
+}
+interface WireframeContent {
+  elements?: ReadonlyArray<ExcalidrawElement>;
+  appState?: WireframeAppState;
+}
+interface SelectedWireframe {
+  id: string;
+  name: string;
+  content?: WireframeContent | null;
+}
+interface WireframeEditorPageProps {
+  wireframeId: string | null;
+  onBack: () => void;
 }
 
-export function WireframeEditor({ id, backHref }: { id: string; backHref: string }) {
-  const [wf, setWf] = useState<Wireframe | null>(null)
-  const [title, setTitle] = useState("")
-  const [excalidrawAPI, setExcalidrawAPI] = useState<ExcalidrawAPI | null>(null)
-  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-    // Memoize id and wf
-  const idRef = useRef(id);
-  useEffect(() => {
-    if (idRef.current !== id) {
-      idRef.current = id;
+// --- Debounce Utility Function ---
+function debounce<T extends (...args: any[]) => any>(
+  func: T,
+  wait: number
+): (...args: Parameters<T>) => void {
+  let timeout: ReturnType<typeof setTimeout> | null = null;
+  return function executedFunction(...args: Parameters<T>) {
+    const later = () => {
+      timeout = null;
+      func(...args);
+    };
+    if (timeout !== null) {
+      clearTimeout(timeout);
     }
-  }, [id]);
+    timeout = setTimeout(later, wait);
+  };
+}
 
-  useEffect(() => {
-    let isMounted = true;
+const WireframeEditorPage: React.FC<WireframeEditorPageProps> = memo(
+  ({ wireframeId, onBack }) => {
+    const [excalidrawAPI, setExcalidrawAPI] = useState<ExcalidrawAPI | null>(null);
+    const [isModalOpen, setIsModalOpen] = useState(false);
 
-    const fetchWireframe = async () => {
-      const found = await wireframesStore.get(idRef.current);
+    const [hasMounted, setHasMounted] = useState(false);
 
-      if (isMounted) {
-        if (found) {
-          setWf(found);
-          setTitle(found.title);
-          console.log("wf.scene:", found.scene); // Log wf.scene
-        } else {
-          const created = wireframesStore.create("Untitled Wireframe");
-          setWf(created);
-          setTitle(created.title);
-          console.log("wf.scene after create:", created.scene); // Log wf.scene after create
-        }
-      }
-    };
-
-    fetchWireframe();
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
-    // Memoize selectedWireframe
-  const selectedWireframe = useMemo(
-    () =>
-      wf
+    // --- State for Wireframe Data (replacing hooks) ---
+    const [selectedWireframe, setSelectedWireframe] = useState<SelectedWireframe | null>(
+      wireframeId
         ? {
-            id: wf.id,
+            id: wireframeId,
+            name: "Untitled Wireframe", // Initial name
             content: {
-              elements: (wf.scene?.elements ?? []) as ReadonlyArray<ExcalidrawElement>,
-              appState: (wf.scene?.appState ?? { viewBackgroundColor: "#ffffff" }) as Partial<ExcalidrawAppState>,
-              files: wf.scene?.files ?? {},
+              elements: [], // Initial elements
+              appState: { viewBackgroundColor: "#ffffff" }, // Initial app state
             },
           }
-        : null,
-    [wf]
-  );
+        : null
+    );
 
-  const excalidrawInitialData = useMemo(() => {
-    const defaultData: {
-      elements: ReadonlyArray<ExcalidrawElement>
-      appState: Partial<ExcalidrawAppState>
-    } = {
-      elements: [],
-      appState: { collaborators: new Map() as any, viewBackgroundColor: "#ffffff" }, // Added viewBackgroundColor
-    }
-    if (!selectedWireframe || !selectedWireframe.content) return defaultData
+    const [wireframeName, setWireframeName] = useState(selectedWireframe?.name || "");
+    const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    const content = selectedWireframe.content;
-    const initialAppState = (content.appState || { viewBackgroundColor: "#ffffff" }) as Partial<ExcalidrawAppState>; // Add default viewBackgroundColor
-    const { collaborators: initialCollaborators, ...restInitialAppState } = initialAppState as any;
+        useEffect(() => {
+          setHasMounted(true);
+        }, []);
 
-    const preparedAppState: Partial<ExcalidrawAppState> = { ...restInitialAppState };
-    if (initialCollaborators && typeof initialCollaborators === "object" && !(initialCollaborators instanceof Map)) {
-      preparedAppState.collaborators = new Map() as any;
-    } else if (initialCollaborators instanceof Map) {
-      preparedAppState.collaborators = initialCollaborators as any;
-    } else {
-      preparedAppState.collaborators = new Map() as any;
-    }
+    // --- Prepare initialData Prop for Excalidraw ---
+    const excalidrawInitialData = useMemo(() => {
+      const defaultData: {
+        elements: ReadonlyArray<ExcalidrawElement>;
+        appState: Partial<ExcalidrawAppState>;
+      } = {
+        elements: [],
+        appState: { collaborators: new Map() },
+      };
 
-    const initialData = {
-      elements: (content.elements || []) as ReadonlyArray<ExcalidrawElement>,
-      appState: preparedAppState,
-    };
-
-    console.log("excalidrawInitialData:", initialData); // Log excalidrawInitialData
-    return initialData;
-  }, [selectedWireframe]);
-
-  const persist = useCallback(
-    async (opts: {
-      reason: "scene" | "title"
-      elements?: ReadonlyArray<ExcalidrawElement>
-      appState?: ExcalidrawAppState
-      files?: Record<string, any>
-    }) => {
-      if (!wf) return
-      const elements =
-        opts.elements || (excalidrawAPI?.getSceneElements ? excalidrawAPI.getSceneElements() : wf.scene?.elements) || []
-      const appState =
-        opts.appState || (excalidrawAPI?.getAppState ? excalidrawAPI.getAppState() : wf.scene?.appState) || {}
-      const files = opts.files || (excalidrawAPI?.getFiles ? excalidrawAPI.getFiles() : wf.scene?.files) || {}
-
-      let previewDataUrl = wf.previewDataUrl
-      try {
-        const blob = await exportToBlob({
-          elements,
-          appState: { ...appState, exportBackground: true, viewBackgroundColor: "#ffffff" },
-          files,
-          mimeType: "image/png",
-          quality: 0.9,
-          exportPadding: 8,
-          getDimensions: () => ({ width: 800, height: 500 }),
-        } as any)
-        previewDataUrl = await blobToDataUrl(blob)
-      } catch {
-        // ignore preview errors
+      if (!selectedWireframe || !selectedWireframe.content) {
+        console.log(
+          "WireframeEditorPage: No initial content found, using default. [PROMPT]"
+        );
+        return defaultData;
       }
 
-      const updated = wireframesStore.update(wf.id, {
-        title: opts.reason === "title" ? title : wf.title,
-        scene: { elements: elements as any[], appState: appState as any, files },
-        previewDataUrl,
-      })
-      if (updated) setWf(updated)
-    },
-    [wf, title, excalidrawAPI],
-  )
+      const content = selectedWireframe.content;
+      const initialAppState = content.appState ?? {};
+      const { collaborators: initialCollaborators, ...restInitialAppState } =
+        initialAppState;
+      const preparedAppState: Partial<ExcalidrawAppState> = {
+        ...restInitialAppState,
+      };
 
-  const debouncedHandleChange = useCallback(
-    (elements: ReadonlyArray<ExcalidrawElement>, appState: ExcalidrawAppState, files?: Record<string, any>) => {
-      if (saveTimer.current) clearTimeout(saveTimer.current)
-      saveTimer.current = setTimeout(() => {
-        void persist({ reason: "scene", elements, appState, files: files || {} })
-      }, 500)
-    },
-    [persist],
-  )
+      if (
+        initialCollaborators &&
+        typeof initialCollaborators === "object" &&
+        !(initialCollaborators instanceof Map)
+      ) {
+        console.warn(
+          "WireframeEditorPage: Initial appState.collaborators was an object. Initializing as empty Map for Excalidraw. [PROMPT]"
+        );
+        preparedAppState.collaborators = new Map();
+      } else if (initialCollaborators instanceof Map) {
+        preparedAppState.collaborators = initialCollaborators;
+      } else {
+        console.log(
+          "WireframeEditorPage: Initializing collaborators as empty Map for Excalidraw. [PROMPT]"
+        );
+        preparedAppState.collaborators = new Map();
+      }
 
-  if (!wf) {
-    return <div className="grid min-h-[50vh] place-items-center text-sm text-slate-500">Loading wireframe...</div>
-  }
+      console.log(
+        "WireframeEditorPage: Preparing initial data for Excalidraw component. [PROMPT]"
+      );
+      return {
+        elements: content.elements ?? [],
+        appState: preparedAppState,
+      };
+    }, [selectedWireframe]);
 
-  return (
-    <div className="page-scroller p-4">
-      <div className="saas-card overflow-hidden">
-        <div
-          className="saas-section-header"
-          style={{ borderTopLeftRadius: "var(--radius-lg)", borderTopRightRadius: "var(--radius-lg)" }}
-        >
-          <div className="flex items-center gap-2">
-            <Link href={backHref}>
-              <Button variant="outline" className="h-9 bg-transparent">
-                <ArrowLeft className="mr-1 h-4 w-4" />
-                Back to Wireframes
-              </Button>
-            </Link>
-          </div>
-          <div className="flex items-center gap-2">
-            <Input
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              onBlur={() => persist({ reason: "title" })}
-              className="h-9 w-[260px]"
-              placeholder="Wireframe title"
+    // --- Define onChange Handler from Excalidraw ---
+    const handleExcalidrawChange = useCallback(
+      (elements: ReadonlyArray<ExcalidrawElement>, appState: ExcalidrawAppState) => {
+        if (!selectedWireframe) {
+          console.warn("Cannot save: selectedWireframe missing. [PROMPT]");
+          return;
+        }
+
+        console.log("Excalidraw content changed, preparing update payload for saving... [PROMPT]");
+
+        // *** ADDED: Filter out deleted elements ***
+        const filteredElements = elements.filter((element) => !element.isDeleted);
+
+        const appStateForSaving: any = { ...appState };
+
+        if (appStateForSaving.collaborators instanceof Map) {
+          console.log(
+            "WireframeEditorPage: Converting collaborators Map to Array before saving. [PROMPT]"
+          );
+          appStateForSaving.collaborators = Array.from(appState.collaborators.values());
+        } else {
+          console.warn(
+            "WireframeEditorPage: collaborators received from Excalidraw was not a Map. Saving as empty array. [PROMPT]"
+          );
+          appStateForSaving.collaborators = [];
+        }
+
+        // Update the local state
+        setSelectedWireframe((prev) => ({
+          ...prev!,
+          content: {
+            elements: filteredElements,
+            appState: appStateForSaving,
+          },
+        }));
+      },
+      [selectedWireframe]
+    );
+
+        const persist = useCallback(() => {
+            if (!selectedWireframe) return;
+            setSelectedWireframe((prev) => ({
+                ...prev!,
+                name: wireframeName,
+            }));
+        }, [wireframeName, selectedWireframe]);
+
+         const debouncedPersist = useCallback(() => {
+            if (saveTimer.current) clearTimeout(saveTimer.current);
+            saveTimer.current = setTimeout(() => {
+                persist();
+            }, 500);
+        }, [persist]);
+
+    // --- Debounce the Handler ---
+    const debouncedHandleChange = useMemo(
+      () => debounce(handleExcalidrawChange, 1000),
+      [handleExcalidrawChange]
+    );
+
+    // --- Back Callback ---
+    const editorOnBack = useCallback(() => {
+      onBack();
+    }, [onBack]);
+
+      const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setWireframeName(e.target.value);
+        debouncedPersist();
+    };
+
+    const handleOpenModal = () => {
+        setIsModalOpen(true);
+    };
+
+    const handleCloseModal = () => {
+        setIsModalOpen(false);
+    };
+
+    // --- Form Submit handler ----
+     const handleFormSubmit = async (data: any) => {
+      console.log("handleFormSubmit called [PROMPT]");
+
+      try {
+           console.log("Data : " + data);
+      } catch (error) {
+        console.error("Error submitting form: [PROMPT]", error);
+      }
+    };
+
+    // --- Loading State ---
+    if (!hasMounted) {
+      return null;
+    }
+
+    if (!selectedWireframe) {
+        return (
+            <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", height: "100vh", padding: "1rem" }}>
+                <p style={{ marginBottom: "1rem" }}>Wireframe not found or is unavailable.</p>
+                <button onClick={editorOnBack}>Back</button>
+            </div>
+        );
+    }
+
+    // --- Main Render ---
+    console.log({isModalOpen})
+    return (
+      <div style={{ display: "flex", flex: 1, padding: "0.25rem", flexDirection: "column", height: "100vh", overflow: "hidden" }}>
+        {/* === Updated Header section === */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem", flexShrink: 0, gap: "0.5rem" }}>
+          {/* 1. Back Arrow Button */}
+          <button
+            aria-label="Back"
+            onClick={editorOnBack}
+            style={{ background: "none", border: "none", cursor: "pointer", padding: 0 }}
+          >
+            <Wand2 />
+          </button>
+
+          {/* 2. Wireframe Name */}
+            <input
+                type="text"
+                value={wireframeName}
+                onChange={handleNameChange}
+                placeholder="Wireframe Name"
+                style={{ height: "2.25rem", width: "16.25rem", fontSize: "1.125rem", fontWeight: "600", textAlign: "center" }}
             />
-            <Button className="h-9 btn-primary" onClick={() => persist({ reason: "scene" })}>
-              <Save className="mr-1 h-4 w-4" />
-              Save
-            </Button>
-          </div>
+
+          {/* 3. Generate Code Button */}
+          <button
+            className="px-4 py-2 bg-teal-500 text-white rounded-lg hover:bg-teal-600 flex items-center"
+            onClick={handleOpenModal}
+            disabled={!excalidrawAPI}
+          >
+            <Wand2 size={16} className="mr-2" />
+            Generate Prompt
+          </button>
         </div>
 
-        <div className="min-h-[70vh]">
-         <div className="flex h-full w-full flex-col"> {/* Add this line */}
+        {/* Container for Excalidraw */}
+        <div
+          style={{
+            flex: 1,
+            borderWidth: "0px",
+            borderColor: "gray",
+            borderRadius: "0.375rem",
+            overflow: "hidden",
+            position: "relative",
+            minHeight: 0,
+          }}
+        >
           <ExcalidrawWrapper
             initialData={excalidrawInitialData}
             onChange={debouncedHandleChange}
             setApi={setExcalidrawAPI}
             api={excalidrawAPI}
           />
-         </div> {/* Add this line */}
         </div>
-      </div>
-    </div>
-  )
-}
 
-async function blobToDataUrl(blob: Blob) {
-  return new Promise<string>((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(String(reader.result))
-    reader.onerror = reject
-    reader.readAsDataURL(blob)
-  })
-}
+
+      </div>
+    );
+  }
+);
+
+WireframeEditorPage.displayName = "WireframeEditorPage";
+export default WireframeEditorPage;
