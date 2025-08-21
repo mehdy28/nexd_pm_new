@@ -38,7 +38,7 @@ export function Topbar() {
         </div>
 
         {tabs.length > 0 && (
-          <div className="flex items-center h-10 py-2">
+          <div className="flex items-center py-4"> {/* Added py-4 for padding top and bottom */}
             <nav aria-label="Primary" role="tablist" className="flex items-center gap-6">
               {tabs.map((t) => {
                 const isActive = activeKey === t.key
