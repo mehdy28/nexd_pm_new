@@ -1,4 +1,4 @@
-"use client"
+"use client";
 
 import { useEffect, useState } from "react"
 import { type User, onAuthStateChanged, signOut as firebaseSignOut } from "firebase/auth"
@@ -19,39 +19,70 @@ export function useFirebaseAuth() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    console.log("useFirebaseAuth useEffect triggered");
+
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser: User | null) => {
+      console.log("onAuthStateChanged triggered");
+      console.log("Firebase user:", firebaseUser);
+
       if (firebaseUser) {
-        // Get additional user data from Firestore
-        const userDoc = await getDoc(doc(db, "users", firebaseUser.uid))
-        const userData = userDoc.data()
+        console.log("Firebase user found, fetching additional data from Firestore...");
 
-        setUser({
-          uid: firebaseUser.uid,
-          email: firebaseUser.email,
-          displayName: firebaseUser.displayName,
-          ...userData,
-        })
+        try {
+          // Get additional user data from Firestore
+          const userDocRef = doc(db, "users", firebaseUser.uid);
+          const userDoc = await getDoc(userDocRef);
+
+          if (userDoc.exists()) {
+            const userData = userDoc.data();
+            console.log("Firestore user data:", userData);
+
+            setUser({
+              uid: firebaseUser.uid,
+              email: firebaseUser.email,
+              displayName: firebaseUser.displayName,
+              ...userData,
+            });
+            console.log("User state updated with Firestore data");
+          } else {
+            console.log("User document not found in Firestore for UID:", firebaseUser.uid);
+            setUser({
+              uid: firebaseUser.uid,
+              email: firebaseUser.email,
+              displayName: firebaseUser.displayName,
+            } as UserData);
+          }
+        } catch (error) {
+          console.error("Error fetching user data from Firestore:", error);
+        }
       } else {
-        setUser(null)
+        console.log("No Firebase user found, setting user to null");
+        setUser(null);
       }
-      setLoading(false)
-    })
+      setLoading(false);
+      console.log("Loading set to false");
+    });
 
-    return () => unsubscribe()
-  }, [])
+    return () => {
+      console.log("useFirebaseAuth useEffect cleanup: unsubscribing from onAuthStateChanged");
+      return unsubscribe();
+    };
+  }, []);
 
   const signOut = async () => {
     try {
-      await firebaseSignOut(auth)
+      console.log("Signing out...");
+      await firebaseSignOut(auth);
+      console.log("Sign out successful");
     } catch (error) {
-      console.error("Error signing out:", error)
+      console.error("Error signing out:", error);
     }
-  }
+  };
 
   return {
     user,
     loading,
     isAuthenticated: !!user,
     signOut,
-  }
+  };
 }
