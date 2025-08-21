@@ -125,28 +125,25 @@
   right: 0;
   top: 64px;
   bottom: 0;
-  min-height: calc(100vh - 64px); /* Add min height to take the reamining space */
   background: var(--surface);
-  overflow-x: auto; /* change to auto */
+  overflow: hidden; /* Keep it hidden */
 }
 
 .page-scroller {
   height: 100%;
   width: 100%;
-  overflow: auto; /* Change to auto */
+  overflow: hidden; /* Keep it hidden */
   background: var(--surface);
 }
 
 .columns-scroll {
   display: flex;
   gap: 16px;
-  height: auto; /* Changed to auto */
-  min-height: calc(100vh - 64px); /* Add min height to take the reamining space */
+  height: 100%; /* Changed to 100% to take up all available vertical space */
   overflow-x: auto; /* Only allow horizontal scrolling */
   overflow-y: hidden; /* Prevent vertical scrolling at container level */
   padding: 4px;
   background: #fff; 
-
 }
 
 
