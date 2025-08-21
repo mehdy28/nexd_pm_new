@@ -21,33 +21,46 @@ const exportToBlob = async (...args: any[]) => {
 export function WireframeEditor({ id, backHref }: { id: string; backHref: string }) {
   const [wf, setWf] = useState<Wireframe | null>(null)
   const [title, setTitle] = useState("")
-  const [excalidrawAPI, setExcalidrawAPI] = useState<ExcalidrawAPI | null>(null);
+  const [excalidrawAPI, setExcalidrawAPI] = useState<ExcalidrawAPI | null>(null)
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+    // Memoize id and wf
+  const idRef = useRef(id);
   useEffect(() => {
-    const found = wireframesStore.get(id)
+    if (idRef.current !== id) {
+      idRef.current = id;
+    }
+  }, [id]);
+
+  useEffect(() => {
+    const found = wireframesStore.get(idRef.current);
     if (found) {
-      setWf(found)
-      setTitle(found.title)
+      setWf(found);
+      setTitle(found.title);
       console.log("wf.scene:", found.scene); // Log wf.scene
     } else {
-      const created = wireframesStore.create("Untitled Wireframe")
-      setWf(created)
-      setTitle(created.title)
+      const created = wireframesStore.create("Untitled Wireframe");
+      setWf(created);
+      setTitle(created.title);
       console.log("wf.scene after create:", created.scene); // Log wf.scene after create
     }
-  }, [id])
+  }, []);
 
-  const selectedWireframe = wf
-    ? {
-        id: wf.id,
-        content: {
-          elements: (wf.scene?.elements ?? []) as ReadonlyArray<ExcalidrawElement>,
-          appState: (wf.scene?.appState ?? { viewBackgroundColor: "#ffffff" }) as Partial<ExcalidrawAppState>,
-          files: wf.scene?.files ?? {},
-        },
-      }
-    : null
+    // Memoize selectedWireframe
+  const selectedWireframe = useMemo(
+    () =>
+      wf
+        ? {
+            id: wf.id,
+            content: {
+              elements: (wf.scene?.elements ?? []) as ReadonlyArray<ExcalidrawElement>,
+              appState: (wf.scene?.appState ?? { viewBackgroundColor: "#ffffff" }) as Partial<ExcalidrawAppState>,
+              files: wf.scene?.files ?? {},
+            },
+          }
+        : null,
+    [wf]
+  );
 
   const excalidrawInitialData = useMemo(() => {
     const defaultData: {
