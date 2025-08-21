@@ -262,8 +262,6 @@ export function KanbanBoard({ projectId }: KanbanBoardProps) {
 
   return (
     <div className="page-scroller">
-      {projectId && <div className="px-4 pb-2 text-sm text-slate-600">Board for Project {projectId}</div>}
-
       <div className="flex items-center gap-2 px-4 pb-3">
         <Button
           size="sm"
@@ -297,7 +295,7 @@ export function KanbanBoard({ projectId }: KanbanBoardProps) {
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
-        <div ref={rowRef} className="columns-scroll" aria-label="Board columns">
+        <div ref={rowRef} className="columns-scroll">
           {/* Columns are sortable horizontally */}
           <SortableContext items={columns.map((c) => c.id)} strategy={horizontalListSortingStrategy}>
             {columns.map((column) => (
