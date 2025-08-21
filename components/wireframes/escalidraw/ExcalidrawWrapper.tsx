@@ -6,7 +6,7 @@ import dynamic from "next/dynamic"
 import type { ExcalidrawAPI } from "./excalidraw"
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types"
 import type { AppState as ExcalidrawAppState } from "@excalidraw/excalidraw/types"
-
+import "@excalidraw/excalidraw/index.css";
 // NOTE: Excalidraw CSS from node_modules cannot be imported here (next-lite).
 // We omit it to avoid MIME-type errors. Optionally add minimal local styles if needed.
 
