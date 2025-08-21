@@ -262,7 +262,7 @@ export function KanbanBoard({ projectId }: KanbanBoardProps) {
 
   return (
     <div className="page-scroller">
-      <div className="flex items-center gap-2 px-4 pb-3">
+      <div className="flex items-center gap-2 px-4 pt-3">
         <Button
           size="sm"
           className="h-9 text-white"

@@ -126,26 +126,27 @@
   top: 64px;
   bottom: 0;
   background: var(--surface);
-  overflow: hidden; /* Keep it hidden */
+  overflow: hidden;
 }
 
 .page-scroller {
-  height: 100%;
+  /* Calculate available height, subtract header and app-content top */
+  max-height: calc(100vh - 64px);
   width: 100%;
-  overflow: hidden; /* Keep it hidden */
+  overflow-x: auto; /* Allow horizontal scrolling */
+  overflow-y: hidden; /* Prevent vertical scrolling on the page */
   background: var(--surface);
 }
 
 .columns-scroll {
   display: flex;
   gap: 16px;
-  height: 100%; /* Changed to 100% to take up all available vertical space */
+  height: 100%; /* Take up the full available height from page-scroller */
   overflow-x: auto; /* Only allow horizontal scrolling */
-  overflow-y: hidden; /* Prevent vertical scrolling at container level */
+  overflow-y: hidden; /* Ensure it doesn't try to scroll vertically */
   padding: 4px;
-  background: #fff; 
+  background: #fff;
 }
-
 
 
 .column {
