@@ -32,6 +32,7 @@ interface SelectedWireframe {
   name: string;
   content?: WireframeContent | null;
 }
+// --- Type definitions ---
 interface WireframeEditorPageProps {
   wireframeId: string | null;
   onBack: () => void;

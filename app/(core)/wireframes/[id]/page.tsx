@@ -1,10 +1,33 @@
+// "use client"
+
+// import { useSearchParams } from "next/navigation"
+// import { useTopbarSetup } from "@/components/layout/topbar-store"
+// import { WireframeEditor } from "@/components/wireframes/wireframe-editor"
+
+// export default function WireframeEditorPage({ params }: { params: { id: string } }) {
+//   const sp = useSearchParams()
+//   // Keep tabs consistent; no tabs here, but set a title.
+//   useTopbarSetup({
+//     title: "Wireframe Editor",
+//     tabs: [],
+//     activeKey: "",
+//     showShare: false,
+//   })
+
+//   const backHref = `/my_tasks?tab=${encodeURIComponent(sp.get("tab") || "wireframes")}`
+//   return <WireframeEditor id={params.id} backHref={backHref} />
+// }
+
+
+
+// app/wireframes/[id]/page.tsx
 "use client"
 
 import { useSearchParams } from "next/navigation"
 import { useTopbarSetup } from "@/components/layout/topbar-store"
-import { WireframeEditorPage } from "@/components/wireframes/wireframe-editor"
+import WireframeEditorComponent from "@/components/wireframes/wireframe-editor" // Renamed import
 
-export default function WireframeEditorPage({ params }: { params: { id: string } }) {
+export default function WireframeEditorRoute({ params }: { params: { id: string } }) { // Renamed function
   const sp = useSearchParams()
   // Keep tabs consistent; no tabs here, but set a title.
   useTopbarSetup({
@@ -14,6 +37,6 @@ export default function WireframeEditorPage({ params }: { params: { id: string }
     showShare: false,
   })
 
-  const backHref = `/my_tasks?tab=${encodeURIComponent(sp.get("tab") || "wireframes")}`
-  return <WireframeEditorPage id={params.id} backHref={backHref} />
+  const onBackHref = `/my_tasks?tab=${encodeURIComponent(sp.get("tab") || "wireframes")}`
+  return <WireframeEditorComponent wireframeId={params.id} onBack={() => window.location.href = onBackHref} /> // Corrected props
 }
