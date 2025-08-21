@@ -116,14 +116,14 @@ const ExcalidrawWrapper: React.FC<ExcalidrawWrapperProps> = memo(({
         };
     }, []);
 
-    const onLoadLib = useCallback(async () => {
+    const onLoadLib = useCallback(async (signal: AbortSignal) => {
         if (!api) {
             console.log("[WelcomeScreen] ExcalidrawWrapper: API not ready for library load.");
             return;
         }
         console.log("[WelcomeScreen] ExcalidrawWrapper: API ready, attempting to load library.");
         try {
-            const response = await fetch('/libraries/mehhdy.excalidrawlib');
+            const response = await fetch('/libraries/mehhdy.excalidrawlib', { signal });
             if (!response.ok) {
                 throw new Error(`Failed to fetch library: ${response.status} ${response.statusText}`);
             }
@@ -139,14 +139,28 @@ const ExcalidrawWrapper: React.FC<ExcalidrawWrapperProps> = memo(({
                 console.warn("[WelcomeScreen] ExcalidrawWrapper: updateLibrary function not available on API.");
             }
         } catch (error) {
-            console.error("[WelcomeScreen] ExcalidrawWrapper: Error loading library:", error);
+            if (error.name === 'AbortError') {
+                console.log("[WelcomeScreen] ExcalidrawWrapper: Fetch aborted.");
+            } else {
+              console.error("[WelcomeScreen] ExcalidrawWrapper: Error loading library:", error);
+            }
         }
     }, [api]);
 
     useEffect(() => {
-        if (api) {
-            onLoadLib();
-        }
+        if (!api) return;
+
+        const abortController = new AbortController();
+
+        const loadLibrary = async () => {
+            await onLoadLib(abortController.signal);
+        };
+
+        loadLibrary();
+
+        return () => {
+            abortController.abort(); // Cancel the fetch request
+        };
     }, [api, onLoadLib]);
 
     useEffect(() => {
