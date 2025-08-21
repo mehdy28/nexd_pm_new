@@ -2,7 +2,7 @@
 
 import { useSearchParams } from "next/navigation"
 import { useTopbarSetup } from "@/components/layout/topbar-store"
-import { WireframeEditor } from "@/components/wireframes/wireframe-editor"
+import { WireframeEditorPage } from "@/components/wireframes/wireframe-editor"
 
 export default function WireframeEditorPage({ params }: { params: { id: string } }) {
   const sp = useSearchParams()
@@ -15,5 +15,5 @@ export default function WireframeEditorPage({ params }: { params: { id: string }
   })
 
   const backHref = `/my_tasks?tab=${encodeURIComponent(sp.get("tab") || "wireframes")}`
-  return <WireframeEditor id={params.id} backHref={backHref} />
+  return <WireframeEditorPage id={params.id} backHref={backHref} />
 }
