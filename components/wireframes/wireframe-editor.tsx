@@ -21,7 +21,7 @@ const exportToBlob = async (...args: any[]) => {
 export function WireframeEditor({ id, backHref }: { id: string; backHref: string }) {
   const [wf, setWf] = useState<Wireframe | null>(null)
   const [title, setTitle] = useState("")
-  const [excalidrawAPI, setExcalidrawAPI] = useState<ExcalidrawAPI | null>(null)
+  const [excalidrawAPI, setExcalidrawAPI] = useState<ExcalidrawAPI | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
@@ -29,10 +29,12 @@ export function WireframeEditor({ id, backHref }: { id: string; backHref: string
     if (found) {
       setWf(found)
       setTitle(found.title)
+      console.log("wf.scene:", found.scene); // Log wf.scene
     } else {
       const created = wireframesStore.create("Untitled Wireframe")
       setWf(created)
       setTitle(created.title)
+      console.log("wf.scene after create:", created.scene); // Log wf.scene after create
     }
   }, [id])
 
@@ -53,28 +55,31 @@ export function WireframeEditor({ id, backHref }: { id: string; backHref: string
       appState: Partial<ExcalidrawAppState>
     } = {
       elements: [],
-      appState: { collaborators: new Map() as any },
+      appState: { collaborators: new Map() as any, viewBackgroundColor: "#ffffff" }, // Added viewBackgroundColor
     }
     if (!selectedWireframe || !selectedWireframe.content) return defaultData
 
-    const content = selectedWireframe.content
-    const initialAppState = (content.appState || {}) as Partial<ExcalidrawAppState>
-    const { collaborators: initialCollaborators, ...restInitialAppState } = initialAppState as any
+    const content = selectedWireframe.content;
+    const initialAppState = (content.appState || { viewBackgroundColor: "#ffffff" }) as Partial<ExcalidrawAppState>; // Add default viewBackgroundColor
+    const { collaborators: initialCollaborators, ...restInitialAppState } = initialAppState as any;
 
-    const preparedAppState: Partial<ExcalidrawAppState> = { ...restInitialAppState }
+    const preparedAppState: Partial<ExcalidrawAppState> = { ...restInitialAppState };
     if (initialCollaborators && typeof initialCollaborators === "object" && !(initialCollaborators instanceof Map)) {
-      preparedAppState.collaborators = new Map() as any
+      preparedAppState.collaborators = new Map() as any;
     } else if (initialCollaborators instanceof Map) {
-      preparedAppState.collaborators = initialCollaborators as any
+      preparedAppState.collaborators = initialCollaborators as any;
     } else {
-      preparedAppState.collaborators = new Map() as any
+      preparedAppState.collaborators = new Map() as any;
     }
 
-    return {
+    const initialData = {
       elements: (content.elements || []) as ReadonlyArray<ExcalidrawElement>,
       appState: preparedAppState,
-    }
-  }, [selectedWireframe])
+    };
+
+    console.log("excalidrawInitialData:", initialData); // Log excalidrawInitialData
+    return initialData;
+  }, [selectedWireframe]);
 
   const persist = useCallback(
     async (opts: {
@@ -161,12 +166,14 @@ export function WireframeEditor({ id, backHref }: { id: string; backHref: string
         </div>
 
         <div className="min-h-[70vh]">
+         <div className="flex h-full w-full flex-col"> {/* Add this line */}
           <ExcalidrawWrapper
             initialData={excalidrawInitialData}
             onChange={debouncedHandleChange}
             setApi={setExcalidrawAPI}
             api={excalidrawAPI}
           />
+         </div> {/* Add this line */}
         </div>
       </div>
     </div>
