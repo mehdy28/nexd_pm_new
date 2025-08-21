@@ -97,7 +97,9 @@
 
 /* Page wrapper: contained scroll only here */
 .page-scroller {
-  height: 100%;
+  /* height: 100%; */
+  height: calc(100vh - 64px); /* Set fixed height to viewport minus topbar */
+
   width: 100%;
   overflow: hidden; /* Remove vertical scrollbar from main container */
   background: var(--surface);
@@ -107,7 +109,7 @@
 .columns-scroll {
   display: flex;
   gap: 16px;
-  height: calc(100vh - 104px); /* Set fixed height to viewport minus topbar */
+  height: calc(100vh - 64px); /* Set fixed height to viewport minus topbar */
   overflow-x: auto; /* Only allow horizontal scrolling */
   overflow-y: hidden; /* Prevent vertical scrolling at container level */
   padding: 4px;
