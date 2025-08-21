@@ -107,10 +107,10 @@
 .columns-scroll {
   display: flex;
   gap: 16px;
-  height: calc(100vh - 64px); /* Set fixed height to viewport minus topbar */
+  height: calc(100vh - 104px); /* Set fixed height to viewport minus topbar */
   overflow-x: auto; /* Only allow horizontal scrolling */
   overflow-y: hidden; /* Prevent vertical scrolling at container level */
-  padding: 16px;
+  padding: 4px;
   /* background: var(--slate-50); */
   background: #fff; /* or background: white; */
 
