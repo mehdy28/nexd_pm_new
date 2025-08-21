@@ -33,17 +33,30 @@ export function WireframeEditor({ id, backHref }: { id: string; backHref: string
   }, [id]);
 
   useEffect(() => {
-    const found = wireframesStore.get(idRef.current);
-    if (found) {
-      setWf(found);
-      setTitle(found.title);
-      console.log("wf.scene:", found.scene); // Log wf.scene
-    } else {
-      const created = wireframesStore.create("Untitled Wireframe");
-      setWf(created);
-      setTitle(created.title);
-      console.log("wf.scene after create:", created.scene); // Log wf.scene after create
-    }
+    let isMounted = true;
+
+    const fetchWireframe = async () => {
+      const found = await wireframesStore.get(idRef.current);
+
+      if (isMounted) {
+        if (found) {
+          setWf(found);
+          setTitle(found.title);
+          console.log("wf.scene:", found.scene); // Log wf.scene
+        } else {
+          const created = wireframesStore.create("Untitled Wireframe");
+          setWf(created);
+          setTitle(created.title);
+          console.log("wf.scene after create:", created.scene); // Log wf.scene after create
+        }
+      }
+    };
+
+    fetchWireframe();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
     // Memoize selectedWireframe
