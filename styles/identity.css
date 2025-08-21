@@ -141,11 +141,11 @@
 .columns-scroll {
   display: flex;
   gap: 16px;
-  height: calc(100vh - 130px); 
+  height: calc(100vh - 230px); 
 
   overflow-x: auto; /* Only allow horizontal scrolling */
   overflow-y: hidden; /* Ensure it doesn't try to scroll vertically */
-  padding: 4px;
+  padding-bottom: 24px;
   background: #fff;
 }
 
