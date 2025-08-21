@@ -125,8 +125,9 @@
   right: 0;
   top: 64px;
   bottom: 0;
+  min-height: calc(100vh - 64px); /* Add min height to take the reamining space */
   background: var(--surface);
-  overflow: auto; /* change to auto */
+  overflow-x: auto; /* change to auto */
 }
 
 .page-scroller {
