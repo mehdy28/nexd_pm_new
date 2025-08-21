@@ -295,7 +295,7 @@ export function KanbanBoard({ projectId }: KanbanBoardProps) {
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
-        <div ref={rowRef} className="columns-scroll">
+        <div ref={rowRef} className="columns-scroll" aria-label="Board columns">
           {/* Columns are sortable horizontally */}
           <SortableContext items={columns.map((c) => c.id)} strategy={horizontalListSortingStrategy}>
             {columns.map((column) => (

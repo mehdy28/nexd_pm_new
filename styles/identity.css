@@ -111,7 +111,9 @@
   overflow-x: auto; /* Only allow horizontal scrolling */
   overflow-y: hidden; /* Prevent vertical scrolling at container level */
   padding: 16px;
-  background: var(--slate-50);
+  /* background: var(--slate-50); */
+  background: #fff; /* or background: white; */
+
 }
 .column {
   width: 320px;
