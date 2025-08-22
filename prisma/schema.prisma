@@ -11,16 +11,16 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String?
-  firstName String?
-  lastName  String?
-  avatar    String?
-  firebaseUid String? @unique
-  role      UserRole @default(MEMBER)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          String   @id @default(cuid())
+  email       String   @unique
+  name        String?
+  firstName   String?
+  lastName    String?
+  avatar      String?
+  firebaseUid String?  @unique
+  role        UserRole @default(MEMBER)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   // Workspace relationships
   workspaceMembers WorkspaceMember[]
@@ -33,13 +33,13 @@ model User {
 
   // Personal tasks (not tied to projects)
   personalTasks Task[] @relation("UserPersonalTasks")
-  
+
   // Personal documents (not tied to projects)
   personalDocuments Document[] @relation("UserPersonalDocuments")
-  
+
   // Personal wireframes (not tied to projects)
   personalWireframes Wireframe[] @relation("UserPersonalWireframes")
-  
+
   // Personal prompts (AI prompts/templates)
   personalPrompts Prompt[] @relation("UserPersonalPrompts")
 
@@ -54,16 +54,16 @@ model User {
 }
 
 model Workspace {
-  id          String    @id @default(cuid())
+  id          String   @id @default(cuid())
   name        String
-  slug        String    @unique
+  slug        String   @unique
   description String?
   avatar      String?
-  plan        Plan      @default(FREE)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  plan        Plan     @default(FREE)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
   ownerId     String
-  owner       User      @relation("WorkspaceOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  owner       User     @relation("WorkspaceOwner", fields: [ownerId], references: [id], onDelete: Cascade)
 
   // Members
   members WorkspaceMember[]
@@ -129,7 +129,7 @@ model Project {
 
   // Project-specific wireframes
   wireframes Wireframe[] @relation("ProjectWireframes")
-  
+
   // Project-specific prompts
   prompts Prompt[] @relation("ProjectPrompts")
 
@@ -163,16 +163,16 @@ model Task {
   endDate     DateTime?
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
-  
-  projectId   String?
-  userId      String?    // For personal tasks
-  assigneeId  String?
-  creatorId   String
-  
-  project     Project?   @relation("ProjectTasks", fields: [projectId], references: [id], onDelete: Cascade)
-  personalUser User?     @relation("UserPersonalTasks", fields: [userId], references: [id], onDelete: Cascade)
-  assignee    User?      @relation("TaskAssignee", fields: [assigneeId], references: [id])
-  creator     User       @relation("TaskCreator", fields: [creatorId], references: [id])
+
+  projectId  String?
+  userId     String? // For personal tasks
+  assigneeId String?
+  creatorId  String
+
+  project      Project? @relation("ProjectTasks", fields: [projectId], references: [id], onDelete: Cascade)
+  personalUser User?    @relation("UserPersonalTasks", fields: [userId], references: [id], onDelete: Cascade)
+  assignee     User?    @relation("TaskAssignee", fields: [assigneeId], references: [id])
+  creator      User     @relation("TaskCreator", fields: [creatorId], references: [id])
 
   // Subtasks
   parentId String?
@@ -217,18 +217,18 @@ model TaskLabel {
 }
 
 model Document {
-  id        String      @id @default(cuid())
+  id        String       @id @default(cuid())
   title     String
   content   Json?
   type      DocumentType @default(TEXT)
-  createdAt DateTime    @default(now())
-  updatedAt DateTime    @updatedAt
-  
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
   projectId String?
-  userId    String?    // For personal documents
-  
-  project   Project?   @relation("ProjectDocuments", fields: [projectId], references: [id], onDelete: Cascade)
-  personalUser User?   @relation("UserPersonalDocuments", fields: [userId], references: [id], onDelete: Cascade)
+  userId    String? // For personal documents
+
+  project      Project? @relation("ProjectDocuments", fields: [projectId], references: [id], onDelete: Cascade)
+  personalUser User?    @relation("UserPersonalDocuments", fields: [userId], references: [id], onDelete: Cascade)
 
   // Comments
   comments Comment[]
@@ -242,16 +242,16 @@ model Document {
 model Wireframe {
   id        String   @id @default(cuid())
   title     String
-  data      Json     // Wireframe data (canvas elements, etc.)
+  data      Json // Wireframe data (canvas elements, etc.)
   thumbnail String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  
+
   projectId String?
-  userId    String?    // For personal wireframes
-  
-  project   Project?   @relation("ProjectWireframes", fields: [projectId], references: [id], onDelete: Cascade)
-  personalUser User?   @relation("UserPersonalWireframes", fields: [userId], references: [id], onDelete: Cascade)
+  userId    String? // For personal wireframes
+
+  project      Project? @relation("ProjectWireframes", fields: [projectId], references: [id], onDelete: Cascade)
+  personalUser User?    @relation("UserPersonalWireframes", fields: [userId], references: [id], onDelete: Cascade)
 
   // Comments
   comments Comment[]
@@ -321,36 +321,36 @@ model Activity {
 }
 
 model Subscription {
-  id                String            @id @default(cuid())
-  plan              Plan
-  status            SubscriptionStatus
-  currentPeriodEnd  DateTime
-  cancelAtPeriodEnd Boolean           @default(false)
-  stripeCustomerId  String?
+  id                   String             @id @default(cuid())
+  plan                 Plan
+  status               SubscriptionStatus
+  currentPeriodEnd     DateTime
+  cancelAtPeriodEnd    Boolean            @default(false)
+  stripeCustomerId     String?
   stripeSubscriptionId String?
-  createdAt         DateTime          @default(now())
-  updatedAt         DateTime          @updatedAt
-  workspaceId       String            @unique
-  workspace         Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+  workspaceId          String             @unique
+  workspace            Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@map("subscriptions")
 }
 
 model Prompt {
-  id          String     @id @default(cuid())
+  id          String   @id @default(cuid())
   title       String
   content     String
   description String?
   category    String?
   tags        String[]
-  isPublic    Boolean    @default(false)
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
-  
-  projectId   String?
-  userId      String?
-  project     Project?   @relation("ProjectPrompts", fields: [projectId], references: [id], onDelete: Cascade)
-  user        User?      @relation("UserPersonalPrompts", fields: [userId], references: [id], onDelete: Cascade)
+  isPublic    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  projectId String?
+  userId    String?
+  project   Project? @relation("ProjectPrompts", fields: [projectId], references: [id], onDelete: Cascade)
+  user      User?    @relation("UserPersonalPrompts", fields: [userId], references: [id], onDelete: Cascade)
 
   // Comments
   comments Comment[]
@@ -362,14 +362,14 @@ model Prompt {
 }
 
 model TaskDependency {
-  id              String @id @default(cuid())
+  id              String         @id @default(cuid())
   precedingTaskId String
   dependentTaskId String
   type            DependencyType @default(FINISH_TO_START)
-  lag             Int @default(0) // Days of lag/lead time
-  
-  precedingTask   Task @relation("PrecedingTask", fields: [precedingTaskId], references: [id], onDelete: Cascade)
-  dependentTask   Task @relation("DependentTask", fields: [dependentTaskId], references: [id], onDelete: Cascade)
+  lag             Int            @default(0) // Days of lag/lead time
+
+  precedingTask Task @relation("PrecedingTask", fields: [precedingTaskId], references: [id], onDelete: Cascade)
+  dependentTask Task @relation("DependentTask", fields: [dependentTaskId], references: [id], onDelete: Cascade)
 
   @@unique([precedingTaskId, dependentTaskId])
   @@map("task_dependencies")
@@ -445,8 +445,6 @@ enum SubscriptionStatus {
   PAST_DUE
   UNPAID
 }
-
-
 
 enum ActivityType {
   TASK_CREATED
