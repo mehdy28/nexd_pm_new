@@ -133,6 +133,7 @@
   /* Calculate available height, subtract header and app-content top */
   max-height: calc(100vh - 94px);
   width: 100%;
+  padding-bottom: 10px;
   overflow-x: auto; /* Allow horizontal scrolling */
   overflow-y: hidden; /* Prevent vertical scrolling on the page */
   background: var(--surface);
@@ -141,7 +142,7 @@
 .columns-scroll {
   display: flex;
   gap: 16px;
-  height: calc(100vh - 150px); 
+  height: calc(100vh - 145px); 
 
   overflow-x: auto; /* Only allow horizontal scrolling */
   overflow-y: hidden; /* Ensure it doesn't try to scroll vertically */
