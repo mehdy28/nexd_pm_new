@@ -29,6 +29,7 @@ export const wireframeResolvers = {
     },
 
     wireframes: async (_: any, { projectId }: { projectId: string }, context: Context) => {
+    }
     wireframes: async (_: any, { projectId, userId, personal }: { projectId?: string; userId?: string; personal?: boolean }, context: Context) => {
       const user = requireAuth(context)
       

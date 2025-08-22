@@ -29,6 +29,7 @@ export const documentResolvers = {
     },
 
     documents: async (_: any, { projectId }: { projectId: string }, context: Context) => {
+    }
     documents: async (_: any, { projectId, userId, personal }: { projectId?: string; userId?: string; personal?: boolean }, context: Context) => {
       const user = requireAuth(context)
       
