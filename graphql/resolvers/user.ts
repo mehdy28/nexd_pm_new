@@ -40,9 +40,11 @@ export const userResolvers = {
         });
 
         if (!user) {
+          console.error("User creation failed (Prisma returned null/undefined)"); // Add this log
           throw new Error("Failed to create user in Prisma."); // Explicitly check if user creation failed
         }
 
+        console.log("User created successfully:", user); // Add this log
         return user;
       } catch (error: any) {
         console.error("Error creating user:", error);
