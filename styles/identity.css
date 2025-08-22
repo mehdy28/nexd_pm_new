@@ -131,7 +131,7 @@
 
 .page-scroller {
   /* Calculate available height, subtract header and app-content top */
-  max-height: calc(100vh - 114px);
+  max-height: calc(100vh - 94px);
   width: 100%;
   padding-bottom: 70px;
   overflow-x: auto; /* Allow horizontal scrolling */
