@@ -272,6 +272,11 @@ export const typeDefs = gql`
     signIn(input: SignInInput!): AuthPayload!
     createUser(input: CreateUserInput): User
 
+
+    # Setup
+    setupWorkspaceAndProject(input: SetupInput!): Workspace!
+
+
     # Workspace
     createWorkspace(input: CreateWorkspaceInput!): Workspace!
     updateWorkspace(id: ID!, input: UpdateWorkspaceInput!): Workspace!
@@ -387,6 +392,14 @@ export const typeDefs = gql`
     title: String
     content: JSON
     type: DocumentType
+  }
+
+
+  input SetupInput {
+    workspaceName: String!
+    workspaceDescription: String
+    projectName: String!
+    projectDescription: String
   }
 
   input CreateWireframeInput {

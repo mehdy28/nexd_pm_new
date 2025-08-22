@@ -11,6 +11,7 @@ import { Eye, EyeOff } from "lucide-react"
 import Image from "next/image"
 import { signInWithEmailAndPassword } from "firebase/auth"
 import { auth } from "@/lib/firebase"
+import { useToast } from "@/components/ui/use-toast"
 
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
@@ -19,6 +20,8 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
   const router = useRouter()
+    const { toast } = useToast()
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -26,10 +29,31 @@ export default function LoginPage() {
     setError("")
 
     try {
-      await signInWithEmailAndPassword(auth, email, password)
+          const response = await fetch('/api/public/login', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              email: email,
+              password: password,
+            }),
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || "Login failed");
+          }
+
+        const userCredential = await signInWithEmailAndPassword(auth, email, password);
       router.push("/")
     } catch (error: any) {
       setError(error.message || "Login failed")
+      toast({
+        variant: "destructive",
+        title: "Uh oh! Something went wrong.",
+        description: error.message,
+      });
     } finally {
       setIsLoading(false)
     }

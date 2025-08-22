@@ -7,6 +7,7 @@ import { wireframeResolvers } from "./wireframe"
 import { commentResolvers } from "./comment"
 import { activityResolvers } from "./activity"
 import { authResolvers } from "./auth"
+import { setupResolvers } from "./setup"
 
 export const resolvers = {
   Query: {
@@ -21,6 +22,7 @@ export const resolvers = {
   Mutation: {
     ...authResolvers.Mutation,
     ...workspaceResolvers.Mutation,
+    ...setupResolvers.Mutation,
     ...projectResolvers.Mutation,
     ...taskResolvers.Mutation,
     ...documentResolvers.Mutation,

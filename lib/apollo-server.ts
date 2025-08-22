@@ -8,6 +8,7 @@ import { db } from "@/lib/firebase"
 import { Auth } from "firebase-admin/auth"
 import { initializeApp, getApps, cert } from "firebase-admin/app"
 import { doc, getDoc } from "firebase/firestore"
+import { prisma } from "@/lib/prisma"
 
 // Initialize Firebase Admin if not already initialized
 if (!getApps().length) {
@@ -47,24 +48,37 @@ export default startServerAndCreateNextHandler(server, {
     
     if (token) {
       try {
-        const decodedToken = await Auth.verifyIdToken(token)
-        const userDoc = await getDoc(doc(db, "users", decodedToken.uid))
-        const userData = userDoc.data()
-        
-        user = {
-          id: decodedToken.uid,
-          email: decodedToken.email!,
-          name: userData?.name || decodedToken.name,
-          role: userData?.role || "MEMBER",
+        console.log("Verifying Firebase ID token:", token);
+        const decodedToken = await Auth.verifyIdToken(token);
+        console.log("Firebase ID token decoded:", decodedToken);
+
+        // Fetch user from Prisma instead of Firestore
+        const prismaUser = await prisma.user.findUnique({
+          where: { firebaseUid: decodedToken.uid },
+        });
+
+        if (prismaUser) {
+          console.log("User found in Prisma:", prismaUser);
+          user = {
+            id: decodedToken.uid,
+            email: decodedToken.email!,
+            name: prismaUser.name || decodedToken.name,
+            role: prismaUser.role, // Assuming you have a role field in your Prisma User model
+          };
+        } else {
+          console.log("User not found in Prisma with firebaseUid:", decodedToken.uid);
         }
-      } catch (error) {
-        console.error("Error verifying token:", error)
+      } catch (error:any) {
+        console.error("Error verifying token:", error.message)
       }
+    } else {
+        console.log("No token found in authorization header");
     }
 
+    console.log("Context user:", user);
     return {
       db,
       user,
-    }
+    };
   },
 })

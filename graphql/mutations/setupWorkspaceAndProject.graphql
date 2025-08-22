@@ -1,0 +1,15 @@
+# graphql/mutations/setupWorkspaceAndProject.graphql
+mutation SetupWorkspaceAndProject($input: SetupInput!) {
+  setupWorkspaceAndProject(input: $input) {
+    id
+    name
+    slug
+    description
+    ownerId
+    projects {
+      id
+      name
+      description
+    }
+  }
+}

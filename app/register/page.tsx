@@ -11,7 +11,6 @@ import { Eye, EyeOff, Check } from "lucide-react"
 import Image from "next/image"
 import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth"
 import { auth } from "@/lib/firebase"
-import { useCreateUser } from "@/hooks/useCreateUser"
 import { useToast } from "@/components/ui/use-toast"
 
 
@@ -29,7 +28,6 @@ export default function RegisterPage() {
     agreeToTerms: false,
   })
   const router = useRouter()
-    const { createUser, loading: mutationLoading } = useCreateUser()
     const { toast } = useToast()
 
 
@@ -58,16 +56,23 @@ export default function RegisterPage() {
         displayName: `${formData.firstName} ${formData.lastName}`,
       })
 
-      // Create user in Prisma DB
-      const newUser = await createUser({
-        firebaseUid: user.uid,
-        email: formData.email,
-        firstName: formData.firstName,
-        lastName: formData.lastName,
-      })
+      // Create user in  DB
+      const response = await fetch('/api/public/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          firebaseUid: user.uid,
+          email: formData.email,
+          firstName: formData.firstName,
+          lastName: formData.lastName,
+        }),
+      });
 
-      if (!newUser) {
-        throw new Error("Failed to create user in database.")
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Failed to create user in database.");
       }
 
       router.push("/setup")
@@ -229,8 +234,8 @@ export default function RegisterPage() {
             </Label>
           </div>
 
-          <Button type="submit" className="w-full bg-primary hover:bg-primary/80 text-white" disabled={isLoading || mutationLoading}>
-            {isLoading || mutationLoading ? "Creating account..." : "Create account"}
+          <Button type="submit" className="w-full bg-primary hover:bg-primary/80 text-white" disabled={isLoading}>
+            {isLoading ? "Creating account..." : "Create account"}
           </Button>
         </form>
 

@@ -7,6 +7,9 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent } from "@/components/ui/card"
 import { WorkspacePreview } from "@/components/setup/workspace-preview"
 import { Check, ChevronLeft, ChevronRight } from "lucide-react"
+import { useSetupWorkspaceAndProject } from "@/hooks/useSetupWorkspaceAndProject"
+import { useRouter } from "next/navigation"
+import { useToast } from "@/components/ui/use-toast"
 
 const templates = [
   { id: "agile", name: "Agile Development", description: "Sprint-based project management" },
@@ -24,7 +27,9 @@ export default function SetupPage() {
   const [currentStep, setCurrentStep] = useState(0)
   const [setupData, setSetupData] = useState({
     workspaceTitle: "",
+    workspaceDescription: "",
     projectName: "",
+    projectDescription: "",
     preferredView: "list",
     template: "general",
   })
@@ -44,6 +49,11 @@ export default function SetupPage() {
     },
   ]
 
+  const router = useRouter()
+    const { toast } = useToast()
+    const { setupWorkspaceAndProject, loading } = useSetupWorkspaceAndProject()
+
+
   const handleNext = () => {
     if (currentStep < steps.length - 1) {
       setCurrentStep(currentStep + 1)
@@ -56,11 +66,31 @@ export default function SetupPage() {
     }
   }
 
-  const handleFinish = () => {
-    localStorage.setItem("hasCompletedSetup", "true")
-    localStorage.setItem("setupData", JSON.stringify(setupData))
-    console.log("Setup completed:", setupData)
-    window.location.href = "/workspace"
+  const handleFinish = async () => {
+    try {
+      const success = await setupWorkspaceAndProject({
+        workspaceName: setupData.workspaceTitle,
+        workspaceDescription: setupData.workspaceDescription,
+        projectName: setupData.projectName,
+        projectDescription: setupData.projectDescription,
+      })
+
+      if (success) {
+        localStorage.setItem("hasCompletedSetup", "true")
+        localStorage.setItem("setupData", JSON.stringify(setupData))
+        console.log("Setup completed:", setupData)
+        router.push("/workspace")
+      } else {
+        throw new Error("Failed to setup workspace and project.")
+      }
+    } catch (error: any) {
+        toast({
+            variant: "destructive",
+            title: "Uh oh! Something went wrong.",
+            description: error.message,
+          })
+      console.error("Setup failed:", error)
+    }
   }
 
   const canProceed = () => {
@@ -86,12 +116,32 @@ export default function SetupPage() {
               />
             </div>
             <div>
+              <Label htmlFor="workspaceDescription">Workspace Description</Label>
+              <Input
+                id="workspaceDescription"
+                placeholder="e.g., A collaborative workspace for..."
+                value={setupData.workspaceDescription}
+                onChange={(e) => setSetupData({ ...setupData, workspaceDescription: e.target.value })}
+                className="mt-1"
+              />
+            </div>
+            <div>
               <Label htmlFor="project">First Project Name</Label>
               <Input
                 id="project"
                 placeholder="e.g., Website Redesign"
                 value={setupData.projectName}
                 onChange={(e) => setSetupData({ ...setupData, projectName: e.target.value })}
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label htmlFor="projectDescription">Project Description</Label>
+              <Input
+                id="projectDescription"
+                placeholder="e.g., Redesigning the company website..."
+                value={setupData.projectDescription}
+                onChange={(e) => setSetupData({ ...setupData, projectDescription: e.target.value })}
                 className="mt-1"
               />
             </div>
@@ -153,10 +203,10 @@ export default function SetupPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-emerald-50 to-teal-50 p-4">
       <div className="max-w-7xl mx-auto">
-       <div className="text-center mb-8">
+        <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Set up your workspace</h1>
           <p className="text-gray-600">Configure your workspace and see a live preview</p>
-        </div> 
+        </div>
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
           {/* Configuration Panel */}
           <div className="lg:col-span-2">
@@ -200,7 +250,7 @@ export default function SetupPage() {
                 </Button>
 
                 {currentStep === steps.length - 1 ? (
-                  <Button onClick={handleFinish} className="flex items-center gap-2" disabled={!canProceed()}>
+                  <Button onClick={handleFinish} className="flex items-center gap-2" disabled={!canProceed() || loading}>
                     <Check className="w-4 h-4" />
                     Complete Setup
                   </Button>
@@ -221,14 +271,16 @@ export default function SetupPage() {
               <p className="text-gray-600 text-sm">See how your workspace will look</p>
             </div> */}
 
-          <div className="flex items-center justify-center h-full">
+            <div className="flex items-center justify-center h-full">
               <WorkspacePreview
                 workspaceTitle={setupData.workspaceTitle}
+                workspaceDescription={setupData.workspaceDescription}
                 projectTitle={setupData.projectName}
+                projectDescription={setupData.projectDescription}
                 viewType={setupData.preferredView as "list" | "board" | "calendar"}
                 template={setupData.template as "blank" | "marketing" | "development" | "design"}
               />
-          </div>
+            </div>
           </div>
         </div>
       </div>
