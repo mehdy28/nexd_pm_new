@@ -7,6 +7,7 @@ import { wireframeResolvers } from "./wireframe"
 import { commentResolvers } from "./comment"
 import { activityResolvers } from "./activity"
 import { authResolvers } from "./auth"
+import { promptResolvers } from "./prompt"
 
 export const resolvers = {
   Query: {
@@ -16,6 +17,7 @@ export const resolvers = {
     ...taskResolvers.Query,
     ...documentResolvers.Query,
     ...wireframeResolvers.Query,
+    ...promptResolvers.Query,
     ...activityResolvers.Query,
   },
   Mutation: {
@@ -25,14 +27,17 @@ export const resolvers = {
     ...taskResolvers.Mutation,
     ...documentResolvers.Mutation,
     ...wireframeResolvers.Mutation,
+    ...promptResolvers.Mutation,
     ...commentResolvers.Mutation,
   },
   User: userResolvers.User,
   Workspace: workspaceResolvers.Workspace,
   Project: projectResolvers.Project,
   Task: taskResolvers.Task,
+  TaskSection: taskResolvers.TaskSection,
   Document: documentResolvers.Document,
   Wireframe: wireframeResolvers.Wireframe,
+  Prompt: promptResolvers.Prompt,
   Comment: commentResolvers.Comment,
   Activity: activityResolvers.Activity,
 }

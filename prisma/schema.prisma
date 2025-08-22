@@ -42,6 +42,9 @@ model User {
   
   // Personal prompts (AI prompts/templates)
   personalPrompts Prompt[] @relation("UserPersonalPrompts")
+  
+  // Personal task sections
+  personalSections TaskSection[] @relation("UserPersonalSections")
 
   // Activity tracking
   activities Activity[]
@@ -132,6 +135,9 @@ model Project {
   
   // Project-specific prompts
   prompts Prompt[] @relation("ProjectPrompts")
+  
+  // Project-specific task sections
+  sections TaskSection[] @relation("ProjectSections")
 
   // Activities
   activities Activity[]
@@ -161,6 +167,8 @@ model Task {
   dueDate     DateTime?
   startDate   DateTime?
   endDate     DateTime?
+  points      Int?       @default(0)
+  sectionId   String?    // For kanban sections
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
   
@@ -173,6 +181,7 @@ model Task {
   personalUser User?     @relation("UserPersonalTasks", fields: [userId], references: [id], onDelete: Cascade)
   assignee    User?      @relation("TaskAssignee", fields: [assigneeId], references: [id])
   creator     User       @relation("TaskCreator", fields: [creatorId], references: [id])
+  section     TaskSection? @relation(fields: [sectionId], references: [id], onDelete: Cascade)
 
   // Subtasks
   parentId String?
@@ -193,6 +202,24 @@ model Task {
   labels TaskLabel[]
 
   @@map("tasks")
+}
+
+model TaskSection {
+  id          String   @id @default(cuid())
+  title       String
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  projectId   String?
+  userId      String?  // For personal sections
+  
+  project     Project? @relation("ProjectSections", fields: [projectId], references: [id], onDelete: Cascade)
+  personalUser User?   @relation("UserPersonalSections", fields: [userId], references: [id], onDelete: Cascade)
+  
+  tasks       Task[]
+  
+  @@map("task_sections")
 }
 
 model Label {
@@ -459,6 +486,8 @@ enum ActivityType {
   DOCUMENT_UPDATED
   WIREFRAME_CREATED
   WIREFRAME_UPDATED
+  PROMPT_CREATED
+  PROMPT_UPDATED
   COMMENT_ADDED
   MEMBER_ADDED
   MEMBER_REMOVED

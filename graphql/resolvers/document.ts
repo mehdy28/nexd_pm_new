@@ -29,10 +29,23 @@ export const documentResolvers = {
     },
 
     documents: async (_: any, { projectId }: { projectId: string }, context: Context) => {
-      requireProjectAccess(context, projectId)
+    documents: async (_: any, { projectId, userId, personal }: { projectId?: string; userId?: string; personal?: boolean }, context: Context) => {
+      const user = requireAuth(context)
+      
+      let where: any = {}
+      
+      if (personal || (!projectId && userId)) {
+        // Personal documents
+        where.userId = user.id
+        where.projectId = null
+      } else if (projectId) {
+        // Project documents
+        requireProjectAccess(context, projectId)
+        where.projectId = projectId
+      }
 
       return await prisma.document.findMany({
-        where: { projectId },
+        where,
         orderBy: { createdAt: "desc" },
       })
     },
@@ -41,7 +54,10 @@ export const documentResolvers = {
   Mutation: {
     createDocument: async (_: any, { input }: { input: any }, context: Context) => {
       const user = requireAuth(context)
-      requireProjectAccess(context, input.projectId)
+      
+      if (input.projectId) {
+        requireProjectAccess(context, input.projectId)
+      }
 
       const document = await prisma.document.create({
         data: {
@@ -49,6 +65,7 @@ export const documentResolvers = {
           content: input.content,
           type: input.type || "TEXT",
           projectId: input.projectId,
+          userId: input.projectId ? null : user.id, // Personal document if no project
         },
         include: {
           project: true,
@@ -76,7 +93,7 @@ export const documentResolvers = {
         where: { id },
       })
 
-      if (existingDocument) {
+      if (existingDocument && existingDocument.projectId) {
         requireProjectAccess(context, existingDocument.projectId)
       }
 
@@ -111,7 +128,7 @@ export const documentResolvers = {
         where: { id },
       })
 
-      if (document) {
+      if (document && document.projectId) {
         requireProjectAccess(context, document.projectId)
       }
 
@@ -125,6 +142,7 @@ export const documentResolvers = {
 
   Document: {
     project: async (parent: any, _: any, context: Context) => {
+      if (!parent.projectId) return null
       return await prisma.project.findUnique({
         where: { id: parent.projectId },
       })

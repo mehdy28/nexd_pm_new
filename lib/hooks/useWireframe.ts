@@ -77,7 +77,6 @@ const DELETE_WIREFRAME = gql`
     deleteWireframe(id: $id)
   }
 `
-
 export function useWireframes(projectId?: string, userId?: string, personal?: boolean) {
   const { data, loading, error, refetch } = useQuery(GET_WIREFRAMES, {
     variables: { projectId, userId, personal },

@@ -15,6 +15,49 @@ export function useTasks(projectId?: string, userId?: string, personal?: boolean
   }
 }
 
+export function useTaskSections(projectId?: string, userId?: string, personal?: boolean) {
+  const { data, loading, error, refetch } = useQuery(GET_TASK_SECTIONS, {
+    variables: { projectId, userId, personal },
+  })
+
+  return {
+    sections: data?.taskSections || [],
+    loading,
+    error,
+    refetch,
+  }
+}
+
+export function useCreateTaskSection() {
+  const [createTaskSection, { loading, error }] = useMutation(CREATE_TASK_SECTION)
+
+  return {
+    createTaskSection,
+    loading,
+    error,
+  }
+}
+
+export function useUpdateTaskSection() {
+  const [updateTaskSection, { loading, error }] = useMutation(UPDATE_TASK_SECTION)
+
+  return {
+    updateTaskSection,
+    loading,
+    error,
+  }
+}
+
+export function useDeleteTaskSection() {
+  const [deleteTaskSection, { loading, error }] = useMutation(DELETE_TASK_SECTION)
+
+  return {
+    deleteTaskSection,
+    loading,
+    error,
+  }
+}
+
 export function useTask(id: string) {
   const { data, loading, error, refetch } = useQuery(GET_TASK, {
     variables: { id },
@@ -59,16 +102,3 @@ export function useDeleteTask() {
   }
 }
 
-export function usePersonalTasks(userId: string) {
-  const { data, loading, error, refetch } = useQuery(GET_TASKS, {
-    variables: { userId, personal: true },
-    skip: !userId,
-  })
-
-  return {
-    tasks: data?.tasks || [],
-    loading,
-    error,
-    refetch,
-  }
-}

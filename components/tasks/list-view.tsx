@@ -1,6 +1,8 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useMemo, useState, useEffect } from "react"
+import { useFirebaseAuth } from "@/lib/hooks/useFirebaseAuth"
+import { useTasks, useTaskSections, useCreateTask, useCreateTaskSection, useUpdateTask, useUpdateTaskSection, useDeleteTask, useDeleteTaskSection } from "@/lib/hooks/useTask"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -38,6 +40,7 @@ type Task = {
   points: number
   completed?: boolean
   description?: string
+  sectionId?: string
 }
 type Section = { id: string; title: string; tasks: Task[]; editing?: boolean }
 
@@ -63,58 +66,6 @@ const priorityDot: Record<Priority, string> = {
   High: "bg-red-500",
 }
 
-// Initial data with ISO dates for date inputs
-const initial: Section[] = [
-  {
-    id: "backlog",
-    title: "Backlog",
-    tasks: [
-      {
-        id: "backlog:t1",
-        title: "Create a new feed page",
-        assignee: "ff",
-        due: "2025-05-31",
-        priority: "Medium",
-        points: 13,
-        description: "New social feed page with filters.",
-      },
-      {
-        id: "backlog:t2",
-        title: "Create a new card design",
-        assignee: "ff",
-        due: "2025-05-19",
-        priority: "Low",
-        points: 3,
-        description: "Refine the card layout and interactions.",
-      },
-    ],
-  },
-  {
-    id: "ready",
-    title: "Ready",
-    tasks: [
-      {
-        id: "ready:t3",
-        title: "Fix the auth system",
-        assignee: "ff",
-        due: "2025-08-11",
-        priority: "High",
-        points: 7,
-        description: "Resolve session persistence and refresh flow.",
-      },
-      {
-        id: "ready:t4",
-        title: "Create a document system",
-        assignee: "aa",
-        due: "2025-08-11",
-        priority: "High",
-        points: 13,
-        description: "WYSIWYG editor and PDF export.",
-      },
-    ],
-  },
-]
-
 type NewTaskForm = {
   title: string
   assignee: string
@@ -128,7 +79,25 @@ interface ListViewProps {
 }
 
 export function ListView({ projectId }: ListViewProps) {
-  const [sections, setSections] = useState<Section[]>(initial)
+  const { user } = useFirebaseAuth()
+  const { sections: dbSections, loading: sectionsLoading, refetch: refetchSections } = useTaskSections(
+    projectId, 
+    user?.uid, 
+    !projectId
+  )
+  const { tasks: dbTasks, loading: tasksLoading, refetch: refetchTasks } = useTasks(
+    projectId, 
+    user?.uid, 
+    !projectId
+  )
+  const { createTask } = useCreateTask()
+  const { createTaskSection } = useCreateTaskSection()
+  const { updateTask } = useUpdateTask()
+  const { updateTaskSection } = useUpdateTaskSection()
+  const { deleteTask } = useDeleteTask()
+  const { deleteTaskSection } = useDeleteTaskSection()
+
+  const [sections, setSections] = useState<Section[]>([])
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
   const [selected, setSelected] = useState<Record<string, boolean>>({})
   const [sheetTask, setSheetTask] = useState<{ sectionId: string; taskId: string } | null>(null)
@@ -136,6 +105,33 @@ export function ListView({ projectId }: ListViewProps) {
   // per-section "new task" forms below each section
   const [newTaskOpen, setNewTaskOpen] = useState<Record<string, boolean>>({})
   const [newTask, setNewTask] = useState<Record<string, NewTaskForm>>({})
+
+  // Convert database data to local format
+  useEffect(() => {
+    const convertedSections: Section[] = dbSections.map(section => ({
+      id: section.id,
+      title: section.title,
+      editing: false,
+      tasks: dbTasks
+        .filter(task => task.sectionId === section.id)
+        .map(task => ({
+          id: task.id,
+          title: task.title,
+          assignee: task.assigneeId || "aa",
+          due: task.dueDate ? new Date(task.dueDate).toISOString().split('T')[0] : "",
+          priority: task.priority as Priority,
+          points: task.points || 0,
+          completed: task.status === "DONE",
+          description: task.description || "",
+          sectionId: task.sectionId,
+        }))
+    }))
+    setSections(convertedSections)
+  }, [dbSections, dbTasks])
+
+  if (sectionsLoading || tasksLoading) {
+    return <div className="p-6">Loading...</div>
+  }
 
   // aggregate helpers
   const selectedCount = useMemo(() => Object.values(selected).filter(Boolean).length, [selected])
@@ -146,32 +142,50 @@ export function ListView({ projectId }: ListViewProps) {
   function toggleSection(id: string) {
     setCollapsed((prev) => ({ ...prev, [id]: !prev[id] }))
   }
-  function setSectionEditing(id: string, editing: boolean) {
+  async function setSectionEditing(id: string, editing: boolean) {
     setSections((prev) => prev.map((s) => (s.id === id ? { ...s, editing } : s)))
   }
-  function renameSection(id: string, title: string) {
+  async function renameSection(id: string, title: string) {
+    await onUpdateSection(id, { title })
     setSections((prev) => prev.map((s) => (s.id === id ? { ...s, title, editing: false } : s)))
   }
-  function addSection() {
-    const id = `sec-${Date.now()}`
-    setSections((prev) => [{ id, title: "New Section", tasks: [], editing: true }, ...prev])
-    setCollapsed((prev) => ({ ...prev, [id]: false }))
+  async function addSection() {
+    await onCreateSection("New Section")
+    refetchSections()
   }
 
   // tasks
-  function toggleTaskCompleted(sectionId: string, taskId: string) {
-    setSections((prev) =>
-      prev.map((s) =>
-        s.id === sectionId
-          ? {
-              ...s,
-              tasks: s.tasks.map((t) => (t.id === taskId ? { ...t, completed: !t.completed } : t)),
-            }
-          : s,
-      ),
-    )
+  async function toggleTaskCompleted(sectionId: string, taskId: string) {
+    const task = sections.find(s => s.id === sectionId)?.tasks.find(t => t.id === taskId)
+    if (task) {
+      const newStatus = task.completed ? "TODO" : "DONE"
+      await onUpdateTask(taskId, { status: newStatus })
+      setSections((prev) =>
+        prev.map((s) =>
+          s.id === sectionId
+            ? {
+                ...s,
+                tasks: s.tasks.map((t) => (t.id === taskId ? { ...t, completed: !t.completed } : t)),
+              }
+            : s,
+        ),
+      )
+    }
   }
-  function updateTask(sectionId: string, taskId: string, updates: Partial<Task>) {
+  async function updateTask(sectionId: string, taskId: string, updates: Partial<Task>) {
+    // Update backend
+    const backendUpdates: any = {}
+    if (updates.title !== undefined) backendUpdates.title = updates.title
+    if (updates.description !== undefined) backendUpdates.description = updates.description
+    if (updates.priority !== undefined) backendUpdates.priority = updates.priority
+    if (updates.points !== undefined) backendUpdates.points = updates.points
+    if (updates.due !== undefined) backendUpdates.dueDate = updates.due ? new Date(updates.due).toISOString() : null
+    
+    if (Object.keys(backendUpdates).length > 0) {
+      await onUpdateTask(taskId, backendUpdates)
+    }
+    
+    // Update local state
     setSections((prev) =>
       prev.map((s) =>
         s.id === sectionId
@@ -183,7 +197,8 @@ export function ListView({ projectId }: ListViewProps) {
       ),
     )
   }
-  function deleteTask(sectionId: string, taskId: string) {
+  async function deleteTaskLocal(sectionId: string, taskId: string) {
+    await deleteTask({ variables: { id: taskId } })
     setSections((prev) =>
       prev.map((s) => (s.id === sectionId ? { ...s, tasks: s.tasks.filter((t) => t.id !== taskId) } : s)),
     )
@@ -192,6 +207,7 @@ export function ListView({ projectId }: ListViewProps) {
       delete copy[taskId]
       return copy
     })
+    refetchTasks()
   }
 
   // selection
@@ -207,13 +223,20 @@ export function ListView({ projectId }: ListViewProps) {
     for (const id of allTaskIds) next[id] = true
     setSelected(next)
   }
-  function bulkDeleteSelected() {
+  async function bulkDeleteSelected() {
     const toDelete = new Set(
       Object.entries(selected)
         .filter(([, v]) => v)
         .map(([k]) => k),
     )
     if (toDelete.size === 0) return
+    
+    // Delete from backend
+    for (const taskId of toDelete) {
+      await deleteTask({ variables: { id: taskId } })
+    }
+    
+    // Update local state
     setSections((prev) =>
       prev.map((s) => ({
         ...s,
@@ -221,6 +244,7 @@ export function ListView({ projectId }: ListViewProps) {
       })),
     )
     setSelected({})
+    refetchTasks()
   }
 
   // create task form
@@ -240,21 +264,13 @@ export function ListView({ projectId }: ListViewProps) {
   function cancelNewTask(sectionId: string) {
     setNewTaskOpen((p) => ({ ...p, [sectionId]: false }))
   }
-  function saveNewTask(sectionId: string) {
+  async function saveNewTask(sectionId: string) {
     const form = newTask[sectionId]
     if (!form) return
-    const id = `${sectionId}:${Date.now()}`
-    const task: Task = {
-      id,
-      title: form.title || "Untitled task",
-      assignee: form.assignee,
-      due: form.due || "",
-      priority: form.priority,
-      points: Number.isFinite(form.points) ? Math.max(0, Math.floor(form.points)) : 0,
-      description: "",
-    }
-    setSections((prev) => prev.map((s) => (s.id === sectionId ? { ...s, tasks: [task, ...s.tasks] } : s)))
+    
+    await onCreateTask(sectionId, form.title || "Untitled task")
     setNewTaskOpen((p) => ({ ...p, [sectionId]: false }))
+    refetchTasks()
   }
 
   // details sheet
@@ -479,7 +495,7 @@ export function ListView({ projectId }: ListViewProps) {
                               variant="ghost"
                               className="h-9 bg-red-600 hover:bg-red-700 text-white"
                               onClick={() => cancelNewTask(section.id)}
-                            >
+                          onClick={() => deleteTaskLocal(sectionId, task.id)}
                               Cancel
                             </Button>
                           </div>

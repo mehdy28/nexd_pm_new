@@ -87,6 +87,8 @@ export const typeDefs = gql`
     status: TaskStatus!
     priority: Priority!
     dueDate: DateTime
+    points: Int
+    sectionId: ID
     createdAt: DateTime!
     updatedAt: DateTime!
     project: Project!
@@ -94,9 +96,20 @@ export const typeDefs = gql`
     creator: User!
     parent: Task
     subtasks: [Task!]!
+    section: TaskSection
     comments: [Comment!]!
     activities: [Activity!]!
     labels: [Label!]!
+  }
+
+  type TaskSection {
+    id: ID!
+    title: String!
+    order: Int!
+    createdAt: DateTime!
+    updatedAt: DateTime!
+    project: Project
+    tasks: [Task!]!
   }
 
   type Label {
@@ -249,11 +262,13 @@ export const typeDefs = gql`
     project(id: ID!): Project
     projects(workspaceId: ID!): [Project!]!
     task(id: ID!): Task
-    tasks(projectId: ID!): [Task!]!
+    tasks(projectId: ID, userId: ID, personal: Boolean): [Task!]!
+    taskSections(projectId: ID, userId: ID, personal: Boolean): [TaskSection!]!
     document(id: ID!): Document
-    documents(projectId: ID!): [Document!]!
+    documents(projectId: ID, userId: ID, personal: Boolean): [Document!]!
     wireframe(id: ID!): Wireframe
-    wireframes(projectId: ID!): [Wireframe!]!
+    wireframes(projectId: ID, userId: ID, personal: Boolean): [Wireframe!]!
+    prompts(projectId: ID, userId: ID, personal: Boolean): [Prompt!]!
     activities(projectId: ID): [Activity!]!
   }
 
@@ -277,6 +292,11 @@ export const typeDefs = gql`
     updateTask(id: ID!, input: UpdateTaskInput!): Task!
     deleteTask(id: ID!): Boolean!
     
+    # TaskSection
+    createTaskSection(input: CreateTaskSectionInput!): TaskSection!
+    updateTaskSection(id: ID!, input: UpdateTaskSectionInput!): TaskSection!
+    deleteTaskSection(id: ID!): Boolean!
+    
     # Document
     createDocument(input: CreateDocumentInput!): Document!
     updateDocument(id: ID!, input: UpdateDocumentInput!): Document!
@@ -286,6 +306,11 @@ export const typeDefs = gql`
     createWireframe(input: CreateWireframeInput!): Wireframe!
     updateWireframe(id: ID!, input: UpdateWireframeInput!): Wireframe!
     deleteWireframe(id: ID!): Boolean!
+    
+    # Prompt
+    createPrompt(input: CreatePromptInput!): Prompt!
+    updatePrompt(id: ID!, input: UpdatePromptInput!): Prompt!
+    deletePrompt(id: ID!): Boolean!
     
     # Comment
     createComment(input: CreateCommentInput!): Comment!
@@ -343,8 +368,11 @@ export const typeDefs = gql`
     title: String!
     description: String
     priority: Priority
+    points: Int
     dueDate: DateTime
-    projectId: ID!
+    projectId: ID
+    userId: ID
+    sectionId: ID
     assigneeId: ID
     parentId: ID
   }
@@ -354,15 +382,30 @@ export const typeDefs = gql`
     description: String
     status: TaskStatus
     priority: Priority
+    points: Int
     dueDate: DateTime
+    sectionId: ID
     assigneeId: ID
+  }
+
+  input CreateTaskSectionInput {
+    title: String!
+    order: Int
+    projectId: ID
+    userId: ID
+  }
+
+  input UpdateTaskSectionInput {
+    title: String
+    order: Int
   }
 
   input CreateDocumentInput {
     title: String!
     content: JSON
     type: DocumentType
-    projectId: ID!
+    projectId: ID
+    userId: ID
   }
 
   input UpdateDocumentInput {
@@ -375,7 +418,8 @@ export const typeDefs = gql`
     title: String!
     data: JSON!
     thumbnail: String
-    projectId: ID!
+    projectId: ID
+    userId: ID
   }
 
   input UpdateWireframeInput {
@@ -384,11 +428,32 @@ export const typeDefs = gql`
     thumbnail: String
   }
 
+  input CreatePromptInput {
+    title: String!
+    content: String!
+    description: String
+    category: String
+    tags: [String!]
+    isPublic: Boolean
+    projectId: ID
+    userId: ID
+  }
+
+  input UpdatePromptInput {
+    title: String
+    content: String
+    description: String
+    category: String
+    tags: [String!]
+    isPublic: Boolean
+  }
+
   input CreateCommentInput {
     content: String!
     taskId: ID
     documentId: ID
     wireframeId: ID
+    promptId: ID
     mentions: [ID!]
   }
 

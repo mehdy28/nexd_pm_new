@@ -1,16 +1,21 @@
 import { gql } from "@apollo/client"
 
 export const GET_TASKS = gql`
-  query GetTasks($projectId: ID!) {
-    tasks(projectId: $projectId) {
+  query GetTasks($projectId: ID, $userId: ID, $personal: Boolean) {
+    tasks(projectId: $projectId, userId: $userId, personal: $personal) {
       id
       title
       description
       status
       priority
+      points
       dueDate
       createdAt
       updatedAt
+      section {
+        id
+        title
+      }
       assignee {
         id
         name
@@ -56,6 +61,37 @@ export const GET_TASKS = gql`
   }
 `
 
+export const GET_TASK_SECTIONS = gql`
+  query GetTaskSections($projectId: ID, $userId: ID, $personal: Boolean) {
+    taskSections(projectId: $projectId, userId: $userId, personal: $personal) {
+      id
+      title
+      order
+      createdAt
+      updatedAt
+      tasks {
+        id
+        title
+        description
+        status
+        priority
+        points
+        dueDate
+        assignee {
+          id
+          name
+          avatar
+        }
+        creator {
+          id
+          name
+          avatar
+        }
+      }
+    }
+  }
+`
+
 export const GET_TASK = gql`
   query GetTask($id: ID!) {
     task(id: $id) {
@@ -64,9 +100,14 @@ export const GET_TASK = gql`
       description
       status
       priority
+      points
       dueDate
       createdAt
       updatedAt
+      section {
+        id
+        title
+      }
       project {
         id
         name
@@ -95,6 +136,7 @@ export const GET_TASK = gql`
         description
         status
         priority
+        points
         dueDate
         assignee {
           id

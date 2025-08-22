@@ -1,6 +1,9 @@
 "use client"
 
 import { useState } from "react"
+import { useFirebaseAuth } from "@/lib/hooks/useFirebaseAuth"
+import { useCreateWorkspace } from "@/lib/hooks/useWorkspace"
+import { useCreateProject } from "@/lib/hooks/useProject"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -21,6 +24,10 @@ const views = [
 ]
 
 export default function SetupPage() {
+  const { user } = useFirebaseAuth()
+  const { createWorkspace } = useCreateWorkspace()
+  const { createProject } = useCreateProject()
+  
   const [currentStep, setCurrentStep] = useState(0)
   const [setupData, setSetupData] = useState({
     workspaceTitle: "",
@@ -28,6 +35,7 @@ export default function SetupPage() {
     preferredView: "list",
     template: "general",
   })
+  const [isCreating, setIsCreating] = useState(false)
 
   const steps = [
     {
@@ -56,11 +64,46 @@ export default function SetupPage() {
     }
   }
 
-  const handleFinish = () => {
-    localStorage.setItem("hasCompletedSetup", "true")
-    localStorage.setItem("setupData", JSON.stringify(setupData))
-    console.log("Setup completed:", setupData)
-    window.location.href = "/workspace"
+  const handleFinish = async () => {
+    if (!user) return
+    
+    setIsCreating(true)
+    try {
+      // Create workspace
+      const workspaceResult = await createWorkspace({
+        variables: {
+          input: {
+            name: setupData.workspaceTitle,
+            slug: setupData.workspaceTitle.toLowerCase().replace(/\s+/g, '-'),
+            description: `Workspace created during setup`,
+          }
+        }
+      })
+      
+      if (workspaceResult.data?.createWorkspace) {
+        const workspaceId = workspaceResult.data.createWorkspace.id
+        
+        // Create project
+        await createProject({
+          variables: {
+            input: {
+              name: setupData.projectName,
+              description: `Project created during setup`,
+              workspaceId,
+            }
+          }
+        })
+      }
+      
+      localStorage.setItem("hasCompletedSetup", "true")
+      localStorage.setItem("setupData", JSON.stringify(setupData))
+      window.location.href = "/workspace"
+    } catch (error) {
+      console.error("Error creating workspace/project:", error)
+      alert("Error creating workspace. Please try again.")
+    } finally {
+      setIsCreating(false)
+    }
   }
 
   const canProceed = () => {

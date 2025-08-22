@@ -1,6 +1,7 @@
 "use client"
 
 import { useParams, useSearchParams } from "next/navigation"
+import { useProject } from "@/lib/hooks/useProject"
 import { useTopbar, useTopbarSetup } from "@/components/layout/topbar-store"
 import { BoardView } from "@/components/tasks/board-view"
 import { ListView } from "@/components/tasks/list-view"
@@ -23,42 +24,6 @@ import {
 } from "lucide-react"
 import { GanttView } from "@/components/tasks/gantt-view"
 
-// Mock project data - in real app this would come from API
-const getProjectData = (id: string) => {
-  const projects = {
-    "1": {
-      name: "Mobile App Redesign",
-      description: "Complete redesign of our mobile application with new user experience",
-      status: "In Progress",
-      members: 8,
-      color: "bg-blue-500",
-    },
-    "2": {
-      name: "Website Migration",
-      description: "Migrate existing website to new tech stack and hosting",
-      status: "Planning",
-      members: 5,
-      color: "bg-green-500",
-    },
-    "3": {
-      name: "API Documentation",
-      description: "Create comprehensive API documentation for external developers",
-      status: "Review",
-      members: 3,
-      color: "bg-purple-500",
-    },
-  }
-  return (
-    projects[id as keyof typeof projects] || {
-      name: `Project ${id}`,
-      description: "Project description not available",
-      status: "Unknown",
-      members: 0,
-      color: "bg-gray-500",
-    }
-  )
-}
-
 const TABS = [
   { key: "overview", label: "Overview", icon: <LayoutGrid className="h-4 w-4" /> },
   { key: "list", label: "List", icon: <ListChecks className="h-4 w-4" /> },
@@ -76,10 +41,11 @@ export default function ProjectPage() {
   const sp = useSearchParams()
   const initialTab = sp.get("tab") || "overview"
   const projectId = params?.id ?? ""
-  const projectData = getProjectData(projectId)
+  
+  const { project, loading } = useProject(projectId)
 
   useTopbarSetup({
-    title: projectData.name,
+    title: project?.name || "Loading...",
     tabs: TABS,
     activeKey: initialTab,
     showShare: true,
@@ -88,6 +54,22 @@ export default function ProjectPage() {
   })
   const { activeKey } = useTopbar()
   const currentKey = activeKey || initialTab
+
+  if (loading) {
+    return <div className="p-6">Loading project...</div>
+  }
+
+  if (!project) {
+    return <div className="p-6">Project not found</div>
+  }
+
+  const projectData = {
+    name: project.name,
+    description: project.description || "",
+    status: project.status,
+    members: project.members?.length || 0,
+    color: project.color,
+  }
 
   // Pass projectId to all components for project-scoped data
   if (currentKey === "overview") return <ProjectOverview projectId={projectId} projectData={projectData} />

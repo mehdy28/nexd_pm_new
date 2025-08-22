@@ -1,6 +1,9 @@
 "use client"
 
 import { useEffect } from "react"
+import { useFirebaseAuth } from "@/lib/hooks/useFirebaseAuth"
+import { useWorkspaces } from "@/lib/hooks/useWorkspace"
+import { useProjects } from "@/lib/hooks/useProject"
 import { useTopbar } from "@/components/layout/topbar-store"
 import { Users, Settings, Plus, MoreHorizontal } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -9,84 +12,14 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
 
-// Mock data - in real app this would come from API/database
-const workspaceData = {
-  name: "Acme Corp Workspace",
-  description:
-    "Our main workspace for product development and collaboration. This workspace contains all our active projects, team members, and shared resources.",
-  projects: [
-    {
-      id: "1",
-      name: "Mobile App Redesign",
-      description: "Complete redesign of our mobile application with new user experience",
-      status: "In Progress",
-      members: 8,
-      tasksCount: 24,
-      completedTasks: 12,
-      color: "bg-blue-500",
-    },
-    {
-      id: "2",
-      name: "Website Migration",
-      description: "Migrate existing website to new tech stack and hosting",
-      status: "Planning",
-      members: 5,
-      tasksCount: 18,
-      completedTasks: 3,
-      color: "bg-green-500",
-    },
-    {
-      id: "3",
-      name: "API Documentation",
-      description: "Create comprehensive API documentation for external developers",
-      status: "Review",
-      members: 3,
-      tasksCount: 12,
-      completedTasks: 10,
-      color: "bg-purple-500",
-    },
-  ],
-  teamMembers: [
-    {
-      id: "1",
-      name: "John Doe",
-      role: "Product Manager",
-      avatar: "/placeholder.svg?height=32&width=32",
-      status: "online",
-    },
-    {
-      id: "2",
-      name: "Sarah Chen",
-      role: "Lead Designer",
-      avatar: "/placeholder.svg?height=32&width=32",
-      status: "online",
-    },
-    {
-      id: "3",
-      name: "Mike Johnson",
-      role: "Senior Developer",
-      avatar: "/placeholder.svg?height=32&width=32",
-      status: "away",
-    },
-    {
-      id: "4",
-      name: "Emily Davis",
-      role: "QA Engineer",
-      avatar: "/placeholder.svg?height=32&width=32",
-      status: "offline",
-    },
-    {
-      id: "5",
-      name: "Alex Rodriguez",
-      role: "DevOps Engineer",
-      avatar: "/placeholder.svg?height=32&width=32",
-      status: "online",
-    },
-  ],
-}
-
 export default function WorkspacePage() {
+  const { user } = useFirebaseAuth()
+  const { workspaces, loading: workspacesLoading } = useWorkspaces()
+  const { projects, loading: projectsLoading } = useProjects(workspaces?.[0]?.id)
   const { setConfig, setActiveKey } = useTopbar()
+
+  // Get the first workspace (in a real app, you'd have workspace selection)
+  const currentWorkspace = workspaces?.[0]
 
   useEffect(() => {
     setConfig({
@@ -100,12 +33,14 @@ export default function WorkspacePage() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case "In Progress":
+      case "ACTIVE":
         return "bg-blue-100 text-blue-800"
       case "Planning":
         return "bg-yellow-100 text-yellow-800"
       case "Review":
         return "bg-purple-100 text-purple-800"
       case "Completed":
+      case "ARCHIVED":
         return "bg-green-100 text-green-800"
       default:
         return "bg-gray-100 text-gray-800"
@@ -125,14 +60,41 @@ export default function WorkspacePage() {
     }
   }
 
+  if (workspacesLoading || projectsLoading) {
+    return (
+      <div className="p-8 space-y-10 bg-muted/30 min-h-full">
+        <div className="animate-pulse">
+          <div className="h-8 bg-slate-200 rounded w-64 mb-4"></div>
+          <div className="h-4 bg-slate-200 rounded w-full max-w-2xl"></div>
+        </div>
+      </div>
+    )
+  }
+
+  if (!currentWorkspace) {
+    return (
+      <div className="p-8 space-y-10 bg-muted/30 min-h-full">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold text-foreground mb-4">No Workspace Found</h2>
+          <p className="text-muted-foreground mb-6">You need to create a workspace first.</p>
+          <Button asChild>
+            <Link href="/setup">Create Workspace</Link>
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="p-8 space-y-10 bg-muted/30 min-h-full">
       {/* Workspace Description */}
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div className="space-y-2">
-            <h2 className="text-3xl font-bold text-foreground">{workspaceData.name}</h2>
-            <p className="text-muted-foreground leading-relaxed max-w-3xl">{workspaceData.description}</p>
+            <h2 className="text-3xl font-bold text-foreground">{currentWorkspace.name}</h2>
+            <p className="text-muted-foreground leading-relaxed max-w-3xl">
+              {currentWorkspace.description || "Your main workspace for project collaboration and management."}
+            </p>
           </div>
           <Button
             variant="outline"
@@ -155,7 +117,14 @@ export default function WorkspacePage() {
         </div>
 
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {workspaceData.projects.map((project) => (
+          {projects.map((project) => {
+            // Calculate project stats (in real app, this would come from the API)
+            const projectStats = {
+              members: project.members?.length || 0,
+              tasksCount: 0, // Would be calculated from tasks
+              completedTasks: 0, // Would be calculated from completed tasks
+            }
+            
             <Card
               key={project.id}
               className="shadow-soft hover:shadow-medium hover:scale-[1.02] transition-all duration-200 cursor-pointer group"
@@ -164,7 +133,7 @@ export default function WorkspacePage() {
                 <CardHeader className="pb-4">
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-3">
-                      <div className={`w-4 h-4 rounded-full ${project.color} shadow-sm`} />
+                      <div className="w-4 h-4 rounded-full shadow-sm" style={{ backgroundColor: project.color }} />
                       <CardTitle className="text-lg font-semibold group-hover:text-primary transition-colors">
                         {project.name}
                       </CardTitle>
@@ -186,20 +155,24 @@ export default function WorkspacePage() {
                     <Badge variant="secondary" className={`${getStatusColor(project.status)} border-0 font-medium`}>
                       {project.status}
                     </Badge>
-                    <span className="text-sm text-muted-foreground font-medium">{project.members} members</span>
+                    <span className="text-sm text-muted-foreground font-medium">{projectStats.members} members</span>
                   </div>
 
                   <div className="space-y-3">
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground font-medium">Progress</span>
                       <span className="font-semibold text-foreground">
-                        {project.completedTasks}/{project.tasksCount}
+                        {projectStats.completedTasks}/{projectStats.tasksCount}
                       </span>
                     </div>
                     <div className="w-full bg-muted rounded-full h-2">
                       <div
                         className="bg-primary h-2 rounded-full transition-all duration-300"
-                        style={{ width: `${(project.completedTasks / project.tasksCount) * 100}%` }}
+                        style={{ 
+                          width: projectStats.tasksCount > 0 
+                            ? `${(projectStats.completedTasks / projectStats.tasksCount) * 100}%` 
+                            : "0%" 
+                        }}
                       />
                     </div>
                   </div>
@@ -224,7 +197,7 @@ export default function WorkspacePage() {
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {workspaceData.teamMembers.map((member) => (
+          {currentWorkspace.members?.map((member) => (
             <Card
               key={member.id}
               className="shadow-soft hover:shadow-medium hover:scale-[1.02] transition-all duration-200 group"
@@ -233,21 +206,21 @@ export default function WorkspacePage() {
                 <div className="flex items-center space-x-4">
                   <div className="relative">
                     <Avatar className="h-12 w-12 shadow-sm">
-                      <AvatarImage src={member.avatar || "/placeholder.svg"} alt={member.name} />
+                      <AvatarImage src={member.user.avatar || "/placeholder.svg"} alt={member.user.name} />
                       <AvatarFallback className="bg-primary/10 text-primary font-semibold">
-                        {member.name
+                        {member.user.name
                           .split(" ")
                           .map((n) => n[0])
                           .join("")}
                       </AvatarFallback>
                     </Avatar>
                     <div
-                      className={`absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full border-2 border-background ${getStatusIndicator(member.status)} shadow-sm`}
+                      className={`absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full border-2 border-background ${getStatusIndicator("online")} shadow-sm`}
                     />
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold text-foreground truncate group-hover:text-primary transition-colors">
-                      {member.name}
+                      {member.user.name}
                     </p>
                     <p className="text-sm text-muted-foreground truncate">{member.role}</p>
                   </div>

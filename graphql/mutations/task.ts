@@ -8,8 +8,13 @@ export const CREATE_TASK = gql`
       description
       status
       priority
+      points
       dueDate
       createdAt
+      section {
+        id
+        title
+      }
       project {
         id
         name
@@ -28,6 +33,41 @@ export const CREATE_TASK = gql`
   }
 `
 
+export const CREATE_TASK_SECTION = gql`
+  mutation CreateTaskSection($input: CreateTaskSectionInput!) {
+    createTaskSection(input: $input) {
+      id
+      title
+      order
+      createdAt
+      tasks {
+        id
+        title
+        status
+        priority
+        points
+      }
+    }
+  }
+`
+
+export const UPDATE_TASK_SECTION = gql`
+  mutation UpdateTaskSection($id: ID!, $input: UpdateTaskSectionInput!) {
+    updateTaskSection(id: $id, input: $input) {
+      id
+      title
+      order
+      updatedAt
+    }
+  }
+`
+
+export const DELETE_TASK_SECTION = gql`
+  mutation DeleteTaskSection($id: ID!) {
+    deleteTaskSection(id: $id)
+  }
+`
+
 export const UPDATE_TASK = gql`
   mutation UpdateTask($id: ID!, $input: UpdateTaskInput!) {
     updateTask(id: $id, input: $input) {
@@ -36,8 +76,13 @@ export const UPDATE_TASK = gql`
       description
       status
       priority
+      points
       dueDate
       updatedAt
+      section {
+        id
+        title
+      }
       assignee {
         id
         name
