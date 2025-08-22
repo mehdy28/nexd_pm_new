@@ -2,11 +2,11 @@
 
 import type { Context } from "@/lib/apollo-server"
 import { prisma } from "@/lib/prisma" // Import Prisma
-import { doc, getDoc } from "firebase/firestore" // Import Firestore
+
 
 export const userResolvers = {
   Query: {
-    me: async (_: any, __: any, { user, db }: Context) => {
+    me: async (_: any, __: any, { user }: Context) => {
       if (!user) {
         throw new Error("Not authenticated")
       }
@@ -19,32 +19,16 @@ export const userResolvers = {
       if (!prismaUser) {
         throw new Error("User not found in Prisma")
       }
-      // Get user document from Firestore
-      const userDocRef = doc(db, "users", user.id)
-      const userDoc = await getDoc(userDocRef)
 
-      if (!userDoc.exists()) {
-        throw new Error("User not found in Firestore")
-      }
-
-      const userData = userDoc.data()
-
-      return {
-        ...prismaUser,
-        role: userData?.role,
-      }
+      return prismaUser
     },
   },
 
-  User: {
-
-
-
-
+  Mutation: {
     createUser: async (
       _: any,
       { input }: { input: { firebaseUid: string; email: string; firstName?: string; lastName?: string } },
-      context: Context
+      {}: Context
     ) => {
       try {
         const user = await prisma.user.create({
@@ -61,7 +45,9 @@ export const userResolvers = {
         throw new Error("Could not create user");
       }
     },
-    
+  },
+
+  User: {
     workspaceMembers: async (parent: any, _: any, {}: Context) => {
       return await prisma.workspaceMember.findMany({
         where: { userId: parent.id },
@@ -105,16 +91,3 @@ export const userResolvers = {
     },
   },
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
