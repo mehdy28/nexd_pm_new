@@ -3,7 +3,6 @@
 import type { Context } from "@/lib/apollo-server"
 import { prisma } from "@/lib/prisma" // Import Prisma
 
-
 export const userResolvers = {
   Query: {
     me: async (_: any, __: any, { user }: Context) => {
@@ -39,10 +38,18 @@ export const userResolvers = {
             lastName: input.lastName,
           },
         });
+
+        if (!user) {
+          throw new Error("Failed to create user in Prisma."); // Explicitly check if user creation failed
+        }
+
         return user;
-      } catch (error) {
+      } catch (error: any) {
         console.error("Error creating user:", error);
-        throw new Error("Could not create user");
+        if (error.code === 'P2002') { // Prisma error code for unique constraint violation
+          throw new Error("Email or Firebase UID already exists.");
+        }
+        throw new Error(`Could not create user: ${error.message}`); // Include original error message
       }
     },
   },

@@ -270,7 +270,7 @@ export const typeDefs = gql`
     # Auth
     signUp(input: SignUpInput!): AuthPayload!
     signIn(input: SignInInput!): AuthPayload!
-    createUser(input: CreateUserInput!): User!
+    createUser(input: CreateUserInput): User
 
     # Workspace
     createWorkspace(input: CreateWorkspaceInput!): Workspace!
