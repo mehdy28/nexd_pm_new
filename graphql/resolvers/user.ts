@@ -37,6 +37,31 @@ export const userResolvers = {
   },
 
   User: {
+
+
+
+
+    createUser: async (
+      _: any,
+      { input }: { input: { firebaseUid: string; email: string; firstName?: string; lastName?: string } },
+      context: Context
+    ) => {
+      try {
+        const user = await prisma.user.create({
+          data: {
+            firebaseUid: input.firebaseUid,
+            email: input.email,
+            firstName: input.firstName,
+            lastName: input.lastName,
+          },
+        });
+        return user;
+      } catch (error) {
+        console.error("Error creating user:", error);
+        throw new Error("Could not create user");
+      }
+    },
+    
     workspaceMembers: async (parent: any, _: any, {}: Context) => {
       return await prisma.workspaceMember.findMany({
         where: { userId: parent.id },
@@ -80,3 +105,16 @@ export const userResolvers = {
     },
   },
 }
+
+
+
+
+
+
+
+
+
+
+
+
+

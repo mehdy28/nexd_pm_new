@@ -4,22 +4,28 @@ export const typeDefs = gql`
   scalar DateTime
   scalar JSON
 
+
   type User {
-    id: ID!
-    email: String!
-    name: String
-    avatar: String
-    role: UserRole!
-    createdAt: DateTime!
-    updatedAt: DateTime!
-    workspaceMembers: [WorkspaceMember!]!
-    ownedWorkspaces: [Workspace!]!
-    projectMembers: [ProjectMember!]!
-    assignedTasks: [Task!]!
-    createdTasks: [Task!]!
-    activities: [Activity!]!
-    comments: [Comment!]!
-  }
+  id: ID!
+  email: String!
+  name: String
+  firstName: String
+  lastName: String
+  avatar: String
+  role: UserRole!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  workspaceMembers: [WorkspaceMember!]!
+  ownedWorkspaces: [Workspace!]!
+  projectMembers: [ProjectMember!]!
+  assignedTasks: [Task!]!
+  createdTasks: [Task!]!
+  activities: [Activity!]!
+  comments: [Comment!]!
+}
+
+
+
 
   type Workspace {
     id: ID!
@@ -258,9 +264,13 @@ export const typeDefs = gql`
   }
 
   type Mutation {
+
+
+
     # Auth
     signUp(input: SignUpInput!): AuthPayload!
     signIn(input: SignInInput!): AuthPayload!
+    createUser(input: CreateUserInput!): User! # Add this line
     
     # Workspace
     createWorkspace(input: CreateWorkspaceInput!): Workspace!
@@ -297,6 +307,14 @@ export const typeDefs = gql`
     user: User!
     token: String!
   }
+
+
+  input CreateUserInput {
+  firebaseUid: String!
+  email: String!
+  firstName: String
+  lastName: String
+}
 
   input SignUpInput {
     email: String!
@@ -396,3 +414,8 @@ export const typeDefs = gql`
     content: String!
   }
 `
+
+
+
+
+

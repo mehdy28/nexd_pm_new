@@ -10,8 +10,10 @@ import { Label } from "@/components/ui/label"
 import { Eye, EyeOff, Check } from "lucide-react"
 import Image from "next/image"
 import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth"
-import { auth, db } from "@/lib/firebase"
-import { doc, setDoc } from "firebase/firestore"
+import { auth } from "@/lib/firebase"
+import { useCreateUser } from "@/hooks/useCreateUser"
+import { useToast } from "@/components/ui/use-toast"
+
 
 export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false)
@@ -27,6 +29,9 @@ export default function RegisterPage() {
     agreeToTerms: false,
   })
   const router = useRouter()
+    const { createUser, loading: mutationLoading } = useCreateUser()
+    const { toast } = useToast()
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -53,18 +58,26 @@ export default function RegisterPage() {
         displayName: `${formData.firstName} ${formData.lastName}`,
       })
 
-      // Create user document in Firestore
-      await setDoc(doc(db, "users", user.uid), {
+      // Create user in Prisma DB
+      const newUser = await createUser({
+        firebaseUid: user.uid,
+        email: formData.email,
         firstName: formData.firstName,
         lastName: formData.lastName,
-        email: formData.email,
-        createdAt: new Date(),
-        role: "USER",
       })
+
+      if (!newUser) {
+        throw new Error("Failed to create user in database.")
+      }
 
       router.push("/setup")
     } catch (error: any) {
       setError(error.message || "Registration failed")
+        toast({
+            variant: "destructive",
+            title: "Uh oh! Something went wrong.",
+            description: error.message,
+          })
     } finally {
       setIsLoading(false)
     }
@@ -216,8 +229,8 @@ export default function RegisterPage() {
             </Label>
           </div>
 
-          <Button type="submit" className="w-full bg-primary hover:bg-primary/80 text-white" disabled={isLoading}>
-            {isLoading ? "Creating account..." : "Create account"}
+          <Button type="submit" className="w-full bg-primary hover:bg-primary/80 text-white" disabled={isLoading || mutationLoading}>
+            {isLoading || mutationLoading ? "Creating account..." : "Create account"}
           </Button>
         </form>
 
