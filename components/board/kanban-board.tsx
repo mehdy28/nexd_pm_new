@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
-import type { Priority } from "./kanban-types"
+import type { Card, Column, Priority } from "./kanban-types"
 import { KanbanSortableColumn } from "./kanban-sortable-column"
 import { KanbanSortableCard } from "./kanban-sortable-card"
 import {
@@ -38,46 +38,57 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 
-type Card = {
-  id: string
-  title: string
-  description?: string
-  priority?: Priority
-  due?: string
-  points?: number
-  editing?: boolean
-}
+const seed: Column[] = [
+  {
+    id: "col-1",
+    title: "Backlog",
+    cards: [
+      { id: "c-1", title: "Create a new feed page", priority: "Medium", due: "May 31", points: 13 },
+      { id: "c-2", title: "Create a new card design", priority: "Low", due: "May 19", points: 3 },
+    ],
+  },
+  {
+    id: "col-2",
+    title: "Ready",
+    cards: [
+      { id: "c-3", title: "Fix the auth system", priority: "High", due: "Tomorrow", points: 7 },
+      { id: "c-4", title: "Create a document system", priority: "High", due: "Tomorrow", points: 13 },
+      { id: "c-5", title: "Create wireframe system", priority: "High", due: "Tomorrow", points: 13 },
+    ],
+  },
+  {
+    id: "col-3",
+    title: "In Progress",
+    cards: [
+      { id: "c-6", title: "Random task", priority: "Medium", due: "May 22", points: 12 },
+      { id: "c-7", title: "Another random task", priority: "High", due: "May 23", points: 3 },
+      { id: "c-8", title: "The TASK", priority: "High", due: "May 21", points: 8 },
+    ],
+  },
+  {
+    id: "col-4",
+    title: "Done",
+    cards: [
+      { id: "c-9", title: "This", priority: "High", due: "May 20", points: 6 },
+      { id: "c-10", title: "Is", priority: "Medium", due: "May 20", points: 4 },
+      { id: "c-11", title: "Random", priority: "High", due: "May 20", points: 20 },
+    ],
+  },
+]
 
-type Column = {
-  id: string
-  title: string
-  editing?: boolean
-  cards: Card[]
-}
 type CardOverlay = { kind: "card"; card: Card; width?: number; height?: number }
 type ColumnOverlay = { kind: "column"; column: Column; width?: number; height?: number }
 type OverlayState = CardOverlay | ColumnOverlay | null
 
 interface KanbanBoardProps {
   projectId?: string
-  sections: any[]
-  tasks: any[]
-  onCreateSection: (title: string) => Promise<void>
-  onCreateTask: (sectionId: string, title: string) => Promise<void>
-  onUpdateTask: (taskId: string, updates: any) => Promise<void>
-  onUpdateSection: (sectionId: string, updates: any) => Promise<void>
 }
 
-export function KanbanBoard({ 
-  projectId, 
-  sections, 
-  tasks, 
-  onCreateSection, 
-  onCreateTask, 
-  onUpdateTask, 
-  onUpdateSection 
-}: KanbanBoardProps) {
-  const [columns, setColumns] = useState<Column[]>([])
+export function KanbanBoard({ projectId }: KanbanBoardProps) {
+  const [columns, setColumns] = useState<Column[]>(() => {
+    // In real implementation, load project-specific columns
+    return seed
+  })
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [selected, setSelected] = useState<{ columnId: string; cardId: string } | null>(null)
   const [overlay, setOverlay] = useState<OverlayState>(null)
@@ -87,27 +98,6 @@ export function KanbanBoard({
   const nextCard = useRef(12)
   const rowRef = useRef<HTMLDivElement | null>(null)
 
-  // Convert sections and tasks to columns format
-  useEffect(() => {
-    const convertedColumns: Column[] = sections.map(section => ({
-      id: section.id,
-      title: section.title,
-      editing: false,
-      cards: tasks
-        .filter(task => task.sectionId === section.id)
-        .map(task => ({
-          id: task.id,
-          title: task.title,
-          description: task.description,
-          priority: task.priority as Priority,
-          due: task.dueDate ? new Date(task.dueDate).toLocaleDateString() : undefined,
-          points: task.points,
-          editing: false,
-        }))
-    }))
-    setColumns(convertedColumns)
-  }, [sections, tasks])
-
   useEffect(() => {
     const handler = () => addColumn()
     window.addEventListener("app:add-section" as any, handler as any)
@@ -116,37 +106,27 @@ export function KanbanBoard({
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
 
-  async function addColumn() {
-    await onCreateSection("New Section")
+  function addColumn() {
+    const id = `col-${nextCol.current++}`
+    const col: Column = { id, title: "New Section", editing: true, cards: [] }
+    setColumns((prev) => [...prev, col])
     setTimeout(() => rowRef.current?.scrollTo({ left: rowRef.current.scrollWidth, behavior: "smooth" }), 0)
   }
 
-  async function addCard(columnId: string) {
-    await onCreateTask(columnId, "New Task")
+  function addCard(columnId: string) {
+    const id = `c-${nextCard.current++}`
+    setColumns((prev) =>
+      prev.map((c) =>
+        c.id === columnId ? { ...c, cards: [{ id, title: "New Task", editing: true }, ...c.cards] } : c,
+      ),
+    )
   }
 
-  async function updateColumn(columnId: string, patch: Partial<Column>) {
-    if (patch.title !== undefined) {
-      await onUpdateSection(columnId, { title: patch.title })
-    }
-    // Update local state for editing
+  function updateColumn(columnId: string, patch: Partial<Column>) {
     setColumns((prev) => prev.map((c) => (c.id === columnId ? { ...c, ...patch } : c)))
   }
 
-  async function updateCard(columnId: string, cardId: string, patch: Partial<Card>) {
-    if (Object.keys(patch).some(key => key !== 'editing')) {
-      // Only update backend if non-editing fields changed
-      const updateData: any = {}
-      if (patch.title !== undefined) updateData.title = patch.title
-      if (patch.description !== undefined) updateData.description = patch.description
-      if (patch.priority !== undefined) updateData.priority = patch.priority
-      if (patch.points !== undefined) updateData.points = patch.points
-      
-      if (Object.keys(updateData).length > 0) {
-        await onUpdateTask(cardId, updateData)
-      }
-    }
-    // Update local state for editing
+  function updateCard(columnId: string, cardId: string, patch: Partial<Card>) {
     setColumns((prev) =>
       prev.map((c) =>
         c.id === columnId ? { ...c, cards: c.cards.map((k) => (k.id === cardId ? { ...k, ...patch } : k)) } : c,

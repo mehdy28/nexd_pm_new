@@ -77,6 +77,7 @@ const DELETE_DOCUMENT = gql`
     deleteDocument(id: $id)
   }
 `
+
 export function useDocuments(projectId?: string, userId?: string, personal?: boolean) {
   const { data, loading, error, refetch } = useQuery(GET_DOCUMENTS, {
     variables: { projectId, userId, personal },

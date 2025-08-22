@@ -1,8 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
-import { useFirebaseAuth } from "@/lib/hooks/useFirebaseAuth"
-import { usePrompts, useCreatePrompt, useUpdatePrompt, useDeletePrompt } from "@/lib/hooks/usePrompt"
+import { usePromptLab, type Prompt, type Version } from "./store"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
@@ -10,50 +9,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Copy, Save, RotateCcw, Trash2, Plus, CopyIcon as Duplicate, Search, GitCommit } from "lucide-react"
 
-type Version = {
-  id: string
-  content: string
-  context: string
-  notes?: string
-  createdAt: number
-}
-
-type Prompt = {
-  id: string
-  title: string
-  model: string
-  temperature: number
-  context: string
-  content: string
-  versions: Version[]
-  updatedAt: number
-}
-
 export function PromptLab({ projectId }: { projectId?: string }) {
-  const { user } = useFirebaseAuth()
-  const { prompts: dbPrompts, loading, refetch } = usePrompts(projectId, user?.uid, !projectId)
-  const { createPrompt } = useCreatePrompt()
-  const { updatePrompt } = useUpdatePrompt()
-  const { deletePrompt } = useDeletePrompt()
-  
+  const { prompts, create, update, remove, duplicate, snapshot, restore } = usePromptLab(projectId)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [compare, setCompare] = useState<{ open: boolean; version?: Version }>(() => ({ open: false }))
   const [rightTab, setRightTab] = useState<"editor" | "versions" | "preview">("editor")
   const searchRef = useRef<HTMLInputElement | null>(null)
-
-  // Convert database prompts to local format
-  const prompts: Prompt[] = useMemo(() => {
-    return dbPrompts.map(prompt => ({
-      id: prompt.id,
-      title: prompt.title,
-      model: "gpt-4o", // Default model
-      temperature: 0.2, // Default temperature
-      context: prompt.description || "",
-      content: prompt.content,
-      versions: [], // Versions not implemented yet
-      updatedAt: new Date(prompt.updatedAt).getTime(),
-    }))
-  }, [dbPrompts])
 
   useEffect(() => {
     if (prompts.length === 0) {
@@ -76,60 +37,10 @@ export function PromptLab({ projectId }: { projectId?: string }) {
     return arr.filter((p) => p.title.toLowerCase().includes(q))
   }, [prompts, query])
 
-  async function createNew() {
-    try {
-      const result = await createPrompt({
-        variables: {
-          input: {
-            title: "Untitled Prompt",
-            content: "",
-            description: "",
-            category: "general",
-            tags: [],
-            isPublic: false,
-            projectId,
-            userId: projectId ? null : user?.uid,
-          }
-        }
-      })
-      if (result.data?.createPrompt) {
-        setSelectedId(result.data.createPrompt.id)
-        refetch()
-      }
-    } catch (error) {
-      console.error("Error creating prompt:", error)
-    }
+  function createNew() {
+    const p = create("Untitled Prompt")
+    setSelectedId(p.id)
     setTimeout(() => searchRef.current?.focus(), 0)
-  }
-
-  async function updatePromptLocal(id: string, patch: Partial<Prompt>) {
-    try {
-      await updatePrompt({
-        variables: {
-          id,
-          input: {
-            title: patch.title,
-            content: patch.content,
-            description: patch.context,
-          }
-        }
-      })
-      refetch()
-    } catch (error) {
-      console.error("Error updating prompt:", error)
-    }
-  }
-
-  async function removePrompt(id: string) {
-    try {
-      await deletePrompt({
-        variables: { id }
-      })
-      if (selectedId === id) setSelectedId(null)
-      refetch()
-    } catch (error) {
-      console.error("Error deleting prompt:", error)
-    }
   }
 
   function copy(text: string) {
@@ -150,10 +61,6 @@ export function PromptLab({ projectId }: { projectId?: string }) {
     ]
     return lines.join("\n")
   }, [selected])
-
-  if (loading) {
-    return <div className="p-6">Loading prompts...</div>
-  }
 
   return (
     <div className="page-scroller p-4">
@@ -198,23 +105,7 @@ export function PromptLab({ projectId }: { projectId?: string }) {
                             variant="ghost"
                             className="h-8 px-2"
                             title="Duplicate"
-                            onClick={() => {
-                              // Create a copy
-                              createPrompt({
-                                variables: {
-                                  input: {
-                                    title: `${p.title} (Copy)`,
-                                    content: p.content,
-                                    description: p.context,
-                                    category: "general",
-                                    tags: [],
-                                    isPublic: false,
-                                    projectId,
-                                    userId: projectId ? null : user?.uid,
-                                  }
-                                }
-                              }).then(() => refetch())
-                            }}
+                            onClick={() => duplicate(p.id)}
                           >
                             <Duplicate className="h-4 w-4" />
                           </Button>
@@ -224,7 +115,8 @@ export function PromptLab({ projectId }: { projectId?: string }) {
                             className="h-8 px-2"
                             title="Delete"
                             onClick={() => {
-                              removePrompt(p.id)
+                              remove(p.id)
+                              if (selectedId === p.id) setSelectedId(null)
                             }}
                           >
                             <Trash2 className="h-4 w-4" />
@@ -254,11 +146,8 @@ export function PromptLab({ projectId }: { projectId?: string }) {
                   {selected ? (
                     <EditorPanel
                       prompt={selected}
-                      onUpdate={(patch) => updatePromptLocal(selected.id, patch)}
-                      onSnapshot={(notes) => {
-                        // Snapshot functionality not implemented yet
-                        console.log("Snapshot:", notes)
-                      }}
+                      onUpdate={(patch) => update(selected.id, patch)}
+                      onSnapshot={(notes) => snapshot(selected.id, notes)}
                     />
                   ) : (
                     <div className="grid h-full place-items-center p-6 text-sm text-slate-500">
@@ -270,15 +159,9 @@ export function PromptLab({ projectId }: { projectId?: string }) {
                 <TabsContent value="versions" className="m-0 outline-none p-4">
                   <VersionsPanel
                     versions={selected?.versions || []}
-                    onRestore={(verId) => {
-                      // Restore functionality not implemented yet
-                      console.log("Restore version:", verId)
-                    }}
+                    onRestore={(verId) => selected && restore(selected.id, verId)}
                     onCompare={(v) => setCompare({ open: true, version: v })}
-                    onSnapshot={(notes) => {
-                      // Snapshot functionality not implemented yet
-                      console.log("Snapshot:", notes)
-                    }}
+                    onSnapshot={(notes) => selected && snapshot(selected.id, notes)}
                   />
                 </TabsContent>
 

@@ -1,40 +1,21 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { useFirebaseAuth } from "@/lib/hooks/useFirebaseAuth"
-import { useWireframes, useCreateWireframe, useUpdateWireframe, useDeleteWireframe } from "@/lib/hooks/useWireframe"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Plus, Trash2, PencilLine, ArrowLeft, ArrowRight, LayoutGrid, Rows } from "lucide-react"
+import { wireframesStore, type Wireframe } from "./store"
 import { cn } from "@/lib/utils"
-
-type Wireframe = {
-  id: string
-  title: string
-  previewDataUrl?: string
-  scene?: {
-    elements: any[]
-    appState: Record<string, any>
-    files: Record<string, any>
-  }
-  updatedAt: number
-  projectId?: string
-}
 
 type SortKey = "updatedAt" | "title"
 type SortDir = "desc" | "asc"
 type ViewMode = "grid" | "list"
 
 export function WireframesView({ projectId }: { projectId?: string }) {
-  const { user } = useFirebaseAuth()
-  const { wireframes, loading, refetch } = useWireframes(projectId, user?.uid, !projectId)
-  const { createWireframe } = useCreateWireframe()
-  const { updateWireframe } = useUpdateWireframe()
-  const { deleteWireframe } = useDeleteWireframe()
-  
+  const [items, setItems] = useState<Wireframe[]>([])
   const [q, setQ] = useState("")
   const [hasPreviewOnly, setHasPreviewOnly] = useState(false)
   const [sortKey, setSortKey] = useState<SortKey>("updatedAt")
@@ -44,17 +25,12 @@ export function WireframesView({ projectId }: { projectId?: string }) {
   const [selected, setSelected] = useState<Record<string, boolean>>({})
   const [view, setView] = useState<ViewMode>("grid")
 
-  // Convert database wireframes to local format
-  const items: Wireframe[] = useMemo(() => {
-    return wireframes.map(wf => ({
-      id: wf.id,
-      title: wf.title,
-      previewDataUrl: wf.thumbnail,
-      scene: typeof wf.data === 'object' ? wf.data as any : undefined,
-      updatedAt: new Date(wf.updatedAt).getTime(),
-      projectId: wf.project?.id,
-    }))
-  }, [wireframes])
+  function refresh() {
+    setItems(wireframesStore.list(projectId))
+  }
+  useEffect(() => {
+    refresh()
+  }, [projectId])
 
   // Reset page on filters or sorting
   useEffect(() => {
@@ -64,6 +40,9 @@ export function WireframesView({ projectId }: { projectId?: string }) {
   const filteredSorted = useMemo(() => {
     const query = q.trim().toLowerCase()
     let arr = items
+    if (projectId) {
+      arr = arr.filter((w) => w.projectId === projectId)
+    }
     if (query) {
       arr = arr.filter((w) => w.title.toLowerCase().includes(query))
     }
@@ -84,7 +63,7 @@ export function WireframesView({ projectId }: { projectId?: string }) {
       return sortDir === "asc" ? va - vb : vb - va
     })
     return sorted
-  }, [items, q, hasPreviewOnly, sortKey, sortDir])
+  }, [items, projectId, q, hasPreviewOnly, sortKey, sortDir])
 
   const total = filteredSorted.length
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
@@ -114,79 +93,41 @@ export function WireframesView({ projectId }: { projectId?: string }) {
     setSelected(next)
   }
 
-  async function createNew() {
-    try {
-      await createWireframe({
-        variables: {
-          input: {
-            title: "Untitled Wireframe",
-            data: { elements: [], appState: { viewBackgroundColor: "#ffffff" }, files: {} },
-            projectId,
-            userId: projectId ? null : user?.uid,
-          }
-        }
-      })
-      refetch()
-    } catch (error) {
-      console.error("Error creating wireframe:", error)
-    }
+  function createNew() {
+    const wf = wireframesStore.create("Untitled Wireframe", projectId)
+    refresh()
+    // Keep on list; user can click to open
   }
 
-  async function rename(id: string) {
+  function rename(id: string) {
     const cur = items.find((w) => w.id === id)
     const next = prompt("Rename wireframe", cur?.title || "Untitled Wireframe")
-    if (next !== null && next.trim()) {
-      try {
-        await updateWireframe({
-          variables: {
-            id,
-            input: {
-              title: next.trim(),
-            }
-          }
-        })
-        refetch()
-      } catch (error) {
-        console.error("Error renaming wireframe:", error)
-      }
+    if (next !== null) {
+      wireframesStore.update(id, { title: next.trim() || "Untitled Wireframe" })
+      refresh()
     }
   }
 
-  async function remove(id: string) {
+  function remove(id: string) {
     if (!confirm("Delete this wireframe? This cannot be undone.")) return
-    try {
-      await deleteWireframe({
-        variables: { id }
-      })
-      refetch()
-    } catch (error) {
-      console.error("Error deleting wireframe:", error)
-    }
+    wireframesStore.remove(id)
     setSelected((prev) => {
       const copy = { ...prev }
       delete copy[id]
       return copy
     })
+    refresh()
   }
 
-  async function bulkDelete() {
+  function bulkDelete() {
     if (selectedCount === 0) return
     if (!confirm(`Delete ${selectedCount} selected wireframe(s)? This cannot be undone.`)) return
     const ids = Object.entries(selected)
       .filter(([, v]) => v)
       .map(([k]) => k)
-    
-    try {
-      for (const id of ids) {
-        await deleteWireframe({
-          variables: { id }
-        })
-      }
-      refetch()
-    } catch (error) {
-      console.error("Error deleting wireframes:", error)
-    }
+    ids.forEach((id) => wireframesStore.remove(id))
     setSelected({})
+    refresh()
   }
 
   function exportSelected() {
@@ -201,10 +142,6 @@ export function WireframesView({ projectId }: { projectId?: string }) {
     a.download = `wireframes-export-${new Date().toISOString().slice(0, 10)}.json`
     a.click()
     URL.revokeObjectURL(url)
-  }
-
-  if (loading) {
-    return <div className="p-6">Loading wireframes...</div>
   }
 
   return (
@@ -479,7 +416,3 @@ function timeAgo(ts: number) {
   const d = Math.floor(h / 24)
   return `${d}d ago`
 }
-
-    if (loading) {
-      return <div className="p-6">Loading wireframes...</div>
-    }

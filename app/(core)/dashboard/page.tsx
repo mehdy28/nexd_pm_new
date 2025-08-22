@@ -1,8 +1,6 @@
 "use client"
 
 import { useTopbarSetup } from "@/components/layout/topbar-store"
-import { useFirebaseAuth } from "@/lib/hooks/useFirebaseAuth"
-import { useWorkspaces } from "@/lib/hooks/useWorkspace"
 import { Gauge, TrendingUp, Users, CheckCircle2, Clock } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
@@ -10,18 +8,17 @@ import { Badge } from "@/components/ui/badge"
 import { useProjects } from "@/lib/hooks/useProject"
 import { useTasks } from "@/lib/hooks/useTask"
 import { useActivities } from "@/lib/hooks/useActivity"
+import { useFirebaseAuth } from "@/lib/hooks/useFirebaseAuth"
 
 const getStatusColor = (status: string) => {
   switch (status) {
     case "On Track":
-    case "ACTIVE":
       return "bg-green-100 text-green-800"
     case "In Progress":
       return "bg-blue-100 text-blue-800"
     case "Almost Done":
       return "bg-purple-100 text-purple-800"
     case "Behind":
-    case "ARCHIVED":
       return "bg-red-100 text-red-800"
     default:
       return "bg-gray-100 text-gray-800"
@@ -30,14 +27,11 @@ const getStatusColor = (status: string) => {
 
 const getPriorityColor = (priority: string) => {
   switch (priority) {
-    case "HIGH":
-    case "High":
+    case "high":
       return "bg-red-100 text-red-800"
-    case "MEDIUM":
-    case "Medium":
+    case "medium":
       return "bg-yellow-100 text-yellow-800"
-    case "LOW":
-    case "Low":
+    case "low":
       return "bg-green-100 text-green-800"
     default:
       return "bg-gray-100 text-gray-800"
@@ -46,9 +40,8 @@ const getPriorityColor = (priority: string) => {
 
 export default function DashboardPage() {
   const { user } = useFirebaseAuth()
-  const { workspaces } = useWorkspaces()
-  const { projects, loading: projectsLoading } = useProjects(workspaces?.[0]?.id)
-  const { tasks, loading: tasksLoading } = useTasks(undefined, user?.uid, false)
+  const { projects, loading: projectsLoading } = useProjects()
+  const { tasks, loading: tasksLoading } = useTasks()
   const { activities, loading: activitiesLoading } = useActivities(undefined, user?.uid, 10)
 
   useTopbarSetup({
@@ -162,7 +155,7 @@ export default function DashboardPage() {
             <CardContent className="space-y-6">
               {activeProjects.length > 0 ? (
                 activeProjects.map((project) => {
-                  const projectTasks = tasks?.filter((t) => t.project?.id === project.id) || []
+                  const projectTasks = tasks?.filter((t) => t.projectId === project.id) || []
                   const completedProjectTasks = projectTasks.filter((t) => t.status === "DONE")
                   const progress =
                     projectTasks.length > 0 ? Math.round((completedProjectTasks.length / projectTasks.length) * 100) : 0
@@ -243,7 +236,7 @@ export default function DashboardPage() {
                         <div className="space-y-1">
                           <p className="font-semibold text-foreground">{task.title}</p>
                           <p className="text-sm text-muted-foreground">
-                            {task.project?.name || "Personal Task"}
+                            {projects?.find((p) => p.id === task.projectId)?.name || "Personal Task"}
                           </p>
                         </div>
                         <Badge

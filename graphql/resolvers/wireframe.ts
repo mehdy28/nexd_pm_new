@@ -29,24 +29,10 @@ export const wireframeResolvers = {
     },
 
     wireframes: async (_: any, { projectId }: { projectId: string }, context: Context) => {
-    }
-    wireframes: async (_: any, { projectId, userId, personal }: { projectId?: string; userId?: string; personal?: boolean }, context: Context) => {
-      const user = requireAuth(context)
-      
-      let where: any = {}
-      
-      if (personal || (!projectId && userId)) {
-        // Personal wireframes
-        where.userId = user.id
-        where.projectId = null
-      } else if (projectId) {
-        // Project wireframes
-        requireProjectAccess(context, projectId)
-        where.projectId = projectId
-      }
+      requireProjectAccess(context, projectId)
 
       return await prisma.wireframe.findMany({
-        where,
+        where: { projectId },
         orderBy: { createdAt: "desc" },
       })
     },
@@ -55,10 +41,7 @@ export const wireframeResolvers = {
   Mutation: {
     createWireframe: async (_: any, { input }: { input: any }, context: Context) => {
       const user = requireAuth(context)
-      
-      if (input.projectId) {
-        requireProjectAccess(context, input.projectId)
-      }
+      requireProjectAccess(context, input.projectId)
 
       const wireframe = await prisma.wireframe.create({
         data: {
@@ -66,7 +49,6 @@ export const wireframeResolvers = {
           data: input.data,
           thumbnail: input.thumbnail,
           projectId: input.projectId,
-          userId: input.projectId ? null : user.id, // Personal wireframe if no project
         },
         include: {
           project: true,
@@ -94,7 +76,7 @@ export const wireframeResolvers = {
         where: { id },
       })
 
-      if (existingWireframe && existingWireframe.projectId) {
+      if (existingWireframe) {
         requireProjectAccess(context, existingWireframe.projectId)
       }
 
@@ -129,7 +111,7 @@ export const wireframeResolvers = {
         where: { id },
       })
 
-      if (wireframe && wireframe.projectId) {
+      if (wireframe) {
         requireProjectAccess(context, wireframe.projectId)
       }
 
@@ -143,7 +125,6 @@ export const wireframeResolvers = {
 
   Wireframe: {
     project: async (parent: any, _: any, context: Context) => {
-      if (!parent.projectId) return null
       return await prisma.project.findUnique({
         where: { id: parent.projectId },
       })

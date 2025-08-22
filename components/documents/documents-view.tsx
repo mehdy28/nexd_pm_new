@@ -3,11 +3,10 @@
 import type React from "react"
 
 import { useEffect, useMemo, useRef, useState } from "react"
-import { useFirebaseAuth } from "@/lib/hooks/useFirebaseAuth"
-import { useDocuments, useCreateDocument, useUpdateDocument, useDeleteDocument } from "@/lib/hooks/useDocument"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Upload, Plus } from "lucide-react"
+import { useDocuments } from "./use-documents"
 import { DocumentEditor } from "./editor"
 import { DocumentList } from "./document-list"
 import type { Doc } from "./types"
@@ -18,26 +17,10 @@ interface DocumentsViewProps {
 }
 
 export function DocumentsView({ projectId }: DocumentsViewProps) {
-  const { user } = useFirebaseAuth()
-  const { documents, loading, refetch } = useDocuments(projectId, user?.uid, !projectId)
-  const { createDocument } = useCreateDocument()
-  const { updateDocument } = useUpdateDocument()
-  const { deleteDocument } = useDeleteDocument()
-  
+  const { docs, createDoc, createPdfFromDataUrl, update, remove } = useDocuments()
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [query, setQuery] = useState("")
   const fileInputRef = useRef<HTMLInputElement | null>(null)
-
-  // Convert documents to local format
-  const docs: Doc[] = useMemo(() => {
-    return documents.map(doc => ({
-      id: doc.id,
-      type: "doc" as const,
-      title: doc.title,
-      content: typeof doc.content === 'string' ? doc.content : JSON.stringify(doc.content || ""),
-      updatedAt: new Date(doc.updatedAt).getTime(),
-    }))
-  }, [documents])
 
   useEffect(() => {
     if (docs.length === 0) {
@@ -53,33 +36,19 @@ export function DocumentsView({ projectId }: DocumentsViewProps) {
     const q = query.trim().toLowerCase()
     let byTime = [...docs].sort((a, b) => b.updatedAt - a.updatedAt)
 
+    if (projectId) {
+      byTime = byTime.filter((doc) => doc.projectId === projectId)
+    }
 
     if (!q) return byTime
     return byTime.filter((d) => d.title.toLowerCase().includes(q))
-  }, [docs, query])
+  }, [docs, query, projectId])
 
   const selected: Doc | null = useMemo(() => docs.find((d) => d.id === selectedId) || null, [docs, selectedId])
 
-  async function handleCreateDoc() {
-    try {
-      const result = await createDocument({
-        variables: {
-          input: {
-            title: "Untitled",
-            content: "",
-            type: "TEXT",
-            projectId,
-            userId: projectId ? null : user?.uid,
-          }
-        }
-      })
-      if (result.data?.createDocument) {
-        setSelectedId(result.data.createDocument.id)
-        refetch()
-      }
-    } catch (error) {
-      console.error("Error creating document:", error)
-    }
+  function handleCreateDoc() {
+    const doc = createDoc("Untitled")
+    setSelectedId(doc.id)
   }
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -91,45 +60,10 @@ export function DocumentsView({ projectId }: DocumentsViewProps) {
     }
     const reader = new FileReader()
     reader.onload = () => {
-      // For now, we'll create a text document with PDF info
-      // In a real implementation, you'd handle PDF upload differently
-      handleCreateDoc()
+      createPdfFromDataUrl(String(reader.result), file.name)
       e.target.value = ""
     }
     reader.readAsDataURL(file)
-  }
-
-  async function handleUpdateDoc(id: string, updates: Partial<Doc>) {
-    try {
-      await updateDocument({
-        variables: {
-          id,
-          input: {
-            title: updates.title,
-            content: updates.content,
-          }
-        }
-      })
-      refetch()
-    } catch (error) {
-      console.error("Error updating document:", error)
-    }
-  }
-
-  async function handleDeleteDoc(id: string) {
-    try {
-      await deleteDocument({
-        variables: { id }
-      })
-      if (selectedId === id) setSelectedId(null)
-      refetch()
-    } catch (error) {
-      console.error("Error deleting document:", error)
-    }
-  }
-
-  if (loading) {
-    return <div className="p-6">Loading documents...</div>
   }
 
   return (
@@ -175,8 +109,11 @@ export function DocumentsView({ projectId }: DocumentsViewProps) {
             docs={filteredDocs}
             selectedId={selectedId}
             onSelect={setSelectedId}
-            onRename={(id, title) => handleUpdateDoc(id, { title })}
-            onDelete={handleDeleteDoc}
+            onRename={(id, title) => update(id, { title })}
+            onDelete={(id) => {
+              remove(id)
+              if (selectedId === id) setSelectedId(null)
+            }}
           />
         </div>
 
@@ -187,7 +124,7 @@ export function DocumentsView({ projectId }: DocumentsViewProps) {
               <Input
                 value={selected.title}
                 onChange={(e) =>
-                  handleUpdateDoc(selected.id, {
+                  update(selected.id, {
                     title: e.target.value || (selected.type === "pdf" ? "PDF Document" : "Untitled"),
                   })
                 }
@@ -201,7 +138,7 @@ export function DocumentsView({ projectId }: DocumentsViewProps) {
                     key={selected.id}
                     docId={selected.id}
                     contentJSON={selected.content}
-                    onChange={(json) => handleUpdateDoc(selected.id, { content: json })}
+                    onChange={(json) => update(selected.id, { content: json })}
                   />
                 ) : (
                   <PdfViewer dataUrl={selected.dataUrl} />

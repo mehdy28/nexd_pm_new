@@ -17,7 +17,6 @@ export const taskResolvers = {
           creator: true,
           parent: true,
           subtasks: true,
-          section: true,
           comments: {
             include: {
               author: true,
@@ -31,47 +30,23 @@ export const taskResolvers = {
         },
       })
 
-      if (task && task.projectId) {
+      if (task) {
         requireProjectAccess(context, task.projectId)
       }
 
       return task
     },
 
-    tasks: async (_: any, { projectId, userId, personal }: { projectId?: string; userId?: string; personal?: boolean }, context: Context) => {
-      const user = requireAuth(context)
-      
-      let where: any = {}
-      
-      if (personal || (!projectId && userId)) {
-        // Personal tasks
-        where.userId = user.id
-        where.projectId = null
-      } else if (projectId) {
-        // Project tasks
-        requireProjectAccess(context, projectId)
-        where.projectId = projectId
-      } else {
-        // All user's tasks across projects they have access to
-        const userProjects = await prisma.projectMember.findMany({
-          where: { userId: user.id },
-          select: { projectId: true },
-        })
-        const projectIds = userProjects.map(pm => pm.projectId)
-        where.OR = [
-          { userId: user.id, projectId: null }, // Personal tasks
-          { projectId: { in: projectIds } }, // Project tasks
-        ]
-      }
+    tasks: async (_: any, { projectId }: { projectId: string }, context: Context) => {
+      requireProjectAccess(context, projectId)
 
       return await prisma.task.findMany({
-        where,
+        where: { projectId },
         include: {
           assignee: true,
           creator: true,
           parent: true,
           subtasks: true,
-          section: true,
           labels: {
             include: {
               label: true,
@@ -81,85 +56,28 @@ export const taskResolvers = {
         orderBy: { createdAt: "desc" },
       })
     },
-
-    taskSections: async (_: any, { projectId, userId, personal }: { projectId?: string; userId?: string; personal?: boolean }, context: Context) => {
-      const user = requireAuth(context)
-      
-      let where: any = {}
-      
-      if (personal || (!projectId && userId)) {
-        // Personal sections
-        where.userId = user.id
-        where.projectId = null
-      } else if (projectId) {
-        // Project sections
-        requireProjectAccess(context, projectId)
-        where.projectId = projectId
-      }
-
-      return await prisma.taskSection.findMany({
-        where,
-        include: {
-          tasks: {
-            include: {
-              assignee: true,
-              creator: true,
-            },
-            orderBy: { createdAt: "desc" },
-          },
-        },
-        orderBy: { order: "asc" },
-      })
-    },
-  },
-
-  TaskSection: {
-    project: async (parent: any, _: any, context: Context) => {
-      if (!parent.projectId) return null
-      return await prisma.project.findUnique({
-        where: { id: parent.projectId },
-      })
-    },
-
-    tasks: async (parent: any, _: any, context: Context) => {
-      return await prisma.task.findMany({
-        where: { sectionId: parent.id },
-        include: {
-          assignee: true,
-          creator: true,
-        },
-        orderBy: { createdAt: "desc" },
-      })
-    },
   },
 
   Mutation: {
     createTask: async (_: any, { input }: { input: any }, context: Context) => {
       const user = requireAuth(context)
-      
-      if (input.projectId) {
-        requireProjectAccess(context, input.projectId)
-      }
+      requireProjectAccess(context, input.projectId)
 
       const task = await prisma.task.create({
         data: {
           title: input.title,
           description: input.description,
           priority: input.priority || "MEDIUM",
-          points: input.points || 0,
           dueDate: input.dueDate,
           projectId: input.projectId,
-          userId: input.projectId ? null : user.id, // Personal task if no project
           assigneeId: input.assigneeId,
           creatorId: user.id,
           parentId: input.parentId,
-          sectionId: input.sectionId,
         },
         include: {
           project: true,
           assignee: true,
           creator: true,
-          section: true,
         },
       })
 
@@ -177,69 +95,6 @@ export const taskResolvers = {
       return task
     },
 
-    createTaskSection: async (_: any, { input }: { input: any }, context: Context) => {
-      const user = requireAuth(context)
-      
-      if (input.projectId) {
-        requireProjectAccess(context, input.projectId)
-      }
-
-      const section = await prisma.taskSection.create({
-        data: {
-          title: input.title,
-          order: input.order || 0,
-          projectId: input.projectId,
-          userId: input.projectId ? null : user.id, // Personal section if no project
-        },
-        include: {
-          tasks: true,
-        },
-      })
-
-      return section
-    },
-
-    updateTaskSection: async (_: any, { id, input }: { id: string; input: any }, context: Context) => {
-      const user = requireAuth(context)
-
-      const existingSection = await prisma.taskSection.findUnique({
-        where: { id },
-      })
-
-      if (existingSection && existingSection.projectId) {
-        requireProjectAccess(context, existingSection.projectId)
-      }
-
-      return await prisma.taskSection.update({
-        where: { id },
-        data: {
-          title: input.title,
-          order: input.order,
-        },
-        include: {
-          tasks: true,
-        },
-      })
-    },
-
-    deleteTaskSection: async (_: any, { id }: { id: string }, context: Context) => {
-      const user = requireAuth(context)
-
-      const section = await prisma.taskSection.findUnique({
-        where: { id },
-      })
-
-      if (section && section.projectId) {
-        requireProjectAccess(context, section.projectId)
-      }
-
-      await prisma.taskSection.delete({
-        where: { id },
-      })
-
-      return true
-    },
-
     updateTask: async (_: any, { id, input }: { id: string; input: any }, context: Context) => {
       const user = requireAuth(context)
 
@@ -247,7 +102,7 @@ export const taskResolvers = {
         where: { id },
       })
 
-      if (existingTask && existingTask.projectId) {
+      if (existingTask) {
         requireProjectAccess(context, existingTask.projectId)
       }
 
@@ -258,16 +113,13 @@ export const taskResolvers = {
           description: input.description,
           status: input.status,
           priority: input.priority,
-          points: input.points,
           dueDate: input.dueDate,
-          sectionId: input.sectionId,
           assigneeId: input.assigneeId,
         },
         include: {
           project: true,
           assignee: true,
           creator: true,
-          section: true,
           labels: {
             include: {
               label: true,
@@ -297,7 +149,7 @@ export const taskResolvers = {
         where: { id },
       })
 
-      if (task && task.projectId) {
+      if (task) {
         requireProjectAccess(context, task.projectId)
       }
 
@@ -310,15 +162,7 @@ export const taskResolvers = {
   },
 
   Task: {
-    section: async (parent: any, _: any, context: Context) => {
-      if (!parent.sectionId) return null
-      return await prisma.taskSection.findUnique({
-        where: { id: parent.sectionId },
-      })
-    },
-
     project: async (parent: any, _: any, context: Context) => {
-      if (!parent.projectId) return null
       return await prisma.project.findUnique({
         where: { id: parent.projectId },
       })

@@ -1,8 +1,94 @@
 "use client"
 
 import { useQuery, useMutation } from "@apollo/client"
-import { GET_PROMPTS, GET_PROMPT } from "@/graphql/queries/prompt"
-import { CREATE_PROMPT, UPDATE_PROMPT, DELETE_PROMPT } from "@/graphql/mutations/prompt"
+import { gql } from "@apollo/client"
+
+const GET_PROMPTS = gql`
+  query GetPrompts($projectId: ID, $userId: ID, $personal: Boolean) {
+    prompts(projectId: $projectId, userId: $userId, personal: $personal) {
+      id
+      title
+      description
+      category
+      tags
+      isPublic
+      createdAt
+      updatedAt
+      project {
+        id
+        name
+        color
+      }
+    }
+  }
+`
+
+const GET_PROMPT = gql`
+  query GetPrompt($id: ID!) {
+    prompt(id: $id) {
+      id
+      title
+      content
+      description
+      category
+      tags
+      isPublic
+      createdAt
+      updatedAt
+      project {
+        id
+        name
+        color
+      }
+      comments {
+        id
+        content
+        createdAt
+        author {
+          id
+          name
+          avatar
+        }
+      }
+    }
+  }
+`
+
+const CREATE_PROMPT = gql`
+  mutation CreatePrompt($input: CreatePromptInput!) {
+    createPrompt(input: $input) {
+      id
+      title
+      content
+      description
+      category
+      tags
+      isPublic
+      createdAt
+    }
+  }
+`
+
+const UPDATE_PROMPT = gql`
+  mutation UpdatePrompt($id: ID!, $input: UpdatePromptInput!) {
+    updatePrompt(id: $id, input: $input) {
+      id
+      title
+      content
+      description
+      category
+      tags
+      isPublic
+      updatedAt
+    }
+  }
+`
+
+const DELETE_PROMPT = gql`
+  mutation DeletePrompt($id: ID!) {
+    deletePrompt(id: $id)
+  }
+`
 
 export function usePrompts(projectId?: string, userId?: string, personal?: boolean) {
   const { data, loading, error, refetch } = useQuery(GET_PROMPTS, {
