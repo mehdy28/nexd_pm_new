@@ -201,7 +201,7 @@ export default function SetupPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-700 from-emerald-50 to-teal-50 p-4">
+    <div className="min-h-screen bg-gray-200 from-emerald-50 to-teal-50 p-4">
       <div className="max-w-7xl mx-auto">
         <div className="text-center mb-6">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Set up your workspace</h1>
