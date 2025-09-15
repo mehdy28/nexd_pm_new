@@ -1,0 +1,2700 @@
+"use client"
+
+import type React from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { Card, CardContent } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Button } from "@/components/ui/button"
+import { ChevronLeft, ChevronRight, Users, Building2, Plus, Diamond, Calendar } from "lucide-react"
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+
+// --- Types
+interface Task {
+  id: string
+  title: string
+  assignee?: { name: string; avatar?: string }
+  status?: "completed" | "in-progress" | "pending"
+  startDate: string
+  endDate: string
+  progress?: number
+  dependencies?: string[]
+  projectId?: string | null
+  projectName?: string | null
+  type?: "task" | "milestone"
+  parent?: string
+}
+
+const mockTasks: Task[] = [
+  {
+    id: "1",
+    title: "User Research & Analysis",
+    assignee: { name: "Sarah Chen", avatar: "/placeholder.svg?height=32&width=32" },
+    status: "completed",
+    startDate: "2024-01-15",
+    endDate: "2024-01-28",
+    progress: 100,
+    dependencies: [],
+    projectId: "proj-1",
+    projectName: "E-commerce Platform",
+    type: "task",
+  },
+  {
+    id: "1.1",
+    title: "User Interviews",
+    assignee: { name: "Sarah Chen", avatar: "/placeholder.svg?height=32&width=32" },
+    status: "completed",
+    startDate: "2024-01-16",
+    endDate: "2024-01-20",
+    progress: 100,
+    dependencies: [],
+    projectId: "proj-1",
+    projectName: "E-commerce Platform",
+    parent: "1",
+    type: "task",
+  },
+  {
+    id: "1.2",
+    title: "Survey Analysis",
+    assignee: { name: "Sarah Chen", avatar: "/placeholder.svg?height=32&width=32" },
+    status: "completed",
+    startDate: "2024-01-21",
+    endDate: "2024-01-25",
+    progress: 100,
+    dependencies: ["1.1"],
+    projectId: "proj-1",
+    projectName: "E-commerce Platform",
+    parent: "1",
+    type: "task",
+  },
+  {
+    id: "1.3",
+    title: "Research Report",
+    assignee: { name: "Sarah Chen", avatar: "/placeholder.svg?height=32&width=32" },
+    status: "completed",
+    startDate: "2024-01-26",
+    endDate: "2024-01-28",
+    progress: 100,
+    dependencies: ["1.2"],
+    projectId: "proj-1",
+    projectName: "E-commerce Platform",
+    parent: "1",
+    type: "task",
+  },
+  {
+    id: "2",
+    title: "Wireframe Creation",
+    assignee: { name: "John Doe", avatar: "/placeholder.svg?height=32&width=32" },
+    status: "completed",
+    startDate: "2024-01-29",
+    endDate: "2024-02-11",
+    progress: 100,
+    dependencies: ["1"],
+    projectId: "proj-1",
+    projectName: "E-commerce Platform",
+    type: "task",
+  },
+  {
+    id: "2.1",
+    title: "Low-fidelity Wireframes",
+    assignee: { name: "John Doe", avatar: "/placeholder.svg?height=32&width=32" },
+    status: "completed",
+    startDate: "2024-01-29",
+    endDate: "2024-02-05",
+    progress: 100,
+    dependencies: [],
+    projectId: "proj-1",
+    projectName: "E-commerce Platform",
+    parent: "2",
+    type: "task",
+  },
+  {
+    id: "2.2",
+    title: "High-fidelity Wireframes",
+    assignee: { name: "John Doe", avatar: "/placeholder.svg?height=32&width=32" },
+    status: "completed",
+    startDate: "2024-02-06",
+    endDate: "2024-02-11",
+    progress: 100,
+    dependencies: ["2.1"],
+    projectId: "proj-1",
+    projectName: "E-commerce Platform",
+    parent: "2",
+    type: "task",
+  },
+  {
+    id: "milestone-1",
+    title: "Design Phase Complete",
+    assignee: { name: "Project Manager", avatar: "/placeholder.svg?height=32&width=32" },
+    status: "completed",
+    startDate: "2024-02-11",
+    endDate: "2024-02-11",
+    progress: 100,
+    dependencies: ["2", "3"],
+    projectId: "proj-1",
+    projectName: "E-commerce Platform",
+    type: "milestone",
+  },
+  {
+    id: "3",
+    title: "UI Design System",
+    assignee: { name: "Sarah Chen", avatar: "/placeholder.svg?height=32&width=32" },
+    status: "in-progress",
+    startDate: "2024-02-05",
+    endDate: "2024-02-25",
+    progress: 65,
+    dependencies: ["1"],
+    projectId: "proj-1",
+    projectName: "E-commerce Platform",
+    type: "task",
+  },
+  {
+    id: "3.1",
+    title: "Color Palette",
+    assignee: { name: "Sarah Chen", avatar: "/placeholder.svg?height=32&width=32" },
+    status: "completed",
+    startDate: "2024-02-05",
+    endDate: "2024-02-08",
+    progress: 100,
+    dependencies: [],
+    projectId: "proj-1",
+    projectName: "E-commerce Platform",
+    parent: "3",
+    type: "task",
+  },
+  {
+    id: "3.2",
+    title: "Typography System",
+    assignee: { name: "Sarah Chen", avatar: "/placeholder.svg?height=32&width=32" },
+    status: "in-progress",
+    startDate: "2024-02-09",
+    endDate: "2024-02-15",
+    progress: 80,
+    dependencies: ["3.1"],
+    projectId: "proj-1",
+    projectName: "E-commerce Platform",
+    parent: "3",
+    type: "task",
+  },
+  {
+    id: "3.3",
+    title: "Component Library",
+    assignee: { name: "Sarah Chen", avatar: "/placeholder.svg?height=32&width=32" },
+    status: "in-progress",
+    startDate: "2024-02-16",
+    endDate: "2024-02-25",
+    progress: 30,
+    dependencies: ["3.2"],
+    projectId: "proj-1",
+    projectName: "E-commerce Platform",
+    parent: "3",
+    type: "task",
+  },
+  {
+    id: "4",
+    title: "Frontend Development",
+    assignee: { name: "Mike Johnson", avatar: "/placeholder.svg?height=32&width=32" },
+    status: "in-progress",
+    startDate: "2024-02-12",
+    endDate: "2024-03-15",
+    progress: 30,
+    dependencies: ["2"],
+    projectId: "proj-2",
+    projectName: "Mobile App",
+    type: "task",
+  },
+  {
+    id: "5",
+    title: "Backend API Development",
+    assignee: { name: "Alex Rodriguez", avatar: "/placeholder.svg?height=32&width=32" },
+    status: "in-progress",
+    startDate: "2024-02-19",
+    endDate: "2024-03-20",
+    progress: 20,
+    dependencies: ["2"],
+    projectId: "proj-2",
+    projectName: "Mobile App",
+    type: "task",
+  },
+  {
+    id: "6",
+    title: "Testing & QA",
+    assignee: { name: "Emily Davis", avatar: "/placeholder.svg?height=32&width=32" },
+    status: "pending",
+    startDate: "2024-03-16",
+    endDate: "2024-03-30",
+    progress: 0,
+    dependencies: ["4", "5"],
+    projectId: "proj-2",
+    projectName: "Mobile App",
+    type: "task",
+  },
+  {
+    id: "7",
+    title: "Personal Learning - React Native",
+    assignee: { name: "You", avatar: "/placeholder.svg?height=32&width=32" },
+    status: "in-progress",
+    startDate: "2024-02-01",
+    endDate: "2024-03-01",
+    progress: 45,
+    dependencies: [],
+    projectId: null,
+    projectName: null,
+    type: "task",
+  },
+]
+
+interface GanttViewProps {
+  projectId?: string
+}
+
+export default function GanttView() {
+  const [currentDate, setCurrentDate] = useState(new Date())
+  const [tasks, setTasks] = useState<Task[]>(mockTasks)
+  const [selectedTask, setSelectedTask] = useState<string | null>(null)
+  const [createTaskOpen, setCreateTaskOpen] = useState(false)
+  const [newTaskParent, setNewTaskParent] = useState<string | null>(null)
+  const [isResizing, setIsResizing] = useState<{ taskId: string; handle: "start" | "end" } | null>(null)
+
+  const [draggedTask, setDraggedTask] = useState<{
+    taskId: string
+    startX: number
+    startLeft: number
+    active: boolean
+  } | null>(null)
+
+  const [adjustingProgress, setAdjustingProgress] = useState<{
+    taskId: string
+    startX: number
+    startProgress: number
+    active: boolean
+  } | null>(null)
+
+  const [quickCreate, setQuickCreate] = useState<{
+    x: number
+    y: number
+    date: string
+    visible: boolean
+    type: "task" | "milestone"
+  } | null>(null)
+
+  const [newTask, setNewTask] = useState({
+    title: "",
+    assignee: "",
+    status: "pending" as const,
+    startDate: "",
+    endDate: "",
+    type: "task" as const,
+    parent: "",
+  })
+
+  // dependencies stored as map: toId -> [fromIds]
+  const [taskDependencies, setTaskDependencies] = useState<Record<string, string[]>>(() => {
+    const map: Record<string, string[]> = {}
+    mockTasks.forEach((t) => {
+      if (t.dependencies?.length) map[t.id] = [...t.dependencies!]
+    })
+    return map
+  })
+
+  // For dragging dependency lines interactively
+  const [draggingDep, setDraggingDep] = useState<
+    { fromId: string; x: number; y: number; active: true } | { active: false }
+  >({ active: false })
+
+  const ganttRef = useRef<HTMLDivElement | null>(null)
+  const svgRef = useRef<SVGSVGElement | null>(null)
+
+  const throttleRef = useRef<number | null>(null)
+
+  // --- Helpers: date range & positioning
+  const dateRange = useMemo(() => {
+    const dates: Date[] = []
+    const startDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1)
+    const endDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + 3, 0)
+    for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+      dates.push(new Date(d))
+    }
+    return dates
+  }, [currentDate])
+
+  const calculatePosition = useCallback(
+    (startDate: string, endDate: string) => {
+      const start = new Date(startDate)
+      const end = new Date(endDate)
+      const timelineStart = dateRange[0]
+      const timelineEnd = dateRange[dateRange.length - 1]
+      const totalDays = Math.max(
+        1,
+        Math.ceil((timelineEnd.getTime() - timelineStart.getTime()) / (1000 * 60 * 60 * 24)),
+      )
+      const startOffset = Math.max(0, Math.ceil((start.getTime() - timelineStart.getTime()) / (1000 * 60 * 60 * 24)))
+      const duration = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)))
+      const leftPercent = (startOffset / totalDays) * 100
+      const widthPercent = (duration / totalDays) * 100
+      return { left: `${Math.max(0, leftPercent)}%`, width: `${Math.min(100 - leftPercent, widthPercent)}%` }
+    },
+    [dateRange],
+  )
+
+  const navigateMonth = (direction: "prev" | "next") => {
+    setCurrentDate((prev) => {
+      const nd = new Date(prev)
+      nd.setMonth(nd.getMonth() + (direction === "prev" ? -1 : 1))
+      return nd
+    })
+  }
+
+  const formatMonthYear = (d: Date) => d.toLocaleDateString("en-US", { month: "long", year: "numeric" })
+
+  const addDependency = (fromId: string, toId: string) => {
+    if (fromId === toId) return
+    setTaskDependencies((prev) => {
+      const existing = new Set(prev[toId] || [])
+      existing.add(fromId)
+      return { ...prev, [toId]: Array.from(existing) }
+    })
+  }
+
+  const getAllDependentTasks = (taskId: string): string[] => {
+    const dependents: string[] = []
+    const visited = new Set<string>()
+
+    const findDependents = (id: string) => {
+      if (visited.has(id)) return
+      visited.add(id)
+
+      Object.entries(taskDependencies).forEach(([toId, fromIds]) => {
+        if (fromIds.includes(id) && !dependents.includes(toId)) {
+          dependents.push(toId)
+          findDependents(toId)
+        }
+      })
+    }
+
+    findDependents(taskId)
+    return dependents
+  }
+
+  // utility: get center coordinates (relative to svg) for a task bar or milestone
+  const getTaskCenter = (taskId: string) => {
+    if (!ganttRef.current || !svgRef.current) return null
+    const bar = ganttRef.current.querySelector(`[data-task-id="${taskId}"]`) as HTMLElement | null
+    if (!bar) return null
+    const barRect = bar.getBoundingClientRect()
+    const svgRect = svgRef.current.getBoundingClientRect()
+    const cx = barRect.left + barRect.width / 2 - svgRect.left
+    const cy = barRect.top + barRect.height / 2 - svgRect.top
+    return { x: cx, y: cy }
+  }
+
+  // --- Process hierarchy for subtasks
+  const processedTasks = useMemo(() => {
+    const taskMap = new Map(tasks.map((t) => [t.id, { ...t, children: [] as Task[], level: 0 }]))
+    const roots: any[] = []
+    taskMap.forEach((t: any) => {
+      if (t.parent && taskMap.has(t.parent)) {
+        taskMap.get(t.parent).children.push(t)
+      } else {
+        roots.push(t)
+      }
+    })
+    const out: any[] = []
+    const walk = (arr: any[], lvl = 0) => {
+      arr.forEach((it) => {
+        it.level = lvl
+        out.push(it)
+        if (it.children?.length) walk(it.children, lvl + 1)
+      })
+    }
+    walk(roots)
+    return out as any[]
+  }, [tasks])
+
+  // --- Mouse handlers for interactive dependency drawing
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      if (!draggingDep.active) return
+      setDraggingDep({ fromId: (draggingDep as any).fromId, x: e.clientX, y: e.clientY, active: true })
+    }
+    const onUp = (e: MouseEvent) => {
+      if (!draggingDep.active) return
+      // detect drop target
+      const el = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null
+      const targetTaskEl = el?.closest("[data-task-id]") as HTMLElement | null
+      const fromId = (draggingDep as any).fromId
+      if (targetTaskEl) {
+        const toId = targetTaskEl.getAttribute("data-task-id")
+        if (toId) addDependency(fromId, toId)
+      }
+      setDraggingDep({ active: false })
+      document.removeEventListener("mousemove", onMove)
+      document.removeEventListener("mouseup", onUp)
+    }
+    if (draggingDep.active) {
+      document.addEventListener("mousemove", onMove)
+      document.addEventListener("mouseup", onUp)
+    }
+    return () => {
+      document.removeEventListener("mousemove", onMove)
+      document.removeEventListener("mouseup", onUp)
+    }
+  }, [draggingDep])
+
+  const startDependencyDrag = (fromId: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    const x = (e.nativeEvent as MouseEvent).clientX
+    const y = (e.nativeEvent as MouseEvent).clientY
+    setDraggingDep({ fromId, x, y, active: true })
+  }
+
+  const getStatusColor = (status?: string) => {
+    switch (status) {
+      case "completed":
+        return "bg-green-500"
+      case "in-progress":
+        return "bg-blue-500"
+      case "pending":
+        return "bg-gray-300"
+      default:
+        return "bg-gray-300"
+    }
+  }
+
+  const getStatusBadgeColor = (status?: string) => {
+    switch (status) {
+      case "completed":
+        return "bg-green-100 text-green-800"
+      case "in-progress":
+        return "bg-blue-100 text-blue-800"
+      case "pending":
+        return "bg-gray-100 text-gray-800"
+      default:
+        return "bg-gray-100 text-gray-800"
+    }
+  }
+
+  const getProjectColor = (projectId?: string | null) => {
+    if (!projectId) return "bg-purple-100 text-purple-800"
+    const colors = [
+      "bg-emerald-100 text-emerald-800",
+      "bg-orange-100 text-orange-800",
+      "bg-cyan-100 text-cyan-800",
+      "bg-pink-100 text-pink-800",
+    ]
+    const hash = projectId.split("").reduce((a, b) => a + b.charCodeAt(0), 0)
+    return colors[hash % colors.length]
+  }
+
+  const getTaskPosition = useCallback((task: Task) => {
+    if (!ganttRef.current || !svgRef.current) return null
+    const bar = ganttRef.current.querySelector(`[data-task-id="${task.id}"]`) as HTMLElement | null
+    if (!bar) return null
+    const barRect = bar.getBoundingClientRect()
+    const svgRect = svgRef.current.getBoundingClientRect()
+    return {
+      left: barRect.left - svgRect.left,
+      top: barRect.top - svgRect.top,
+      width: barRect.width,
+      height: barRect.height,
+    }
+  }, [])
+
+  const renderDependencyLine = useCallback(
+    (fromId: string, toId: string) => {
+      const fromTask = tasks.find((t) => t.id === fromId)
+      const toTask = tasks.find((t) => t.id === toId)
+      if (!fromTask || !toTask) return null
+
+      const fromPosition = getTaskPosition(fromTask)
+      const toPosition = getTaskPosition(toTask)
+      if (!fromPosition || !toPosition) return null
+
+      // Calculate blue dot positions (right side of from task, left side of to task)
+      const from = {
+        x: fromPosition.left + fromPosition.width + 12, // right blue dot position
+        y: fromPosition.top + 16, // center of task bar
+      }
+      const to = {
+        x: toPosition.left - 12, // left blue dot position
+        y: toPosition.top + 16, // center of task bar
+      }
+
+      const dx = to.x - from.x
+      const dy = to.y - from.y
+      const isReversed = dx < 0
+
+      let path: string
+
+      if (isReversed) {
+        // For backward dependencies, create clean right-angle path
+        const offset = 30
+        const midX1 = from.x + offset
+        const midX2 = to.x - offset
+        const midY = from.y + dy / 2
+
+        path = `M ${from.x} ${from.y} 
+              L ${midX1} ${from.y} 
+              L ${midX1} ${midY} 
+              L ${midX2} ${midY} 
+              L ${midX2} ${to.y} 
+              L ${to.x} ${to.y}`
+      } else {
+        // For forward dependencies, use smooth bezier curve
+        const controlOffset = Math.max(50, Math.abs(dx) * 0.4)
+        const controlX1 = from.x + controlOffset
+        const controlX2 = to.x - controlOffset
+
+        path = `M ${from.x} ${from.y} 
+              C ${controlX1} ${from.y} ${controlX2} ${to.y} ${to.x} ${to.y}`
+      }
+
+      return (
+        <g key={`${fromId}->${toId}`} className="dependency-line">
+          {/* Enhanced background stroke for better contrast */}
+          <path
+            d={path}
+            stroke="rgba(255, 255, 255, 0.9)"
+            strokeWidth={6}
+            fill="none"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          {/* Main dependency line with enhanced styling */}
+          <path
+            d={path}
+            stroke="#3b82f6"
+            strokeWidth={3}
+            fill="none"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            markerEnd="url(#arrow)"
+            className="drop-shadow-sm"
+          />
+        </g>
+      )
+    },
+    [tasks, getTaskPosition],
+  )
+
+  useEffect(() => {
+    const onMouseMove = (e: MouseEvent) => {
+      if (throttleRef.current) return
+
+      throttleRef.current = requestAnimationFrame(() => {
+        if (draggedTask?.active) {
+          const deltaX = e.clientX - draggedTask.startX
+          const ganttContainer = ganttRef.current
+          if (!ganttContainer) return
+
+          const timelineWidth = ganttContainer.querySelector(".flex-1")?.getBoundingClientRect().width || 0
+          const deltaPercent = (deltaX / timelineWidth) * 100
+          const newLeft = Math.max(0, Math.min(95, draggedTask.startLeft + deltaPercent))
+
+          const taskElement = ganttContainer.querySelector(`[data-task-id="${draggedTask.taskId}"]`) as HTMLElement
+          if (taskElement) {
+            taskElement.style.transform = `translateX(${deltaX}px)`
+            taskElement.style.zIndex = "50"
+          }
+        }
+
+        if (adjustingProgress?.active) {
+          const taskElement = ganttRef.current?.querySelector(
+            `[data-task-id="${adjustingProgress.taskId}"]`,
+          ) as HTMLElement
+          if (!taskElement) return
+
+          const rect = taskElement.getBoundingClientRect()
+          const relativeX = Math.max(0, Math.min(rect.width, e.clientX - rect.left))
+          const newProgress = Math.max(0, Math.min(100, (relativeX / rect.width) * 100))
+
+          const progressBar = taskElement.querySelector(".progress-bar") as HTMLElement
+          const progressText = taskElement.querySelector(".progress-text") as HTMLElement
+          if (progressBar && progressText) {
+            progressBar.style.width = `${newProgress}%`
+            progressText.textContent = `${Math.round(newProgress)}%`
+          }
+        }
+
+        throttleRef.current = null
+      })
+    }
+
+    const onMouseUp = (e: MouseEvent) => {
+      if (draggedTask?.active) {
+        const deltaX = e.clientX - draggedTask.startX
+        const ganttContainer = ganttRef.current
+        if (!ganttContainer) return
+
+        const timelineWidth = ganttContainer.querySelector(".flex-1")?.getBoundingClientRect().width || 0
+        const deltaPercent = (deltaX / timelineWidth) * 100
+        const newLeft = Math.max(0, Math.min(95, draggedTask.startLeft + deltaPercent))
+
+        const task = tasks.find((t) => t.id === draggedTask.taskId)
+        if (task) {
+          const daysDelta = Math.round((deltaPercent / 100) * dateRange.length)
+          const newStartDate = new Date(task.startDate)
+          const newEndDate = new Date(task.endDate)
+          newStartDate.setDate(newStartDate.getDate() + daysDelta)
+          newEndDate.setDate(newEndDate.getDate() + daysDelta)
+
+          setTasks((prev) =>
+            prev.map((t) =>
+              t.id === draggedTask.taskId
+                ? {
+                    ...t,
+                    startDate: newStartDate.toISOString().split("T")[0],
+                    endDate: newEndDate.toISOString().split("T")[0],
+                  }
+                : t,
+            ),
+          )
+
+          moveDependentTasks(draggedTask.taskId, daysDelta)
+        }
+
+        // Reset visual state
+        const taskElement = ganttContainer.querySelector(`[data-task-id="${draggedTask.taskId}"]`) as HTMLElement
+        if (taskElement) {
+          taskElement.style.transform = ""
+          taskElement.style.zIndex = ""
+        }
+
+        setDraggedTask(null)
+      }
+
+      if (adjustingProgress?.active) {
+        const taskElement = ganttRef.current?.querySelector(
+          `[data-task-id="${adjustingProgress.taskId}"]`,
+        ) as HTMLElement
+        if (!taskElement) return
+
+        const rect = taskElement.getBoundingClientRect()
+        const relativeX = Math.max(0, Math.min(rect.width, e.clientX - rect.left))
+        const newProgress = Math.max(0, Math.min(100, (relativeX / rect.width) * 100))
+
+        setTasks((prev) =>
+          prev.map((t) => (t.id === adjustingProgress.taskId ? { ...t, progress: Math.round(newProgress) } : t)),
+        )
+
+        setAdjustingProgress(null)
+      }
+
+      if (isResizing) {
+        setIsResizing(null)
+      }
+    }
+
+    if (draggedTask?.active || adjustingProgress?.active || isResizing) {
+      document.addEventListener("mousemove", onMouseMove, { passive: true })
+      document.addEventListener("mouseup", onMouseUp)
+    }
+
+    return () => {
+      document.removeEventListener("mousemove", onMouseMove)
+      document.removeEventListener("mouseup", onMouseUp)
+      if (throttleRef.current) {
+        cancelAnimationFrame(throttleRef.current)
+        throttleRef.current = null
+      }
+    }
+  }, [draggedTask, adjustingProgress, isResizing, dateRange, tasks])
+
+  const moveDependentTasks = useCallback(
+    (rootTaskId: string, daysDelta: number) => {
+      const getDependentTasks = (taskId: string): string[] => {
+        const dependents: string[] = []
+        Object.entries(taskDependencies).forEach(([toId, fromIds]) => {
+          if (fromIds.includes(taskId)) {
+            dependents.push(toId)
+            dependents.push(...getDependentTasks(toId))
+          }
+        })
+        return [...new Set(dependents)]
+      }
+
+      const dependentTaskIds = getDependentTasks(rootTaskId)
+
+      setTasks((prev) =>
+        prev.map((task) => {
+          if (dependentTaskIds.includes(task.id)) {
+            const newStartDate = new Date(task.startDate)
+            const newEndDate = new Date(task.endDate)
+            newStartDate.setDate(newStartDate.getDate() + daysDelta)
+            newEndDate.setDate(newEndDate.getDate() + daysDelta)
+
+            return {
+              ...task,
+              startDate: newStartDate.toISOString().split("T")[0],
+              endDate: newEndDate.toISOString().split("T")[0],
+            }
+          }
+          return task
+        }),
+      )
+    },
+    [taskDependencies],
+  )
+
+  const handleTimelineDoubleClick = (e: React.MouseEvent) => {
+    const rect = e.currentTarget.getBoundingClientRect()
+    const x = e.clientX - rect.left
+    const timelinePercent = (x / rect.width) * 100
+    const dayIndex = Math.floor((timelinePercent / 100) * dateRange.length)
+    const selectedDate = dateRange[dayIndex]?.toISOString().split("T")[0] || new Date().toISOString().split("T")[0]
+
+    setQuickCreate({
+      x: e.clientX,
+      y: e.clientY,
+      date: selectedDate,
+      visible: true,
+      type: "task",
+    })
+  }
+
+  const createQuickTask = (type: "task" | "milestone") => {
+    if (!quickCreate) return
+
+    const task: Task = {
+      id: `${type}-${Date.now()}`,
+      title: type === "milestone" ? "New Milestone" : "New Task",
+      status: "pending",
+      startDate: quickCreate.date,
+      endDate:
+        type === "milestone"
+          ? quickCreate.date
+          : new Date(new Date(quickCreate.date).getTime() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
+      progress: 0,
+      type: type,
+      projectId: null,
+      projectName: null,
+    }
+
+    setTasks((prev) => [...prev, task])
+    setQuickCreate(null)
+    setSelectedTask(task.id)
+  }
+
+  const startTaskDrag = (taskId: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    const taskElement = e.currentTarget as HTMLElement
+    const rect = taskElement.getBoundingClientRect()
+    const ganttContainer = ganttRef.current
+    if (!ganttContainer) return
+
+    const timelineContainer = ganttContainer.querySelector(".flex-1")
+    if (!timelineContainer) return
+
+    const timelineRect = timelineContainer.getBoundingClientRect()
+    const currentLeft = ((rect.left - timelineRect.left) / timelineRect.width) * 100
+
+    setDraggedTask({
+      taskId,
+      startX: e.clientX,
+      startLeft: currentLeft,
+      active: true,
+    })
+  }
+
+  const startProgressAdjust = (taskId: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    const task = tasks.find((t) => t.id === taskId)
+    if (!task) return
+
+    setAdjustingProgress({
+      taskId,
+      startX: e.clientX,
+      startProgress: task.progress || 0,
+      active: true,
+    })
+  }
+
+  const createSubtask = (parentId: string) => {
+    setNewTaskParent(parentId)
+    setNewTask({
+      title: "",
+      assignee: "",
+      status: "pending",
+      startDate: new Date().toISOString().split("T")[0],
+      endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
+      type: "task",
+      parent: parentId,
+    })
+    setCreateTaskOpen(true)
+  }
+
+  const handleCreateTask = () => {
+    if (!newTask.title.trim()) return
+
+    const task: Task = {
+      id: `task-${Date.now()}`,
+      title: newTask.title,
+      assignee: newTask.assignee ? { name: newTask.assignee } : undefined,
+      status: newTask.status,
+      startDate: newTask.startDate,
+      endDate: newTask.endDate,
+      progress: 0,
+      type: newTask.type,
+      parent: newTask.parent || undefined,
+      projectId: newTask.parent ? tasks.find((t) => t.id === newTask.parent)?.projectId : null,
+      projectName: newTask.parent ? tasks.find((t) => t.id === newTask.parent)?.projectName : null,
+    }
+
+    setTasks((prev) => [...prev, task])
+    setCreateTaskOpen(false)
+    setNewTaskParent(null)
+    setNewTask({
+      title: "",
+      assignee: "",
+      status: "pending",
+      startDate: "",
+      endDate: "",
+      type: "task",
+      parent: "",
+    })
+  }
+
+  // --- Force re-render of dependency lines when date range changes
+  useEffect(() => {
+    // Small delay to ensure DOM elements are positioned correctly
+    const timer = setTimeout(() => {
+      if (svgRef.current) {
+        // Trigger a re-render by updating a dummy state
+        setTasks((prev) => [...prev])
+      }
+    }, 100)
+    return () => clearTimeout(timer)
+  }, [currentDate, dateRange])
+
+  // --- Render
+  return (
+    <Card className="w-full bg-white shadow-sm border border-gray-200">
+      <CardContent className="p-0">
+        {/* Header */}
+        <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gray-50">
+          <div className="flex items-center gap-4">
+            <h2 className="text-lg font-semibold text-gray-900">Project Timeline</h2>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1))}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <span className="text-sm font-medium text-gray-700 min-w-[120px] text-center">
+                {currentDate.toLocaleDateString("en-US", { month: "long", year: "numeric" })}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1))}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-6">
+            <div className="flex items-center gap-4 text-xs">
+              <div className="flex items-center gap-1">
+                <div className="w-3 h-3 rounded bg-green-500"></div>
+                <span>Completed</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="w-3 h-3 rounded bg-blue-500"></div>
+                <span>In Progress</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="w-3 h-3 rounded bg-gray-300"></div>
+                <span>Pending</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <Diamond className="w-3 h-3 text-amber-500" />
+                <span>Milestone</span>
+              </div>
+            </div>
+            <Button size="sm" onClick={() => setCreateTaskOpen(true)} className="bg-blue-600 hover:bg-blue-700">
+              <Plus className="h-4 w-4 mr-1" />
+              Add Task
+            </Button>
+          </div>
+        </div>
+
+        {/* Timeline */}
+        <div className="relative" style={{ height: "calc(100vh - 200px)", minHeight: "400px" }}>
+          <div className="flex h-full">
+            {/* Task list */}
+            <div className="w-80 border-r border-gray-200 bg-gray-50 overflow-y-auto">
+              <div className="sticky top-0 bg-gray-100 border-b border-gray-200 p-3 z-10">
+                <div className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                  <Users className="h-4 w-4" />
+                  Tasks & Assignees
+                </div>
+              </div>
+              <div className="divide-y divide-gray-200">
+                {processedTasks.map((task) => (
+                  <div
+                    key={task.id}
+                    className="p-3 group transition-colors duration-150"
+                    style={{ paddingLeft: `${12 + task.level * 20}px` }}
+                  >
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          {task.type === "milestone" && <Diamond className="h-3 w-3 text-amber-500" />}
+                          <h4 className="font-medium text-sm">{task.title}</h4>
+                          {!task.parent && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                              onClick={() => createSubtask(task.id)}
+                              title="Add subtask"
+                            >
+                              <Plus className="h-3 w-3" />
+                            </Button>
+                          )}
+                        </div>
+                        <Badge variant="secondary" className={getStatusBadgeColor(task.status)}>
+                          {task.status?.replace("-", " ")}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Avatar className="h-6 w-6">
+                            <AvatarImage
+                              src={task.assignee?.avatar || "/placeholder.svg"}
+                              alt={task.assignee?.name || ""}
+                            />
+                            <AvatarFallback className="text-xs">
+                              {(task.assignee?.name || "")
+                                .split(" ")
+                                .map((n) => n[0])
+                                .join("")}
+                            </AvatarFallback>
+                          </Avatar>
+                          <span className="text-xs text-slate-600">{task.assignee?.name || "Unassigned"}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          {task.projectId ? (
+                            <>
+                              <Building2 className="h-3 w-3 text-slate-400" />
+                              <Badge variant="outline" className={`text-xs ${getProjectColor(task.projectId)}`}>
+                                {task.projectName}
+                              </Badge>
+                            </>
+                          ) : (
+                            <Badge variant="outline" className={`text-xs ${getProjectColor(null)}`}>
+                              Personal
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Timeline grid */}
+            <div className="flex-1 relative overflow-x-auto">
+              {/* Date headers */}
+              <div className="sticky top-0 bg-white border-b border-gray-200 z-20">
+                <div className="flex h-12">
+                  {dateRange.map((date, index) => (
+                    <div
+                      key={index}
+                      className="flex-1 min-w-[40px] border-r border-gray-100 flex items-center justify-center text-xs text-gray-600"
+                    >
+                      <div className="text-center">
+                        <div className="font-medium">{date.getDate()}</div>
+                        <div className="text-gray-400">{date.toLocaleDateString("en-US", { weekday: "short" })}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div
+                className="relative"
+                onDoubleClick={handleTimelineDoubleClick}
+                title="Double-click to create task or milestone"
+              >
+                {/* Task bars */}
+                <div className="divide-y divide-gray-100">
+                  {processedTasks.map((task) => {
+                    const position = calculatePosition(task.startDate, task.endDate)
+                    const isMilestone = task.type === "milestone"
+
+                    return (
+                      <div key={task.id} className="h-16 relative flex items-center" style={{ padding: 8 }}>
+                        {isMilestone ? (
+                          <div
+                            data-task-id={task.id}
+                            className="absolute transform -translate-y-1/2 top-1/2"
+                            style={{ left: position.left }}
+                          >
+                            <div className="w-5 h-5 rotate-45 bg-amber-400 border-2 border-amber-600 shadow-md"></div>
+                            <div className="text-xs absolute -bottom-5 left-1/2 -translate-x-1/2 w-40 text-center font-medium">
+                              {task.title}
+                            </div>
+                            {/* Connection points for milestones */}
+                            <div className="absolute -left-3 top-1/2 -translate-y-1/2">
+                              <div
+                                onMouseDown={(e) => startDependencyDrag(task.id, e as any)}
+                                className="w-3 h-3 rounded-full bg-blue-500 cursor-crosshair hover:bg-blue-600 hover:scale-110 transition-all duration-200 shadow-lg border border-white"
+                                title="Drag to create dependency"
+                              />
+                            </div>
+                            <div className="absolute -right-3 top-1/2 -translate-y-1/2">
+                              <div
+                                onMouseDown={(e) => startDependencyDrag(task.id, e as any)}
+                                className="w-3 h-3 rounded-full bg-blue-500 cursor-crosshair hover:bg-blue-600 hover:scale-110 transition-all duration-200 shadow-lg border border-white"
+                                title="Drag to create dependency"
+                              />
+                            </div>
+                          </div>
+                        ) : (
+                          <div
+                            data-task-id={task.id}
+                            className={`h-8 rounded-lg ${getStatusColor(task.status)} relative cursor-move transition-all duration-200 ${
+                              draggedTask?.taskId === task.id ? "shadow-xl scale-105 z-50" : "hover:shadow-md"
+                            }`}
+                            style={position}
+                            onMouseDown={(e) => startTaskDrag(task.id, e)}
+                            onDoubleClick={(e) => {
+                              e.stopPropagation()
+                              setSelectedTask(task.id)
+                            }}
+                          >
+                            <div
+                              style={{ width: `${task.progress || 0}%` }}
+                              className="progress-bar h-full bg-white bg-opacity-30 rounded-lg cursor-pointer hover:bg-opacity-50 transition-all duration-200"
+                              onMouseDown={(e) => {
+                                e.stopPropagation()
+                                startProgressAdjust(task.id, e)
+                              }}
+                              title="Click and drag to adjust progress"
+                            />
+
+                            {/* Progress text */}
+                            <div className="progress-text absolute inset-0 flex items-center justify-center text-xs font-medium text-gray-900 pointer-events-none">
+                              {task.progress || 0}%
+                            </div>
+
+                            {/* Resize handles */}
+                            <div
+                              onMouseDown={(e) => {
+                                e.stopPropagation()
+                                setIsResizing({ taskId: task.id, handle: "start" })
+                              }}
+                              className="absolute left-0 top-0 w-2 h-full cursor-w-resize opacity-0 hover:opacity-100 flex items-center justify-center transition-all duration-200 bg-white bg-opacity-20 rounded-l-lg"
+                            >
+                              <div className="w-0.5 h-4 bg-white rounded-full shadow-sm"></div>
+                            </div>
+
+                            <div
+                              onMouseDown={(e) => {
+                                e.stopPropagation()
+                                setIsResizing({ taskId: task.id, handle: "end" })
+                              }}
+                              className="absolute right-0 top-0 w-2 h-full cursor-e-resize opacity-0 hover:opacity-100 flex items-center justify-center transition-all duration-200 bg-white bg-opacity-20 rounded-r-lg"
+                            >
+                              <div className="w-0.5 h-4 bg-white rounded-full shadow-sm"></div>
+                            </div>
+
+                            <div className="absolute -left-3 top-1/2 -translate-y-1/2">
+                              <div
+                                onMouseDown={(e) => {
+                                  e.stopPropagation()
+                                  startDependencyDrag(task.id, e)
+                                }}
+                                className="w-3 h-3 rounded-full bg-blue-500 cursor-crosshair hover:bg-blue-600 hover:scale-110 transition-all duration-200 shadow-lg border border-white"
+                                title="Drag to create dependency"
+                              />
+                            </div>
+                            <div className="absolute -right-3 top-1/2 -translate-y-1/2">
+                              <div
+                                onMouseDown={(e) => {
+                                  e.stopPropagation()
+                                  startDependencyDrag(task.id, e)
+                                }}
+                                className="w-3 h-3 rounded-full bg-blue-500 cursor-crosshair hover:bg-blue-600 hover:scale-110 transition-all duration-200 shadow-lg border border-white"
+                                title="Drag to create dependency"
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+
+                <svg
+                  ref={svgRef}
+                  className="absolute inset-0 pointer-events-none z-10"
+                  style={{ width: "100%", height: "100%" }}
+                >
+                  <defs>
+                    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                      <polygon points="0 0, 10 3.5, 0 7" fill="#3b82f6" />
+                    </marker>
+                  </defs>
+                  {Object.entries(taskDependencies).map(([toId, fromIds]) =>
+                    fromIds.map((fromId) => <g key={`${fromId}-${toId}`}>{renderDependencyLine(fromId, toId)}</g>),
+                  )}
+                  {draggingDep.active && (
+                    <line
+                      x1={(draggingDep as any).startX}
+                      y1={(draggingDep as any).startY}
+                      x2={(draggingDep as any).x}
+                      y2={(draggingDep as any).y}
+                      stroke="#3b82f6"
+                      strokeWidth="2"
+                      strokeDasharray="5,5"
+                      markerEnd="url(#arrowhead)"
+                    />
+                  )}
+                </svg>
+              </div>
+            </div>
+          </div>
+        </div>
+      </CardContent>
+
+      {quickCreate?.visible && (
+        <div
+          className="fixed z-50 bg-white rounded-lg shadow-xl border border-gray-200 p-3"
+          style={{
+            left: quickCreate.x,
+            top: quickCreate.y,
+            transform: "translate(-50%, -100%)",
+          }}
+        >
+          <div className="text-xs text-gray-600 mb-2">Create on {quickCreate.date}</div>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" onClick={() => createQuickTask("task")} className="text-xs">
+              <Calendar className="h-3 w-3 mr-1" />
+              Task
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => createQuickTask("milestone")} className="text-xs">
+              <Diamond className="h-3 w-3 mr-1" />
+              Milestone
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => setQuickCreate(null)} className="text-xs">
+              Cancel
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Task creation sheet */}
+      <Sheet open={createTaskOpen} onOpenChange={setCreateTaskOpen}>
+        <SheetContent side="right" className="w-full sm:max-w-md bg-white">
+          <SheetHeader>
+            <SheetTitle className="text-foreground">{newTaskParent ? "Create Subtask" : "Create New Task"}</SheetTitle>
+            <SheetDescription className="text-muted-foreground">
+              {newTaskParent
+                ? `Add a subtask to "${tasks.find((t) => t.id === newTaskParent)?.title}"`
+                : "Add a new task to the Gantt chart timeline."}
+            </SheetDescription>
+          </SheetHeader>
+          <div className="mt-6 space-y-4">
+            <div>
+              <Label htmlFor="title">Task Title</Label>
+              <Input
+                id="title"
+                value={newTask.title}
+                onChange={(e) => setNewTask((prev) => ({ ...prev, title: e.target.value }))}
+                placeholder="Enter task title"
+              />
+            </div>
+            <div>
+              <Label htmlFor="assignee">Assignee</Label>
+              <Input
+                id="assignee"
+                value={newTask.assignee}
+                onChange={(e) => setNewTask((prev) => ({ ...prev, assignee: e.target.value }))}
+                placeholder="Enter assignee name"
+              />
+            </div>
+            <div>
+              <Label htmlFor="status">Status</Label>
+              <Select
+                value={newTask.status}
+                onValueChange={(value: any) => setNewTask((prev) => ({ ...prev, status: value }))}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pending">Pending</SelectItem>
+                  <SelectItem value="in-progress">In Progress</SelectItem>
+                  <SelectItem value="completed">Completed</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="startDate">Start Date</Label>
+                <Input
+                  id="startDate"
+                  type="date"
+                  value={newTask.startDate}
+                  onChange={(e) => setNewTask((prev) => ({ ...prev, startDate: e.target.value }))}
+                />
+              </div>
+              <div>
+                <Label htmlFor="endDate">End Date</Label>
+                <Input
+                  id="endDate"
+                  type="date"
+                  value={newTask.endDate}
+                  onChange={(e) => setNewTask((prev) => ({ ...prev, endDate: e.target.value }))}
+                />
+              </div>
+            </div>
+            <div>
+              <Label htmlFor="type">Type</Label>
+              <Select
+                value={newTask.type}
+                onValueChange={(value: any) => setNewTask((prev) => ({ ...prev, type: value }))}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="task">Task</SelectItem>
+                  <SelectItem value="milestone">Milestone</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex gap-2 pt-4">
+              <Button onClick={handleCreateTask} className="flex-1">
+                Create {newTaskParent ? "Subtask" : "Task"}
+              </Button>
+              <Button variant="outline" onClick={() => setCreateTaskOpen(false)}>
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      <Sheet open={!!selectedTask} onOpenChange={(open) => !open && setSelectedTask(null)}>
+        <SheetContent side="right" className="w-full sm:max-w-md bg-white border-l">
+          <SheetHeader>
+            <SheetTitle className="text-foreground">Edit Task</SheetTitle>
+            <SheetDescription className="text-muted-foreground">Update task details and timeline.</SheetDescription>
+          </SheetHeader>
+          <div className="mt-6 p-4">
+            {/* minimal edit placeholder */}
+            <div>Task editor not implemented in this demo. Double click a task to open selection.</div>
+            <Button onClick={() => setSelectedTask(null)}>Close</Button>
+          </div>
+        </SheetContent>
+      </Sheet>
+    </Card>
+  )
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+"use client"
+
+import type React from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { Card, CardContent } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { ChevronLeft, ChevronRight, Users, Building2, Plus } from "lucide-react"
+
+// --- Types
+interface Task {
+  id: string
+  title: string
+  assignee?: { name: string; avatar?: string } | string
+  status?: "completed" | "in-progress" | "pending"
+  startDate: string
+  endDate: string
+  progress?: number
+  dependencies?: string[]
+  projectId?: string | null
+  projectName?: string | null
+  type?: "task" | "milestone"
+  parent?: string
+}
+
+const mockTasks: Task[] = [
+  {
+    id: "1",
+    title: "User Research & Analysis",
+    assignee: { name: "Sarah Chen", avatar: "/placeholder.svg?height=32&width=32" },
+    status: "completed",
+    startDate: "2024-01-15",
+    endDate: "2024-01-28",
+    progress: 100,
+    dependencies: [],
+    projectId: "proj-1",
+    projectName: "E-commerce Platform",
+    type: "task",
+  },
+  {
+    id: "1.1",
+    title: "User Interviews",
+    assignee: { name: "Sarah Chen", avatar: "/placeholder.svg?height=32&width=32" },
+    status: "completed",
+    startDate: "2024-01-16",
+    endDate: "2024-01-20",
+    progress: 100,
+    dependencies: [],
+    projectId: "proj-1",
+    projectName: "E-commerce Platform",
+    parent: "1",
+    type: "task",
+  },
+  {
+    id: "1.2",
+    title: "Survey Analysis",
+    assignee: { name: "Sarah Chen", avatar: "/placeholder.svg?height=32&width=32" },
+    status: "completed",
+    startDate: "2024-01-21",
+    endDate: "2024-01-25",
+    progress: 100,
+    dependencies: ["1.1"],
+    projectId: "proj-1",
+    projectName: "E-commerce Platform",
+    parent: "1",
+    type: "task",
+  },
+  {
+    id: "1.3",
+    title: "Research Report",
+    assignee: { name: "Sarah Chen", avatar: "/placeholder.svg?height=32&width=32" },
+    status: "completed",
+    startDate: "2024-01-26",
+    endDate: "2024-01-28",
+    progress: 100,
+    dependencies: ["1.2"],
+    projectId: "proj-1",
+    projectName: "E-commerce Platform",
+    parent: "1",
+    type: "task",
+  },
+  {
+    id: "2",
+    title: "Wireframe Creation",
+    assignee: { name: "John Doe", avatar: "/placeholder.svg?height=32&width=32" },
+    status: "completed",
+    startDate: "2024-01-29",
+    endDate: "2024-02-11",
+    progress: 100,
+    dependencies: ["1"],
+    projectId: "proj-1",
+    projectName: "E-commerce Platform",
+    type: "task",
+  },
+  {
+    id: "2.1",
+    title: "Low-fidelity Wireframes",
+    assignee: { name: "John Doe", avatar: "/placeholder.svg?height=32&width=32" },
+    status: "completed",
+    startDate: "2024-01-29",
+    endDate: "2024-02-05",
+    progress: 100,
+    dependencies: [],
+    projectId: "proj-1",
+    projectName: "E-commerce Platform",
+    parent: "2",
+    type: "task",
+  },
+  {
+    id: "2.2",
+    title: "High-fidelity Wireframes",
+    assignee: { name: "John Doe", avatar: "/placeholder.svg?height=32&width=32" },
+    status: "completed",
+    startDate: "2024-02-06",
+    endDate: "2024-02-11",
+    progress: 100,
+    dependencies: ["2.1"],
+    projectId: "proj-1",
+    projectName: "E-commerce Platform",
+    parent: "2",
+    type: "task",
+  },
+  {
+    id: "milestone-1",
+    title: "Design Phase Complete",
+    assignee: { name: "Project Manager", avatar: "/placeholder.svg?height=32&width=32" },
+    status: "completed",
+    startDate: "2024-02-11",
+    endDate: "2024-02-11",
+    progress: 100,
+    dependencies: ["2", "3"],
+    projectId: "proj-1",
+    projectName: "E-commerce Platform",
+    type: "milestone",
+  },
+  {
+    id: "3",
+    title: "UI Design System",
+    assignee: { name: "Sarah Chen", avatar: "/placeholder.svg?height=32&width=32" },
+    status: "in-progress",
+    startDate: "2024-02-05",
+    endDate: "2024-02-25",
+    progress: 65,
+    dependencies: ["1"],
+    projectId: "proj-1",
+    projectName: "E-commerce Platform",
+    type: "task",
+  },
+  {
+    id: "3.1",
+    title: "Color Palette",
+    assignee: { name: "Sarah Chen", avatar: "/placeholder.svg?height=32&width=32" },
+    status: "completed",
+    startDate: "2024-02-05",
+    endDate: "2024-02-08",
+    progress: 100,
+    dependencies: [],
+    projectId: "proj-1",
+    projectName: "E-commerce Platform",
+    parent: "3",
+    type: "task",
+  },
+  {
+    id: "3.2",
+    title: "Typography System",
+    assignee: { name: "Sarah Chen", avatar: "/placeholder.svg?height=32&width=32" },
+    status: "in-progress",
+    startDate: "2024-02-09",
+    endDate: "2024-02-15",
+    progress: 80,
+    dependencies: ["3.1"],
+    projectId: "proj-1",
+    projectName: "E-commerce Platform",
+    parent: "3",
+    type: "task",
+  },
+  {
+    id: "3.3",
+    title: "Component Library",
+    assignee: { name: "Sarah Chen", avatar: "/placeholder.svg?height=32&width=32" },
+    status: "in-progress",
+    startDate: "2024-02-16",
+    endDate: "2024-02-25",
+    progress: 30,
+    dependencies: ["3.2"],
+    projectId: "proj-1",
+    projectName: "E-commerce Platform",
+    parent: "3",
+    type: "task",
+  },
+  {
+    id: "4",
+    title: "Frontend Development",
+    assignee: { name: "Mike Johnson", avatar: "/placeholder.svg?height=32&width=32" },
+    status: "in-progress",
+    startDate: "2024-02-12",
+    endDate: "2024-03-15",
+    progress: 30,
+    dependencies: ["2"],
+    projectId: "proj-2",
+    projectName: "Mobile App",
+    type: "task",
+  },
+  {
+    id: "5",
+    title: "Backend API Development",
+    assignee: { name: "Alex Rodriguez", avatar: "/placeholder.svg?height=32&width=32" },
+    status: "in-progress",
+    startDate: "2024-02-19",
+    endDate: "2024-03-20",
+    progress: 20,
+    dependencies: ["2"],
+    projectId: "proj-2",
+    projectName: "Mobile App",
+    type: "task",
+  },
+  {
+    id: "6",
+    title: "Testing & QA",
+    assignee: { name: "Emily Davis", avatar: "/placeholder.svg?height=32&width=32" },
+    status: "pending",
+    startDate: "2024-03-16",
+    endDate: "2024-03-30",
+    progress: 0,
+    dependencies: ["4", "5"],
+    projectId: "proj-2",
+    projectName: "Mobile App",
+    type: "task",
+  },
+  {
+    id: "7",
+    title: "Personal Learning - React Native",
+    assignee: { name: "You", avatar: "/placeholder.svg?height=32&width=32" },
+    status: "in-progress",
+    startDate: "2024-02-01",
+    endDate: "2024-03-01",
+    progress: 45,
+    dependencies: [],
+    projectId: null,
+    projectName: null,
+    type: "task",
+  },
+]
+
+interface GanttViewProps {
+  projectId?: string
+}
+
+const throttle = (func: Function, delay: number) => {
+  let timeoutId: NodeJS.Timeout
+  let lastExecTime = 0
+  return (...args: any[]) => {
+    const currentTime = Date.now()
+    if (currentTime - lastExecTime > delay) {
+      func(...args)
+      lastExecTime = currentTime
+    } else {
+      clearTimeout(timeoutId)
+      timeoutId = setTimeout(
+        () => {
+          func(...args)
+          lastExecTime = Date.now()
+        },
+        delay - (currentTime - lastExecTime),
+      )
+    }
+  }
+}
+
+const debounce = (func: Function, delay: number) => {
+  let timeoutId: NodeJS.Timeout
+  return (...args: any[]) => {
+    clearTimeout(timeoutId)
+    timeoutId = setTimeout(() => func(...args), delay)
+  }
+}
+
+export default function GanttView({ projectId }: GanttViewProps) {
+  const [contextMenu, setContextMenu] = useState<{
+    x: number
+    y: number
+    visible: boolean
+    type: "timeline" | "task"
+    taskId?: string
+    date?: Date
+  }>({ x: 0, y: 0, visible: false, type: "timeline" })
+  // --- State
+  const [currentDate, setCurrentDate] = useState(new Date(2024, 1, 1))
+  const [tasks, setTasks] = useState<Task[]>(mockTasks)
+  const [createTaskOpen, setCreateTaskOpen] = useState(false)
+  const [selectedTask, setSelectedTask] = useState<string | null>(null)
+  const [newTaskParent, setNewTaskParent] = useState<string | null>(null)
+  const [isResizing, setIsResizing] = useState<{ taskId: string; handle: "start" | "end" } | null>(null)
+  const [draggedTask, setDraggedTask] = useState<{
+    taskId: string
+    startX: number
+    startLeft: number
+    active: boolean
+  } | null>(null)
+  const [adjustingProgress, setAdjustingProgress] = useState<{
+    taskId: string
+    startX: number
+    startProgress: number
+    active: boolean
+  } | null>(null)
+
+  const [newTask, setNewTask] = useState({
+    title: "",
+    assignee: "",
+    status: "pending" as const,
+    startDate: "",
+    endDate: "",
+    type: "task" as const,
+    parent: "",
+  })
+
+  // dependencies stored as map: toId -> [fromIds]
+  const [taskDependencies, setTaskDependencies] = useState<Record<string, string[]>>(() => {
+    const map: Record<string, string[]> = {}
+    mockTasks.forEach((t) => {
+      if (t.dependencies?.length) map[t.id] = [...t.dependencies!]
+    })
+    return map
+  })
+
+  // For dragging dependency lines interactively
+  const [draggingDep, setDraggingDep] = useState<
+    { fromId: string; x: number; y: number; active: true } | { active: false }
+  >({ active: false })
+
+  const ganttRef = useRef<HTMLDivElement | null>(null)
+  const svgRef = useRef<SVGSVGElement | null>(null)
+
+  // --- Helpers: date range & positioning
+  const dateRange = useMemo(() => {
+    const dates: Date[] = []
+    const startDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1)
+    const endDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + 3, 0)
+    for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+      dates.push(new Date(d))
+    }
+    return dates
+  }, [currentDate])
+
+  const calculatePosition = useCallback(
+    (startDate: string, endDate: string) => {
+      const start = new Date(startDate)
+      const end = new Date(endDate)
+      const timelineStart = dateRange[0]
+      const timelineEnd = dateRange[dateRange.length - 1]
+      const totalDays = Math.max(
+        1,
+        Math.ceil((timelineEnd.getTime() - timelineStart.getTime()) / (1000 * 60 * 60 * 24)),
+      )
+      const startOffset = Math.max(0, Math.ceil((start.getTime() - timelineStart.getTime()) / (1000 * 60 * 60 * 24)))
+      const duration = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)))
+      const leftPercent = (startOffset / totalDays) * 100
+      const widthPercent = (duration / totalDays) * 100
+      return { left: `${Math.max(0, leftPercent)}%`, width: `${Math.min(100 - leftPercent, widthPercent)}%` }
+    },
+    [dateRange],
+  )
+
+  const navigateMonth = (direction: "prev" | "next") => {
+    setCurrentDate((prev) => {
+      const nd = new Date(prev)
+      nd.setMonth(nd.getMonth() + (direction === "prev" ? -1 : 1))
+      return nd
+    })
+  }
+
+  const formatMonthYear = (d: Date) => d.toLocaleDateString("en-US", { month: "long", year: "numeric" })
+
+  const addDependency = (fromId: string, toId: string) => {
+    if (fromId === toId) return
+    setTaskDependencies((prev) => {
+      const existing = new Set(prev[toId] || [])
+      existing.add(fromId)
+      return { ...prev, [toId]: Array.from(existing) }
+    })
+  }
+
+  const getAllDependentTasks = (taskId: string): string[] => {
+    const dependents: string[] = []
+    const visited = new Set<string>()
+
+    const findDependents = (id: string) => {
+      if (visited.has(id)) return
+      visited.add(id)
+
+      Object.entries(taskDependencies).forEach(([toId, fromIds]) => {
+        if (fromIds.includes(id) && !dependents.includes(toId)) {
+          dependents.push(toId)
+          findDependents(toId)
+        }
+      })
+    }
+
+    findDependents(taskId)
+    return dependents
+  }
+
+  // utility: get center coordinates (relative to svg) for a task bar or milestone
+  const getTaskCenter = (taskId: string) => {
+    if (!ganttRef.current || !svgRef.current) return null
+    const bar = ganttRef.current.querySelector(`[data-task-id="${taskId}"]`) as HTMLElement | null
+    if (!bar) return null
+    const barRect = bar.getBoundingClientRect()
+    const svgRect = svgRef.current.getBoundingClientRect()
+    const cx = barRect.left + barRect.width / 2 - svgRect.left
+    const cy = barRect.top + barRect.height / 2 - svgRect.top
+    return { x: cx, y: cy }
+  }
+
+  // --- Process hierarchy for subtasks
+  const processedTasks = useMemo(() => {
+    const taskMap = new Map(tasks.map((t) => [t.id, { ...t, children: [] as Task[], level: 0 }]))
+    const roots: any[] = []
+    taskMap.forEach((t: any) => {
+      if (t.parent && taskMap.has(t.parent)) {
+        taskMap.get(t.parent).children.push(t)
+      } else {
+        roots.push(t)
+      }
+    })
+    const out: any[] = []
+    const walk = (arr: any[], lvl = 0) => {
+      arr.forEach((it) => {
+        it.level = lvl
+        out.push(it)
+        if (it.children?.length) walk(it.children, lvl + 1)
+      })
+    }
+    walk(roots)
+    return out as any[]
+  }, [tasks])
+
+  // --- Mouse handlers for interactive dependency drawing
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      if (!draggingDep.active) return
+      setDraggingDep({ fromId: (draggingDep as any).fromId, x: e.clientX, y: e.clientY, active: true })
+    }
+    const onUp = (e: MouseEvent) => {
+      if (!draggingDep.active) return
+      // detect drop target
+      const el = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null
+      const targetTaskEl = el?.closest("[data-task-id]") as HTMLElement | null
+      const fromId = (draggingDep as any).fromId
+      if (targetTaskEl) {
+        const toId = targetTaskEl.getAttribute("data-task-id")
+        if (toId) addDependency(fromId, toId)
+      }
+      setDraggingDep({ active: false })
+      document.removeEventListener("mousemove", onMove)
+      document.removeEventListener("mouseup", onUp)
+    }
+    if (draggingDep.active) {
+      document.addEventListener("mousemove", onMove)
+      document.addEventListener("mouseup", onUp)
+    }
+    return () => {
+      document.removeEventListener("mousemove", onMove)
+      document.removeEventListener("mouseup", onUp)
+    }
+  }, [draggingDep])
+
+  const startDependencyDrag = (fromId: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    const x = (e.nativeEvent as MouseEvent).clientX
+    const y = (e.nativeEvent as MouseEvent).clientY
+    setDraggingDep({ fromId, x, y, active: true })
+  }
+
+  const getStatusColor = (status?: string) => {
+    switch (status) {
+      case "completed":
+        return "bg-green-500"
+      case "in-progress":
+        return "bg-blue-500"
+      case "pending":
+        return "bg-gray-300"
+      default:
+        return "bg-gray-300"
+    }
+  }
+
+  const getStatusBadgeColor = (status?: string) => {
+    switch (status) {
+      case "completed":
+        return "bg-green-100 text-green-800"
+      case "in-progress":
+        return "bg-blue-100 text-blue-800"
+      case "pending":
+        return "bg-gray-100 text-gray-800"
+      default:
+        return "bg-gray-100 text-gray-800"
+    }
+  }
+
+  const getProjectColor = (projectId?: string | null) => {
+    if (!projectId) return "bg-purple-100 text-purple-800"
+    const colors = [
+      "bg-emerald-100 text-emerald-800",
+      "bg-orange-100 text-orange-800",
+      "bg-cyan-100 text-cyan-800",
+      "bg-pink-100 text-pink-800",
+    ]
+    const hash = projectId.split("").reduce((a, b) => a + b.charCodeAt(0), 0)
+    return colors[hash % colors.length]
+  }
+
+  const getTaskPosition = useCallback((task: Task) => {
+    if (!ganttRef.current || !svgRef.current) return null
+    const bar = ganttRef.current.querySelector(`[data-task-id="${task.id}"]`) as HTMLElement | null
+    if (!bar) return null
+    const barRect = bar.getBoundingClientRect()
+    const svgRect = svgRef.current.getBoundingClientRect()
+    return {
+      left: barRect.left - svgRect.left,
+      top: barRect.top - svgRect.top,
+      width: barRect.width,
+      height: barRect.height,
+    }
+  }, [])
+
+  const renderDependencyLine = useCallback(
+    (fromId: string, toId: string) => {
+      const fromTask = tasks.find((t) => t.id === fromId)
+      const toTask = tasks.find((t) => t.id === toId)
+      if (!fromTask || !toTask) return null
+
+      const fromPosition = getTaskPosition(fromTask)
+      const toPosition = getTaskPosition(toTask)
+      if (!fromPosition || !toPosition) return null
+
+      // Calculate blue dot positions (right side of from task, left side of to task)
+      const from = {
+        x: fromPosition.left + fromPosition.width + 12, // right blue dot position
+        y: fromPosition.top + 16, // center of task bar
+      }
+      const to = {
+        x: toPosition.left - 12, // left blue dot position
+        y: toPosition.top + 16, // center of task bar
+      }
+
+      const dx = to.x - from.x
+      const dy = to.y - from.y
+      const isReversed = dx < 0
+
+      let path: string
+
+      if (isReversed) {
+        // For backward dependencies, create clean right-angle path
+        const offset = 30
+        const midX1 = from.x + offset
+        const midX2 = to.x - offset
+        const midY = from.y + dy / 2
+
+        path = `M ${from.x} ${from.y} 
+              L ${midX1} ${from.y} 
+              L ${midX1} ${midY} 
+              L ${midX2} ${midY} 
+              L ${midX2} ${to.y} 
+              L ${to.x} ${to.y}`
+      } else {
+        // For forward dependencies, use smooth bezier curve
+        const controlOffset = Math.max(50, Math.abs(dx) * 0.4)
+        const controlX1 = from.x + controlOffset
+        const controlX2 = to.x - controlOffset
+
+        path = `M ${from.x} ${from.y} 
+              C ${controlX1} ${from.y} ${controlX2} ${to.y} ${to.x} ${to.y}`
+      }
+
+      // Calculate midpoint for delete button
+      const midX = (from.x + to.x) / 2
+      const midY = (from.y + to.y) / 2
+
+      return (
+        <g key={`${fromId}->${toId}`} className="dependency-line group">
+          {/* Enhanced background stroke for better contrast */}
+          <path
+            d={path}
+            stroke="rgba(255, 255, 255, 0.9)"
+            strokeWidth={6}
+            fill="none"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          {/* Main dependency line with enhanced styling */}
+          <path
+            d={path}
+            stroke="#3b82f6"
+            strokeWidth={3}
+            fill="none"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            markerEnd="url(#arrow)"
+            className="drop-shadow-sm cursor-pointer hover:stroke-blue-600"
+            onClick={() => {
+              setTaskDependencies((prev) => {
+                const updated = { ...prev }
+                if (updated[toId]) {
+                  updated[toId] = updated[toId].filter((id) => id !== fromId)
+                  if (updated[toId].length === 0) {
+                    delete updated[toId]
+                  }
+                }
+                return updated
+              })
+            }}
+          />
+          {/* Delete button that appears on hover */}
+          <circle
+            cx={midX}
+            cy={midY}
+            r={8}
+            fill="rgba(239, 68, 68, 0.9)"
+            stroke="white"
+            strokeWidth={2}
+            className="opacity-0 group-hover:opacity-100 cursor-pointer transition-opacity duration-200"
+            onClick={(e) => {
+              e.stopPropagation()
+              setTaskDependencies((prev) => {
+                const updated = { ...prev }
+                if (updated[toId]) {
+                  updated[toId] = updated[toId].filter((id) => id !== fromId)
+                  if (updated[toId].length === 0) {
+                    delete updated[toId]
+                  }
+                }
+                return updated
+              })
+            }}
+          />
+          <text
+            x={midX}
+            y={midY + 1}
+            textAnchor="middle"
+            fontSize="10"
+            fill="white"
+            className="opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-200"
+          >
+            ×
+          </text>
+        </g>
+      )
+    },
+    [tasks, getTaskPosition],
+  )
+
+  useEffect(() => {
+    let animationFrameId: number
+    let lastUpdateTime = 0
+    const UPDATE_INTERVAL = 16 // ~60fps
+
+    const onMouseMove = (e: MouseEvent) => {
+      const currentTime = Date.now()
+      if (currentTime - lastUpdateTime < UPDATE_INTERVAL) return
+
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId)
+      }
+
+      animationFrameId = requestAnimationFrame(() => {
+        lastUpdateTime = currentTime
+
+        if (draggedTask?.active) {
+          const deltaX = e.clientX - draggedTask.startX
+          const ganttContainer = ganttRef.current
+          if (!ganttContainer) return
+
+          const timelineWidth = ganttContainer.querySelector(".flex-1")?.getBoundingClientRect().width || 0
+          const deltaPercent = (deltaX / timelineWidth) * 100
+          const newLeft = Math.max(0, Math.min(95, draggedTask.startLeft + deltaPercent))
+
+          const taskElement = ganttContainer.querySelector(`[data-task-id="${draggedTask.taskId}"]`) as HTMLElement
+          if (taskElement) {
+            taskElement.style.transform = `translateX(${deltaX}px)`
+            taskElement.style.zIndex = "50"
+          }
+
+          const dependentTaskIds = getAllDependentTasks(draggedTask.taskId)
+          dependentTaskIds.forEach((depId) => {
+            const depElement = ganttContainer.querySelector(`[data-task-id="${depId}"]`) as HTMLElement
+            if (depElement) {
+              depElement.style.transform = `translateX(${deltaX}px)`
+              depElement.style.zIndex = "40"
+            }
+          })
+        }
+
+        if (adjustingProgress?.active) {
+          const taskElement = ganttRef.current?.querySelector(
+            `[data-task-id="${adjustingProgress.taskId}"]`,
+          ) as HTMLElement
+          if (!taskElement) return
+
+          const rect = taskElement.getBoundingClientRect()
+          const relativeX = Math.max(0, Math.min(rect.width, e.clientX - rect.left))
+          const newProgress = Math.max(0, Math.min(100, (relativeX / rect.width) * 100))
+
+          const progressBar = taskElement.querySelector(".bg-white.bg-opacity-30") as HTMLElement
+          const progressText = taskElement.querySelector(".text-xs.text-gray-900") as HTMLElement
+          if (progressBar && progressText) {
+            progressBar.style.width = `${newProgress}%`
+            progressText.textContent = `${Math.round(newProgress)}%`
+          }
+        }
+
+        if (isResizing) {
+          const taskElement = ganttRef.current?.querySelector(`[data-task-id="${isResizing.taskId}"]`) as HTMLElement
+          if (!taskElement) return
+
+          const ganttContainer = ganttRef.current
+          if (!ganttContainer) return
+
+          const timelineContainer = ganttContainer.querySelector(".flex-1")
+          if (!timelineContainer) return
+
+          const timelineRect = timelineContainer.getBoundingClientRect()
+          const relativeX = e.clientX - timelineRect.left
+          const newPercent = Math.max(0, Math.min(100, (relativeX / timelineRect.width) * 100))
+
+          if (isResizing.handle === "start") {
+            const currentRight = Number.parseFloat(taskElement.style.left) + Number.parseFloat(taskElement.style.width)
+            const newWidth = Math.max(5, currentRight - newPercent)
+            taskElement.style.left = `${newPercent}%`
+            taskElement.style.width = `${newWidth}%`
+          } else {
+            const currentLeft = Number.parseFloat(taskElement.style.left)
+            const newWidth = Math.max(5, newPercent - currentLeft)
+            taskElement.style.width = `${newWidth}%`
+          }
+        }
+
+        if (draggingDep.active) {
+          setDraggingDep((prev) => (prev.active ? { ...prev, x: e.clientX, y: e.clientY } : prev))
+        }
+      })
+    }
+
+    const onMouseUp = (e: MouseEvent) => {
+      if (draggedTask?.active) {
+        const deltaX = e.clientX - draggedTask.startX
+        const ganttContainer = ganttRef.current
+        if (ganttContainer) {
+          const timelineWidth = ganttContainer.querySelector(".flex-1")?.getBoundingClientRect().width || 0
+          const deltaPercent = (deltaX / timelineWidth) * 100
+          const newLeft = Math.max(0, Math.min(95, draggedTask.startLeft + deltaPercent))
+
+          // Re-enable transitions
+          const taskElement = ganttContainer.querySelector(`[data-task-id="${draggedTask.taskId}"]`) as HTMLElement
+          if (taskElement) {
+            taskElement.style.transition = "all 0.2s ease"
+            taskElement.style.zIndex = "auto"
+          }
+
+          // Calculate time delta for dependent tasks
+          const totalDays = Math.ceil(
+            (dateRange[dateRange.length - 1].getTime() - dateRange[0].getTime()) / (1000 * 60 * 60 * 24),
+          )
+          const leftDelta = newLeft - draggedTask.startLeft
+          const daysDelta = Math.round((leftDelta / 100) * totalDays)
+
+          // Get all dependent tasks that should move together
+          const dependentTaskIds = getAllDependentTasks(draggedTask.taskId)
+
+          // Update task data for main task and all dependents
+          setTasks((prev) =>
+            prev.map((task) => {
+              if (task.id === draggedTask.taskId || dependentTaskIds.includes(task.id)) {
+                const currentStart = new Date(task.startDate)
+                const currentEnd = new Date(task.endDate)
+
+                // For the main dragged task, use the exact new position
+                if (task.id === draggedTask.taskId) {
+                  const startOffset = Math.floor((newLeft / 100) * totalDays)
+                  const duration = Math.ceil((currentEnd.getTime() - currentStart.getTime()) / (1000 * 60 * 60 * 24))
+
+                  const newStartDate = new Date(dateRange[0])
+                  newStartDate.setDate(newStartDate.getDate() + startOffset)
+                  const newEndDate = new Date(newStartDate)
+                  newEndDate.setDate(newEndDate.getDate() + duration)
+
+                  return {
+                    ...task,
+                    startDate: newStartDate.toISOString().split("T")[0],
+                    endDate: newEndDate.toISOString().split("T")[0],
+                  }
+                } else {
+                  // For dependent tasks, move by the same time delta
+                  const newStartDate = new Date(currentStart)
+                  newStartDate.setDate(newStartDate.getDate() + daysDelta)
+                  const newEndDate = new Date(currentEnd)
+                  newEndDate.setDate(newEndDate.getDate() + daysDelta)
+
+                  return {
+                    ...task,
+                    startDate: newStartDate.toISOString().split("T")[0],
+                    endDate: newEndDate.toISOString().split("T")[0],
+                  }
+                }
+              }
+              return task
+            }),
+          )
+        }
+        setDraggedTask(null)
+      }
+
+      if (adjustingProgress?.active) {
+        // Finalize progress update
+        const taskElement = ganttRef.current?.querySelector(
+          `[data-task-id="${adjustingProgress.taskId}"]`,
+        ) as HTMLElement
+        if (taskElement) {
+          const rect = taskElement.getBoundingClientRect()
+          const relativeX = Math.max(0, Math.min(rect.width, e.clientX - rect.left))
+          const newProgress = Math.max(0, Math.min(100, (relativeX / rect.width) * 100))
+
+          // Re-enable transitions
+          const progressBar = taskElement.querySelector(".bg-white.bg-opacity-30") as HTMLElement
+          if (progressBar) {
+            progressBar.style.transition = "width 0.2s ease"
+          }
+
+          setTasks((prev) =>
+            prev.map((task) =>
+              task.id === adjustingProgress.taskId ? { ...task, progress: Math.round(newProgress) } : task,
+            ),
+          )
+        }
+        setAdjustingProgress(null)
+      }
+
+      if (isResizing) {
+        // Finalize resize update
+        const taskElement = ganttRef.current?.querySelector(`[data-task-id="${isResizing.taskId}"]`) as HTMLElement
+        if (taskElement && ganttRef.current) {
+          const timelineContainer = ganttRef.current.querySelector(".flex-1")
+          if (timelineContainer) {
+            const timelineRect = timelineContainer.getBoundingClientRect()
+            const newLeft = Number.parseFloat(taskElement.style.left)
+            const newWidth = Number.parseFloat(taskElement.style.width)
+
+            // Re-enable transitions
+            taskElement.style.transition = "all 0.2s ease"
+
+            // Calculate new dates
+            const totalDays = Math.ceil(
+              (dateRange[dateRange.length - 1].getTime() - dateRange[0].getTime()) / (1000 * 60 * 60 * 24),
+            )
+            const startOffset = Math.floor((newLeft / 100) * totalDays)
+            const duration = Math.max(1, Math.floor((newWidth / 100) * totalDays))
+
+            const newStartDate = new Date(dateRange[0])
+            newStartDate.setDate(newStartDate.getDate() + startOffset)
+            const newEndDate = new Date(newStartDate)
+            newEndDate.setDate(newEndDate.getDate() + duration)
+
+            setTasks((prev) =>
+              prev.map((task) =>
+                task.id === isResizing.taskId
+                  ? {
+                      ...task,
+                      startDate: newStartDate.toISOString().split("T")[0],
+                      endDate: newEndDate.toISOString().split("T")[0],
+                    }
+                  : task,
+              ),
+            )
+          }
+        }
+        setIsResizing(null)
+      }
+    }
+
+    if (draggedTask?.active || adjustingProgress?.active || isResizing) {
+      document.addEventListener("mousemove", onMouseMove)
+      document.addEventListener("mouseup", onMouseUp)
+    }
+
+    return () => {
+      document.removeEventListener("mousemove", onMouseMove)
+      document.removeEventListener("mouseup", onMouseUp)
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId)
+      }
+    }
+  }, [draggedTask, adjustingProgress, isResizing, dateRange])
+
+  const startTaskDrag = (taskId: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    const taskElement = e.currentTarget as HTMLElement
+    const rect = taskElement.getBoundingClientRect()
+    const ganttContainer = ganttRef.current
+    if (!ganttContainer) return
+
+    const timelineContainer = ganttContainer.querySelector(".flex-1")
+    if (!timelineContainer) return
+
+    const timelineRect = timelineContainer.getBoundingClientRect()
+    const currentLeft = ((rect.left - timelineRect.left) / timelineRect.width) * 100
+
+    setDraggedTask({
+      taskId,
+      startX: e.clientX,
+      startLeft: currentLeft,
+      active: true,
+    })
+  }
+
+  const startProgressAdjust = (taskId: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    const task = tasks.find((t) => t.id === taskId)
+    if (!task) return
+
+    setAdjustingProgress({
+      taskId,
+      startX: e.clientX,
+      startProgress: task.progress || 0,
+      active: true,
+    })
+  }
+
+  const createSubtask = (parentId: string) => {
+    setNewTaskParent(parentId)
+    setNewTask({
+      title: "",
+      assignee: "",
+      status: "pending",
+      startDate: new Date().toISOString().split("T")[0],
+      endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
+      type: "task",
+      parent: parentId,
+    })
+    setCreateTaskOpen(true)
+  }
+
+  const handleCreateTask = () => {
+    if (!newTask.title.trim()) return
+
+    const task: Task = {
+      id: `task-${Date.now()}`,
+      title: newTask.title,
+      assignee: newTask.assignee ? { name: newTask.assignee } : undefined,
+      status: newTask.status,
+      startDate: newTask.startDate,
+      endDate: newTask.endDate,
+      progress: 0,
+      type: newTask.type,
+      parent: newTask.parent || undefined,
+      projectId: newTask.parent ? tasks.find((t) => t.id === newTask.parent)?.projectId : null,
+      projectName: newTask.parent ? tasks.find((t) => t.id === newTask.parent)?.projectName : null,
+    }
+
+    setTasks((prev) => [...prev, task])
+    setCreateTaskOpen(false)
+    setNewTaskParent(null)
+    setNewTask({
+      title: "",
+      assignee: "",
+      status: "pending",
+      startDate: "",
+      endDate: "",
+      type: "task",
+      parent: "",
+    })
+  }
+
+  // --- Force re-render of dependency lines when date range changes
+  useEffect(() => {
+    // Small delay to ensure DOM elements are positioned correctly
+    const timer = setTimeout(() => {
+      if (svgRef.current) {
+        // Trigger a re-render by updating a dummy state
+        setTasks((prev) => [...prev])
+      }
+    }, 100)
+    return () => clearTimeout(timer)
+  }, [currentDate, dateRange])
+
+  const handleContextMenu = (e: React.MouseEvent, taskId?: string) => {
+    e.preventDefault()
+    const rect = ganttRef.current?.getBoundingClientRect()
+    if (!rect) return
+
+    const timelineContainer = ganttRef.current?.querySelector(".flex-1")
+    const timelineRect = timelineContainer?.getBoundingClientRect()
+    if (!timelineRect) return
+
+    const relativeX = e.clientX - timelineRect.left
+    const datePercent = (relativeX / timelineRect.width) * 100
+    const totalDays = Math.ceil(
+      (dateRange[dateRange.length - 1].getTime() - dateRange[0].getTime()) / (1000 * 60 * 60 * 24),
+    )
+    const dayOffset = Math.floor((datePercent / 100) * totalDays)
+    const clickDate = new Date(dateRange[0])
+    clickDate.setDate(clickDate.getDate() + dayOffset)
+
+    setContextMenu({
+      x: e.clientX,
+      y: e.clientY,
+      taskId,
+      date: clickDate,
+    })
+  }
+
+  const createQuickTask = (type: "task" | "milestone", parentId?: string) => {
+    const newId = `task-${Date.now()}`
+    const startDate = contextMenu.date || new Date()
+    const endDate = new Date(startDate)
+    if (type === "task") {
+      endDate.setDate(endDate.getDate() + 3) // 3-day default duration
+    }
+
+    const newTask = {
+      id: newId,
+      title: type === "milestone" ? "New Milestone" : "New Task",
+      assignee: "Unassigned",
+      status: "pending" as const,
+      startDate: startDate.toISOString().split("T")[0],
+      endDate: endDate.toISOString().split("T")[0],
+      progress: 0,
+      type: type,
+      parent: parentId || "",
+      dependencies: [],
+    }
+
+    setTasks((prev) => [...prev, newTask])
+    setContextMenu({ x: 0, y: 0, taskId: null, date: null })
+
+    setTimeout(() => setSelectedTask(newId), 100)
+  }
+
+  useEffect(() => {
+    const handleClickOutside = () => {
+      setContextMenu({ x: 0, y: 0, visible: false, type: "timeline" })
+    }
+
+    if (contextMenu.visible) {
+      document.addEventListener("click", handleClickOutside)
+      return () => document.removeEventListener("click", handleClickOutside)
+    }
+  }, [contextMenu.visible])
+
+  const [expandedTasks, setExpandedTasks] = useState(new Set<string>())
+
+  const toggleExpanded = (taskId: string) => {
+    setExpandedTasks((prev) => {
+      const next = new Set(prev)
+      if (next.has(taskId)) {
+        next.delete(taskId)
+      } else {
+        next.add(taskId)
+      }
+      return next
+    })
+  }
+
+  // --- Render
+  return (
+    <div className="h-[87vh] flex flex-col p-4 space-y-4 bg-gray-50/30">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <Card className="shadow-sm border-gray-200">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-6 flex-wrap">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 bg-green-500 rounded-sm shadow-sm"></div>
+                <span className="text-sm font-medium text-gray-700">Completed</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 bg-blue-500 rounded-sm shadow-sm"></div>
+                <span className="text-sm font-medium text-gray-700">In Progress</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 bg-gray-400 rounded-sm shadow-sm"></div>
+                <span className="text-sm font-medium text-gray-700">Pending</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Users className="h-4 w-4 text-gray-600" />
+                <span className="text-sm font-medium text-gray-700">Assignee</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Building2 className="h-4 w-4 text-gray-600" />
+                <span className="text-sm font-medium text-gray-700">Project Tasks</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 bg-purple-100 border border-purple-300 rounded-sm shadow-sm"></div>
+                <span className="text-sm font-medium text-gray-700">Personal Tasks</span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <div className="flex items-center gap-3">
+          <Button
+            className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm transition-all duration-200"
+            onClick={() => setCreateTaskOpen(true)}
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Add Task
+          </Button>
+          <div className="flex items-center gap-1 bg-white rounded-lg border border-gray-200 shadow-sm">
+            <Button variant="ghost" size="sm" onClick={() => navigateMonth("prev")} className="hover:bg-gray-50">
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <span className="text-sm font-medium px-4 py-2 text-gray-700 min-w-[200px] text-center">
+              {formatMonthYear(currentDate)} -{" "}
+              {formatMonthYear(new Date(currentDate.getFullYear(), currentDate.getMonth() + 2))}
+            </span>
+            <Button variant="ghost" size="sm" onClick={() => navigateMonth("next")} className="hover:bg-gray-50">
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {/* Gantt Chart */}
+      <Card className="flex-1 flex flex-col overflow-hidden shadow-sm border-gray-200">
+        <CardContent className="p-0 flex-1 overflow-hidden">
+          <div className="h-full overflow-auto">
+            <div className="min-w-[900px] relative h-full">
+              {/* Timeline Header */}
+              <div className="flex border-b border-gray-200 bg-white sticky top-0 z-10 shadow-sm">
+                <div className="w-80 p-4 border-r border-gray-200 bg-gray-50/50">
+                  <span className="font-semibold text-sm text-gray-800">Task</span>
+                </div>
+                <div
+                  className="flex-1 relative bg-white border-l border-gray-200"
+                  onContextMenu={(e) => handleContextMenu(e, "timeline")}
+                >
+                  <div className="flex h-12 items-center">
+                    {dateRange
+                      .filter((_, i) => i % 7 === 0)
+                      .map((date, idx) => (
+                        <div key={idx} className="flex-1 px-3 text-center border-r border-gray-100 last:border-r-0">
+                          <div className="text-xs font-medium text-gray-600">
+                            {date.toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+
+                  {/* SVG Overlay */}
+                  <div className="absolute inset-0" ref={ganttRef}>
+                    <svg ref={svgRef} className="absolute inset-0 w-full h-full pointer-events-none">
+                      {Object.entries(taskDependencies).map(([toId, fromIds]) =>
+                        fromIds.map((fromId) => renderDependencyLine(fromId, toId)),
+                      )}
+                    </svg>
+                  </div>
+                </div>
+              </div>
+
+              {/* Task Rows */}
+              <div className="relative">
+                {processedTasks.map((task) => {
+                  const position = calculatePosition(task.startDate, task.endDate)
+                  return (
+                    <div
+                      key={task.id}
+                      className="flex items-center h-12 border-b border-gray-100 hover:bg-gray-50/50 transition-colors duration-150"
+                    >
+                      <div className="w-80 px-4 flex items-center gap-2 bg-white border-r border-gray-100">
+                        <div style={{ marginLeft: `${task.level * 20}px` }} className="flex items-center gap-2">
+                          {task.children?.length > 0 && (
+                            <button
+                              onClick={() => toggleExpanded(task.id)}
+                              className="w-4 h-4 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-all duration-200"
+                            >
+                              {expandedTasks.has(task.id) ? "−" : "+"}
+                            </button>
+                          )}
+                          <span className="text-sm font-medium text-gray-900">{task.title}</span>
+                          <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+                            {typeof task.assignee === "string" ? task.assignee : task.assignee?.name || "Unassigned"}
+                          </span>
+                          {task.type === "task" && (
+                            <button
+                              onClick={() => createSubtask(task.id)}
+                              className="w-5 h-5 rounded-full bg-blue-100 hover:bg-blue-200 text-blue-600 text-xs flex items-center justify-center transition-all duration-200 hover:scale-110 shadow-sm"
+                              title="Add subtask"
+                            >
+                              +
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      <div
+                        className="flex-1 relative h-12 cursor-pointer"
+                        onContextMenu={(e) => handleContextMenu(e, task.id)}
+                        onDoubleClick={(e) => {
+                          if (e.shiftKey) {
+                            createQuickTask("milestone", task.id)
+                          } else {
+                            createQuickTask("task", task.id)
+                          }
+                        }}
+                      >
+                        {task.type === "milestone" ? (
+                          <div
+                            className="absolute top-1/2 -translate-y-1/2 cursor-move hover:scale-110 transition-all duration-200"
+                            style={{ left: position.left }}
+                            onMouseDown={(e) => startTaskDrag(task.id, e)}
+                          >
+                            <div className="w-5 h-5 rotate-45 bg-amber-400 border-2 border-amber-600 shadow-lg hover:shadow-xl transition-shadow duration-200"></div>
+                            <div className="text-xs absolute -bottom-6 left-1/2 -translate-x-1/2 w-40 text-center font-medium text-gray-700 bg-white/80 backdrop-blur-sm px-2 py-1 rounded shadow-sm">
+                              {task.title}
+                            </div>
+
+                            {/* Dependency Connection Point */}
+                            <div className="absolute left-[-12px] top-1/2 -translate-y-1/2">
+                              <div
+                                onMouseDown={(e) => startDependencyDrag(task.id, e as any)}
+                                className="w-3 h-3 rounded-full bg-blue-500 cursor-crosshair hover:bg-blue-600 hover:scale-125 transition-all duration-200 shadow-md border-2 border-white"
+                                title="Drag to create dependency"
+                              />
+                            </div>
+                          </div>
+                        ) : (
+                          <div
+                            data-task-id={task.id}
+                            className={`h-8 rounded-lg ${getStatusColor(task.status)} relative cursor-move transition-all duration-200 shadow-sm hover:shadow-md ${
+                              draggedTask?.taskId === task.id
+                                ? "shadow-xl scale-105 z-50 ring-2 ring-blue-300"
+                                : "hover:scale-[1.02]"
+                            }`}
+                            style={position}
+                            onMouseDown={(e) => startTaskDrag(task.id, e)}
+                            onDoubleClick={() => setSelectedTask(task.id)}
+                          >
+                            {/* Progress Bar */}
+                            <div
+                              style={{ width: `${task.progress || 0}%` }}
+                              className="h-full bg-white/30 rounded-lg cursor-pointer hover:bg-white/40 transition-all duration-200 border-r border-white/50"
+                              onMouseDown={(e) => {
+                                e.stopPropagation()
+                                startProgressAdjust(task.id, e)
+                              }}
+                              title="Click and drag to adjust progress"
+                            />
+
+                            {/* Resize Handles */}
+                            <div
+                              onMouseDown={(e) => {
+                                e.stopPropagation()
+                                setIsResizing({ taskId: task.id, handle: "start" })
+                              }}
+                              className="absolute left-0 top-0 w-3 h-full cursor-w-resize opacity-0 hover:opacity-100 flex items-center justify-center transition-all duration-200 bg-white/20 rounded-l-lg"
+                            >
+                              <div className="w-1 h-4 bg-white rounded-full shadow-sm"></div>
+                            </div>
+
+                            <div
+                              onMouseDown={(e) => {
+                                e.stopPropagation()
+                                setIsResizing({ taskId: task.id, handle: "end" })
+                              }}
+                              className="absolute right-0 top-0 w-3 h-full cursor-e-resize opacity-0 hover:opacity-100 flex items-center justify-center transition-all duration-200 bg-white/20 rounded-r-lg"
+                            >
+                              <div className="w-1 h-4 bg-white rounded-full shadow-sm"></div>
+                            </div>
+
+                            {/* Dependency Connection Points */}
+                            <div className="absolute left-[-12px] top-1/2 -translate-y-1/2">
+                              <div
+                                onMouseDown={(e) => {
+                                  e.stopPropagation()
+                                  startDependencyDrag(task.id, e)
+                                }}
+                                className="w-3 h-3 rounded-full bg-blue-500 cursor-crosshair hover:bg-blue-600 hover:scale-125 transition-all duration-200 shadow-md border-2 border-white"
+                                title="Drag to create dependency"
+                              />
+                            </div>
+                            <div className="absolute right-[-12px] top-1/2 -translate-y-1/2">
+                              <div
+                                onMouseDown={(e) => {
+                                  e.stopPropagation()
+                                  startDependencyDrag(task.id, e)
+                                }}
+                                className="w-3 h-3 rounded-full bg-blue-500 cursor-crosshair hover:bg-blue-600 hover:scale-125 transition-all duration-200 shadow-md border-2 border-white"
+                                title="Drag to create dependency"
+                              />
+                            </div>
+
+                            {/* Progress Percentage */}
+                            <div className="absolute inset-0 flex items-center justify-center">
+                              <span className="text-xs font-semibold text-gray-800 drop-shadow-sm bg-white/80 px-1.5 py-0.5 rounded-full">
+                                {task.progress || 0}%
+                              </span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Context Menu */}
+      {contextMenu.taskId !== null && (
+        <div
+          className="fixed bg-white rounded-xl shadow-2xl border border-gray-200 py-2 z-50 min-w-48 backdrop-blur-sm"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+          onMouseLeave={() => setContextMenu({ x: 0, y: 0, taskId: null, date: null })}
+        >
+          {contextMenu.taskId ? (
+            <>
+              <button
+                onClick={() => createQuickTask("task", contextMenu.taskId!)}
+                className="w-full px-4 py-3 text-left hover:bg-blue-50 text-sm flex items-center gap-3 transition-colors duration-150"
+              >
+                <span className="w-5 h-5 bg-blue-500 rounded-lg text-white text-xs flex items-center justify-center shadow-sm">
+                  +
+                </span>
+                <span className="font-medium">Add Subtask</span>
+              </button>
+              <button
+                onClick={() => createQuickTask("milestone", contextMenu.taskId!)}
+                className="w-full px-4 py-3 text-left hover:bg-amber-50 text-sm flex items-center gap-3 transition-colors duration-150"
+              >
+                <span className="w-5 h-5 bg-amber-500 rounded-lg text-white text-xs flex items-center justify-center shadow-sm">
+                  ◆
+                </span>
+                <span className="font-medium">Add Milestone</span>
+              </button>
+              <hr className="my-2 border-gray-100" />
+              <button
+                onClick={() => {
+                  setSelectedTask(contextMenu.taskId!)
+                  setContextMenu({ x: 0, y: 0, taskId: null, date: null })
+                }}
+                className="w-full px-4 py-3 text-left hover:bg-gray-50 text-sm font-medium transition-colors duration-150"
+              >
+                Edit Task
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                onClick={() => createQuickTask("task")}
+                className="w-full px-4 py-3 text-left hover:bg-blue-50 text-sm flex items-center gap-3 transition-colors duration-150"
+              >
+                <span className="w-5 h-5 bg-blue-500 rounded-lg text-white text-xs flex items-center justify-center shadow-sm">
+                  +
+                </span>
+                <span className="font-medium">Create Task</span>
+              </button>
+              <button
+                onClick={() => createQuickTask("milestone")}
+                className="w-full px-4 py-3 text-left hover:bg-amber-50 text-sm flex items-center gap-3 transition-colors duration-150"
+              >
+                <span className="w-5 h-5 bg-amber-500 rounded-lg text-white text-xs flex items-center justify-center shadow-sm">
+                  ◆
+                </span>
+                <span className="font-medium">Create Milestone</span>
+              </button>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}

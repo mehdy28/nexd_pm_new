@@ -1,0 +1,61 @@
+./app
+├── (admin)
+│   ├── admin-dashboard
+│   │   └── page.tsx
+│   ├── layout.tsx
+│   ├── support
+│   │   └── page.tsx
+│   └── users
+│       └── page.tsx
+├── api
+│   ├── graphql
+│   │   └── route.ts
+│   │  
+├── blog
+│   ├── page.tsx
+│   └── [slug]
+│       └── page.tsx
+├── (core)
+│   ├── activity
+│   │   ├── loading.tsx
+│   │   └── page.tsx
+│   ├── billing
+│   │   ├── loading.tsx
+│   │   └── page.tsx
+│   ├── dashboard
+│   │   ├── loading.tsx
+│   │   └── page.tsx
+│   ├── home
+│   │   └── page.tsx
+│   ├── layout.tsx
+│   ├── my_tasks
+│   │   ├── loading.tsx
+│   │   └── page.tsx
+│   ├── project
+│   │   └── [id]
+│   │       ├── loading.tsx
+│   │       └── page.tsx
+│   ├── wireframes
+│   │   └── [id]
+│   │       ├── head.txt
+│   │       ├── loading.tsx
+│   │       └── page.tsx
+│   └── workspace
+│       ├── loading.tsx
+│       └── page.tsx
+├── forgot-password
+│   └── page.tsx
+├── globals.css
+├── layout.tsx
+├── loading.tsx
+├── login
+│   └── page.tsx
+├── metadata.ts
+├── page.tsx
+├── playbook-download
+│   └── page.tsx
+├── register
+│   └── page.tsx
+└── setup
+    └── page.tsx
+

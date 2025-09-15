@@ -9,7 +9,7 @@ import { CalendarView } from "@/components/tasks/calendar-view"
 import { DashboardView } from "@/components/tasks/dashboard-view"
 import { PromptLab } from "@/components/prompt-lab/prompt-lab"
 import { WireframesView } from "@/components/wireframes/wireframes-view"
-import { GanttView } from "@/components/tasks/gantt-view"
+import GanttView  from "@/components/tasks/gantt-view"
 import { ListChecks, SquareKanban, CalendarDays, FileText, Layers3, Gauge, Wand2, BarChart3 } from "lucide-react"
 
 const TABS = [

@@ -53,7 +53,7 @@ export function KanbanCard({
   }
 
   return (
-    <button
+    <div
       className="w-full bg-card text-left rounded-xl border shadow-soft hover:shadow-medium hover:scale-[1.02] transition-all duration-200 p-4 group"
       onClick={onOpen}
       aria-label={`Open ${card.title}`}
@@ -84,7 +84,7 @@ export function KanbanCard({
           Edit
         </Button>
       </div>
-    </button>
+    </div>
   )
 }
 

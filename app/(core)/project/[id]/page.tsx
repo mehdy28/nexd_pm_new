@@ -21,7 +21,7 @@ import {
   LayoutGrid,
   BarChart3,
 } from "lucide-react"
-import { GanttView } from "@/components/tasks/gantt-view"
+import GanttView  from "@/components/tasks/gantt-view"
 
 // Mock project data - in real app this would come from API
 const getProjectData = (id: string) => {

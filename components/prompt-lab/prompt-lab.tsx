@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import { useEffect, useMemo, useRef, useState } from "react"
 import { usePromptLab, type Prompt, type Version } from "./store"
@@ -9,61 +9,58 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Copy, Save, RotateCcw, Trash2, Plus, CopyIcon as Duplicate, Search, GitCommit } from "lucide-react"
 
-export function PromptLab({ projectId }: { projectId?: string }) {
-  const { prompts, create, update, remove, duplicate, snapshot, restore } = usePromptLab(projectId)
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+export function PromptLab({ promptId, onBack }: { promptId: string; onBack: () => void }) {
+  const { prompts, create, update, remove, duplicate, snapshot, restore } = usePromptLab()
+  const [selectedVersionId, setSelectedVersionId] = useState<string | null>(null)
   const [compare, setCompare] = useState<{ open: boolean; version?: Version }>(() => ({ open: false }))
-  const [rightTab, setRightTab] = useState<"editor" | "versions" | "preview">("editor")
-  const searchRef = useRef<HTMLInputElement | null>(null)
+  const [rightTab, setRightTab] = useState<"editor" | "version-details" | "preview">("editor")
+
+  const selectedPrompt = useMemo(() => prompts.find((p) => p.id === promptId) || null, [prompts, promptId])
 
   useEffect(() => {
-    if (prompts.length === 0) {
-      setSelectedId(null)
-      return
+    if (!selectedPrompt) return;
+    if (selectedPrompt.versions.length === 0) {
+        setSelectedVersionId(null);
+        return;
     }
-    if (!selectedId || !prompts.some((p) => p.id === selectedId)) {
-      setSelectedId(prompts[0].id)
+    if (!selectedVersionId || !selectedPrompt.versions.some((v) => v.id === selectedVersionId)) {
+        setSelectedVersionId(selectedPrompt.versions[0].id);
     }
-  }, [prompts, selectedId])
+    }, [selectedPrompt, selectedVersionId]);
 
-  const selected = useMemo(() => prompts.find((p) => p.id === selectedId) || null, [prompts, selectedId])
-
-  // Left list filtering
-  const [query, setQuery] = useState("")
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    const arr = [...prompts].sort((a, b) => b.updatedAt - a.updatedAt)
-    if (!q) return arr
-    return arr.filter((p) => p.title.toLowerCase().includes(q))
-  }, [prompts, query])
-
-  function createNew() {
-    const p = create("Untitled Prompt")
-    setSelectedId(p.id)
-    setTimeout(() => searchRef.current?.focus(), 0)
-  }
+  const selectedVersion = useMemo(() => selectedPrompt?.versions.find((v) => v.id === selectedVersionId) || null, [selectedPrompt, selectedVersionId])
 
   function copy(text: string) {
     navigator.clipboard.writeText(text).catch(() => {})
   }
 
   const combined = useMemo(() => {
-    if (!selected) return ""
+    if (!selectedPrompt) return ""
     const lines = [
       "System role:",
       "You are an expert assistant for this project.",
       "",
       "Context:",
-      selected.context || "(none)",
+      selectedPrompt.context || "(none)",
       "",
       "Prompt:",
-      selected.content || "(empty)",
+      selectedPrompt.content || "(empty)",
     ]
     return lines.join("\n")
-  }, [selected])
+  }, [selectedPrompt])
+
+  if (!selectedPrompt) {
+    return (
+        <div className="grid h-full place-items-center p-6 text-sm text-slate-500">
+            The selected prompt could not be found.
+            <Button onClick={onBack} className="mt-4">Back to Prompt Library</Button>
+        </div>
+    )
+  }
 
   return (
     <div className="page-scroller p-4">
+        <Button onClick={onBack} className="mb-4">Back to Prompt Library</Button>
       <div className="saas-card h-full overflow-hidden">
         {/* Two sections: left list + right tabbed panel */}
         <div className="grid h-full min-h-0 grid-cols-1 gap-4 p-4 md:grid-cols-[320px_1fr]">
@@ -73,55 +70,25 @@ export function PromptLab({ projectId }: { projectId?: string }) {
               className="flex items-center gap-2 border-b p-3"
               style={{ borderColor: "var(--border)", background: "var(--muted-bg)" }}
             >
-              <Search className="h-4 w-4 text-slate-500" />
-              <Input
-                ref={searchRef}
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search prompts..."
-                className="h-9"
-              />
-              <Button className="ml-auto h-9 btn-primary" onClick={createNew}>
+              <h3 className="font-semibold">Versions</h3>
+              <Button className="ml-auto h-9 btn-primary" onClick={() => snapshot(selectedPrompt.id, 'New version')}>
                 <Plus className="mr-1 h-4 w-4" /> New
               </Button>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto p-3">
-              {filtered.length === 0 ? (
-                <div className="text-sm text-slate-500">No prompts yet. Create one to get started.</div>
+              {selectedPrompt.versions.length === 0 ? (
+                <div className="text-sm text-slate-500">No versions yet. Create one to get started.</div>
               ) : (
                 <ul className="space-y-2">
-                  {filtered.map((p) => (
-                    <li key={p.id} className="rounded-lg border p-3 hover:bg-slate-50 transition">
+                  {selectedPrompt.versions.map((v) => (
+                    <li key={v.id} className="rounded-lg border p-3 hover:bg-slate-50 transition">
                       <div className="flex items-start gap-2">
-                        <button className="flex-1 text-left" onClick={() => setSelectedId(p.id)} title={p.title}>
-                          <div className="line-clamp-1 text-sm font-medium">{p.title}</div>
+                        <button className="flex-1 text-left" onClick={() => setSelectedVersionId(v.id)} title={v.notes}>
+                          <div className={`line-clamp-1 text-sm font-medium ${selectedVersionId === v.id ? 'font-bold' : ''}`}>{v.notes}</div>
                           <div className="mt-1 text-xs text-slate-500">
-                            Updated {new Date(p.updatedAt).toLocaleString()}
+                            {new Date(v.createdAt).toLocaleString()}
                           </div>
                         </button>
-                        <div className="flex items-center gap-1">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-8 px-2"
-                            title="Duplicate"
-                            onClick={() => duplicate(p.id)}
-                          >
-                            <Duplicate className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-8 px-2"
-                            title="Delete"
-                            onClick={() => {
-                              remove(p.id)
-                              if (selectedId === p.id) setSelectedId(null)
-                            }}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
                       </div>
                     </li>
                   ))}
@@ -130,38 +97,33 @@ export function PromptLab({ projectId }: { projectId?: string }) {
             </div>
           </div>
 
-          {/* Right: Tabbed panel (Editor | Versions | Preview) */}
+          {/* Right: Tabbed panel (Editor | Version Details | Preview) */}
           <div className="saas-card min-h-0 overflow-hidden">
             <Tabs value={rightTab} onValueChange={(v) => setRightTab(v as any)} className="flex h-full flex-col">
               <div className="border-b" style={{ borderColor: "var(--border)" }}>
                 <TabsList className="h-11 bg-transparent">
                   <TabsTrigger value="editor">Editor</TabsTrigger>
-                  <TabsTrigger value="versions">Versions</TabsTrigger>
+                  <TabsTrigger value="version-details">Version Details</TabsTrigger>
                   <TabsTrigger value="preview">Preview</TabsTrigger>
                 </TabsList>
               </div>
 
               <div className="min-h-0 flex-1 overflow-auto">
                 <TabsContent value="editor" className="m-0 outline-none">
-                  {selected ? (
-                    <EditorPanel
-                      prompt={selected}
-                      onUpdate={(patch) => update(selected.id, patch)}
-                      onSnapshot={(notes) => snapshot(selected.id, notes)}
+                  <EditorPanel
+                      prompt={selectedPrompt}
+                      onUpdate={(patch) => update(selectedPrompt.id, patch)}
+                      onSnapshot={(notes) => snapshot(selectedPrompt.id, notes)}
                     />
-                  ) : (
-                    <div className="grid h-full place-items-center p-6 text-sm text-slate-500">
-                      Select a prompt or create a new one.
-                    </div>
-                  )}
                 </TabsContent>
 
-                <TabsContent value="versions" className="m-0 outline-none p-4">
+                <TabsContent value="version-details" className="m-0 outline-none p-4">
                   <VersionsPanel
-                    versions={selected?.versions || []}
-                    onRestore={(verId) => selected && restore(selected.id, verId)}
+                    versions={selectedPrompt.versions || []}
+                    onRestore={(verId) => restore(selectedPrompt.id, verId)}
                     onCompare={(v) => setCompare({ open: true, version: v })}
-                    onSnapshot={(notes) => selected && snapshot(selected.id, notes)}
+                    onSnapshot={(notes) => snapshot(selectedPrompt.id, notes)}
+                    selectedVersionId={selectedVersionId}
                   />
                 </TabsContent>
 
@@ -186,7 +148,7 @@ export function PromptLab({ projectId }: { projectId?: string }) {
         open={compare.open}
         onOpenChange={(o) => setCompare((prev) => ({ ...prev, open: o }))}
         version={compare.version}
-        current={selected?.content || ""}
+        current={selectedPrompt?.content || ""}
       />
     </div>
   )
@@ -286,49 +248,48 @@ function VersionsPanel({
   onRestore,
   onCompare,
   onSnapshot,
+  selectedVersionId
 }: {
   versions: Version[]
   onRestore: (versionId: string) => void
   onCompare: (v: Version) => void
-  onSnapshot: (notes?: string) => void
+  onSnapshot: (notes?: string) => void,
+  selectedVersionId: string | null
 }) {
-  if (versions.length === 0) {
+    const selectedVersion = versions.find(v => v.id === selectedVersionId);
+  if (!selectedVersion) {
     return (
       <div className="grid h-full place-items-center text-sm text-slate-500">
-        No versions yet. Take a snapshot from the editor.
+        No version selected. Select a version from the list on the left.
       </div>
     )
   }
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      <div className="mb-2 flex items-center justify-between">
-        <div className="text-sm font-medium">Versions</div>
-        <Button size="sm" variant="outline" className="h-8 bg-transparent" onClick={() => onSnapshot("Quick snapshot")}>
-          <Save className="mr-1 h-4 w-4" />
-          Snapshot
-        </Button>
-      </div>
-      <div className="min-h-0 flex-1 overflow-auto">
-        <ul className="space-y-2">
-          {versions.map((v) => (
-            <li key={v.id} className="rounded-md border p-2">
-              <div className="flex items-center justify-between gap-2">
-                <div className="text-xs text-slate-500">
-                  {new Date(v.createdAt).toLocaleString()} {v.notes ? `• ${v.notes}` : ""}
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button size="sm" variant="outline" className="h-8 bg-transparent" onClick={() => onRestore(v.id)}>
-                    <RotateCcw className="mr-1 h-4 w-4" />
-                    Restore
-                  </Button>
-                  <Button size="sm" variant="ghost" className="h-8" onClick={() => onCompare(v)}>
-                    Compare
-                  </Button>
-                </div>
-              </div>
-            </li>
-          ))}
-        </ul>
+    <div className="flex h-full min-h-0 flex-col p-4">
+        <h3 className="font-semibold text-lg mb-4">{selectedVersion.notes}</h3>
+        <p className="text-sm text-gray-500 mb-4">{new Date(selectedVersion.createdAt).toLocaleString()}</p>
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <div>
+                <div className="mb-1 text-xs font-medium">Content</div>
+                <pre className="rounded-md border bg-slate-50 p-3 text-xs overflow-auto max-h-[60vh] whitespace-pre-wrap">
+                    {selectedVersion.content}
+                </pre>
+            </div>
+            <div>
+                <div className="mb-1 text-xs font-medium">Context</div>
+                <pre className="rounded-md border bg-slate-50 p-3 text-xs overflow-auto max-h-[60vh] whitespace-pre-wrap">
+                    {selectedVersion.context}
+                </pre>
+            </div>
+        </div>
+      <div className="flex items-center gap-2 mt-4">
+          <Button size="sm" variant="outline" className="h-8 bg-transparent" onClick={() => onRestore(selectedVersion.id)}>
+              <RotateCcw className="mr-1 h-4 w-4" />
+              Restore
+          </Button>
+          <Button size="sm" variant="ghost" className="h-8" onClick={() => onCompare(selectedVersion)}>
+              Compare to Current
+          </Button>
       </div>
     </div>
   )
