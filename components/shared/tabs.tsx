@@ -4,7 +4,7 @@ import type React from "react"
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { ListChecks, SquareKanban, CalendarDays, FileText, Layers3, Gauge, BarChart3 } from "lucide-react"
+import { ListChecks, SquareKanban, CalendarDays, FileText, Layers3, Gauge, BarChart3, Lightbulb } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 type TabItem = {
@@ -22,8 +22,7 @@ const TABS: readonly TabItem[] = [
   { label: "Calendar", href: "#", Icon: CalendarDays },
   { label: "Documents", href: "#", Icon: FileText },
   { label: "Wireframes", href: "#", Icon: Layers3 },
-  // If you want a Prompts tab visible here:
-  // { label: "Prompts", href: "/prompts", Icon: FileText },
+  { label: "Prompts", href: "/prompts", Icon: Lightbulb },
   { label: "Dashboard", href: "#", Icon: Gauge },
 ] as const
 

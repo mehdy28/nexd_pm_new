@@ -2,12 +2,21 @@
 
 import { useEffect, useState } from "react"
 
+export type PromptVariable = {
+  id: string
+  name: string
+  placeholder: string // e.g., "{{topic}}"
+  defaultValue?: string
+  description?: string
+}
+
 export type Version = {
   id: string
   content: string
   context: string
   notes?: string
   createdAt: number
+  variables: PromptVariable[] // Added variables to Version
 }
 
 export type Prompt = {
@@ -19,6 +28,8 @@ export type Prompt = {
   content: string
   versions: Version[]
   updatedAt: number
+  tags: string[]
+  variables: PromptVariable[] // Added variables to Prompt
 }
 
 function id() {
@@ -28,33 +39,84 @@ function id() {
     return Math.random().toString(36).slice(2)
   }
 }
+
+const MOCK_PROMPTS: Prompt[] = [
+  {
+    id: "mock-prompt-1",
+    title: "Blog Post Idea Generator",
+    model: "gpt-4o",
+    temperature: 0.7,
+    context: "You are a creative content strategist. Generate blog post ideas based on the given topic.",
+    content: "Generate 5 blog post ideas about {{topic}}.",
+    versions: [
+      { id: id(), content: "Initial blog idea prompt", context: "Act as a blog idea generator.", notes: "Initial version", createdAt: Date.now() - 100000, variables: [] }
+    ],
+    updatedAt: Date.now(),
+    tags: ["marketing", "AI", "blogging"],
+    variables: [ // Added variables for mock-prompt-1
+      { id: id(), name: "Topic", placeholder: "{{topic}}", defaultValue: "AI in project management", description: "The subject for the blog post ideas" }
+    ],
+  },
+  {
+    id: "mock-prompt-2",
+    title: "Social Media Caption Writer",
+    model: "gpt-3.5-turbo",
+    temperature: 0.5,
+    context: "You are a witty social media manager. Write engaging captions for Instagram.",
+    content: "Write an Instagram caption for a picture of {{product}} with hashtags.",
+    versions: [
+      { id: id(), content: "Write an Instagram caption for {{product}}.", context: "You are a witty social media manager.", notes: "Initial version", createdAt: Date.now() - 3600000, variables: []  },
+      { id: id(), content: "Write an Instagram caption for {{product}} with hashtags.", context: "You are a witty social media manager.", notes: "Added hashtags", createdAt: Date.now() - 1800000, variables: []  },
+    ],
+    updatedAt: Date.now(),
+    tags: ["social media", "marketing"],
+    variables: [
+      { id: id(), name: "Product", placeholder: "{{product}}", defaultValue: "new AI tool", description: "The product to feature in the caption" }
+    ],
+  },
+  {
+    id: "mock-prompt-3",
+    title: "Email Subject Line Optimizer",
+    model: "claude-3-opus-20240229",
+    temperature: 0.3,
+    context: "You are an email marketing expert. Optimize subject lines for higher open rates.",
+    content: "Rewrite the following email subject line to be more engaging: '{{subject_line}}'.",
+    versions: [
+      { id: id(), content: "Optimize email subject line: {{subject_line}}", context: "You are an email marketing expert.", notes: "First draft", createdAt: Date.now() - 7200000, variables: []  }
+    ],
+    updatedAt: Date.now(),
+    tags: ["sales", "email"],
+    variables: [
+      { id: id(), name: "Subject Line", placeholder: "{{subject_line}}", defaultValue: "Important Update", description: "The original email subject line" }
+    ],
+  },
+];
+
 function storageKey(projectId?: string) {
   return `nexdpm:promptlab:${projectId ?? "global"}`
 }
+
 function load(projectId?: string): Prompt[] {
-  if (typeof window === "undefined") return []
-  try {
-    const raw = localStorage.getItem(storageKey(projectId))
-    const parsed = raw ? (JSON.parse(raw) as Prompt[]) : []
-    return Array.isArray(parsed) ? parsed : []
-  } catch {
-    return []
-  }
+  return MOCK_PROMPTS; // Always return mock data to rule out local storage issues
 }
+
 function save(projectId: string | undefined, prompts: Prompt[]) {
+  // For now, we won't save to localStorage to ensure mock data is always loaded
   if (typeof window === "undefined") return
-  localStorage.setItem(storageKey(projectId), JSON.stringify(prompts))
+  // localStorage.setItem(storageKey(projectId), JSON.stringify(prompts))
 }
 
 export function usePromptLab(projectId?: string) {
   const [prompts, setPrompts] = useState<Prompt[]>([])
 
   useEffect(() => {
+    // Ensure we are loading mock data consistently
     setPrompts(load(projectId))
   }, [projectId])
 
   useEffect(() => {
-    save(projectId, prompts)
+    // We are not saving to local storage at the moment to ensure mock data loads
+    // save(projectId, prompts)
   }, [prompts, projectId])
 
   function create(title = "Untitled Prompt") {
@@ -65,8 +127,10 @@ export function usePromptLab(projectId?: string) {
       temperature: 0.2,
       context: "",
       content: "",
-      versions: [],
+      versions: [{ id: id(), content: "Initial content", context: "", notes: "Created", createdAt: Date.now(), variables: [] }], // Add an initial version with empty variables
       updatedAt: Date.now(),
+      tags: [],
+      variables: [], // Initialize with an empty array of variables
     }
     setPrompts((prev) => [p, ...prev])
     return p
@@ -88,6 +152,9 @@ export function usePromptLab(projectId?: string) {
       id: id(),
       title: `${src.title} (Copy)`,
       updatedAt: Date.now(),
+      // Deep copy variables and versions to ensure new arrays
+      variables: src.variables.map(v => ({...v})),
+      versions: src.versions.map(v => ({...v, id: id()})), // Also duplicate version IDs
     }
     setPrompts((prev) => [dup, ...prev])
     return dup
@@ -100,7 +167,7 @@ export function usePromptLab(projectId?: string) {
           ? {
               ...p,
               versions: [
-                { id: id(), content: p.content, context: p.context, notes, createdAt: Date.now() },
+                { id: id(), content: p.content, context: p.context, notes, createdAt: Date.now(), variables: p.variables.map(v => ({...v})) }, // Snapshot current variables as well
                 ...p.versions,
               ],
               updatedAt: Date.now(),
@@ -116,7 +183,7 @@ export function usePromptLab(projectId?: string) {
         if (p.id !== idVal) return p
         const v = p.versions.find((vv) => vv.id === versionId)
         if (!v) return p
-        return { ...p, content: v.content, context: v.context, updatedAt: Date.now() }
+        return { ...p, content: v.content, context: v.context, variables: v.variables.map(val => ({...val})), updatedAt: Date.now() } // Restore variables as well
       }),
     )
   }
