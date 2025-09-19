@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState, useCallback } from "react" // Added useCallback
 import { usePromptLab, type Prompt, type Version, type PromptVariable } from "./store"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -311,69 +311,62 @@ function uid(prefix = '') {
 
 /* Parse prompt.content into blocks using known variables as separators.
    This will create alternating text & variable blocks, ensuring each variable becomes its own block. */
-   function parseContentToBlocks(content: string, variables: PromptVariable[]): Block[] {
-    console.log('[Prompt Lab] parseContentToBlocks: START. Content:', content, 'Variables:', variables.map(v => v.placeholder));
-  
-    if (!content) {
-      console.log('[Prompt Lab] parseContentToBlocks: Content is empty, returning initial empty text block.');
-      return [{ type: 'text', id: uid('t-'), value: '' }]
-    }
-    if (!variables || variables.length === 0) {
-      console.log('[Prompt Lab] parseContentToBlocks: No variables, returning content as single text block.');
-      return [{ type: 'text', id: uid('t-'), value: content }]
-    }
-  
-    // Sort placeholders longest-first to avoid partial matches
-    const placeholders = variables.map(v => v.placeholder).sort((a, b) => b.length - a.length)
-    const escaped = placeholders.map(p => p.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')).join('|')
-    const re = new RegExp(`(${escaped})`, 'g')
-    console.log('[Prompt Lab] parseContentToBlocks: Regex for splitting:', re);
-  
-    const parts = content.split(re); // Keep all parts, including empty ones, for explicit handling
-    console.log('[Prompt Lab] parseContentToBlocks: Raw split parts:', parts);
-  
-    const blocks: Block[] = []
-    parts.forEach(part => {
-      // Trim to handle leading/trailing whitespace which might become empty strings after matching.
-      // However, for content parts from split, '{{var}}' is not trimmed.
-      const matched = variables.find(v => v.placeholder === part)
-      if (matched) {
-        console.log(`[Prompt Lab] parseContentToBlocks: Found variable part "${part}".`);
-        blocks.push({ type: 'variable', id: uid('v-'), varId: matched.id, placeholder: matched.placeholder, name: matched.name })
-      } else {
-        // This is the core change:
-        // An empty string part from split() after a variable should be ignored,
-        // UNLESS it's the very first part and content was something like "{{var}}text".
-        // A more robust way is to check if the empty part is legitimately content or just an artifact.
-        // If it's the last part AND it's empty, and the content ended with a variable, it should be ignored.
-  
-        // Heuristic: If part is empty and the previous block was a variable,
-        // it means this empty part is an artifact of split() and not actual content.
-        if (part === '' && blocks.length > 0 && blocks[blocks.length - 1].type === 'variable') {
-          console.log(`[Prompt Lab] parseContentToBlocks: Skipping empty part after a variable block.`);
-          return; // Ignore this empty part
-        }
-        
-        console.log(`[Prompt Lab] parseContentToBlocks: Found text part "${part}".`);
-        // Merge with previous text block if available
-        if (blocks.length === 0 || blocks[blocks.length - 1].type !== 'text') {
-          blocks.push({ type: 'text', id: uid('t-'), value: part })
-        } else {
-          const last = blocks[blocks.length - 1] as Block & { value: string }; // Type assertion for safety
-          last.value = last.value + part
-          console.log(`[Prompt Lab] parseContentToBlocks: Merged text part "${part}" into previous block. New value: "${last.value}"`);
-        }
-      }
-    })
-  
-    // Final check: If no blocks were created, still provide an empty text block for editing.
-    if (blocks.length === 0) {
-      console.log('[Prompt Lab] parseContentToBlocks: No blocks generated, adding initial empty text block.');
-      blocks.push({ type: 'text', id: uid('t-'), value: '' })
-    }
-    console.log('[Prompt Lab] parseContentToBlocks: END. Resulting blocks:', blocks);
-    return blocks
+function parseContentToBlocks(content: string, variables: PromptVariable[]): Block[] {
+  console.log('[Prompt Lab] parseContentToBlocks: START. Content:', content, 'Variables:', variables.map(v => v.placeholder));
+
+  if (!content) {
+    console.log('[Prompt Lab] parseContentToBlocks: Content is empty, returning initial empty text block.');
+    return [{ type: 'text', id: uid('t-'), value: '' }]
   }
+  if (!variables || variables.length === 0) {
+    console.log('[Prompt Lab] parseContentToBlocks: No variables, returning content as single text block.');
+    return [{ type: 'text', id: uid('t-'), value: content }]
+  }
+
+  // Sort placeholders longest-first to avoid partial matches
+  const placeholders = variables.map(v => v.placeholder).sort((a, b) => b.length - a.length)
+  const escaped = placeholders.map(p => p.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')).join('|')
+  const re = new RegExp(`(${escaped})`, 'g')
+  console.log('[Prompt Lab] parseContentToBlocks: Regex for splitting:', re);
+
+  const parts = content.split(re); // Keep all parts, including empty ones, for explicit handling
+  console.log('[Prompt Lab] parseContentToBlocks: Raw split parts:', parts);
+
+  const blocks: Block[] = []
+  parts.forEach(part => {
+    const matched = variables.find(v => v.placeholder === part)
+    if (matched) {
+      console.log(`[Prompt Lab] parseContentToBlocks: Found variable part "${part}".`);
+      blocks.push({ type: 'variable', id: uid('v-'), varId: matched.id, placeholder: matched.placeholder, name: matched.name })
+    } else {
+      // Heuristic: If part is empty and the previous block was a variable,
+      // it means this empty part is an artifact of split() and not actual content.
+      // This specifically prevents an empty text block from being created immediately after a variable block.
+      if (part === '' && blocks.length > 0 && blocks[blocks.length - 1].type === 'variable') {
+        console.log(`[Prompt Lab] parseContentToBlocks: Skipping empty part after a variable block.`);
+        return; // Ignore this empty part
+      }
+      
+      console.log(`[Prompt Lab] parseContentToBlocks: Found text part "${part}".`);
+      // Merge with previous text block if available
+      if (blocks.length === 0 || blocks[blocks.length - 1].type !== 'text') {
+        blocks.push({ type: 'text', id: uid('t-'), value: part })
+      } else {
+        const last = blocks[blocks.length - 1] as Block & { value: string }; // Type assertion for safety
+        last.value = last.value + part
+        console.log(`[Prompt Lab] parseContentToBlocks: Merged text part "${part}" into previous block. New value: "${last.value}"`);
+      }
+    }
+  })
+
+  // Final check: If no blocks were created, still provide an empty text block for editing.
+  if (blocks.length === 0) {
+    console.log('[Prompt Lab] parseContentToBlocks: No blocks generated, adding initial empty text block.');
+    blocks.push({ type: 'text', id: uid('t-'), value: '' })
+  }
+  console.log('[Prompt Lab] parseContentToBlocks: END. Resulting blocks:', blocks);
+  return blocks
+}
 
 /* Serialize blocks back into string using variable.placeholder values */
 function serializeBlocks(blocks: Block[]): string {
@@ -381,7 +374,6 @@ function serializeBlocks(blocks: Block[]): string {
   console.log('[Prompt Lab] serializeBlocks: Input blocks:', blocks, 'Output content:', serialized);
   return serialized
 }
-
 
 
 
@@ -422,7 +414,8 @@ function EditorPanel({
     }
   }, [blocks, onUpdate, prompt.content]); // Added onUpdate and prompt.content to dependencies for correctness
 
-  const insertVariableAt = (index: number, variable: { placeholder: string; id?: string; name?: string }) => {
+  // useCallback to ensure these functions have stable references for DND hooks
+  const insertVariableAt = useCallback((index: number, variable: { placeholder: string; id?: string; name?: string }) => {
     console.log(`[Prompt Lab] insertVariableAt: Attempting to insert variable "${variable.placeholder}" at index ${index}.`);
     const newBlock: Block = { type: 'variable', id: uid('v-'), varId: variable.id, placeholder: variable.placeholder, name: variable.name }
     setBlocks(prev => {
@@ -431,9 +424,9 @@ function EditorPanel({
       console.log('[Prompt Lab] insertVariableAt: Blocks state WILL BE updated to:', copy);
       return copy
     })
-  }
+  }, []); // Empty dependency array means this function reference is stable
 
-  const insertTextAt = (index: number, text = '') => {
+  const insertTextAt = useCallback((index: number, text = '') => {
     console.log(`[Prompt Lab] insertTextAt: Attempting to insert text "${text}" at index ${index}.`);
     const newBlock: Block = { type: 'text', id: uid('t-'), value: text }
     setBlocks(prev => {
@@ -442,18 +435,18 @@ function EditorPanel({
       console.log('[Prompt Lab] insertTextAt: Blocks state WILL BE updated to:', copy);
       return copy
     })
-  }
+  }, []); // Empty dependency array means this function reference is stable
 
-  const updateTextBlock = (id: string, value: string) => {
+  const updateTextBlock = useCallback((id: string, value: string) => {
     console.log(`[Prompt Lab] updateTextBlock: Updating block ID "${id}" with value: "${value}".`);
     setBlocks(prev => {
         const updated = prev.map(b => b.type === 'text' && b.id === id ? { ...b, value } : b);
         console.log('[Prompt Lab] updateTextBlock: Blocks state WILL BE updated to:', updated);
         return updated;
     });
-  }
+  }, []); // Empty dependency array means this function reference is stable
 
-  const removeBlock = (index: number) => {
+  const removeBlock = useCallback((index: number) => {
     console.log(`[Prompt Lab] removeBlock: Removing block at index ${index}.`);
     setBlocks(prev => {
       const copy = [...prev]
@@ -461,9 +454,9 @@ function EditorPanel({
       console.log('[Prompt Lab] removeBlock: Blocks state WILL BE updated to:', copy);
       return copy
     })
-  }
+  }, []); // Empty dependency array means this function reference is stable
 
-  const moveBlock = (from: number, to: number) => {
+  const moveBlock = useCallback((from: number, to: number) => {
     console.log(`[Prompt Lab] moveBlock: Moving block from index ${from} to ${to}.`);
     setBlocks(prev => {
       const copy = [...prev]
@@ -472,20 +465,37 @@ function EditorPanel({
       console.log('[Prompt Lab] moveBlock: Blocks state WILL BE updated to:', copy);
       return copy
     })
-  }
+  }, []); // Empty dependency array means this function reference is stable
 
-  // NEW: Add useDrop for the main 'Prompt content' area in EditorPanel
+
+  // EditorPanel's useDrop is now only for dropping into an EMPTY container
+  // or implicitly at the end if no BlockRenderer is hovered.
   const [{ isOverBlockContainer }, dropBlockContainer] = useDrop(() => ({
     accept: ItemTypes.VARIABLE,
-    drop: (item: { id: string; placeholder: string; name?: string }) => {
-      console.log('[Prompt Lab] EditorPanel useDrop: Variable dropped:', item.placeholder);
-      // When a variable is dropped on the main container, insert it at the end
-      insertVariableAt(blocks.length, item);
+    drop: (item: { id: string; placeholder: string; name?: string }, monitor) => {
+      // CRITICAL FIX: If a nested drop target already handled the drop, do nothing here.
+      if (monitor.didDrop()) {
+        console.log('[Prompt Lab] EditorPanel useDrop: Drop already handled by a child component. Exiting.');
+        return;
+      }
+
+      // Only insert if there are no blocks, otherwise individual BlockRenderers handle drops
+      if (blocks.length === 0) {
+        console.log('[Prompt Lab] EditorPanel useDrop (empty container): Variable dropped:', item.placeholder);
+        insertVariableAt(0, item); // Insert at the beginning of an empty list
+      } else {
+        console.log('[Prompt Lab] EditorPanel useDrop (fallback to end): Variable dropped (no specific block target hit, or outside a block). Adding to end.');
+        // This case implies a drop "outside" of specific blocks but still within the container.
+        // It's a fallback to add to the very end.
+        insertVariableAt(blocks.length, item);
+      }
     },
     collect: (monitor) => ({
-      isOverBlockContainer: monitor.isOver(),
+      // Only show hover effect if no child has captured the drop
+      isOverBlockContainer: monitor.isOver({ shallow: true }) && monitor.canDrop() && !monitor.didDrop(),
     }),
   }), [blocks.length, insertVariableAt]); // Depend on blocks.length and insertVariableAt to ensure correct index and function reference
+
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -527,20 +537,30 @@ function EditorPanel({
         <section className="rounded-lg border p-4 mb-4">
           <div className="mb-2 text-sm font-medium">Prompt content</div>
           <div
-            ref={dropBlockContainer} // Apply the new drop ref here
-            className={`flex flex-wrap gap-2 min-h-[300px] border rounded p-3 ${isOverBlockContainer ? 'bg-red-100 border-green' : 'bg-red'}`}
+            ref={dropBlockContainer} // This outer drop target is for dropping into an empty area or implicitly at the end
+            className={`flex flex-wrap gap-2 min-h-[300px] border rounded p-3 ${isOverBlockContainer ? 'bg-indigo-50 border-indigo-300' : 'bg-gray-50'}`}
           >
             {blocks.map((b, i) => (
               <BlockRenderer
                 key={b.id}
                 block={b}
                 index={i}
+                // Pass blocks array to BlockRenderer for Backspace logic
+                allBlocks={blocks}
                 updateTextBlock={updateTextBlock}
-                removeBlock={() => removeBlock(i)}
+                removeBlock={removeBlock}
                 moveBlock={moveBlock}
+                insertVariableAt={insertVariableAt}
                 insertTextAt={insertTextAt}
               />
             ))}
+            {/* Display guidance for empty state */}
+            {blocks.length === 0 && (
+                <div className="flex-1 text-center py-12 text-gray-400">
+                    Drag variables or click "+ Add text" to start building your prompt.
+                </div>
+            )}
+
             <button
               onClick={() => insertTextAt(blocks.length, '')}
               className="px-2 py-1 border rounded text-sm text-gray-500 hover:bg-gray-100"
@@ -570,54 +590,153 @@ function EditorPanel({
 }
 
 
-
-
 /* ---------- Block Renderer: Puzzle-style variable/text blocks ---------- */
 function BlockRenderer({
   block,
   index,
+  allBlocks, // Added prop
   updateTextBlock,
   removeBlock,
   moveBlock,
+  insertVariableAt,
   insertTextAt,
 }: {
   block: Block
   index: number
+  allBlocks: Block[]; // Added type
   updateTextBlock: (id: string, value: string, variables?: any[]) => void
-  removeBlock: () => void
+  removeBlock: (index: number) => void
   moveBlock: (from: number, to: number) => void
+  insertVariableAt: (index: number, variable: { placeholder: string; id?: string; name?: string }) => void
   insertTextAt: (index: number, text?: string) => void
 }) {
+  const ref = useRef<HTMLDivElement | null>(null);
+
   const [{ isDragging }, drag] = useDrag(() => ({
     type: ItemTypes.BLOCK,
-    item: { index },
+    item: { id: block.id, index }, // item includes id for identification and index for position
     collect: (m) => ({ isDragging: m.isDragging() }),
-  }), [index])
+  }), [block.id, index])
 
-  const baseClass = "p-2 rounded-md border shadow-sm flex-shrink-0 w-full"
+  // Local state for more controlled hover visual feedback
+  const [localIsOver, setLocalIsOver] = useState(false);
+  const [localDropTargetPosition, setDropTargetPosition] = useState<'before' | 'after' | null>(null);
+
+  // useDrop for handling:
+  // 1. Dropping a new VARIABLE from the sidebar onto this block.
+  // 2. Dropping an existing BLOCK (for reordering) onto this block.
+  const [{ isOver: monitorIsOver }, drop] = useDrop(() => ({ // Destructure isOver from monitor
+    accept: [ItemTypes.VARIABLE, ItemTypes.BLOCK],
+    hover(item: { id?: string; index?: number; placeholder?: string }, monitor) {
+      if (!ref.current) return;
+      if (!monitor.isOver({ shallow: true })) { // Only care about direct hover
+        setLocalIsOver(false);
+        setDropTargetPosition(null);
+        return;
+      }
+
+      const dragItemType = monitor.getItemType();
+      const dragItemIndex = (item as { index: number }).index;
+      const hoverIndex = index;
+
+      // Don't visually indicate a move if dragging a block over itself
+      if (dragItemType === ItemTypes.BLOCK && dragItemIndex === hoverIndex) {
+        setLocalIsOver(false);
+        setDropTargetPosition(null);
+        return;
+      }
+
+      const hoverBoundingRect = ref.current?.getBoundingClientRect();
+      const hoverMiddleY = (hoverBoundingRect.bottom - hoverBoundingRect.top) / 2;
+      const clientOffset = monitor.getClientOffset();
+      const hoverClientY = clientOffset!.y - hoverBoundingRect.top;
+
+      let newDropPosition: 'before' | 'after';
+      if (hoverClientY < hoverMiddleY) {
+        newDropPosition = 'before'; // Hovering over the top half
+      } else {
+        newDropPosition = 'after';  // Hovering over the bottom half
+      }
+
+      // Update local state for visual feedback only if it's changing
+      if (!localIsOver || localDropTargetPosition !== newDropPosition) {
+        setLocalIsOver(true);
+        setDropTargetPosition(newDropPosition);
+      }
+    },
+    drop(item: any, monitor) {
+      const dragItemType = monitor.getItemType();
+      const targetIndex = localDropTargetPosition === 'after' ? index + 1 : index;
+
+      // Reset local hover state immediately on drop (important before state updates)
+      setLocalIsOver(false);
+      setDropTargetPosition(null);
+
+      if (dragItemType === ItemTypes.VARIABLE) {
+        console.log(`[Prompt Lab] BlockRenderer useDrop (VARIABLE): Dropped "${item.placeholder}" at target index ${targetIndex}.`);
+        insertVariableAt(targetIndex, item);
+      } else if (dragItemType === ItemTypes.BLOCK) {
+        const dragIndex = item.index;
+
+        // Prevent moving if dropping into an effectively identical position
+        const isNoRealMove = (dragIndex === targetIndex) || // Dropped on self, 'before'
+                             (dragIndex + 1 === targetIndex && dragIndex < index && localDropTargetPosition === 'after') || // Moving down one, dropped 'after' original
+                             (dragIndex - 1 === targetIndex && dragIndex > index && localDropTargetPosition === 'before'); // Moving up one, dropped 'before' original
+
+        if (isNoRealMove) {
+          console.log(`[Prompt Lab] BlockRenderer useDrop (BLOCK): Dragged block #${dragIndex} dropped at target index ${targetIndex}. No actual move needed (same or adjacent spot).`);
+          return;
+        }
+
+        console.log(`[Prompt Lab] BlockRenderer useDrop (BLOCK): Moving block from index ${dragIndex} to ${targetIndex}.`);
+        moveBlock(dragIndex, targetIndex);
+        item.index = targetIndex; // Update the index of the dragged item for subsequent moves
+      }
+    },
+    collect: (monitor) => ({
+      isOver: monitor.isOver(), // We keep this for the useEffect cleanup
+    }),
+  }), [index, insertVariableAt, moveBlock, localDropTargetPosition, localIsOver]); // dependencies, `localDropTargetPosition` and `localIsOver` are from component state, so this should not cause infinite loop with useCallback, just ensures latest values are used in drop/hover.
+
+  // Effect to clean up local hover state when DND monitor is no longer over this component
+  // Use `monitorIsOver` which comes from the `collect` function
+  useEffect(() => {
+    if (!monitorIsOver) {
+      setLocalIsOver(false);
+      setDropTargetPosition(null);
+    }
+  }, [monitorIsOver]);
+
+  const combinedRef = mergeRefs(ref, drag, drop);
+
+  const baseClass = "p-2 rounded-md border shadow-sm flex-shrink-0 w-full relative"; // Added relative for positioning indicators
+  const droppableAreaClass = `relative w-full h-full rounded-md border`;
+
+  // Visual indicators for drop position
+  const isHoveringAbove = localIsOver && localDropTargetPosition === 'before';
+  const isHoveringBelow = localIsOver && localDropTargetPosition === 'after';
 
   if (block.type === 'variable') {
     return (
       <div
-        ref={drag} // Drag ref remains for reordering blocks
-        className={`${baseClass} bg-transparent border-transparent`}
-        style={{ opacity: isDragging ? 0.5 : 1 }}
+        ref={combinedRef}
+        className={`${baseClass} bg-transparent border-transparent ${isDragging ? 'opacity-50' : 'opacity-100'}`}
       >
+        {isHoveringAbove && <div className="absolute -top-1 left-0 right-0 h-1 bg-blue-500 rounded-sm z-10" />}
         <div
-          className={`relative w-full h-full rounded-md border bg-blue-50 border-blue-200`} // No longer a drop target, so no `isOver` styling
+          className={`${droppableAreaClass} bg-blue-50 border-blue-200`}
         >
           <div className="flex items-center justify-between">
             <div className="text-sm font-medium">{block.name || block.placeholder}</div>
-            <button onClick={removeBlock} className="text-xs px-2 py-1 rounded bg-transparent border">
+            <button onClick={() => removeBlock(index)} className="text-xs px-2 py-1 rounded bg-transparent border">
               Remove
             </button>
           </div>
         </div>
+        {isHoveringBelow && <div className="absolute -bottom-1 left-0 right-0 h-1 bg-blue-500 rounded-sm z-10" />}
       </div>
     )
-  } else {
-    const ref = useRef<HTMLDivElement | null>(null)
-
+  } else { // type === 'text'
     const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
       if (e.key === 'Enter') {
         e.preventDefault()
@@ -631,13 +750,26 @@ function BlockRenderer({
         const before = range.startContainer.textContent?.substring(0, range.startOffset) || ''
         const after = range.startContainer.textContent?.substring(range.startOffset) || ''
         console.log(`[Prompt Lab] BlockRenderer: Enter key pressed. Splitting text block ID "${block.id}" into before ("${before}") and after ("${after}").`);
-        updateTextBlock(block.id, before) // block.variables is not used for text blocks in updateTextBlock
+        updateTextBlock(block.id, before)
         insertTextAt(index + 1, after)
       } else if (e.key === 'Backspace') {
-        if ((ref.current?.innerText || '') === '') {
-          e.preventDefault()
-          console.log(`[Prompt Lab] BlockRenderer: Backspace key pressed on empty text block. Removing block at index ${index}.`);
-          removeBlock()
+        // Enhanced Backspace logic for empty text blocks
+        const currentText = ref.current?.innerText || '';
+        if (currentText === '') {
+            e.preventDefault(); // Prevent default browser back navigation
+            if (allBlocks.length === 1 && allBlocks[0].id === block.id) {
+                // If this is the ONLY block and it's empty, update its value to empty string.
+                // parseContentToBlocks will then ensure an empty text block is always present.
+                console.log(`[Prompt Lab] BlockRenderer: Backspace on the ONLY empty text block. Clearing content.`);
+                updateTextBlock(block.id, '');
+            } else if (index > 0) { // If not the first block, just remove it
+                console.log(`[Prompt Lab] BlockRenderer: Backspace on empty text block. Removing block at index ${index}.`);
+                removeBlock(index);
+            } else if (index === 0 && allBlocks.length > 1) {
+                // First block, but more blocks exist. Remove this empty first block.
+                console.log(`[Prompt Lab] BlockRenderer: Backspace on empty first text block. Removing block at index ${index}.`);
+                removeBlock(index);
+            }
         }
       }
     }
@@ -645,21 +777,20 @@ function BlockRenderer({
     const onBlur = () => {
       const text = ref.current?.innerText ?? ''
       console.log(`[Prompt Lab] BlockRenderer: Text block ID "${block.id}" blurred. Updating text to: "${text}".`);
-      updateTextBlock(block.id, text) // block.variables is not used for text blocks in updateTextBlock
+      updateTextBlock(block.id, text)
     }
 
     return (
       <div
-        ref={drag} // Drag ref remains for reordering blocks
-        className={`${baseClass} bg-transparent border-transparent`}
-        style={{ opacity: isDragging ? 0.5 : 1 }}
+        ref={combinedRef}
+        className={`${baseClass} bg-transparent border-transparent ${isDragging ? 'opacity-50' : 'opacity-100'}`}
       >
+        {isHoveringAbove && <div className="absolute -top-1 left-0 right-0 h-1 bg-blue-500 rounded-sm z-10" />}
         <div
-          className={`relative w-full h-full rounded-md border bg-white border-gray-300`} // No longer a drop target, so no `isOver` styling
+          className={`${droppableAreaClass} bg-white border-gray-300`}
         >
           {/* Editable Text Area */}
           <div
-            ref={ref}
             contentEditable
             suppressContentEditableWarning
             onKeyDown={onKeyDown}
@@ -670,13 +801,8 @@ function BlockRenderer({
             {block.value}
           </div>
 
-          {/* Variables Grid */}
+          {/* Variables Grid (Leaving as is, but still noting it's inconsistent with current parsing logic) */}
           <div className="mt-2 flex flex-wrap gap-2">
-            {/* The existing code here `block.variables?.map` suggests that text blocks can also contain variables.
-                However, `parseContentToBlocks` separates variables into their own blocks.
-                This part might be a remnant or intended for a different block structure.
-                For the current parsing logic, `block.variables` for a `type: 'text'` block will likely be `undefined` or empty.
-                I'm keeping it as is, but noting this potential area of confusion/inconsistency. */}
             {block.variables?.map((v, i) => (
               <div
                 key={v.id || i}
@@ -685,10 +811,14 @@ function BlockRenderer({
                 <span>{v.name || v.placeholder}</span>
                 <button
                   onClick={() => {
-                    const newVars = [...(block.variables || [])] // Ensure it's an array
+                    const newVars = [...(block.variables || [])]
                     newVars.splice(i, 1)
                     console.log(`[Prompt Lab] BlockRenderer: Removing variable "${v.placeholder}" from text block ID "${block.id}".`);
-                    updateTextBlock(block.id, block.value, newVars) // Passed newVars, but updateTextBlock only uses value
+                    // This updateTextBlock here only updates the value, not variables array for text block
+                    // The block.variables field is not used in updateTextBlock's signature for text blocks.
+                    // If you intend for text blocks to contain variables that can be removed like this,
+                    // updateTextBlock's implementation would need to handle it.
+                    updateTextBlock(block.id, block.value, newVars)
                   }}
                   className="text-xs px-1 py-0.5 rounded bg-transparent border"
                 >
@@ -698,10 +828,20 @@ function BlockRenderer({
             ))}
           </div>
         </div>
+        {isHoveringBelow && <div className="absolute -bottom-1 left-0 right-0 h-1 bg-blue-500 rounded-sm z-10" />}
       </div>
     )
   }
 }
+
+
+
+
+
+
+
+
+
 
 
 /* ---------- VersionsPanel, DiffDialog, VariableCreationDialog (unchanged logic) ---------- */
