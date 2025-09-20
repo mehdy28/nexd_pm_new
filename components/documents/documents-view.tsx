@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Upload, Plus } from "lucide-react"
 import { useDocuments } from "./use-documents"
-import { DocumentEditor } from "./editor"
+import { Editor } from "./DynamicEditor"
 import { DocumentList } from "./document-list"
 import type { Doc } from "./types"
 import { PdfViewer } from "./pdf-viewer"
@@ -134,11 +134,10 @@ export function DocumentsView({ projectId }: DocumentsViewProps) {
               {/* Make this block the scroller */}
               <div className="min-h-0 flex-1 overflow-auto">
                 {selected.type === "doc" ? (
-                  <DocumentEditor
+                  <Editor
                     key={selected.id}
-                    docId={selected.id}
-                    contentJSON={selected.content}
-                    onChange={(json) => update(selected.id, { content: json })}
+                    initialContent={selected.content}
+                    onChange={(editor) => update(selected.id, { content: editor.topLevelBlocks })}
                   />
                 ) : (
                   <PdfViewer dataUrl={selected.dataUrl} />

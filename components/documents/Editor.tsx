@@ -1,48 +1,38 @@
-"use client";
-
+"use client"; // this registers <Editor> as a Client Component
 import "@blocknote/core/fonts/inter.css";
-import "@blocknote/mantine/style.css";
 import { useCreateBlockNote } from "@blocknote/react";
 import { BlockNoteView } from "@blocknote/mantine";
 
-interface EditorProps {
-  initialContent?: any; // BlockNote JSON blocks
-  onChange?: (content: any) => void;
-  selected?: { content?: any[] }; // Optional selected document
-}
+import "@blocknote/mantine/style.css";
 
-export default function Editor({
-  initialContent,
-  onChange,
-  selected,
-}: EditorProps) {
-  // --- Default initial content: single empty paragraph ---
-  const defaultContent = [
-    { type: "paragraph", content: [] }
-  ];
+// Our <Editor> component we can reuse later
+export default function Editor({ initialContent, onChange }) {
+  let parsedContent: any[] | undefined = undefined;
+  try {
+    if (initialContent) {
+      const parsed = JSON.parse(initialContent);
+      // Check if the parsed content is an array of blocks and if it's not just an empty paragraph
+      if (
+        Array.isArray(parsed) &&
+        parsed.length > 0 &&
+        !(
+          parsed.length === 1 &&
+          parsed[0].type === "paragraph" &&
+          parsed[0].content &&
+          parsed[0].content.length === 0
+        )
+      ) {
+        parsedContent = parsed;
+      }
+    }
+  } catch (e) {
+    console.error("Failed to parse initialContent for BlockNote:", e);
+    parsedContent = undefined;
+  }
 
-  // --- Determine content to load ---
-  const contentToLoad = initialContent?.length
-    ? initialContent
-    : selected?.content?.length
-    ? selected.content
-    : defaultContent;
+  // Creates a new editor instance.
+  const editor = useCreateBlockNote({ initialContent: parsedContent });
 
-  // --- Create BlockNote editor instance ---
-  const editor = useCreateBlockNote({
-    initialContent: contentToLoad,
-  });
-
-  // --- Attach onChange handler ---
-  editor?.onChange((blocks) => {
-    onChange?.(blocks);
-  });
-
-  if (!editor) return null;
-
-  return (
-    <div className="h-full w-full">
-      <BlockNoteView   theme="light" editor={editor} />
-    </div>
-  );
+  // Renders the editor instance using a React component.
+  return <BlockNoteView editor={editor} onChange={() => onChange?.(editor.document)} />;
 }

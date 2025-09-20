@@ -13,6 +13,8 @@
     "@apollo/server": "^5.0.0",
     "@as-integrations/next": "^4.0.0",
     "@auth/core": "latest",
+    "@blocknote/mantine": "0.23.5",
+    "@blocknote/react": "0.23.5",
     "@dnd-kit/core": "latest",
     "@dnd-kit/sortable": "latest",
     "@dnd-kit/utilities": "latest",
