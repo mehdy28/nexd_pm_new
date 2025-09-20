@@ -377,6 +377,9 @@ function serializeBlocks(blocks: Block[]): string {
 
 
 
+
+
+
 /* ---------- EditorPanel: Enhanced Prompt Creation ---------- */
 function EditorPanel({
   prompt,
@@ -412,7 +415,7 @@ function EditorPanel({
     } else {
       console.log('[Prompt Lab] EditorPanel useEffect [blocks]: Content is the same, no update needed.');
     }
-  }, [blocks, onUpdate, prompt.content]); // Added onUpdate and prompt.content to dependencies for correctness
+  }, [blocks, onUpdate, prompt.content]);
 
   // useCallback to ensure these functions have stable references for DND hooks
   const insertVariableAt = useCallback((index: number, variable: { placeholder: string; id?: string; name?: string }) => {
@@ -739,19 +742,11 @@ function BlockRenderer({
   } else { // type === 'text'
     const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
       if (e.key === 'Enter') {
-        e.preventDefault()
-        const sel = window.getSelection()
-        if (!sel || !sel.rangeCount) {
-          console.log('[Prompt Lab] BlockRenderer: Enter key pressed, no selection, inserting empty text block after current.');
-          insertTextAt(index + 1, '')
-          return
-        }
-        const range = sel.getRangeAt(0)
-        const before = range.startContainer.textContent?.substring(0, range.startOffset) || ''
-        const after = range.startContainer.textContent?.substring(range.startOffset) || ''
-        console.log(`[Prompt Lab] BlockRenderer: Enter key pressed. Splitting text block ID "${block.id}" into before ("${before}") and after ("${after}").`);
-        updateTextBlock(block.id, before)
-        insertTextAt(index + 1, after)
+        // REMOVED: e.preventDefault()
+        // REMOVED: insertTextAt logic
+        // This allows the default contenteditable behavior to create a new line (div or <br>)
+        // The onBlur event will capture the full content, including new lines.
+        console.log('[Prompt Lab] BlockRenderer: Enter key pressed in text block. Allowing default new line behavior.');
       } else if (e.key === 'Backspace') {
         // Enhanced Backspace logic for empty text blocks
         const currentText = ref.current?.innerText || '';
@@ -791,6 +786,7 @@ function BlockRenderer({
         >
           {/* Editable Text Area */}
           <div
+            ref={ref} // Ensure ref is correctly applied here
             contentEditable
             suppressContentEditableWarning
             onKeyDown={onKeyDown}
@@ -814,10 +810,6 @@ function BlockRenderer({
                     const newVars = [...(block.variables || [])]
                     newVars.splice(i, 1)
                     console.log(`[Prompt Lab] BlockRenderer: Removing variable "${v.placeholder}" from text block ID "${block.id}".`);
-                    // This updateTextBlock here only updates the value, not variables array for text block
-                    // The block.variables field is not used in updateTextBlock's signature for text blocks.
-                    // If you intend for text blocks to contain variables that can be removed like this,
-                    // updateTextBlock's implementation would need to handle it.
                     updateTextBlock(block.id, block.value, newVars)
                   }}
                   className="text-xs px-1 py-0.5 rounded bg-transparent border"
