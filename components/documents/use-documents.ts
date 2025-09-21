@@ -44,19 +44,20 @@ export function useDocuments() {
     else if (typeof window !== "undefined") localStorage.removeItem(STORAGE_KEY)
   }, [docs])
 
-  function createDoc(title = "Untitled"): RichTextDoc {
+  function createDoc(title = "Untitled", projectId?: string): RichTextDoc {
     const doc: RichTextDoc = {
       id: genId(),
       type: "doc",
       title,
       content: DEFAULT_BLOCKNOTE_DOC,
       updatedAt: Date.now(),
+      projectId, // Add projectId here
     }
     setDocs((prev) => [doc, ...prev])
     return doc
   }
 
-  function createPdfFromDataUrl(dataUrl: string, fileName?: string): PdfDoc {
+  function createPdfFromDataUrl(dataUrl: string, fileName?: string, projectId?: string): PdfDoc {
     const doc: PdfDoc = {
       id: genId(),
       type: "pdf",
@@ -64,6 +65,7 @@ export function useDocuments() {
       dataUrl,
       fileName,
       updatedAt: Date.now(),
+      projectId, // Add projectId here
     }
     setDocs((prev) => [doc, ...prev])
     return doc

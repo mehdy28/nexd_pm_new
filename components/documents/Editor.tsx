@@ -34,5 +34,7 @@ export default function Editor({ initialContent, onChange }) {
   const editor = useCreateBlockNote({ initialContent: parsedContent });
 
   // Renders the editor instance using a React component.
-  return <BlockNoteView editor={editor} onChange={() => onChange?.(editor.document)} />;
+  return <BlockNoteView 
+  theme='light'
+  editor={editor} onChange={() => onChange?.(editor.document)} />;
 }
