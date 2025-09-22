@@ -72,8 +72,8 @@ function buildMonthMatrix(current: Date) {
 
 const seed: Task[] = [
   { id: "t-1", title: "Create a new card design", date: "2025-06-19", priority: "Medium" },
-  { id: "t-2", title: "This", date: "2025-06-20", priority: "Low" },
-  { id: "t-3", title: "Is", date: "2025-06-20", priority: "High" },
+  { id: "t-2", title: "This", date: "2025-06-06", priority: "Low" }, // Adjusted date to match image
+  { id: "t-3", title: "Is", date: "2025-06-05", priority: "High" }, // Adjusted date to match image
   { id: "t-4", title: "Random", date: "2025-06-20", priority: "Low" },
   { id: "t-5", title: "The TASK", date: "2025-06-21", priority: "Medium" },
   { id: "t-6", title: "Random task", date: "2025-06-22", priority: "High" },
@@ -91,7 +91,8 @@ interface CalendarViewProps {
 }
 
 export function CalendarView({ projectId }: CalendarViewProps) {
-  const [anchor, setAnchor] = useState<Date>(new Date(2025, 5, 1))
+  // Use a specific date for initial load that matches the screenshot, e.g., June 2025
+  const [anchor, setAnchor] = useState<Date>(new Date(2025, 5, 1)) // June 1, 2025
   const [view, setView] = useState<ViewMode>("month")
   const [tasks, setTasks] = useState<Task[]>(seed)
   const [daySheetDate, setDaySheetDate] = useState<string | null>(null)
@@ -151,11 +152,12 @@ export function CalendarView({ projectId }: CalendarViewProps) {
   }
 
   return (
-    <div className="page-scroller p-4">
-      {projectId && <div className="mb-4 text-sm text-slate-600">Viewing calendar for Project {projectId}</div>}
+    // Make the entire CalendarView component a flex column that takes the full screen height
+    <div className="flex flex-col h-screen p-4">
 
       {/* Header with view switcher */}
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+      {/* Make the header shrink-0 so it retains its height */}
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2 flex-shrink-0">
         <div className="flex items-center gap-2">
           <CalendarDays className="h-5 w-5 text-slate-600" />
           <div className="text-base font-semibold">{headerLabel}</div>
@@ -212,41 +214,45 @@ export function CalendarView({ projectId }: CalendarViewProps) {
         </div>
       </div>
 
-      <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-        {view === "month" && (
-          <MonthGrid
-            anchor={anchor}
-            tasks={tasks}
-            onClickDay={(d) => {
-              setAnchor(d)
-              setView("day")
-            }}
-            onOpenDaySheet={(d) => setDaySheetDate(toISODate(d))}
-          />
-        )}
+      {/* Apply styling to a wrapper div, not directly to DndContext */}
+      {/* This wrapper ensures the DndContext content fills the remaining vertical space */}
+      <div className="flex-grow overflow-hidden">
+        <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+          {view === "month" && (
+            <MonthGrid
+              anchor={anchor}
+              tasks={tasks}
+              onClickDay={(d) => {
+                setAnchor(d)
+                setView("day")
+              }}
+              onOpenDaySheet={(d) => setDaySheetDate(toISODate(d))}
+            />
+          )}
 
-        {view === "week" && (
-          <WeekGrid
-            anchor={anchor}
-            tasks={tasks}
-            onClickDay={(d) => {
-              setAnchor(d)
-              setView("day")
-            }}
-            onOpenDaySheet={(d) => setDaySheetDate(toISODate(d))}
-          />
-        )}
+          {view === "week" && (
+            <WeekGrid
+              anchor={anchor}
+              tasks={tasks}
+              onClickDay={(d) => {
+                setAnchor(d)
+                setView("day")
+              }}
+              onOpenDaySheet={(d) => setDaySheetDate(toISODate(d))}
+            />
+          )}
 
-        {view === "day" && (
-          <DayView
-            date={anchor}
-            tasks={tasksOn(toISODate(anchor))}
-            onAdd={(title) => addTask(toISODate(anchor), title)}
-            onUpdate={(id, patch) => updateTask(id, patch)}
-            onDelete={(id) => deleteTask(id)}
-          />
-        )}
-      </DndContext>
+          {view === "day" && (
+            <DayView
+              date={anchor}
+              tasks={tasksOn(toISODate(anchor))}
+              onAdd={(title) => addTask(toISODate(anchor), title)}
+              onUpdate={(id, patch) => updateTask(id, patch)}
+              onDelete={(id) => deleteTask(id)}
+            />
+          )}
+        </DndContext>
+      </div>
 
       {/* Right sheet for quick add/edit when double-clicking */}
       <DaySheet
@@ -290,9 +296,11 @@ function MonthGrid({
   const weekDays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
 
   return (
-    <div className="card-surface">
-      {/* Weekday header */}
-      <div className="grid grid-cols-7 border-b" style={{ borderColor: "var(--border)" }}>
+    // Make MonthGrid a flex column that grows to fill available space
+    // and hides any overflow that isn't handled by children.
+    <div className="card-surface flex flex-col flex-grow overflow-hidden">
+      {/* Weekday header - prevent it from shrinking */}
+      <div className="grid grid-cols-7 border-b flex-shrink-0" style={{ borderColor: "var(--border)" }}>
         {weekDays.map((d) => (
           <div key={d} className="px-3 py-2 text-xs font-medium" style={{ color: "var(--muted-fg)" }}>
             {d}
@@ -300,7 +308,9 @@ function MonthGrid({
         ))}
       </div>
 
-      <div className="grid grid-cols-7">
+      {/* The main grid for days: Make it grow, define 6 rows, and allow content to scroll if it exceeds grid height */}
+      {/* `grid-rows-6` is key here to distribute height evenly across rows */}
+      <div className="grid grid-cols-7 grid-rows-6 flex-grow overflow-auto">
         {days.map((d, i) => {
           const iso = toISODate(d)
           const inMonth = d.getMonth() === month
@@ -352,23 +362,29 @@ function MonthCell({
   const borderY = index < 7 ? "border-t-0" : "border-t"
 
   return (
+    // Make each cell a flex column that takes full height of its grid area
+    // `h-full` is important here as it works with `grid-rows-6` on the parent
     <div
       ref={setNodeRef}
-      className={cn("calendar-cell", borderX, borderY, !inMonth && "outside", isOver && "over")}
+      className={cn("calendar-cell flex flex-col relative h-full", borderX, borderY, !inMonth && "outside", isOver && "over")}
       style={{ borderColor: "var(--border)" }}
       onDoubleClick={() => onOpenDaySheet(date)}
     >
-      <button
-        className="rounded px-1.5 py-0.5 text-xs font-medium hover:bg-slate-100"
-        style={{ color: inMonth ? "var(--foreground)" : "var(--slate-400)" }}
-        title="Open day"
-        onClick={() => onClickDay(date)}
-      >
-        {date.getDate()}
-      </button>
-      {isToday && <span className="ml-2 today-badge">Today</span>}
+      <div className="flex items-center flex-shrink-0 px-1.5 py-0.5"> {/* Container for date and today badge */}
+        <button
+          className="rounded text-xs font-medium hover:bg-slate-100 flex-shrink-0"
+          style={{ color: inMonth ? "var(--foreground)" : "var(--slate-400)" }}
+          title="Open day"
+          onClick={() => onClickDay(date)}
+        >
+          {date.getDate()}
+        </button>
+        {isToday && <span className="ml-2 today-badge">Today</span>}
+      </div>
 
-      <div className="mt-2 max-h-[100px] space-y-2 overflow-auto pr-1">
+
+      {/* Task list should grow to fill remaining space and be scrollable if needed */}
+      <div className="mt-1 space-y-1 overflow-auto pr-1 flex-grow p-1">
         {tasks.map((t) => (
           <DraggableTask key={t.id} task={t} onDoubleClick={() => onOpenDaySheet(date)} />
         ))}
@@ -393,10 +409,11 @@ function WeekGrid({
   const days = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(start, i)), [start])
 
   return (
-    <div className="card-surface">
-      {/* Weekday header */}
+    // Make WeekGrid a flex column that grows to fill available space
+    <div className="card-surface flex flex-col flex-grow overflow-hidden">
+      {/* Weekday header - prevent it from shrinking */}
       <div
-        className="grid grid-cols-7 border-b"
+        className="grid grid-cols-7 border-b flex-shrink-0"
         style={{ borderColor: "var(--border)", background: "var(--muted-bg)" }}
       >
         {days.map((d, i) => (
@@ -406,7 +423,8 @@ function WeekGrid({
         ))}
       </div>
 
-      <div className="grid grid-cols-7">
+      {/* The main grid for days: Make it grow and allow content to scroll */}
+      <div className="grid grid-cols-7 flex-grow overflow-auto">
         {days.map((d, i) => {
           const iso = toISODate(d)
           const dayTasks = tasks.filter((t) => t.date === iso)
@@ -448,14 +466,17 @@ function WeekCell({
   })
 
   return (
+    // Make each cell a flex column that takes full height of its grid area.
+    // Removed `min-h-[320px]` as it was causing overflow and fights flexbox layout.
     <div
       ref={setNodeRef}
-      className={cn("p-2 min-h-[320px] border-l transition-colors", isOver && "over")}
+      className={cn("flex flex-col p-2 border-l transition-colors h-full", isOver && "over")}
       style={{ borderColor: "var(--border)" }}
       onDoubleClick={() => onOpenDaySheet(date)}
     >
+      {/* Date button should not shrink */}
       <button
-        className="rounded px-1.5 py-0.5 text-xs font-medium hover:bg-slate-100"
+        className="rounded px-1.5 py-0.5 text-xs font-medium hover:bg-slate-100 flex-shrink-0"
         style={{ color: "var(--foreground)" }}
         onClick={() => onClickDay(date)}
         title="Open day"
@@ -463,7 +484,8 @@ function WeekCell({
         {date.getDate()}
       </button>
 
-      <div className="mt-2 max-h-[280px] space-y-2 overflow-auto pr-1">
+      {/* Task list should grow to fill remaining space and be scrollable if needed */}
+      <div className="mt-2 space-y-2 overflow-auto pr-1 flex-grow">
         {tasks.map((t) => (
           <DraggableTask key={t.id} task={t} onDoubleClick={() => onOpenDaySheet(date)} />
         ))}
@@ -502,13 +524,15 @@ function DayView({
   }
 
   return (
-    <div className="card-surface p-4">
-      <div className="mb-3 text-sm font-semibold" style={{ color: "var(--foreground)" }}>
+    // Make DayView a flex column that grows to fill available space
+    <div className="card-surface p-4 flex flex-col flex-grow overflow-auto">
+      {/* Header text - prevent it from shrinking */}
+      <div className="mb-3 text-sm font-semibold flex-shrink-0" style={{ color: "var(--foreground)" }}>
         {label}
       </div>
 
-      {/* Quick add for the selected day (top input) */}
-      <div className="mb-3 flex items-center gap-2">
+      {/* Quick add input - prevent it from shrinking */}
+      <div className="mb-3 flex items-center gap-2 flex-shrink-0">
         <Input
           value={title}
           onChange={(e) => setTitle(e.target.value)}
@@ -521,7 +545,8 @@ function DayView({
         </Button>
       </div>
 
-      <div className="max-h-[520px] overflow-auto pr-1">
+      {/* Task list should grow to fill remaining space and be scrollable if needed */}
+      <div className="flex-grow overflow-auto pr-1">
         {tasks.length === 0 ? (
           <div className="text-sm" style={{ color: "var(--muted-fg)" }}>
             No tasks for this day. Use the field above to add one.
@@ -585,27 +610,50 @@ function DraggableTask({
     data: { type: "task", taskId: task.id },
   })
 
-  const style: React.CSSProperties = {
+  const baseStyle: React.CSSProperties = {
     transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
     transition,
     opacity: isDragging ? 0.7 : 1,
     cursor: "grab",
-  }
+    // Ensure task-pill does not try to expand beyond its parent's width
+    width: '100%',
+    boxSizing: 'border-box',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem', // Tailwind's gap-2
+    padding: '0.25rem 0.5rem', // Tailwind's px-2 py-1 (adjust as needed)
+    borderRadius: '0.375rem', // Tailwind's rounded-md
+    overflow: 'hidden', // Ensures content stays within the pill
+    whiteSpace: 'nowrap', // Prevents title from wrapping unless explicitly allowed
+    textOverflow: 'ellipsis', // Truncates text with ellipsis if it overflows
+    fontSize: '0.75rem', // Tailwind's text-xs
+  };
+
+  // Specific styles to match the light green pills in the screenshot
+  const pillAppearanceStyle: React.CSSProperties = {
+    backgroundColor: "rgb(235, 250, 240)", // Light green/cyan background
+    borderColor: "rgb(150, 220, 180)",     // Slightly darker border
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    color: "rgb(60, 150, 90)",             // Darker text color
+  };
 
   return (
     <div
       ref={setNodeRef}
-      style={style}
+      style={{ ...baseStyle, ...pillAppearanceStyle }}
       className="task-pill"
       {...attributes}
       {...listeners}
       title={task.title}
       onDoubleClick={onDoubleClick}
     >
-      <Avatar>
-        <AvatarFallback>{task.title[0]}</AvatarFallback>
+      <Avatar className="h-5 w-5 flex-shrink-0"> {/* Smaller avatar */}
+        <AvatarFallback className="text-[0.6rem] bg-current text-white rounded-full flex items-center justify-center">
+          {task.title[0]?.toUpperCase()}
+        </AvatarFallback>
       </Avatar>
-      <span className="line-clamp-1">{task.title}</span>
+      <span className="line-clamp-1 flex-grow">{task.title}</span> {/* flex-grow to take remaining space */}
     </div>
   )
 }

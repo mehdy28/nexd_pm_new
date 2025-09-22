@@ -242,7 +242,14 @@ const WireframeEditorPage: React.FC<WireframeEditorPageProps> = memo(
     // --- Main Render ---
     console.log({isModalOpen})
     return (
-      <div style={{ display: "flex", flex: 1, padding: "0.25rem", flexDirection: "column", height: "100vh", overflow: "hidden" }}>
+      <div style={{
+        display: "flex",
+        flex: 1,
+        padding: "0.25rem",
+        flexDirection: "column",
+        height: "87vh", // <--- CHANGE IS HERE: from "100vh" to "80vh"
+        overflow: "hidden"
+      }}>
         {/* === Updated Header section === */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem", flexShrink: 0, gap: "0.5rem" }}>
           {/* 1. Back Arrow Button */}
@@ -277,7 +284,7 @@ const WireframeEditorPage: React.FC<WireframeEditorPageProps> = memo(
         {/* Container for Excalidraw */}
         <div
           style={{
-            flex: 1,
+            flex: 1, // <--- Keep flex: 1 here so Excalidraw takes up remaining space within the 80vh container
             borderWidth: "0px",
             borderColor: "gray",
             borderRadius: "0.375rem",
@@ -291,10 +298,10 @@ const WireframeEditorPage: React.FC<WireframeEditorPageProps> = memo(
             onChange={debouncedHandleChange}
             setApi={setExcalidrawAPI}
             api={excalidrawAPI}
+            // Ensure ExcalidrawWrapper fills its parent
+            style={{ height: '100%', width: '100%' }} // Add this if ExcalidrawWrapper accepts a style prop
           />
         </div>
-
-
       </div>
     );
   }
