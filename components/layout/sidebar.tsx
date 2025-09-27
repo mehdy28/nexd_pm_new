@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation"
 import { LayoutGrid, Home, Activity, Gauge, CreditCard, LogOut } from "lucide-react"
 import { cn } from "@/lib/utils"
 import Image from "next/image"
+import { useAuth } from "@/hooks/useAuth"
 
 function IconButton({
   children,
@@ -23,8 +24,8 @@ function IconButton({
   const className = cn(
     "flex h-11 w-11 items-center justify-center rounded-xl transition-all duration-200 group relative",
     isActive
-      ? "bg-[#4ab5ae] text-red shadow-medium scale-105" // Active state: Updated BG and text color
-      : "text-[#4ab5ae] hover:bg-[#4ab5ae] hover:text-white hover:scale-105 shadow-soft", // Inactive state: Updated text and hover colors
+      ? "bg-[#4ab5ae] text-red shadow-medium scale-105"
+      : "text-[#4ab5ae] hover:bg-[#4ab5ae] hover:text-white hover:scale-105 shadow-soft"
   )
 
   const content = (
@@ -53,22 +54,18 @@ function IconButton({
 
 export function Sidebar() {
   const pathname = usePathname()
+  const { logout } = useAuth() // <-- use the logout from the hook
 
-  const handleLogout = () => {
-    // Use Firebase signOut
-    import("@/lib/firebase").then(({ auth }) => {
-      import("firebase/auth").then(({ signOut }) => {
-        signOut(auth).then(() => {
-          localStorage.removeItem("hasCompletedSetup")
-          window.location.href = "/login"
-        })
-      })
-    })
+  const handleLogout = async () => {
+    try {
+      await logout()
+    } catch (err) {
+      console.error("Logout failed:", err)
+    }
   }
 
   const getUserInitial = () => {
-    // This will be handled by Firebase auth state
-    return "U"
+    return "U" // You can replace this with actual user initials from useAuth if needed
   }
 
   return (
@@ -99,9 +96,6 @@ export function Sidebar() {
         <IconButton label="Logout" onClick={handleLogout}>
           <LogOut className="h-5 w-5 text-[#4ab5ae]" />
         </IconButton>
-        <div className="h-10 w-10 rounded-xl bg-[#4ab5ae]/20 border-2 border-[#4ab5ae]/30 flex items-center justify-center text-sm font-semibold text-[#4ab5ae] shadow-soft hover:shadow-medium transition-all duration-200 hover:scale-105 cursor-pointer">
-          {getUserInitial()}
-        </div>
       </div>
     </aside>
   )

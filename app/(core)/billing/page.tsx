@@ -118,7 +118,7 @@ export default function BillingPage() {
       })
       topbar.setActiveKey("billing")
     }
-  }, [topbar])
+  }, [topbar.setConfig, topbar.setActiveKey])
 
   const getStatusColor = (status: string) => {
     switch (status) {

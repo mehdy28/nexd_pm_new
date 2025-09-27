@@ -1,6 +1,4 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
+// ---------------- Generator & Datasource ----------------
 generator client {
   provider = "prisma-client-js"
 }
@@ -10,10 +8,93 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ---------------- Enums ----------------
+enum UserRole {
+  ADMIN
+  MEMBER
+}
+
+enum WorkspaceRole {
+  OWNER
+  ADMIN
+  MEMBER
+  GUEST
+}
+
+enum ProjectRole {
+  OWNER
+  ADMIN
+  MEMBER
+  VIEWER
+}
+
+
+enum ProjectStatus {
+  PLANNING
+  ACTIVE
+  ON_HOLD
+  COMPLETED
+  ARCHIVED
+  CANCELLED
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  IN_REVIEW
+  DONE
+  CANCELLED
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+
+enum DependencyType {
+  FINISH_TO_START
+  START_TO_START
+  FINISH_TO_FINISH
+  START_TO_FINISH
+}
+
+enum Plan {
+  FREE
+  PRO
+  ENTERPRISE
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  CANCELLED
+  PAST_DUE
+  UNPAID
+}
+
+enum ActivityType {
+  TASK_CREATED
+  TASK_UPDATED
+  TASK_COMPLETED
+  TASK_ASSIGNED
+  PROJECT_CREATED
+  PROJECT_UPDATED
+  DOCUMENT_CREATED
+  DOCUMENT_UPDATED
+  WIREFRAME_CREATED
+  WIREFRAME_UPDATED
+  COMMENT_ADDED
+  MEMBER_ADDED
+  MEMBER_REMOVED
+}
+
+// ---------------- Core Models ----------------
+
 model User {
   id          String   @id @default(cuid())
   email       String   @unique
-  name        String?
+  password    String?  // Added password field, made nullable for existing users or social logins
   firstName   String?
   lastName    String?
   avatar      String?
@@ -31,24 +112,16 @@ model User {
   assignedTasks  Task[]          @relation("TaskAssignee")
   createdTasks   Task[]          @relation("TaskCreator")
 
-  // Personal tasks (not tied to projects)
-  personalTasks Task[] @relation("UserPersonalTasks")
-
-  // Personal documents (not tied to projects)
-  personalDocuments Document[] @relation("UserPersonalDocuments")
-
-  // Personal wireframes (not tied to projects)
+  // Personal items
+  personalTasks      Task[]      @relation("UserPersonalTasks")
+  personalDocuments  Document[]  @relation("UserPersonalDocuments")
   personalWireframes Wireframe[] @relation("UserPersonalWireframes")
+  personalPrompts    Prompt[]    @relation("UserPersonalPrompts")
 
-  // Personal prompts (AI prompts/templates)
-  personalPrompts Prompt[] @relation("UserPersonalPrompts")
-
-  // Activity tracking
+  // Activity & collaboration
   activities Activity[]
-
-  // Comments and mentions
-  comments Comment[]
-  mentions Mention[]
+  comments   Comment[]
+  mentions   Mention[]
 
   @@map("users")
 }
@@ -65,17 +138,10 @@ model Workspace {
   ownerId     String
   owner       User     @relation("WorkspaceOwner", fields: [ownerId], references: [id], onDelete: Cascade)
 
-  // Members
-  members WorkspaceMember[]
-
-  // Projects
-  projects Project[]
-
-  // Billing
+  members     WorkspaceMember[]
+  projects    Project[]
   subscription Subscription?
-
-  // Settings
-  settings WorkspaceSettings?
+  settings     WorkspaceSettings?
 
   @@map("workspaces")
 }
@@ -96,7 +162,6 @@ model WorkspaceMember {
 model WorkspaceSettings {
   id                    String    @id @default(cuid())
   allowGuestAccess      Boolean   @default(false)
-  defaultProjectPrivacy Privacy   @default(PRIVATE)
   timeZone              String    @default("UTC")
   workspaceId           String    @unique
   workspace             Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
@@ -105,36 +170,28 @@ model WorkspaceSettings {
 }
 
 model Project {
-  id          String    @id @default(cuid())
+  id          String        @id @default(cuid())
   name        String
   description String?
-  color       String    @default("#4ECDC4")
-  privacy     Privacy   @default(PRIVATE)
-  status      Status    @default(ACTIVE)
+  color       String        @default("#4ECDC4")
+  status      ProjectStatus @default(PLANNING)
   startDate   DateTime?
   endDate     DateTime?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
   workspaceId String
-  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspace   Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
-  // Members
-  members ProjectMember[]
-
-  // Project-specific tasks
-  tasks Task[] @relation("ProjectTasks")
-
-  // Project-specific documents
-  documents Document[] @relation("ProjectDocuments")
-
-  // Project-specific wireframes
+  members   ProjectMember[]
+  tasks     Task[]      @relation("ProjectTasks")
+  documents Document[]  @relation("ProjectDocuments")
   wireframes Wireframe[] @relation("ProjectWireframes")
-
-  // Project-specific prompts
-  prompts Prompt[] @relation("ProjectPrompts")
-
-  // Activities
+  prompts    Prompt[]   @relation("ProjectPrompts")
   activities Activity[]
+
+  // Computed fields (via queries)
+  // taskCount Int? @default(0)
+  // doneTaskCount Int? @default(0)
 
   @@map("projects")
 }
@@ -165,7 +222,7 @@ model Task {
   updatedAt   DateTime   @updatedAt
 
   projectId  String?
-  userId     String? // For personal tasks
+  userId     String? 
   assigneeId String?
   creatorId  String
 
@@ -179,18 +236,14 @@ model Task {
   parent   Task?   @relation("TaskSubtasks", fields: [parentId], references: [id])
   subtasks Task[]  @relation("TaskSubtasks")
 
-  // Task dependencies for Gantt chart
+  // Dependencies
   dependencies TaskDependency[] @relation("DependentTask")
   dependents   TaskDependency[] @relation("PrecedingTask")
 
-  // Comments
-  comments Comment[]
-
-  // Activities
+  // Collaboration
+  comments   Comment[]
   activities Activity[]
-
-  // Labels
-  labels TaskLabel[]
+  labels     TaskLabel[]
 
   @@map("tasks")
 }
@@ -220,20 +273,16 @@ model Document {
   id        String       @id @default(cuid())
   title     String
   content   Json?
-  type      DocumentType @default(TEXT)
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt
 
   projectId String?
-  userId    String? // For personal documents
+  userId    String? 
 
   project      Project? @relation("ProjectDocuments", fields: [projectId], references: [id], onDelete: Cascade)
   personalUser User?    @relation("UserPersonalDocuments", fields: [userId], references: [id], onDelete: Cascade)
 
-  // Comments
-  comments Comment[]
-
-  // Activities
+  comments   Comment[]
   activities Activity[]
 
   @@map("documents")
@@ -242,21 +291,18 @@ model Document {
 model Wireframe {
   id        String   @id @default(cuid())
   title     String
-  data      Json // Wireframe data (canvas elements, etc.)
+  data      Json 
   thumbnail String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   projectId String?
-  userId    String? // For personal wireframes
+  userId    String?
 
   project      Project? @relation("ProjectWireframes", fields: [projectId], references: [id], onDelete: Cascade)
   personalUser User?    @relation("UserPersonalWireframes", fields: [userId], references: [id], onDelete: Cascade)
 
-  // Comments
-  comments Comment[]
-
-  // Activities
+  comments   Comment[]
   activities Activity[]
 
   @@map("wireframes")
@@ -270,7 +316,7 @@ model Comment {
   authorId  String
   author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
 
-  // Polymorphic relations
+  // Polymorphic
   taskId      String?
   documentId  String?
   wireframeId String?
@@ -280,7 +326,6 @@ model Comment {
   wireframe   Wireframe? @relation(fields: [wireframeId], references: [id], onDelete: Cascade)
   prompt      Prompt?    @relation(fields: [promptId], references: [id], onDelete: Cascade)
 
-  // Mentions
   mentions Mention[]
 
   @@map("comments")
@@ -305,7 +350,7 @@ model Activity {
   userId    String
   user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  // Polymorphic relations
+  // Polymorphic
   projectId   String?
   taskId      String?
   documentId  String?
@@ -352,10 +397,7 @@ model Prompt {
   project   Project? @relation("ProjectPrompts", fields: [projectId], references: [id], onDelete: Cascade)
   user      User?    @relation("UserPersonalPrompts", fields: [userId], references: [id], onDelete: Cascade)
 
-  // Comments
-  comments Comment[]
-
-  // Activities
+  comments   Comment[]
   activities Activity[]
 
   @@map("prompts")
@@ -366,98 +408,11 @@ model TaskDependency {
   precedingTaskId String
   dependentTaskId String
   type            DependencyType @default(FINISH_TO_START)
-  lag             Int            @default(0) // Days of lag/lead time
+  lag             Int            @default(0)
 
   precedingTask Task @relation("PrecedingTask", fields: [precedingTaskId], references: [id], onDelete: Cascade)
   dependentTask Task @relation("DependentTask", fields: [dependentTaskId], references: [id], onDelete: Cascade)
 
   @@unique([precedingTaskId, dependentTaskId])
   @@map("task_dependencies")
-}
-
-// Enums
-enum UserRole {
-  ADMIN
-  MEMBER
-}
-
-enum WorkspaceRole {
-  OWNER
-  ADMIN
-  MEMBER
-  GUEST
-}
-
-enum ProjectRole {
-  OWNER
-  ADMIN
-  MEMBER
-}
-
-enum Privacy {
-  PUBLIC
-  PRIVATE
-}
-
-enum Status {
-  ACTIVE
-  ARCHIVED
-  DELETED
-}
-
-enum TaskStatus {
-  TODO
-  IN_PROGRESS
-  IN_REVIEW
-  DONE
-  CANCELLED
-}
-
-enum Priority {
-  LOW
-  MEDIUM
-  HIGH
-  URGENT
-}
-
-enum DocumentType {
-  TEXT
-  MARKDOWN
-  RICH_TEXT
-}
-
-enum DependencyType {
-  FINISH_TO_START
-  START_TO_START
-  FINISH_TO_FINISH
-  START_TO_FINISH
-}
-
-enum Plan {
-  FREE
-  PRO
-  ENTERPRISE
-}
-
-enum SubscriptionStatus {
-  ACTIVE
-  CANCELLED
-  PAST_DUE
-  UNPAID
-}
-
-enum ActivityType {
-  TASK_CREATED
-  TASK_UPDATED
-  TASK_COMPLETED
-  TASK_ASSIGNED
-  PROJECT_CREATED
-  PROJECT_UPDATED
-  DOCUMENT_CREATED
-  DOCUMENT_UPDATED
-  WIREFRAME_CREATED
-  WIREFRAME_UPDATED
-  COMMENT_ADDED
-  MEMBER_ADDED
-  MEMBER_REMOVED
 }

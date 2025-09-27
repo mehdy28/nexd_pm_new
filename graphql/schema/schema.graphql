@@ -1,0 +1,390 @@
+# ----------------------------------
+# Enums
+# ----------------------------------
+enum UserRole {
+  ADMIN
+  MEMBER
+}
+
+enum WorkspaceRole {
+  OWNER
+  ADMIN
+  MEMBER
+  GUEST
+}
+
+enum ProjectRole {
+  OWNER
+  ADMIN
+  MEMBER
+  VIEWER
+}
+
+enum ProjectStatus {
+  PLANNING
+  ACTIVE
+  ON_HOLD
+  COMPLETED
+  ARCHIVED
+  CANCELLED
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  IN_REVIEW
+  DONE
+  CANCELLED
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum DependencyType {
+  FINISH_TO_START
+  START_TO_START
+  FINISH_TO_FINISH
+  START_TO_FINISH
+}
+
+enum Plan {
+  FREE
+  PRO
+  ENTERPRISE
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  CANCELLED
+  PAST_DUE
+  UNPAID
+}
+
+enum ActivityType {
+  TASK_CREATED
+  TASK_UPDATED
+  TASK_COMPLETED
+  TASK_ASSIGNED
+  PROJECT_CREATED
+  PROJECT_UPDATED
+  DOCUMENT_CREATED
+  DOCUMENT_UPDATED
+  WIREFRAME_CREATED
+  WIREFRAME_UPDATED
+  COMMENT_ADDED
+  MEMBER_ADDED
+  MEMBER_REMOVED
+}
+
+# ----------------------------------
+# Models
+# ----------------------------------
+type User {
+  id: ID!
+  email: String!
+  firstName: String
+  lastName: String
+  avatar: String
+  firebaseUid: String
+  role: UserRole!
+  createdAt: String!
+  updatedAt: String!
+
+  workspaceMembers: [WorkspaceMember]
+  ownedWorkspaces: [Workspace]
+  projectMembers: [ProjectMember]
+  assignedTasks: [Task]
+  createdTasks: [Task]
+  personalTasks: [Task]
+  personalDocuments: [Document]
+  personalWireframes: [Wireframe]
+  personalPrompts: [Prompt]
+  activities: [Activity]
+  comments: [Comment]
+  mentions: [Mention]
+}
+
+type Workspace {
+  id: ID!
+  name: String!
+  slug: String!
+  description: String
+  avatar: String
+  plan: Plan!
+  createdAt: String!
+  updatedAt: String!
+  owner: User!
+
+  members: [WorkspaceMember!]!
+  projects: [Project!]!
+  subscription: Subscription
+  settings: WorkspaceSettings
+}
+
+type WorkspaceMember {
+  id: ID!
+  role: WorkspaceRole!
+  joinedAt: String!
+  workspace: Workspace!
+  user: User!
+}
+
+type WorkspaceSettings {
+  id: ID!
+  allowGuestAccess: Boolean!
+  timeZone: String!
+  workspace: Workspace!
+}
+
+type Project {
+  id: ID!
+  name: String!
+  description: String
+  color: String!
+  status: ProjectStatus!
+  startDate: String
+  endDate: String
+  createdAt: String!
+  updatedAt: String!
+  workspace: Workspace!
+
+  members: [ProjectMember!]!
+  tasks: [Task!]!
+  documents: [Document!]!
+  wireframes: [Wireframe!]!
+  prompts: [Prompt!]!
+  activities: [Activity!]!
+}
+
+type ProjectMember {
+  id: ID!
+  role: ProjectRole!
+  joinedAt: String!
+  project: Project!
+  user: User!
+}
+
+type Task {
+  id: ID!
+  title: String!
+  description: String
+  status: TaskStatus!
+  priority: Priority!
+  dueDate: String
+  startDate: String
+  endDate: String
+  createdAt: String!
+  updatedAt: String!
+
+  project: Project
+  personalUser: User
+  assignee: User
+  creator: User!
+
+  parent: Task
+  subtasks: [Task!]!
+
+  dependencies: [TaskDependency!]!
+  dependents: [TaskDependency!]!
+
+  comments: [Comment!]!
+  activities: [Activity!]!
+  labels: [TaskLabel!]!
+}
+
+type Label {
+  id: ID!
+  name: String!
+  color: String!
+  workspaceId: String!
+  tasks: [TaskLabel!]!
+}
+
+type TaskLabel {
+  task: Task!
+  label: Label!
+}
+
+type Document {
+  id: ID!
+  title: String!
+  content: JSON
+  createdAt: String!
+  updatedAt: String!
+
+  project: Project
+  personalUser: User
+
+  comments: [Comment!]!
+  activities: [Activity!]!
+}
+
+type Wireframe {
+  id: ID!
+  title: String!
+  data: JSON!
+  thumbnail: String
+  createdAt: String!
+  updatedAt: String!
+
+  project: Project
+  personalUser: User
+
+  comments: [Comment!]!
+  activities: [Activity!]!
+}
+
+type Comment {
+  id: ID!
+  content: String!
+  createdAt: String!
+  updatedAt: String!
+  author: User!
+
+  task: Task
+  document: Document
+  wireframe: Wireframe
+  prompt: Prompt
+
+  mentions: [Mention!]!
+}
+
+type Mention {
+  id: ID!
+  comment: Comment!
+  user: User!
+}
+
+type Activity {
+  id: ID!
+  type: ActivityType!
+  data: JSON!
+  createdAt: String!
+  user: User!
+
+  project: Project
+  task: Task
+  document: Document
+  wireframe: Wireframe
+  prompt: Prompt
+}
+
+type Subscription {
+  id: ID!
+  plan: Plan!
+  status: SubscriptionStatus!
+  currentPeriodEnd: String!
+  cancelAtPeriodEnd: Boolean!
+  stripeCustomerId: String
+  stripeSubscriptionId: String
+  createdAt: String!
+  updatedAt: String!
+  workspace: Workspace!
+}
+
+type Prompt {
+  id: ID!
+  title: String!
+  content: String!
+  description: String
+  category: String
+  tags: [String!]!
+  isPublic: Boolean!
+  createdAt: String!
+  updatedAt: String!
+
+  project: Project
+  user: User
+
+  comments: [Comment!]!
+  activities: [Activity!]!
+}
+
+type TaskDependency {
+  id: ID!
+  type: DependencyType!
+  lag: Int!
+
+  precedingTask: Task!
+  dependentTask: Task!
+}
+
+# ----------------------------------
+# Root Queries
+# ----------------------------------
+type Query {
+  users: [User!]!
+  user(id: ID!): User
+
+  workspaces: [Workspace!]!
+  workspace(id: ID!): Workspace
+
+  projects: [Project!]!
+  project(id: ID!): Project
+
+  tasks: [Task!]!
+  task(id: ID!): Task
+
+  documents: [Document!]!
+  document(id: ID!): Document
+
+  wireframes: [Wireframe!]!
+  wireframe(id: ID!): Wireframe
+
+  comments: [Comment!]!
+  comment(id: ID!): Comment
+
+  activities: [Activity!]!
+  activity(id: ID!): Activity
+
+  prompts: [Prompt!]!
+  prompt(id: ID!): Prompt
+
+
+  me: User
+}
+
+# ----------------------------------
+# Root Mutations (CRUD-style)
+# ----------------------------------
+type Mutation {
+  createUser(email: String!, name: String, firstName: String, lastName: String, role: UserRole): User!
+  updateUser(id: ID!, name: String, firstName: String, lastName: String, role: UserRole): User!
+  deleteUser(id: ID!): Boolean!
+
+  createWorkspace(name: String!, slug: String!): Workspace!
+  updateWorkspace(id: ID!, name: String, description: String, avatar: String): Workspace!
+  deleteWorkspace(id: ID!): Boolean!
+
+  createProject(workspaceId: ID!, name: String!, description: String): Project!
+  updateProject(id: ID!, name: String, description: String, status: ProjectStatus): Project!
+  deleteProject(id: ID!): Boolean!
+
+  createTask(title: String!, projectId: ID, assigneeId: ID, dueDate: String): Task!
+  updateTask(id: ID!, title: String, description: String, status: TaskStatus, priority: Priority): Task!
+  deleteTask(id: ID!): Boolean!
+
+  createDocument(title: String!, projectId: ID, userId: ID): Document!
+  updateDocument(id: ID!, title: String, content: JSON): Document!
+  deleteDocument(id: ID!): Boolean!
+
+  createWireframe(title: String!, projectId: ID, userId: ID): Wireframe!
+  updateWireframe(id: ID!, title: String, data: JSON): Wireframe!
+  deleteWireframe(id: ID!): Boolean!
+
+  createComment(content: String!, taskId: ID, documentId: ID, wireframeId: ID, promptId: ID): Comment!
+  updateComment(id: ID!, content: String!): Comment!
+  deleteComment(id: ID!): Boolean!
+
+  createPrompt(title: String!, content: String!, projectId: ID, userId: ID): Prompt!
+  updatePrompt(id: ID!, title: String, content: String): Prompt!
+  deletePrompt(id: ID!): Boolean!
+}
+
+# ----------------------------------
+# Scalars
+# ----------------------------------
+scalar JSON
