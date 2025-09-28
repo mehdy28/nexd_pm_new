@@ -1,9 +1,11 @@
+// app/layout.tsx
 "use client";
 
 import type React from "react";
 import { Geist, Manrope } from "next/font/google";
 import { ApolloProvider } from "@apollo/client";
 import { initializeApollo } from "@/lib/apollo-client";
+import { AuthContextProvider } from "@/lib/AuthContextProvider";
 import "./globals.css";
 
 const geist = Geist({
@@ -18,8 +20,6 @@ const manrope = Manrope({
   variable: "--font-manrope",
 });
 
-// Metadata is no longer defined here
-
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -32,7 +32,11 @@ export default function RootLayout({
       className={`${geist.variable} ${manrope.variable} antialiased`}
     >
       <body className="font-sans">
-        <ApolloProvider client={apolloClient}>{children}</ApolloProvider>
+        <ApolloProvider client={apolloClient}>
+          <AuthContextProvider> {/* Wrap children with AuthContextProvider */}
+            {children}
+          </AuthContextProvider>
+        </ApolloProvider>
       </body>
     </html>
   );

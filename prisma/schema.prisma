@@ -117,6 +117,7 @@ model User {
   personalDocuments  Document[]  @relation("UserPersonalDocuments")
   personalWireframes Wireframe[] @relation("UserPersonalWireframes")
   personalPrompts    Prompt[]    @relation("UserPersonalPrompts")
+  personalSections   PersonalSection[] // Added for personal sections
 
   // Activity & collaboration
   activities Activity[]
@@ -137,11 +138,17 @@ model Workspace {
   updatedAt   DateTime @updatedAt
   ownerId     String
   owner       User     @relation("WorkspaceOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  // New fields for Workspace
+  industry    String?
+  teamSize    String?
+  workFields  String[] // List of strings for work fields
 
   members     WorkspaceMember[]
   projects    Project[]
   subscription Subscription?
   settings     WorkspaceSettings?
+  // New: personal tasks can also be associated with a workspace (for context)
+  personalTasks Task[] @relation("WorkspacePersonalTasks")
 
   @@map("workspaces")
 }
@@ -188,6 +195,9 @@ model Project {
   wireframes Wireframe[] @relation("ProjectWireframes")
   prompts    Prompt[]   @relation("ProjectPrompts")
   activities Activity[]
+  // New: Sprints and Sections for the project
+  sprints   Sprint[]
+  sections  Section[]
 
   // Computed fields (via queries)
   // taskCount Int? @default(0)
@@ -203,17 +213,67 @@ model ProjectMember {
   projectId String
   userId    String
   project   Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([projectId, userId])
   @@map("project_members")
+}
+
+// New model: Sprint for a project
+model Sprint {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  startDate   DateTime
+  endDate     DateTime
+  isCompleted Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  tasks Task[] // Tasks belonging to this sprint
+
+  @@map("sprints")
+}
+
+// New model: Section for a project
+model Section {
+  id          String   @id @default(cuid())
+  name        String
+  order       Int      @default(0) // To define the order of sections (e.g., TODO, IN_PROGRESS)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  tasks Task[] // Tasks belonging to this section
+
+  @@unique([projectId, name]) // Section names must be unique within a project
+  @@map("sections")
+}
+
+// New model: PersonalSection for a user's personal tasks
+model PersonalSection {
+  id        String   @id @default(cuid())
+  name      String
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  tasks Task[] // Personal tasks belonging to this section
+
+  @@unique([userId, name]) // Personal section names must be unique for a user
+  @@map("personal_sections")
 }
 
 model Task {
   id          String     @id @default(cuid())
   title       String
   description String?
-  status      TaskStatus @default(TODO)
+  status      TaskStatus @default(TODO) // Keep TaskStatus, but actual section dictates visibility
   priority    Priority   @default(MEDIUM)
   dueDate     DateTime?
   startDate   DateTime?
@@ -221,15 +281,27 @@ model Task {
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
 
+  // Relationships for project tasks
   projectId  String?
-  userId     String? 
+  sprintId   String?  // New: for project tasks, nullable
+  sectionId  String?  // New: for project tasks, nullable
+  project    Project? @relation("ProjectTasks", fields: [projectId], references: [id], onDelete: Cascade)
+  sprint     Sprint?  @relation(fields: [sprintId], references: [id], onDelete: SetNull) // If sprint is deleted, tasks remain but lose sprint
+  section    Section? @relation(fields: [sectionId], references: [id], onDelete: SetNull) // If section is deleted, tasks remain but lose section
+
+  // Relationships for personal tasks
+  personalUserId    String? // Original userId renamed for clarity for personal tasks
+  personalWorkspaceId String? // New: Workspace for personal tasks
+  personalSectionId String? // New: for personal tasks, nullable
+  personalUser        User?     @relation("UserPersonalTasks", fields: [personalUserId], references: [id], onDelete: Cascade)
+  personalWorkspace   Workspace? @relation("WorkspacePersonalTasks", fields: [personalWorkspaceId], references: [id], onDelete: SetNull) // Link personal task to workspace
+  personalSection     PersonalSection? @relation(fields: [personalSectionId], references: [id], onDelete: SetNull) // Link personal task to personal section
+
+  // Common relationships (assignee, creator, subtasks, dependencies)
   assigneeId String?
   creatorId  String
-
-  project      Project? @relation("ProjectTasks", fields: [projectId], references: [id], onDelete: Cascade)
-  personalUser User?    @relation("UserPersonalTasks", fields: [userId], references: [id], onDelete: Cascade)
-  assignee     User?    @relation("TaskAssignee", fields: [assigneeId], references: [id])
-  creator      User     @relation("TaskCreator", fields: [creatorId], references: [id])
+  assignee   User?    @relation("TaskAssignee", fields: [assigneeId], references: [id])
+  creator    User     @relation("TaskCreator", fields: [creatorId], references: [id])
 
   // Subtasks
   parentId String?
@@ -244,6 +316,10 @@ model Task {
   comments   Comment[]
   activities Activity[]
   labels     TaskLabel[]
+
+  // Ensure either it's a project task OR a personal task, but not both or neither
+  // This cannot be enforced directly in Prisma schema, but will be enforced via application logic
+  // @check((projectId != null AND personalUserId IS NULL) OR (projectId IS NULL AND personalUserId != null))
 
   @@map("tasks")
 }

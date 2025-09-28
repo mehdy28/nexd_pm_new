@@ -1,27 +1,19 @@
-"use client"
-import { useState, useEffect } from "react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
-import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { CheckCircle, Building, Rocket, Users, Globe, Settings } from "lucide-react"
-import { motion, AnimatePresence } from "framer-motion"
+// app/setup/page.tsx
+"use client";
+import { useState, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { CheckCircle, Building, Rocket, Users, Globe, Settings, Loader2 } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { useSetupFlow, industries, teamSizes, workFieldsOptions } from "@/hooks/useSetupFlow";
+import { useAuthContext } from "@/lib/AuthContextProvider"; // Corrected: Import useAuthContext here
 
-interface StepData {
-  workspaceName: string
-  workspaceDescription: string
-  projectName: string
-  projectDescription: string
-  industry: string
-  teamSize: string
-  workFields: string[]
-  collaboration: string
-  timezone: string
-}
-
-const steps = [
+// Steps data (as you provided it, not part of the hook logic)
+const stepsData = [
   {
     id: 1,
     title: "Create Workspace",
@@ -58,93 +50,56 @@ const steps = [
     icon: CheckCircle,
     color: "bg-teal-500",
   },
-]
-
-const industries = [
-  "Technology",
-  "Healthcare",
-  "Finance",
-  "Marketing",
-  "Retail",
-  "Consulting",
-  "Design",
-  "Other",
-]
-
-const teamSizes = ["Just me", "2-5 people", "6-30 people",  "30+ people"]
-
-const workFields = [
-  "Business Analysis",
-  "Product Management",
-  "Consulting",
-  "Strategy",
-  "Project Management",
-  "Data Analysis",
-  "Process Improvement",
-  "Change Management",
-  "Business Development",
-  "Market Research",
 ];
+
 
 const cardVariants = {
   initial: { y: "100%", opacity: 0 },
   animate: { y: "0%", opacity: 1, transition: { duration: 0.3, ease: "easeInOut" } },
   exit: { y: "-100%", opacity: 0, transition: { duration: 0.3, ease: "easeInOut" } },
-}
+};
 
 export default function SetupFlow() {
-  const [currentStep, setCurrentStep] = useState(1)
-  const [completedSteps, setCompletedSteps] = useState<number[]>([])
-  const [data, setData] = useState<StepData>({
-    workspaceName: "",
-    workspaceDescription: "",
-    projectName: "",
-    projectDescription: "",
-    industry: "",
-    teamSize: "",
-    workFields: [],
-    collaboration: "",
-    timezone: "",
-  })
+  const { currentUser, loading: authLoading } = useAuthContext(); // Get currentUser from context
 
-  const nextStep = () => {
-    if (currentStep < steps.length) {
-      setCompletedSteps((prev) => [...prev, currentStep])
-      setCurrentStep((prev) => prev + 1)
-    }
+  // Pass currentUser.id to the useSetupFlow hook
+  // The hook itself does not know about the context, only receives the ID.
+  const {
+    currentStep,
+    completedSteps,
+    data,
+    updateData,
+    toggleWorkField,
+    isStepValid,
+    nextStep,
+    handleSubmitSetup,
+    isSubmitting,
+    submitError,
+    // steps, industries, teamSizes, workFieldsOptions are still exported from hook file
+  } = useSetupFlow(currentUser?.id); // Pass the user ID here
+
+  const currentStepData = stepsData[currentStep - 1];
+  const IconComponent = currentStepData.icon;
+
+  // Render a loading state if authentication context is still loading
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100">
+        <Loader2 className="h-10 w-10 animate-spin text-teal-500" />
+        <p className="ml-4 text-slate-700">Loading user data...</p>
+      </div>
+    );
   }
 
-  const updateData = (field: keyof StepData, value: any) => {
-    setData((prev) => ({ ...prev, [field]: value }))
+  // If user is not logged in after authLoading, redirect or show error
+  if (!currentUser?.id) {
+    // Optionally redirect to login or show an error
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 text-red-600">
+        User not authenticated. Please log in to complete setup.
+      </div>
+    );
   }
-
-  const toggleWorkField = (field: string) => {
-    const currentFields = data.workFields
-    const newFields = currentFields.includes(field)
-      ? currentFields.filter((f) => f !== field)
-      : [...currentFields, field]
-    updateData("workFields", newFields)
-  }
-
-  const isStepValid = () => {
-    switch (currentStep) {
-      case 1:
-        return data.workspaceName.trim() !== "" && data.workspaceDescription.trim() !== ""
-      case 2:
-        return data.projectName.trim() !== "" && data.projectDescription.trim() !== ""
-      case 3:
-        return data.industry !== ""
-      case 4:
-        return data.teamSize !== ""
-      case 5:
-        return data.workFields.length > 0
-      default:
-        return true
-    }
-  }
-
-  const currentStepData = steps[currentStep - 1]
-  const IconComponent = currentStepData.icon
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex">
@@ -152,11 +107,11 @@ export default function SetupFlow() {
         <div className="mb-8">
           <h2 className="text-white text-xl font-semibold mb-2">Setup Progress</h2>
           <p className="text-slate-400 text-sm">
-            Step {currentStep} of {steps.length}
+            Step {currentStep} of {stepsData.length}
           </p>
         </div>
         <div className="flex-1 space-y-4">
-          {steps.map((step, index) => (
+          {stepsData.map((step, index) => (
             <div key={step.id} className="flex items-start space-x-3">
               <div className="flex flex-col items-center">
                 <div
@@ -174,7 +129,7 @@ export default function SetupFlow() {
                     <span className="text-white text-sm font-medium">{step.id}</span>
                   )}
                 </div>
-                {index < steps.length - 1 && (
+                {index < stepsData.length - 1 && (
                   <div
                     className={`w-0.5 h-8 mt-2 ${completedSteps.includes(step.id) ? "bg-teal-500" : "bg-slate-600"}`}
                   />
@@ -327,7 +282,7 @@ export default function SetupFlow() {
                           <Label className="text-base">What areas do you work in?</Label>
                           <p className="text-sm text-slate-600">Select all that apply</p>
                           <div className="grid grid-cols-2 gap-2">
-                            {workFields.map((field) => (
+                            {workFieldsOptions.map((field) => (
                               <Badge
                                 key={field}
                                 variant={data.workFields.includes(field) ? "default" : "outline"}
@@ -347,7 +302,6 @@ export default function SetupFlow() {
 
                       {currentStep === 6 && (
                         <div className="text-center space-y-6">
-
                           <div>
                             <h3 className="text-xl font-semibold mb-2">Welcome to {data.workspaceName}!</h3>
                             <p className="text-slate-600 text-pretty">
@@ -355,10 +309,12 @@ export default function SetupFlow() {
                               {data.projectName}.
                             </p>
                           </div>
+                          {submitError && (
+                            <p className="text-red-600 text-sm mt-4">{submitError}</p>
+                          )}
                         </div>
                       )}
                     </div>
-
 
                     {currentStep < 6 && (
                       <Button
@@ -371,7 +327,20 @@ export default function SetupFlow() {
                     )}
 
                     {currentStep === 6 && (
-                      <Button className="bg-teal-500 hover:bg-teal-600 text-lg py-6 px-8 w-full">Complete Setup</Button>
+                      <Button
+                        onClick={handleSubmitSetup}
+                        disabled={isSubmitting}
+                        className="bg-teal-500 hover:bg-teal-600 text-lg py-6 px-8 w-full"
+                      >
+                        {isSubmitting ? (
+                          <>
+                            <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                            Completing Setup...
+                          </>
+                        ) : (
+                          "Complete Setup"
+                        )}
+                      </Button>
                     )}
                   </CardContent>
                 </Card>
@@ -381,5 +350,5 @@ export default function SetupFlow() {
         </div>
       </div>
     </div>
-  )
+  );
 }

@@ -1,5 +1,4 @@
 import { prisma } from "@/lib/prisma";
-import { hash } from "bcryptjs"; // Although 'hash' is imported, it's not used in the provided code snippet.
 
 function log(prefix: string, message: string, data?: any) {
   const timestamp = new Date().toISOString();
@@ -23,6 +22,24 @@ export const userResolver = {
       try {
         const user = await prisma.user.findUnique({
           where: { id: context.user.id },
+          // ADDED: Include relations for ownedWorkspaces and workspaceMembers
+          include: {
+            ownedWorkspaces: {
+              select: { // Select only the fields needed by the GraphQL query
+                id: true,
+                name: true,
+              },
+            },
+            workspaceMembers: {
+              select: { // Select only the fields needed by the GraphQL query
+                workspace: {
+                  select: {
+                    id: true,
+                  },
+                },
+              },
+            },
+          },
         });
         log("[me Query]", "user fetched:", user);
         return user;
@@ -32,6 +49,7 @@ export const userResolver = {
       }
     },
   },
+
 
   Mutation: {
     createUser: async (
