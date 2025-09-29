@@ -256,11 +256,11 @@ const GanttView: React.FC = () => {
 
   return (
     <div>
-      <button onClick={() => setIsCreateTaskOpen(true)}>Add Task</button>
+
       <div className="flex items-center gap-3">
-        <Button onClick={addSection} className="bg-[#4ab5ae] text-white h-9 rounded-md">
-          + Add section
-        </Button>
+      <Button onClick={() => setIsCreateTaskOpen(true)} className="bg-[#4ab5ae] text-white h-9 rounded-md">
+        + Add taskj
+      </Button>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" className="h-9 rounded-md gap-2 bg-transparent">
