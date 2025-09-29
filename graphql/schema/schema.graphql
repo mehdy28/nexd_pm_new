@@ -31,10 +31,7 @@ enum ProjectStatus {
 
 enum TaskStatus {
   TODO
-  IN_PROGRESS
-  IN_REVIEW
   DONE
-  CANCELLED
 }
 
 enum Priority {
@@ -166,6 +163,12 @@ type Project {
   activities: [Activity!]!
   sprints: [Sprint!]!    # New: Sprints for the project
   sections: [Section!]!  # New: Sections for the project
+
+
+
+  projectMemberCount: Int!
+  totalTaskCount: Int!
+  completedTaskCount: Int!
 }
 
 type ProjectMember {
@@ -367,160 +370,89 @@ type TaskDependency {
   dependentTask: Task!
 }
 
+type WorkspaceData {
+  id: ID!
+  name: String!
+  description: String
+  industry: String
+  teamSize: String
+  workFields: [String!]
+  members: [WorkspaceMemberData!]!
+  projects: [ProjectData!]!
+}
+
+
+
+
+
+
+type WorkspaceMemberData {
+  id: ID! # This is the WorkspaceMember ID
+  role: WorkspaceRole!
+  user: UserPartial! # Partial user data
+}
+
+
+type UserPartial {
+  id: ID!
+  email: String!
+  firstName: String
+  lastName: String
+}
+
+
+type ProjectData {
+  id: ID!
+  name: String!
+  description: String
+  status: ProjectStatus!
+  projectMemberCount: Int!
+  totalTaskCount: Int!
+  completedTaskCount: Int!
+}
+
+
+
+
+
+
+
+
 # ----------------------------------
 # Root Queries
 # ----------------------------------
 type Query {
-  users: [User!]!
-  user(id: ID!): User
 
-  workspaces: [Workspace!]!
-  workspace(id: ID!): Workspace
-
-  projects: [Project!]!
-  project(id: ID!): Project
-
-  sprints: [Sprint!]! # New
-  sprint(id: ID!): Sprint # New
-
-  sections: [Section!]! # New
-  section(id: ID!): Section # New
-
-  personalSections: [PersonalSection!]! # New
-  personalSection(id: ID!): PersonalSection # New
-
-  tasks: [Task!]!
-  task(id: ID!): Task
-
-  documents: [Document!]!
-  document(id: ID!): Document
-
-  wireframes: [Wireframe!]!
-  wireframe(id: ID!): Wireframe
-
-  comments: [Comment!]!
-  comment(id: ID!): Comment
-
-  activities: [Activity!]!
-  activity(id: ID!): Activity
-
-  prompts: [Prompt!]!
-  prompt(id: ID!): Prompt
-
+  getWorkspaceData: WorkspaceData # New query
   me: User
+
 }
 
 # ----------------------------------
 # Root Mutations (CRUD-style)
 # ----------------------------------
 type Mutation {
+
   createUser(email: String!, password: String, firstName: String, lastName: String, role: UserRole): User! # Added password to creation
-  updateUser(id: ID!, firstName: String, lastName: String, avatar: String, role: UserRole): User! # Removed name from update, added avatar
-  deleteUser(id: ID!): Boolean!
-
-  createWorkspace(name: String!, slug: String!, description: String, avatar: String, industry: String, teamSize: String, workFields: [String!]): Workspace! # Added new fields
-  updateWorkspace(id: ID!, name: String, description: String, avatar: String, industry: String, teamSize: String, workFields: [String!]): Workspace! # Added new fields
-  deleteWorkspace(id: ID!): Boolean!
-
-  createProject(workspaceId: ID!, name: String!, description: String, color: String, status: ProjectStatus, startDate: String, endDate: String): Project! # Added more fields for creation
-  updateProject(id: ID!, name: String, description: String, color: String, status: ProjectStatus, startDate: String, endDate: String): Project! # Added more fields for update
-  deleteProject(id: ID!): Boolean!
-
-  createSprint(projectId: ID!, name: String!, description: String, startDate: String!, endDate: String!): Sprint! # New mutation
-  updateSprint(id: ID!, name: String, description: String, startDate: String, endDate: String, isCompleted: Boolean): Sprint! # New mutation
-  deleteSprint(id: ID!): Boolean! # New mutation
-
-  createSection(projectId: ID!, name: String!, order: Int): Section! # New mutation
-  updateSection(id: ID!, name: String, order: Int): Section! # New mutation
-  deleteSection(id: ID!): Boolean! # New mutation
-
-  createPersonalSection(userId: ID!, name: String!, order: Int): PersonalSection! # New mutation
-  updatePersonalSection(id: ID!, name: String, order: Int): PersonalSection! # New mutation
-  deletePersonalSection(id: ID!): Boolean! # New mutation
-
-  createTask(
-    title: String!,
-    description: String,
-    status: TaskStatus,
-    priority: Priority,
-    dueDate: String,
-    startDate: String,
-    endDate: String,
-    # Project Task fields
-    projectId: ID,
-    sprintId: ID,
-    sectionId: ID,
-    # Personal Task fields
-    personalUserId: ID,
-    personalWorkspaceId: ID,
-    personalSectionId: ID,
-    # Common fields
-    assigneeId: ID,
-    creatorId: ID! # Creator is always required
-    parentId: ID
-  ): Task!
-  updateTask(
-    id: ID!,
-    title: String,
-    description: String,
-    status: TaskStatus,
-    priority: Priority,
-    dueDate: String,
-    startDate: String,
-    endDate: String,
-    # Project Task fields for update
-    projectId: ID, # Allowing re-assigning to a project (or making it personal)
-    sprintId: ID,
-    sectionId: ID,
-    # Personal Task fields for update
-    personalUserId: ID,
-    personalWorkspaceId: ID,
-    personalSectionId: ID,
-    # Common fields for update
-    assigneeId: ID,
-    parentId: ID
-  ): Task!
-  deleteTask(id: ID!): Boolean!
-
-  createDocument(title: String!, content: JSON, projectId: ID, userId: ID): Document! # Added content to creation
-  updateDocument(id: ID!, title: String, content: JSON): Document!
-  deleteDocument(id: ID!): Boolean!
-
-  createWireframe(title: String!, data: JSON!, thumbnail: String, projectId: ID, userId: ID): Wireframe! # Added data and thumbnail to creation
-  updateWireframe(id: ID!, title: String, data: JSON, thumbnail: String): Wireframe!
-  deleteWireframe(id: ID!): Boolean!
-
-  createComment(content: String!, authorId: ID!, taskId: ID, documentId: ID, wireframeId: ID, promptId: ID): Comment! # Added authorId
-  updateComment(id: ID!, content: String!): Comment!
-  deleteComment(id: ID!): Boolean!
-
-  createPrompt(title: String!, content: String!, description: String, category: String, tags: [String!], isPublic: Boolean, projectId: ID, userId: ID): Prompt! # Added more fields for creation
-  updatePrompt(id: ID!, title: String, content: String, description: String, category: String, tags: [String!], isPublic: Boolean): Prompt! # Added more fields for update
-  deletePrompt(id: ID!): Boolean!
-
-  createLabel(name: String!, color: String!, workspaceId: ID!): Label! # New mutation
-  updateLabel(id: ID!, name: String, color: String, workspaceId: ID): Label! # New mutation
-  deleteLabel(id: ID!): Boolean! # New mutation
-
-  createTaskLabel(taskId: ID!, labelId: ID!): TaskLabel! # New mutation
-  deleteTaskLabel(taskId: ID!, labelId: ID!): Boolean! # New mutation
-
-  createTaskDependency(precedingTaskId: ID!, dependentTaskId: ID!, type: DependencyType, lag: Int): TaskDependency! # New mutation
-  updateTaskDependency(id: ID!, type: DependencyType, lag: Int): TaskDependency! # New mutation
-  deleteTaskDependency(id: ID!): Boolean! # New mutation
+  
+  setupWorkspace(
+      userId: ID!
+      workspaceName: String!
+      workspaceDescription: String
+      projectName: String!
+      projectDescription: String
+      industry: String
+      teamSize: String
+      workFields: [String!]
+    ): Workspace! # Returns the created Workspace
 
 
 
-    setupWorkspace(
-    userId: ID!
-    workspaceName: String!
-    workspaceDescription: String
-    projectName: String!
-    projectDescription: String
-    industry: String
-    teamSize: String
-    workFields: [String!]
-  ): Workspace! # Returns the created Workspace
+    createProject(
+      workspaceId: ID!
+      name: String!
+      description: String
+    ): Project! # Returns the created Project
 }
 
 # ----------------------------------

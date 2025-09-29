@@ -89,20 +89,26 @@ export function KanbanBoard({ projectId }: KanbanBoardProps) {
     // In real implementation, load project-specific columns
     return seed
   })
+  // `collapsed` state was related to `sections`, which are removed.
+  // If you intend to have collapsible columns, this state would need to be re-integrated.
+  // const [collapsed, setCollapsed] = useState<Record<string, boolean>>({}) 
+  // `sections` state is removed as it's not used in this context.
+  // const [sections, setSections] = useState<Section[]>(initial)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [selected, setSelected] = useState<{ columnId: string; cardId: string } | null>(null)
   const [overlay, setOverlay] = useState<OverlayState>(null)
-  const [sprint, setSprint] = useState("Sprint 1")
+  const [sprint, setSprint] = useState("Sprint 1") // Kept as it's used for the dropdown
 
   const nextCol = useRef(5)
   const nextCard = useRef(12)
   const rowRef = useRef<HTMLDivElement | null>(null)
 
-  useEffect(() => {
-    const handler = () => addColumn()
-    window.addEventListener("app:add-section" as any, handler as any)
-    return () => window.removeEventListener("app:add-section" as any, handler as any)
-  }, [])
+  // `useEffect` for "app:add-section" is removed as `addSection` and `sections` are removed.
+  // useEffect(() => {
+  //   const handler = () => addColumn()
+  //   window.addEventListener("app:add-section" as any, handler as any)
+  //   return () => window.removeEventListener("app:add-section" as any, handler as any)
+  // }, [])
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
 
@@ -133,6 +139,14 @@ export function KanbanBoard({ projectId }: KanbanBoardProps) {
       ),
     )
   }
+
+  // `addSection` function is removed as `sections` state is removed.
+  // function addSection() {
+  //   const id = `sec-${Date.now()}`
+  //   setSections((prev) => [{ id, title: "New Section", tasks: [], editing: true }, ...prev])
+  //   setCollapsed((prev) => ({ ...prev, [id]: false }))
+  // }
+
 
   function openDrawer(columnId: string, cardId: string) {
     setSelected({ columnId, cardId })
@@ -262,32 +276,31 @@ export function KanbanBoard({ projectId }: KanbanBoardProps) {
 
   return (
     <div className="page-scroller">
-      <div className="flex items-center gap-2 px-4 pt-3">
-        <Button
-          size="sm"
-          className="h-9 text-white"
-          style={{ background: "var(--primary)" }}
-          onClick={() => addColumn()}
-        >
-          + Add section
+      <div className="flex items-center  pr-6 pl-6 pt-3 gap-3">
+        {/* Changed `addSection` to `addColumn` for consistency with current implementation */}
+        <Button onClick={addColumn} className="bg-[#4ab5ae] text-white h-9 rounded-md">
+          + Add column
         </Button>
-
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" className="h-9 rounded-md gap-2 bg-transparent">
-              {sprint} <ChevronDown className="h-4 w-4 text-slate-400" />
+              {sprint} <ChevronDown className="h-4 w-4 text-muted-foreground" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start">
             <DropdownMenuLabel>Sprints</DropdownMenuLabel>
             <DropdownMenuItem onClick={() => setSprint("Sprint 1")}>Sprint 1</DropdownMenuItem>
             <DropdownMenuItem onClick={() => setSprint("Sprint 2")}>Sprint 2</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setSprint("Sprint 3")}>Sprint 3</DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => setSprint("Create new sprint")}>Create new sprint</DropdownMenuItem>
+            <DropdownMenuItem>Create new sprint</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+        <div className="ml-auto relative w-[260px]">
+          <Input className="h-9" placeholder="Search tasks..." />
+        </div>
       </div>
+
+
       <DndContext
         sensors={sensors}
         collisionDetection={closestCorners}

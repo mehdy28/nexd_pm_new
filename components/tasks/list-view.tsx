@@ -268,7 +268,7 @@ export function ListView({ projectId }: ListViewProps) {
   }, [sheetTask, sections])
 
   return (
-    <div className="p-6">
+    <div className="p-6 pt-3">
       <div className="flex items-center gap-3">
         <Button onClick={addSection} className="bg-[#4ab5ae] text-white h-9 rounded-md">
           + Add section

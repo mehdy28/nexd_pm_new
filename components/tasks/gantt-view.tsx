@@ -5,6 +5,22 @@ import React, { useState } from "react";
 import { Gantt, Task, ViewMode } from "gantt-task-react";
 import "gantt-task-react/dist/index.css";
 
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { ChevronDown } from "lucide-react"
+
+
+
+
+
 // Helper functions (from the code you provided)
 export function getStartEndDateForProject(tasks: Task[], projectId: string) {
   const projectTasks = tasks.filter((t) => t.project === projectId);
@@ -241,6 +257,29 @@ const GanttView: React.FC = () => {
   return (
     <div>
       <button onClick={() => setIsCreateTaskOpen(true)}>Add Task</button>
+      <div className="flex items-center gap-3">
+        <Button onClick={addSection} className="bg-[#4ab5ae] text-white h-9 rounded-md">
+          + Add section
+        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" className="h-9 rounded-md gap-2 bg-transparent">
+              Sprint 1 <ChevronDown className="h-4 w-4 text-muted-foreground" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start">
+            <DropdownMenuLabel>Sprints</DropdownMenuLabel>
+            <DropdownMenuItem>Sprint 1</DropdownMenuItem>
+            <DropdownMenuItem>Sprint 2</DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem>Create new sprint</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+        <div className="ml-auto relative w-[260px]">
+          <Input className="h-9" placeholder="Search tasks..." />
+        </div>
+      </div>
+
 
       {isCreateTaskOpen && (
         <TaskForm onAddTask={handleAddTask} onClose={() => setIsCreateTaskOpen(false)} tasks={tasks} />
