@@ -1,162 +1,204 @@
-"use client"
+// components/project/project-overview.tsx
+"use client";
 
-import { useState } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Progress } from "@/components/ui/progress"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
-import { CalendarDays, Users, CheckCircle2, Clock, AlertCircle, Settings, Plus, Trash2 } from "lucide-react"
+import { useState, useEffect } from "react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Progress } from "@/components/ui/progress";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { CalendarDays, Users, CheckCircle2, Clock, AlertCircle, Settings, Plus, Trash2, Loader2 } from "lucide-react";
+// Removed useParams as projectId will now be passed as a prop
 
-interface ProjectOverviewProps {
-  projectId: string
-  projectData: {
-    name: string
-    description: string
-    status: string
-    members: number
-    color: string
-  }
-}
+import { useProjectDetails } from "@/hooks/useProjectDetails";
 
-type Sprint = {
-  id: string
-  title: string
-  description: string
-  startDate: string
-  endDate: string
-  status: "Planning" | "Active" | "Completed"
-}
+// --- Type definitions (moved from component to be more general or from hook) ---
+type SprintUi = {
+  id: string;
+  name: string;
+  description?: string;
+  startDate: string;
+  endDate: string;
+  status: "PLANNING" | "ACTIVE" | "COMPLETED"; // Derived status for UI
+};
 
 type NewSprintForm = {
-  title: string
-  description: string
-  startDate: string
-  endDate: string
+  name: string;
+  description: string;
+  startDate: string;
+  endDate: string;
+};
+
+// Define ProjectData type for the mock data passed from the page
+interface MockProjectData {
+  name: string;
+  description: string;
+  status: string; // This will be the "displayStatus" in the hook's return
+  members: number; // This is just a count for the mock
+  color: string;
 }
 
-// Mock data - in real app this would come from API
-const getProjectStats = (projectId: string) => ({
-  totalTasks: 24,
-  completedTasks: 12,
-  inProgressTasks: 8,
-  overdueTasks: 2,
-  upcomingDeadlines: 3,
-  recentActivity: [
-    {
-      id: "1",
-      type: "task_completed",
-      message: "Sarah completed 'Design system components'",
-      time: "2 hours ago",
-      user: { name: "Sarah Chen", avatar: "/placeholder.svg?height=32&width=32" },
-    },
-    {
-      id: "2",
-      type: "task_created",
-      message: "Mike created 'API endpoint testing'",
-      time: "4 hours ago",
-      user: { name: "Mike Johnson", avatar: "/placeholder.svg?height=32&width=32" },
-    },
-    {
-      id: "3",
-      type: "comment",
-      message: "Emily commented on 'User authentication flow'",
-      time: "6 hours ago",
-      user: { name: "Emily Davis", avatar: "/placeholder.svg?height=32&width=32" },
-    },
-  ],
-  teamMembers: [
-    { id: "1", name: "John Doe", role: "Product Manager", avatar: "/placeholder.svg?height=32&width=32" },
-    { id: "2", name: "Sarah Chen", role: "Lead Designer", avatar: "/placeholder.svg?height=32&width=32" },
-    { id: "3", name: "Mike Johnson", role: "Senior Developer", avatar: "/placeholder.svg?height=32&width=32" },
-    { id: "4", name: "Emily Davis", role: "QA Engineer", avatar: "/placeholder.svg?height=32&width=32" },
-  ],
-})
-
-const getProjectSprints = (projectId: string): Sprint[] => [
-  {
-    id: "1",
-    title: "Sprint 1: Foundation",
-    description: "Set up project foundation and core components",
-    startDate: "2024-01-15",
-    endDate: "2024-01-29",
-    status: "Completed",
-  },
-  {
-    id: "2",
-    title: "Sprint 2: User Interface",
-    description: "Build main user interface components and screens",
-    startDate: "2024-01-30",
-    endDate: "2024-02-13",
-    status: "Active",
-  },
-]
-
-const getStatusColor = (status: string) => {
-  switch (status) {
-    case "In Progress":
-    case "Active":
-      return "bg-blue-100 text-blue-800"
-    case "Planning":
-      return "bg-yellow-100 text-yellow-800"
-    case "Review":
-      return "bg-purple-100 text-purple-800"
-    case "Completed":
-      return "bg-green-100 text-green-800"
-    default:
-      return "bg-gray-100 text-gray-800"
-  }
+// Props for ProjectOverview component
+interface ProjectOverviewProps {
+  projectId: string; // Now received as a prop
+  projectData: MockProjectData; // Mock data passed from the parent page
 }
+// --------------------------------------------------------------------------------
 
-export function ProjectOverview({ projectId, projectData }: ProjectOverviewProps) {
-  const stats = getProjectStats(projectId)
-  const progressPercentage = (stats.completedTasks / stats.totalTasks) * 100
 
-  const [sprints, setSprints] = useState<Sprint[]>(getProjectSprints(projectId))
-  const [newSprintOpen, setNewSprintOpen] = useState(false)
+export function ProjectOverview({ projectId, projectData }: ProjectOverviewProps) { // Accept projectId and projectData as props
+  console.log("[project] ProjectOverview component rendered.");
+  console.log(`[project] Received projectId from props: ${projectId}`);
+  console.log(`[project] Received mock projectData from props: ${JSON.stringify(projectData)}`);
+
+  // Use the projectId prop directly
+  const { projectDetails, loading, error, refetchProjectDetails } = useProjectDetails(projectId);
+  console.log(`[project] useProjectDetails hook state: loading=${loading}, error=${error?.message || 'none'}, projectDetails=${projectDetails ? 'available' : 'not yet'}`);
+
+  const [sprints, setSprints] = useState<SprintUi[]>([]);
+  const [newSprintOpen, setNewSprintOpen] = useState(false);
   const [newSprint, setNewSprint] = useState<NewSprintForm>({
-    title: "",
+    name: "",
     description: "",
     startDate: "",
     endDate: "",
-  })
+  });
+
+  useEffect(() => {
+    console.log("[project] useEffect triggered for projectDetails.sprints update.");
+    if (projectDetails?.sprints) {
+      console.log(`[project] Populating sprints state with ${projectDetails.sprints.length} sprints from projectDetails.`);
+      setSprints(projectDetails.sprints.map(sprint => ({
+        ...sprint,
+        status: sprint.status
+      })));
+    } else {
+      console.log("[project] projectDetails.sprints is not yet available or empty.");
+    }
+  }, [projectDetails?.sprints]);
+
+
+  // --- Loading State ---
+  if (loading) {
+    console.log("[project] Displaying loading state.");
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-muted/30">
+        <Loader2 className="h-10 w-10 animate-spin text-teal-500" />
+        <p className="ml-4 text-lg text-slate-700">Loading project details...</p>
+      </div>
+    );
+  }
+
+  // --- Error State ---
+  if (error) {
+    console.error(`[project] Displaying error state: ${error.message}`);
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-red-100 text-red-700 p-4">
+        <p className="text-lg">Error loading project details: {error.message}</p>
+      </div>
+    );
+  }
+
+  // --- No Project Data ---
+  if (!projectDetails) {
+    console.warn(`[project] Project details not found for ID: ${projectId}.`);
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-muted/30 p-8 text-center">
+        <h2 className="text-3xl font-bold text-foreground mb-4">Project Not Found</h2>
+        <p className="text-muted-foreground leading-relaxed max-w-xl mb-8">
+          The project with ID "{projectId}" could not be found or you do not have access.
+        </p>
+      </div>
+    );
+  }
+
+  // Calculate progress using fetched data
+  const progressPercentage = projectDetails.totalTasks > 0
+    ? (projectDetails.completedTasks / projectDetails.totalTasks) * 100
+    : 0;
+  console.log(`[project] Calculated project progress: ${progressPercentage}% (${projectDetails.completedTasks}/${projectDetails.totalTasks} tasks).`);
+
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case "ACTIVE":
+      case "Active":
+        return "bg-blue-100 text-blue-800";
+      case "PLANNING":
+      case "Planning":
+        return "bg-yellow-100 text-yellow-800";
+      case "ON_HOLD":
+        return "bg-orange-100 text-orange-800";
+      case "COMPLETED":
+      case "Completed":
+        return "bg-green-100 text-green-800";
+      case "ARCHIVED":
+        return "bg-gray-100 text-gray-800";
+      case "CANCELLED":
+        return "bg-red-100 text-red-800";
+      default:
+        return "bg-gray-100 text-gray-800";
+    }
+  };
 
   const openNewSprint = () => {
-    setNewSprintOpen(true)
+    console.log("[project] Opening new sprint form.");
+    setNewSprintOpen(true);
     setNewSprint({
-      title: "",
+      name: "",
       description: "",
       startDate: "",
       endDate: "",
-    })
-  }
+    });
+  };
 
   const cancelNewSprint = () => {
-    setNewSprintOpen(false)
-  }
+    console.log("[project] Cancelling new sprint creation.");
+    setNewSprintOpen(false);
+  };
 
   const saveNewSprint = () => {
-    if (!newSprint.title.trim()) return
+    console.log("[project] Attempting to save new sprint.");
+    if (!newSprint.name.trim()) {
+      console.warn("[project] Sprint name is empty, not saving.");
+      return;
+    }
 
-    const sprint: Sprint = {
-      id: `sprint-${Date.now()}`,
-      title: newSprint.title,
+    const sprint: SprintUi = {
+      id: `sprint-${Date.now()}`, // Temporary client-side ID
+      name: newSprint.name,
       description: newSprint.description,
       startDate: newSprint.startDate,
       endDate: newSprint.endDate,
-      status: "Planning",
-    }
+      status: "PLANNING",
+    };
 
-    setSprints((prev) => [sprint, ...prev])
-    setNewSprintOpen(false)
-  }
+    setSprints((prev) => {
+      console.log(`[project] Adding new sprint to local state: ${sprint.name}`);
+      return [sprint, ...prev];
+    });
+    // In a real app, you would also call a GraphQL mutation to create the sprint in the backend
+    // For example: createSprintMutation({ variables: { input: newSprint } });
+    console.log(`[project] Simulated backend call for new sprint: ${JSON.stringify(sprint)}`); // Simulate backend call
+    setNewSprintOpen(false);
+  };
 
   const deleteSprint = (sprintId: string) => {
-    setSprints((prev) => prev.filter((s) => s.id !== sprintId))
-  }
+    console.log(`[project] Attempting to delete sprint with ID: ${sprintId}`);
+    setSprints((prev) => {
+      const updatedSprints = prev.filter((s) => s.id !== sprintId);
+      console.log(`[project] Sprints after deletion: ${updatedSprints.length}`);
+      return updatedSprints;
+    });
+    // In a real app, you would also call a GraphQL mutation to delete the sprint from the backend
+    // For example: deleteSprintMutation({ variables: { id: sprintId } });
+    console.log(`[project] Simulated backend call for deleting sprint: ${sprintId}`); // Simulate backend call
+  };
 
+
+  console.log("[project] Rendering ProjectOverview with data.");
   return (
     <div className="h-full overflow-y-auto">
       <div className="p-6 space-y-6">
@@ -164,14 +206,14 @@ export function ProjectOverview({ projectId, projectData }: ProjectOverviewProps
         <div className="flex items-start justify-between">
           <div className="space-y-2">
             <div className="flex items-center gap-3">
-              <div className={`w-4 h-4 rounded-full ${projectData.color}`} />
-              <Badge variant="secondary" className={getStatusColor(projectData.status)}>
-                {projectData.status}
+              <div className={`w-4 h-4 rounded-full ${projectDetails.color}`} />
+              <Badge variant="secondary" className={getStatusColor(projectDetails.status)}>
+                {projectDetails.displayStatus}
               </Badge>
             </div>
-            <p className="text-slate-600 max-w-2xl">{projectData.description}</p>
+            <p className="text-slate-600 max-w-2xl">{projectDetails.description}</p>
           </div>
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" onClick={() => console.log("[project] Project Settings button clicked.")}>
             <Settings className="h-4 w-4 mr-2" />
             Project Settings
           </Button>
@@ -185,8 +227,8 @@ export function ProjectOverview({ projectId, projectData }: ProjectOverviewProps
               <CheckCircle2 className="h-4 w-4 text-slate-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.totalTasks}</div>
-              <p className="text-xs text-slate-600">{stats.completedTasks} completed</p>
+              <div className="text-2xl font-bold">{projectDetails.totalTasks}</div>
+              <p className="text-xs text-slate-600">{projectDetails.completedTasks} completed</p>
             </CardContent>
           </Card>
 
@@ -196,7 +238,7 @@ export function ProjectOverview({ projectId, projectData }: ProjectOverviewProps
               <Clock className="h-4 w-4 text-blue-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.inProgressTasks}</div>
+              <div className="text-2xl font-bold">{projectDetails.inProgressTasks}</div>
               <p className="text-xs text-slate-600">Active tasks</p>
             </CardContent>
           </Card>
@@ -207,7 +249,7 @@ export function ProjectOverview({ projectId, projectData }: ProjectOverviewProps
               <AlertCircle className="h-4 w-4 text-red-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-red-600">{stats.overdueTasks}</div>
+              <div className="text-2xl font-bold text-red-600">{projectDetails.overdueTasks}</div>
               <p className="text-xs text-slate-600">Need attention</p>
             </CardContent>
           </Card>
@@ -218,7 +260,7 @@ export function ProjectOverview({ projectId, projectData }: ProjectOverviewProps
               <Users className="h-4 w-4 text-slate-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{projectData.members}</div>
+              <div className="text-2xl font-bold">{projectDetails.members.length}</div>
               <p className="text-xs text-slate-600">Active contributors</p>
             </CardContent>
           </Card>
@@ -237,7 +279,7 @@ export function ProjectOverview({ projectId, projectData }: ProjectOverviewProps
                   <div className="flex justify-between text-sm">
                     <span>Completed Tasks</span>
                     <span className="font-medium">
-                      {stats.completedTasks}/{stats.totalTasks}
+                      {projectDetails.completedTasks}/{projectDetails.totalTasks}
                     </span>
                   </div>
                   <Progress value={progressPercentage} className="h-2" />
@@ -270,8 +312,11 @@ export function ProjectOverview({ projectId, projectData }: ProjectOverviewProps
                         <div className="space-y-2">
                           <label className="text-xs text-muted-foreground">Sprint Title</label>
                           <Input
-                            value={newSprint.title}
-                            onChange={(e) => setNewSprint((prev) => ({ ...prev, title: e.target.value }))}
+                            value={newSprint.name}
+                            onChange={(e) => {
+                              setNewSprint((prev) => ({ ...prev, name: e.target.value }));
+                              console.log(`[project] New sprint name changed to: ${e.target.value}`);
+                            }}
                             placeholder="Sprint title"
                           />
                         </div>
@@ -279,23 +324,32 @@ export function ProjectOverview({ projectId, projectData }: ProjectOverviewProps
                           <label className="text-xs text-muted-foreground">Start Date</label>
                           <Input
                             type="date"
-                            value={newSprint.startDate}
-                            onChange={(e) => setNewSprint((prev) => ({ ...prev, startDate: e.target.value }))}
+                            value={newSprint.startDate ? new Date(newSprint.startDate).toISOString().split('T')[0] : ''}
+                            onChange={(e) => {
+                              setNewSprint((prev) => ({ ...prev, startDate: e.target.value }));
+                              console.log(`[project] New sprint start date changed to: ${e.target.value}`);
+                            }}
                           />
                         </div>
                         <div className="space-y-2">
                           <label className="text-xs text-muted-foreground">End Date</label>
                           <Input
                             type="date"
-                            value={newSprint.endDate}
-                            onChange={(e) => setNewSprint((prev) => ({ ...prev, endDate: e.target.value }))}
+                            value={newSprint.endDate ? new Date(newSprint.endDate).toISOString().split('T')[0] : ''}
+                            onChange={(e) => {
+                              setNewSprint((prev) => ({ ...prev, endDate: e.target.value }));
+                              console.log(`[project] New sprint end date changed to: ${e.target.value}`);
+                            }}
                           />
                         </div>
-                        <div className="space-y-2">
+                        <div className="space-y-2 col-span-full">
                           <label className="text-xs text-muted-foreground">Description</label>
                           <Textarea
                             value={newSprint.description}
-                            onChange={(e) => setNewSprint((prev) => ({ ...prev, description: e.target.value }))}
+                            onChange={(e) => {
+                              setNewSprint((prev) => ({ ...prev, description: e.target.value }));
+                              console.log(`[project] New sprint description changed.`);
+                            }}
                             placeholder="Sprint description"
                             className="resize-none"
                             rows={2}
@@ -322,15 +376,15 @@ export function ProjectOverview({ projectId, projectData }: ProjectOverviewProps
                     <div key={sprint.id} className="flex items-start justify-between p-4 border rounded-lg">
                       <div className="flex-1 space-y-2">
                         <div className="flex items-center gap-2">
-                          <h4 className="font-medium">{sprint.title}</h4>
+                          <h4 className="font-medium">{sprint.name}</h4>
                           <Badge variant="secondary" className={getStatusColor(sprint.status)}>
                             {sprint.status}
                           </Badge>
                         </div>
                         {sprint.description && <p className="text-sm text-slate-600">{sprint.description}</p>}
                         <div className="flex items-center gap-4 text-xs text-slate-500">
-                          {sprint.startDate && <span>Start: {sprint.startDate}</span>}
-                          {sprint.endDate && <span>End: {sprint.endDate}</span>}
+                          {sprint.startDate && <span>Start: {new Date(sprint.startDate).toLocaleDateString()}</span>}
+                          {sprint.endDate && <span>End: {new Date(sprint.endDate).toLocaleDateString()}</span>}
                         </div>
                       </div>
                       <Button
@@ -356,35 +410,6 @@ export function ProjectOverview({ projectId, projectData }: ProjectOverviewProps
                 </div>
               </CardContent>
             </Card>
-
-            {/* Recent Activity */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Recent Activity</CardTitle>
-                <CardDescription>Latest updates from your team</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {stats.recentActivity.map((activity) => (
-                    <div key={activity.id} className="flex items-start space-x-3">
-                      <Avatar className="h-8 w-8">
-                        <AvatarImage src={activity.user.avatar || "/placeholder.svg"} alt={activity.user.name} />
-                        <AvatarFallback>
-                          {activity.user.name
-                            .split(" ")
-                            .map((n) => n[0])
-                            .join("")}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1 space-y-1">
-                        <p className="text-sm">{activity.message}</p>
-                        <p className="text-xs text-slate-500">{activity.time}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
           </div>
 
           {/* Team Members Sidebar */}
@@ -393,7 +418,7 @@ export function ProjectOverview({ projectId, projectData }: ProjectOverviewProps
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <CardTitle>Team Members</CardTitle>
-                  <Button variant="outline" size="sm">
+                  <Button variant="outline" size="sm" onClick={() => console.log("[project] Add Team Member button clicked.")}>
                     <Plus className="h-4 w-4 mr-2" />
                     Add
                   </Button>
@@ -401,23 +426,25 @@ export function ProjectOverview({ projectId, projectData }: ProjectOverviewProps
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {stats.teamMembers.map((member) => (
-                    <div key={member.id} className="flex items-center space-x-3">
+                  {projectDetails.members.map((member) => (
+                    <div key={member.user.id} className="flex items-center space-x-3">
                       <Avatar className="h-8 w-8">
-                        <AvatarImage src={member.avatar || "/placeholder.svg"} alt={member.name} />
+                        <AvatarImage src={member.user.avatar || (member.user.firstName ? `https://ui-avatars.com/api/?name=${member.user.firstName}+${member.user.lastName}&background=random` : "/placeholder.svg")} alt={`${member.user.firstName || ""} ${member.user.lastName || ""}`} />
                         <AvatarFallback>
-                          {member.name
-                            .split(" ")
-                            .map((n) => n[0])
-                            .join("")}
+                          {`${(member.user.firstName?.[0] || '')}${(member.user.lastName?.[0] || '')}` || '?'}
                         </AvatarFallback>
                       </Avatar>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{member.name}</p>
-                        <p className="text-xs text-slate-500 truncate">{member.role}</p>
+                        <p className="text-sm font-medium truncate">
+                          {`${member.user.firstName || ""} ${member.user.lastName || ""}`.trim() || member.user.email}
+                        </p>
+                        <p className="text-xs text-slate-500 truncate">{member.role.replace(/_/g, ' ')}</p>
                       </div>
                     </div>
                   ))}
+                  {projectDetails.members.length === 0 && (
+                    <p className="text-sm text-center text-slate-500">No members yet.</p>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -429,7 +456,7 @@ export function ProjectOverview({ projectId, projectData }: ProjectOverviewProps
               <CardContent>
                 <div className="flex items-center space-x-2 text-sm">
                   <CalendarDays className="h-4 w-4 text-slate-600" />
-                  <span>{stats.upcomingDeadlines} tasks due this week</span>
+                  <span>{projectDetails.upcomingDeadlines} tasks due this week</span>
                 </div>
               </CardContent>
             </Card>
@@ -437,5 +464,5 @@ export function ProjectOverview({ projectId, projectData }: ProjectOverviewProps
         </div>
       </div>
     </div>
-  )
+  );
 }

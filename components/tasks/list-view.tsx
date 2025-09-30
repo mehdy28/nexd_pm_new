@@ -283,8 +283,6 @@ export function ListView({ projectId }: ListViewProps) {
             <DropdownMenuLabel>Sprints</DropdownMenuLabel>
             <DropdownMenuItem>Sprint 1</DropdownMenuItem>
             <DropdownMenuItem>Sprint 2</DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem>Create new sprint</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
         <div className="ml-auto relative w-[260px]">

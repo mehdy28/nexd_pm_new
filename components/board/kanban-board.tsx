@@ -291,8 +291,6 @@ export function KanbanBoard({ projectId }: KanbanBoardProps) {
             <DropdownMenuLabel>Sprints</DropdownMenuLabel>
             <DropdownMenuItem onClick={() => setSprint("Sprint 1")}>Sprint 1</DropdownMenuItem>
             <DropdownMenuItem onClick={() => setSprint("Sprint 2")}>Sprint 2</DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem>Create new sprint</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
         <div className="ml-auto relative w-[260px]">

@@ -7,6 +7,8 @@ export const resolvers = {
   Query: {
     ...workspaceResolver.Query,
     ...userResolver.Query,
+    ...projectResolver.Query,
+
   },
   Mutation: {
     ...setupResolver.Mutation,

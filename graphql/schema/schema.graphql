@@ -1,6 +1,14 @@
 # ----------------------------------
 # Enums
 # ----------------------------------
+
+enum SprintStatus { # New enum for Sprint status
+  PLANNING
+  ACTIVE
+  COMPLETED
+}
+
+
 enum UserRole {
   ADMIN
   MEMBER
@@ -416,12 +424,77 @@ type ProjectData {
 
 
 
+type ProjectMemberDetails { # For ProjectDetails, more detailed than WorkspaceMemberData
+  id: ID! # ProjectMember ID
+  role: ProjectRole!
+  user: UserFullDetails! # More user info needed here
+}
+
+type UserFullDetails { # More detailed user info
+  id: ID!
+  email: String!
+  firstName: String
+  lastName: String
+  avatar: String
+  # Add other relevant user fields
+}
+
+type SprintDetails {
+  id: ID!
+  name: String!
+  description: String
+  startDate: String!
+  endDate: String!
+  isCompleted: Boolean!
+  status: SprintStatus! # Computed status
+}
+
+# You might also consider an ActivityDetails type if you uncomment it
+# type ActivityDetails {
+#   id: ID!
+#   type: ActivityType!
+#   data: JSON!
+#   createdAt: String!
+#   user: UserFullDetails!
+# }
+
+
+type ProjectDetails { # New type to represent the comprehensive data for a single project page
+  id: ID!
+  name: String!
+  description: String
+  status: ProjectStatus!
+  color: String!
+  createdAt: String!
+
+  # Computed stats
+  totalTasks: Int!
+  completedTasks: Int!
+  inProgressTasks: Int!
+  overdueTasks: Int!
+  upcomingDeadlines: Int!
+
+  members: [ProjectMemberDetails!]!
+  sprints: [SprintDetails!]!
+  # activities: [ActivityDetails!]! # Uncomment if needed
+}
+
+
+
+
+
+
+
+
+
 
 
 # ----------------------------------
 # Root Queries
 # ----------------------------------
 type Query {
+
+  getProjectDetails(projectId: ID!): ProjectDetails
 
   getWorkspaceData: WorkspaceData # New query
   me: User
