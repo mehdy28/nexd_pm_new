@@ -1,11 +1,12 @@
+// components/tasks/gantt-view.tsx
 "use client";
 
-import React, { useState, useMemo } from "react";
-import { Gantt, Task as GanttTask, ViewMode } from "gantt-task-react";
+import React, { useState, useMemo, useEffect, useCallback } from "react"; // Added useCallback
+import { Gantt, Task as GanttTaskReact, ViewMode } from "gantt-task-react";
 import "gantt-task-react/dist/index.css";
 
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,25 +14,31 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { ChevronDown } from "lucide-react"
+} from "@/components/ui/dropdown-menu";
+import { ChevronDown, Loader2 } from "lucide-react";
 
-// 1. UPDATED: Task interface - Removed 'dependencies'
-interface Task extends GanttTask {
-    sprint?: string; // Changed 'project' to 'sprint'
+import { useGanttData, CustomGanttTask, SprintGanttFilterOption } from "@/hooks/useGanttData";
+
+
+interface GanttViewProps {
+  projectId: string;
 }
 
-// Helper functions (mostly unchanged, adjusted for 'sprint')
-export function getStartEndDateForSprint(tasks: Task[], sprintId: string) {
-  const sprintTasks = tasks.filter((t) => t.sprint === sprintId); // Changed 'project' to 'sprint'
-  if (sprintTasks.length === 0) {
-    return [new Date(), new Date()];
+// Helper to determine start/end date for a parent sprint based on its children tasks/milestones
+// This logic should primarily happen in the backend resolver, but useful for client-side task updates
+// Note: This function is not a React component or hook, so it can stay outside
+export function getStartEndDateForParent(tasks: CustomGanttTask[], parentId: string) {
+  const children = tasks.filter((t) => t.sprint === parentId);
+  if (children.length === 0) {
+    // If no children, return parent's own dates (from the API)
+    const parent = tasks.find(t => t.id === parentId);
+    return parent ? [parent.start, parent.end] : [new Date(), new Date()];
   }
-  let start = sprintTasks[0].start;
-  let end = sprintTasks[0].end;
+  let start = children[0].start;
+  let end = children[0].end;
 
-  for (let i = 0; i < sprintTasks.length; i++) {
-    const task = sprintTasks[i];
+  for (let i = 0; i < children.length; i++) {
+    const task = children[i];
     if (start.getTime() > task.start.getTime()) {
       start = task.start;
     }
@@ -42,196 +49,17 @@ export function getStartEndDateForSprint(tasks: Task[], sprintId: string) {
   return [start, end];
 }
 
-export function initTasks(): Task[] {
-  const currentDate = new Date();
-  const tasks: Task[] = [
-    // Sprint 1: "Website Redesign"
-    {
-      start: new Date(currentDate.getFullYear(), currentDate.getMonth(), 1),
-      end: new Date(currentDate.getFullYear(), currentDate.getMonth(), 20),
-      name: "Website Redesign",
-      id: "Sprint1", // Changed to Sprint ID
-      progress: 40,
-      type: "project", // Still type 'project' for Gantt library to treat as parent
-      hideChildren: false,
-      displayOrder: 1,
-    },
-    {
-      start: new Date(currentDate.getFullYear(), currentDate.getMonth(), 1),
-      end: new Date(currentDate.getFullYear(), currentDate.getMonth(), 5),
-      name: "Content Audit",
-      id: "Task1-1",
-      progress: 100,
-      type: "task",
-      sprint: "Sprint1", // Changed 'project' to 'sprint'
-      displayOrder: 2,
-    },
-    {
-      start: new Date(currentDate.getFullYear(), currentDate.getMonth(), 6),
-      end: new Date(currentDate.getFullYear(), currentDate.getMonth(), 10),
-      name: "Design Mockups",
-      id: "Task1-2",
-      progress: 75,
-      type: "task",
-      sprint: "Sprint1",
-      displayOrder: 3,
-    },
-    {
-      start: new Date(currentDate.getFullYear(), currentDate.getMonth(), 11),
-      end: new Date(currentDate.getFullYear(), currentDate.getMonth(), 15),
-      name: "Frontend Development",
-      id: "Task1-3",
-      progress: 20,
-      type: "task",
-      sprint: "Sprint1",
-      displayOrder: 4,
-    },
-    {
-      start: new Date(currentDate.getFullYear(), currentDate.getMonth(), 20),
-      end: new Date(currentDate.getFullYear(), currentDate.getMonth(), 20),
-      name: "Design Approval",
-      id: "Milestone1",
-      progress: 0,
-      type: "milestone",
-      sprint: "Sprint1",
-      displayOrder: 5,
-    },
 
-    // Sprint 2: "Mobile App Development"
-    {
-      start: new Date(currentDate.getFullYear(), currentDate.getMonth(), 8),
-      end: new Date(currentDate.getFullYear(), currentDate.getMonth(), 28),
-      name: "Mobile App Development",
-      id: "Sprint2", // Changed to Sprint ID
-      progress: 10,
-      type: "project",
-      hideChildren: false,
-      displayOrder: 6,
-    },
-    {
-      start: new Date(currentDate.getFullYear(), currentDate.getMonth(), 8),
-      end: new Date(currentDate.getFullYear(), currentDate.getMonth(), 12),
-      name: "Requirements Analysis",
-      id: "Task2-1",
-      progress: 90,
-      type: "task",
-      sprint: "Sprint2",
-      displayOrder: 7,
-    },
-    {
-      start: new Date(currentDate.getFullYear(), currentDate.getMonth(), 13),
-      end: new Date(currentDate.getFullYear(), currentDate.getMonth(), 17),
-      name: "Backend API Design",
-      id: "Task2-2",
-      progress: 30,
-      type: "task",
-      sprint: "Sprint2",
-      displayOrder: 8,
-    },
-    {
-      start: new Date(currentDate.getFullYear(), currentDate.getMonth(), 18),
-      end: new Date(currentDate.getFullYear(), currentDate.getMonth(), 22),
-      name: "UI/UX Design",
-      id: "Task2-3",
-      progress: 10,
-      type: "task",
-      sprint: "Sprint2",
-      displayOrder: 9,
-    },
-      {
-          start: new Date(currentDate.getFullYear(), currentDate.getMonth(), 28),
-          end: new Date(currentDate.getFullYear(), currentDate.getMonth(), 28),
-          name: "Beta Release",
-          id: "Milestone2",
-          progress: 0,
-          type: "milestone",
-          sprint: "Sprint2",
-          displayOrder: 10,
-      },
-
-    // Sprint 3: "Marketing Campaign"
-    {
-      start: new Date(currentDate.getFullYear(), currentDate.getMonth(), 15),
-      end: new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 5),
-      name: "Marketing Campaign",
-      id: "Sprint3", // Changed to Sprint ID
-      progress: 60,
-      type: "project",
-      hideChildren: false,
-      displayOrder: 11,
-    },
-    {
-      start: new Date(currentDate.getFullYear(), currentDate.getMonth(), 15),
-      end: new Date(currentDate.getFullYear(), currentDate.getMonth(), 19),
-      name: "Market Research",
-      id: "Task3-1",
-      progress: 100,
-      type: "task",
-      sprint: "Sprint3",
-      displayOrder: 12,
-    },
-    {
-      start: new Date(currentDate.getFullYear(), currentDate.getMonth(), 20),
-      end: new Date(currentDate.getFullYear(), currentDate.getMonth(), 25),
-      name: "Content Creation",
-      id: "Task3-2",
-      progress: 80,
-      type: "task",
-      sprint: "Sprint3",
-      displayOrder: 13,
-    },
-    {
-      start: new Date(currentDate.getFullYear(), currentDate.getMonth(), 26),
-      end: new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1),
-      name: "Ad Campaign Setup",
-      id: "Task3-3",
-      progress: 40,
-      type: "task",
-      sprint: "Sprint3",
-      displayOrder: 14,
-    },
-    {
-      start: new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 5),
-      end: new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 5),
-      name: "Campaign Launch",
-      id: "Milestone3",
-      progress: 0,
-      type: "milestone",
-      sprint: "Sprint3",
-      displayOrder: 15,
-    },
-  ];
-  return tasks;
-}
-
-const GanttView: React.FC = () => {
-  const [allTasks, setAllTasks] = useState<Task[]>(initTasks()); // Renamed for clarity
+const GanttView: React.FC<GanttViewProps> = ({ projectId }) => {
   const [isCreateTaskOpen, setIsCreateTaskOpen] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>(ViewMode.Week);
-  // NEW: State for selected sprint
-  const [selectedSprintId, setSelectedSprintId] = useState<string | null>("Sprint1"); // Default to Sprint1
+  const [selectedSprintId, setSelectedSprintId] = useState<string | undefined>(undefined);
 
-  // Filter tasks based on selected sprint
-  const filteredTasks = useMemo(() => {
-    if (!selectedSprintId) {
-      // If no sprint is selected, show only top-level sprints
-      return allTasks.filter(task => task.type === "project");
-    }
-    // Get the selected sprint itself
-    const sprint = allTasks.find(task => task.id === selectedSprintId);
-    if (!sprint) return []; // Should not happen if selectedSprintId is valid
+  // --- USE THE HOOK TO FETCH DATA ---
+  const { ganttTasks, sprintFilterOptions, loading, error, refetchGanttData } = useGanttData(projectId, selectedSprintId);
+  // ----------------------------------
 
-    // Filter tasks: include the selected sprint (project type) and its direct children
-    return allTasks.filter(task =>
-      task.id === selectedSprintId || task.sprint === selectedSprintId
-    );
-  }, [allTasks, selectedSprintId]);
-
-  // Derive available sprints for the dropdown
-  const availableSprints = useMemo(() => {
-    return allTasks.filter(task => task.type === "project");
-  }, [allTasks]);
-
+  // --- ALL HOOKS MUST BE CALLED UNCONDITIONALLY AT THE TOP LEVEL ---
   const dynamicColumnWidth = useMemo(() => {
     switch (viewMode) {
       case ViewMode.Day: return 150;
@@ -242,78 +70,112 @@ const GanttView: React.FC = () => {
     }
   }, [viewMode]);
 
-  const handleAddTask = (newTask: Task) => {
-    if(newTask.type !== "project"){
-        newTask.sprint = newTask.sprint || undefined; // Changed 'project' to 'sprint'
-    } else {
-        // Top-level "sprint" tasks (type: "project") don't have a 'sprint' property
-        newTask.sprint = undefined;
-    }
-    setAllTasks([...allTasks, newTask]);
-    setIsCreateTaskOpen(false);
-  };
+  // Handle updates to tasks (date, progress, etc.)
+  // Using useCallback for event handlers passed to child components or props that don't change frequently
+  const handleTaskChange = useCallback((task: GanttTaskReact) => {
+    // In a real app, this would trigger a GraphQL mutation to update the backend.
+    // After the mutation, you'd refetch or update the Apollo cache.
+    // For now, we'll just log and suggest refetching.
+    console.log("Task changed (client-side mock):", task);
+    // Ideally, dispatch a mutation here:
+    // `updateTaskMutation({ variables: { id: task.id, startDate: task.start, endDate: task.end, progress: task.progress } })`
+    // And then `refetchGanttData()` or manage cache.
+    // refetchGanttData(); // Uncomment this line if you want to refetch on every change
+  }, []); // Dependencies might include mutation functions if they were defined here
 
-  const handleTaskChange = (task: Task) => {
-    let newTasks = allTasks.map(t => (t.id === task.id ? task : t));
-
-    // If task has a sprint, update the sprint's dates if necessary
-    if (task.sprint) {
-      const [start, end] = getStartEndDateForSprint(newTasks, task.sprint); // Changed to getStartEndDateForSprint
-      const sprintParent = newTasks[newTasks.findIndex(t => t.id === task.sprint)];
-      if (
-        sprintParent.start.getTime() !== start.getTime() ||
-        sprintParent.end.getTime() !== end.getTime()
-      ) {
-        const changedSprint = { ...sprintParent, start, end };
-        newTasks = newTasks.map(t =>
-          t.id === task.sprint ? changedSprint : t
-        );
-      }
-    }
-    setAllTasks(newTasks);
-    console.log("On date change Id:" + task.id);
-  };
-
-  const handleTaskDelete = (task: Task) => {
-    const conf = window.confirm("Are you sure about " + task.name + " ?");
+  const handleTaskDelete = useCallback((task: GanttTaskReact) => {
+    const conf = window.confirm("Are you sure you want to delete " + task.name + " ?");
     if (conf) {
-        // If a sprint is deleted, delete all its child tasks too
-        if (task.type === "project") { // 'project' type is now 'sprint' parent
-            setAllTasks(allTasks.filter(t => t.id !== task.id && t.sprint !== task.id));
-        } else {
-            setAllTasks(allTasks.filter(t => t.id !== task.id));
-        }
+      // In a real app, this would trigger a GraphQL mutation to delete the backend.
+      console.log("Task deleted (client-side mock):", task.id);
+      // Ideally, dispatch a mutation here:
+      // `deleteTaskMutation({ variables: { id: task.id } })`
+      // And then `refetchGanttData()` or manage cache.
+      refetchGanttData(); // Refetch to show changes
     }
     return conf;
-  };
+  }, [refetchGanttData]); // Add refetchGanttData to dependencies if it's stable or memoized
 
-  const handleProgressChange = (task: Task) => {
-    setAllTasks(allTasks.map(t => (t.id === task.id ? task : t)));
-    console.log("On progress change Id:" + task.id);
-  };
+  const handleProgressChange = useCallback((task: GanttTaskReact) => {
+    // In a real app, this would trigger a GraphQL mutation to update progress.
+    console.log("Progress changed (client-side mock):", task.id, task.progress);
+    // refetchGanttData(); // Uncomment this line if you want to refetch on every change
+  }, []); // Dependencies might include mutation functions if they were defined here
 
-  const handleDoubleClick = (task: Task) => {
-    alert("Double clicked task: " + task.name);
-  };
+  const handleDoubleClick = useCallback((task: GanttTaskReact) => {
+    alert("Double clicked task: " + task.name + " (ID: " + task.id + ")");
+    // Open a detailed view/modal for the task
+  }, []);
+
+  // Callback to add a new task from the modal
+  const handleAddTask = useCallback((newTaskData: Omit<CustomGanttTask, 'id' | 'start' | 'end'> & { start: Date, end: Date }) => {
+    // In a real app, you would dispatch a GraphQL mutation here.
+    // The modal's TaskForm gives dates as Date objects. Convert to ISO strings for mutation.
+    const mutationVariables = {
+      projectId: projectId, // Passed to TaskForm if creating a new task, or can be derived for an existing sprint
+      sprintId: newTaskData.sprint,
+      name: newTaskData.name,
+      description: newTaskData.description,
+      startDate: newTaskData.start.toISOString(),
+      endDate: newTaskData.end.toISOString(),
+      // status, priority, assignee etc. need to be handled
+      // For simplicity, this client-side mock just refetches.
+    };
+    console.log("Attempting to add task (client-side mock):", mutationVariables);
+    setIsCreateTaskOpen(false);
+    refetchGanttData(); // Refetch to show changes after adding (once backend handles it)
+  }, [projectId, refetchGanttData]); // Dependencies might include mutation functions if they were defined here
+
+  // --- Conditional Renders (after all hooks are called) ---
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[calc(100vh-64px)] bg-muted/30">
+        <Loader2 className="h-10 w-10 animate-spin text-teal-500" />
+        <p className="ml-4 text-lg text-slate-700">Loading Gantt data...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-[calc(100vh-64px)] bg-red-100 text-red-700 p-4">
+        <p className="text-lg">Error loading Gantt data: {error.message}</p>
+      </div>
+    );
+  }
+
+  if (!ganttTasks || ganttTasks.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-64px)] bg-muted/30 p-8 text-center">
+        <h2 className="text-3xl font-bold text-foreground mb-4">No Gantt Data Found</h2>
+        <p className="text-muted-foreground leading-relaxed max-w-xl mb-8">
+          It looks like there are no tasks or sprints for this project. Start by adding a new task!
+        </p>
+        <Button onClick={() => setIsCreateTaskOpen(true)} className="bg-[#4ab5ae] text-white h-9 rounded-md">
+          + Add Task
+        </Button>
+      </div>
+    );
+  }
+
 
   return (
     <div className="relative px-6">
-
       <div className="flex items-center gap-3 py-6">
-      <Button onClick={() => setIsCreateTaskOpen(true)} className="bg-[#4ab5ae] text-white h-9 rounded-md">
-        + Add task
-      </Button>
+        <Button onClick={() => setIsCreateTaskOpen(true)} className="bg-[#4ab5ae] text-white h-9 rounded-md">
+          + Add task
+        </Button>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" className="h-9 rounded-md gap-2 bg-transparent">
-              {selectedSprintId ? availableSprints.find(s => s.id === selectedSprintId)?.name : "All Sprints"} <ChevronDown className="h-4 w-4 text-muted-foreground" />
+              {selectedSprintId ? sprintFilterOptions.find(s => s.id === selectedSprintId)?.name : "All Sprints"} <ChevronDown className="h-4 w-4 text-muted-foreground" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start">
             <DropdownMenuLabel>Sprints</DropdownMenuLabel>
-            <DropdownMenuItem onClick={() => setSelectedSprintId(null)}>All Sprints</DropdownMenuItem> {/* Option to view all */}
+            <DropdownMenuItem onClick={() => setSelectedSprintId(undefined)}>All Sprints</DropdownMenuItem> {/* Option to view all */}
             <DropdownMenuSeparator />
-            {availableSprints.map(sprint => (
+            {sprintFilterOptions.map(sprint => (
                 <DropdownMenuItem key={sprint.id} onClick={() => setSelectedSprintId(sprint.id)}>
                     {sprint.name}
                 </DropdownMenuItem>
@@ -321,12 +183,12 @@ const GanttView: React.FC = () => {
           </DropdownMenuContent>
         </DropdownMenu>
 
-        {/* View Mode Button Group - QuarterYear removed */}
+        {/* View Mode Button Group */}
         <div className="flex rounded-md shadow-sm ml-4" role="group">
             <Button
                 variant={viewMode === ViewMode.Day ? "default" : "outline"}
                 onClick={() => setViewMode(ViewMode.Day)}
-                className="rounded-r-none h-9" // Changed to rounded-r-none for first button
+                className="rounded-r-none h-9"
             >
                 Day
             </Button>
@@ -347,7 +209,7 @@ const GanttView: React.FC = () => {
             <Button
                 variant={viewMode === ViewMode.Year ? "default" : "outline"}
                 onClick={() => setViewMode(ViewMode.Year)}
-                className="rounded-l-none h-9 border-l-0" // Changed to rounded-l-none for last button
+                className="rounded-l-none h-9 border-l-0"
             >
                 Year
             </Button>
@@ -362,13 +224,13 @@ const GanttView: React.FC = () => {
       <div className="overflow-x-auto">
         {isCreateTaskOpen && (
             <RightSideModal onClose={() => setIsCreateTaskOpen(false)}>
-                {/* Pass allTasks to TaskForm so it can select sprints */}
-                <TaskForm onAddTask={handleAddTask} onClose={() => setIsCreateTaskOpen(false)} allTasks={allTasks} />
+                {/* Pass available sprints to TaskForm for selection */}
+                <TaskForm onAddTask={handleAddTask} onClose={() => setIsCreateTaskOpen(false)} availableSprints={sprintFilterOptions} currentProjectId={projectId} />
             </RightSideModal>
         )}
 
         <Gantt
-            tasks={filteredTasks} 
+            tasks={ganttTasks}
             viewMode={viewMode}
             onDateChange={handleTaskChange}
             onDelete={handleTaskDelete}
@@ -411,43 +273,57 @@ const RightSideModal: React.FC<RightSideModalProps> = ({ children, onClose }) =>
 
 
 interface TaskFormProps {
-  onAddTask: (task: Task) => void;
+  onAddTask: (task: Omit<CustomGanttTask, 'id' | 'start' | 'end'> & { id?: string, start: Date, end: Date }) => void; // Adjusted to allow ID for updates
   onClose: () => void;
-  allTasks: Task[];
+  availableSprints: SprintGanttFilterOption[]; // Pass available sprints from hook
+  currentProjectId: string; // Pass current project ID for new task creation
 }
 
-const TaskForm: React.FC<TaskFormProps> = ({ onAddTask, onClose, allTasks }) => {
+const TaskForm: React.FC<TaskFormProps> = ({ onAddTask, onClose, availableSprints, currentProjectId }) => {
   const [name, setName] = useState("");
   const [start, setStart] = useState<Date>(new Date());
   const [end, setEnd] = useState<Date>(new Date());
   const [progress, setProgress] = useState(0);
-  const [type, setType] = useState<"task" | "milestone" | "project">("task"); // 'project' type for sprints
-  const [sprint, setSprint] = useState<string | undefined>(undefined); // Changed 'project' to 'sprint'
+  const [type, setType] = useState<"task" | "milestone" | "project">("task");
+  const [sprintId, setSprintId] = useState<string | undefined>(undefined); // Renamed from 'sprint' to 'sprintId' for clarity
+
+  // Set default sprint if available
+  useEffect(() => {
+    if (availableSprints.length > 0 && !sprintId) {
+      setSprintId(availableSprints[0].id);
+    }
+  }, [availableSprints, sprintId]);
+
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    const newTask: Task = {
+    if (!name.trim() || !start || !end) {
+      alert("Please fill in name, start date, and end date.");
+      return;
+    }
+
+    const newTaskData: Omit<CustomGanttTask, 'id' | 'start' | 'end'> & { id?: string, start: Date, end: Date } = {
       start: start,
       end: end,
       name: name,
-      id: `Task ${Date.now()}`,
+      // id: `client-task-${Date.now()}`, // ID will be generated by backend
       type: type,
       progress: progress,
-      sprint: type === "project" ? undefined : sprint, // Set sprint for tasks/milestones, not for top-level sprints
+      // Only set sprintId for tasks/milestones
+      sprint: type === "project" ? undefined : sprintId,
+      projectId: currentProjectId, // Add projectId to the data sent for creation
+      // description, assignee, etc. would also be here
     };
 
-    onAddTask(newTask);
+    onAddTask(newTaskData);
     setName("");
     setStart(new Date());
     setEnd(new Date());
     setProgress(0);
     setType("task");
-    setSprint(undefined);
+    setSprintId(undefined);
   };
-
-  // Filter for available sprints
-  const availableSprintsForSelection = allTasks.filter(t => t.type === "project");
 
   return (
     <div className="space-y-4">
@@ -473,21 +349,21 @@ const TaskForm: React.FC<TaskFormProps> = ({ onAddTask, onClose, allTasks }) => 
           <select id="taskType" value={type} onChange={(e) => setType(e.target.value as "task" | "milestone" | "project")} className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md border">
             <option value="task">Task</option>
             <option value="milestone">Milestone</option>
-            <option value="project">Sprint</option> {/* Changed text from Project to Sprint */}
+            <option value="project">Sprint</option>
           </select>
         </div>
-        {type !== "project" && ( // Only show sprint selection if it's a task or milestone
+        {type !== "project" && (
             <div>
                 <label htmlFor="sprintSelect" className="block text-sm font-medium text-gray-700">Sprint:</label>
                 <select
                     id="sprintSelect"
-                    value={sprint || ""}
-                    onChange={(e) => setSprint(e.target.value)}
+                    value={sprintId || ""}
+                    onChange={(e) => setSprintId(e.target.value)}
                     className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md border"
                 >
                     <option value="">No Sprint</option>
-                    {availableSprintsForSelection.map(sprintTask => (
-                        <option key={sprintTask.id} value={sprintTask.id}>{sprintTask.name}</option>
+                    {availableSprints.map(sprintOption => (
+                        <option key={sprintOption.id} value={sprintOption.id}>{sprintOption.name}</option>
                     ))}
                 </select>
             </div>

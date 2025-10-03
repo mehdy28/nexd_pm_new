@@ -38,90 +38,74 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 
-const seed: Column[] = [
-  {
-    id: "col-1",
-    title: "Backlog",
-    cards: [
-      { id: "c-1", title: "Create a new feed page", priority: "Medium", due: "May 31", points: 13 },
-      { id: "c-2", title: "Create a new card design", priority: "Low", due: "May 19", points: 3 },
-    ],
-  },
-  {
-    id: "col-2",
-    title: "Ready",
-    cards: [
-      { id: "c-3", title: "Fix the auth system", priority: "High", due: "Tomorrow", points: 7 },
-      { id: "c-4", title: "Create a document system", priority: "High", due: "Tomorrow", points: 13 },
-      { id: "c-5", title: "Create wireframe system", priority: "High", due: "Tomorrow", points: 13 },
-    ],
-  },
-  {
-    id: "col-3",
-    title: "In Progress",
-    cards: [
-      { id: "c-6", title: "Random task", priority: "Medium", due: "May 22", points: 12 },
-      { id: "c-7", title: "Another random task", priority: "High", due: "May 23", points: 3 },
-      { id: "c-8", title: "The TASK", priority: "High", due: "May 21", points: 8 },
-    ],
-  },
-  {
-    id: "col-4",
-    title: "Done",
-    cards: [
-      { id: "c-9", title: "This", priority: "High", due: "May 20", points: 6 },
-      { id: "c-10", title: "Is", priority: "Medium", due: "May 20", points: 4 },
-      { id: "c-11", title: "Random", priority: "High", due: "May 20", points: 20 },
-    ],
-  },
-]
+// Removed the 'seed' mock data
 
 type CardOverlay = { kind: "card"; card: Card; width?: number; height?: number }
 type ColumnOverlay = { kind: "column"; column: Column; width?: number; height?: number }
 type OverlayState = CardOverlay | ColumnOverlay | null
 
 interface KanbanBoardProps {
-  projectId?: string
+  projectId?: string;
+  initialColumns: Column[]; // New prop for initial data
+  sprintOptions: { id: string; name: string }[]; // New prop for sprint options
+  currentSprintId?: string | null; // New prop for current sprint
+  onSprintChange: (sprintId: string | null) => void; // New prop for changing sprint
+  onColumnsChange: (newColumns: Column[]) => void; // New callback for when columns change
 }
 
-export function KanbanBoard({ projectId }: KanbanBoardProps) {
-  const [columns, setColumns] = useState<Column[]>(() => {
-    // In real implementation, load project-specific columns
-    return seed
-  })
-  // `collapsed` state was related to `sections`, which are removed.
-  // If you intend to have collapsible columns, this state would need to be re-integrated.
-  // const [collapsed, setCollapsed] = useState<Record<string, boolean>>({}) 
-  // `sections` state is removed as it's not used in this context.
-  // const [sections, setSections] = useState<Section[]>(initial)
+export function KanbanBoard({
+  projectId,
+  initialColumns,
+  sprintOptions,
+  currentSprintId,
+  onSprintChange,
+  onColumnsChange,
+}: KanbanBoardProps) {
+  // Initialize columns state with initialColumns prop
+  const [columns, setColumns] = useState<Column[]>(initialColumns);
+
+  // Effect to update internal columns state when initialColumns prop changes
+  // This is crucial for when the parent hook fetches new data (e.g., sprint changes)
+  useEffect(() => {
+    // Only update if initialColumns is a different reference or has truly changed content
+    // Deep comparison might be needed here if initialColumns reference changes but content doesn't.
+    // For now, assuming Apollo's memoization handles this for `initialColumns` from `useProjectTasksAndSections`.
+    setColumns(initialColumns);
+  }, [initialColumns]);
+
+
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [selected, setSelected] = useState<{ columnId: string; cardId: string } | null>(null)
   const [overlay, setOverlay] = useState<OverlayState>(null)
-  const [sprint, setSprint] = useState("Sprint 1") // Kept as it's used for the dropdown
 
-  const nextCol = useRef(5)
-  const nextCard = useRef(12)
+  // Use the currentSprintId prop for the displayed sprint
+  const displaySprintName = sprintOptions.find(s => s.id === currentSprintId)?.name || "Select Sprint";
+
+  const nextCol = useRef(5) // Still useful for new client-side columns
+  const nextCard = useRef(12) // Still useful for new client-side cards
   const rowRef = useRef<HTMLDivElement | null>(null)
-
-  // `useEffect` for "app:add-section" is removed as `addSection` and `sections` are removed.
-  // useEffect(() => {
-  //   const handler = () => addColumn()
-  //   window.addEventListener("app:add-section" as any, handler as any)
-  //   return () => window.removeEventListener("app:add-section" as any, handler as any)
-  // }, [])
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
 
+  // Helper to update columns and then call the parent's onColumnsChange callback
+  const updateColumnsState = (updater: (prev: Column[]) => Column[]) => {
+    setColumns((prev) => {
+      const newCols = updater(prev);
+      onColumnsChange(newCols); // Notify parent of the change
+      return newCols;
+    });
+  };
+
   function addColumn() {
-    const id = `col-${nextCol.current++}`
-    const col: Column = { id, title: "New Section", editing: true, cards: [] }
-    setColumns((prev) => [...prev, col])
+    const id = `col-${nextCol.current++}` // Simple ID generation, consider UUID for real apps
+    const col: Column = { id, title: "New Column", editing: true, cards: [] }
+    updateColumnsState((prev) => [...prev, col])
     setTimeout(() => rowRef.current?.scrollTo({ left: rowRef.current.scrollWidth, behavior: "smooth" }), 0)
   }
 
   function addCard(columnId: string) {
-    const id = `c-${nextCard.current++}`
-    setColumns((prev) =>
+    const id = `c-${nextCard.current++}` // Simple ID generation, consider UUID for real apps
+    updateColumnsState((prev) =>
       prev.map((c) =>
         c.id === columnId ? { ...c, cards: [{ id, title: "New Task", editing: true }, ...c.cards] } : c,
       ),
@@ -129,24 +113,16 @@ export function KanbanBoard({ projectId }: KanbanBoardProps) {
   }
 
   function updateColumn(columnId: string, patch: Partial<Column>) {
-    setColumns((prev) => prev.map((c) => (c.id === columnId ? { ...c, ...patch } : c)))
+    updateColumnsState((prev) => prev.map((c) => (c.id === columnId ? { ...c, ...patch } : c)))
   }
 
   function updateCard(columnId: string, cardId: string, patch: Partial<Card>) {
-    setColumns((prev) =>
+    updateColumnsState((prev) =>
       prev.map((c) =>
         c.id === columnId ? { ...c, cards: c.cards.map((k) => (k.id === cardId ? { ...k, ...patch } : k)) } : c,
       ),
     )
   }
-
-  // `addSection` function is removed as `sections` state is removed.
-  // function addSection() {
-  //   const id = `sec-${Date.now()}`
-  //   setSections((prev) => [{ id, title: "New Section", tasks: [], editing: true }, ...prev])
-  //   setCollapsed((prev) => ({ ...prev, [id]: false }))
-  // }
-
 
   function openDrawer(columnId: string, cardId: string) {
     setSelected({ columnId, cardId })
@@ -183,7 +159,7 @@ export function KanbanBoard({ projectId }: KanbanBoardProps) {
         setOverlay(null)
         return
       }
-      setColumns((prev) => {
+      updateColumnsState((prev) => {
         const next = [...prev]
         const [moved] = next.splice(fromIndex, 1)
         next.splice(toIndex, 0, moved)
@@ -229,7 +205,7 @@ export function KanbanBoard({ projectId }: KanbanBoardProps) {
         return
       }
 
-      setColumns((prev) => {
+      updateColumnsState((prev) => {
         const next = prev.map((c) => ({ ...c, cards: [...c.cards] }))
         const fromCol = next.find((c) => c.id === fromColumnId)!
         const toCol = next.find((c) => c.id === toColumnId)!
@@ -277,27 +253,38 @@ export function KanbanBoard({ projectId }: KanbanBoardProps) {
   return (
     <div className="page-scroller">
       <div className="flex items-center  pr-6 pl-6 pt-3 gap-3">
-        {/* Changed `addSection` to `addColumn` for consistency with current implementation */}
         <Button onClick={addColumn} className="bg-[#4ab5ae] text-white h-9 rounded-md">
           + Add column
         </Button>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" className="h-9 rounded-md gap-2 bg-transparent">
-              {sprint} <ChevronDown className="h-4 w-4 text-muted-foreground" />
+              {displaySprintName} <ChevronDown className="h-4 w-4 text-muted-foreground" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start">
             <DropdownMenuLabel>Sprints</DropdownMenuLabel>
-            <DropdownMenuItem onClick={() => setSprint("Sprint 1")}>Sprint 1</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setSprint("Sprint 2")}>Sprint 2</DropdownMenuItem>
+            {sprintOptions.length > 0 ? (
+              <>
+                {sprintOptions.map((sprint) => (
+                  <DropdownMenuItem key={sprint.id} onClick={() => onSprintChange(sprint.id)}>
+                    {sprint.name}
+                  </DropdownMenuItem>
+                ))}
+                 <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => onSprintChange(null)}>
+                  All Sprints
+                </DropdownMenuItem>
+              </>
+            ) : (
+              <DropdownMenuItem disabled>No Sprints Available</DropdownMenuItem>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
         <div className="ml-auto relative w-[260px]">
           <Input className="h-9" placeholder="Search tasks..." />
         </div>
       </div>
-
 
       <DndContext
         sensors={sensors}
@@ -379,10 +366,6 @@ export function KanbanBoard({ projectId }: KanbanBoardProps) {
                 <div className="text-sm font-semibold">{overlay.column.title}</div>
               </div>
               <div className="column-body">
-                {/* lightweight preview rows */}
-                <div className="card">Card A</div>
-                <div className="card">Card B</div>
-                <div className="card">Card C</div>
               </div>
             </div>
           ) : null}

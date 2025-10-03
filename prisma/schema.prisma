@@ -230,9 +230,27 @@ model Sprint {
   project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   tasks Task[] // Tasks belonging to this sprint
+  milestones Milestone[] 
 
   @@map("sprints")
 }
+
+model Milestone {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  dueDate     DateTime
+  isCompleted Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  sprintId    String
+  sprint      Sprint   @relation(fields: [sprintId], references: [id], onDelete: Cascade)
+
+  @@map("milestones")
+}
+
+
 
 // New model: Section for a project
 model Section {
@@ -246,7 +264,6 @@ model Section {
 
   tasks Task[] // Tasks belonging to this section
 
-  @@unique([projectId, name]) // Section names must be unique within a project
   @@map("sections")
 }
 
@@ -278,6 +295,10 @@ model Task {
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
 
+  // New fields for points and completion percentage
+  points             Int?    // Optional field for points, e.g., for Scrum stories or epics
+  completionPercentage Float? // Optional field for tracking progress, 0.0 to 100.0
+
   // Relationships for project tasks
   projectId  String?
   sprintId   String?  // New: for project tasks, nullable
@@ -287,9 +308,9 @@ model Task {
   section    Section? @relation(fields: [sectionId], references: [id], onDelete: SetNull) // If section is deleted, tasks remain but lose section
 
   // Relationships for personal tasks
-  personalUserId    String? // Original userId renamed for clarity for personal tasks
+  personalUserId      String? // Original userId renamed for clarity for personal tasks
   personalWorkspaceId String? // New: Workspace for personal tasks
-  personalSectionId String? // New: for personal tasks, nullable
+  personalSectionId   String? // New: for personal tasks, nullable
   personalUser        User?     @relation("UserPersonalTasks", fields: [personalUserId], references: [id], onDelete: Cascade)
   personalWorkspace   Workspace? @relation("WorkspacePersonalTasks", fields: [personalWorkspaceId], references: [id], onDelete: SetNull) // Link personal task to workspace
   personalSection     PersonalSection? @relation(fields: [personalSectionId], references: [id], onDelete: SetNull) // Link personal task to personal section

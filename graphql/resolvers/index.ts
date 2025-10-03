@@ -2,6 +2,8 @@ import { userResolver } from "./userResolver"
 import setupResolver from "./setupResolver"
 import workspaceResolver from "./workspaceResolver"
 import projectResolver from "./projectResolver"
+import projectSectionResolver from "./projectSectionResolver"
+
 
 export const resolvers = {
   Query: {
@@ -14,5 +16,6 @@ export const resolvers = {
     ...setupResolver.Mutation,
     ...userResolver.Mutation,
     ...projectResolver.Mutation,
+    ...projectSectionResolver.Mutation,
   },
 }

@@ -2,12 +2,22 @@
 # Enums
 # ----------------------------------
 
+enum TaskStatusGQL { # Your TaskStatus enum from Prisma
+  TODO
+  DONE
+}
+
+enum PriorityGQL { # Your Priority enum from Prisma
+  LOW
+  MEDIUM
+  HIGH
+}
+
 enum SprintStatus { # New enum for Sprint status
   PLANNING
   ACTIVE
   COMPLETED
 }
-
 
 enum UserRole {
   ADMIN
@@ -87,6 +97,8 @@ enum ActivityType {
 # ----------------------------------
 # Models
 # ----------------------------------
+
+
 type User {
   id: ID!
   email: String!
@@ -172,8 +184,6 @@ type Project {
   sprints: [Sprint!]!    # New: Sprints for the project
   sections: [Section!]!  # New: Sections for the project
 
-
-
   projectMemberCount: Int!
   totalTaskCount: Int!
   completedTaskCount: Int!
@@ -201,17 +211,6 @@ type Sprint {
   tasks: [Task!]! # Tasks belonging to this sprint
 }
 
-# New model: Section for a project
-type Section {
-  id: ID!
-  name: String!
-  order: Int!
-  createdAt: String!
-  updatedAt: String!
-  project: Project!
-  tasks: [Task!]! # Tasks belonging to this section
-}
-
 # New model: PersonalSection for a user's personal tasks
 type PersonalSection {
   id: ID!
@@ -234,6 +233,10 @@ type Task {
   endDate: String
   createdAt: String!
   updatedAt: String!
+
+  # New fields for points and completion percentage
+  points: Int
+  completionPercentage: Float
 
   # Relationships for project tasks
   project: Project
@@ -389,17 +392,11 @@ type WorkspaceData {
   projects: [ProjectData!]!
 }
 
-
-
-
-
-
 type WorkspaceMemberData {
   id: ID! # This is the WorkspaceMember ID
   role: WorkspaceRole!
   user: UserPartial! # Partial user data
 }
-
 
 type UserPartial {
   id: ID!
@@ -407,7 +404,6 @@ type UserPartial {
   firstName: String
   lastName: String
 }
-
 
 type ProjectData {
   id: ID!
@@ -418,11 +414,6 @@ type ProjectData {
   totalTaskCount: Int!
   completedTaskCount: Int!
 }
-
-
-
-
-
 
 type ProjectMemberDetails { # For ProjectDetails, more detailed than WorkspaceMemberData
   id: ID! # ProjectMember ID
@@ -439,14 +430,37 @@ type UserFullDetails { # More detailed user info
   # Add other relevant user fields
 }
 
-type SprintDetails {
+# --- NEW TYPES FOR GANTT VIEW QUERY ---
+type GanttTaskData { # Custom type to match Gantt library's Task structure
+  id: ID!
+  name: String!
+  start: String! # ISO Date string
+  end: String!   # ISO Date string
+  progress: Int!
+  type: String!  # "task", "milestone", "project" (for sprint parents)
+  sprint: ID     # The ID of the parent sprint (if type is task/milestone)
+  hideChildren: Boolean
+  displayOrder: Int
+  # Add other relevant fields if you have them in Task/Milestone (e.g., description, assignee)
+  description: String
+  assignee: UserAvatarPartial
+}
+
+type GanttDataResponse {
+  sprints: [SprintNameId!]! # List of sprints for filter dropdown
+  tasks: [GanttTaskData!]! # Flattened list of tasks/milestones for Gantt chart
+}
+
+type SprintDetails { # Update SprintDetails type
   id: ID!
   name: String!
   description: String
   startDate: String!
   endDate: String!
   isCompleted: Boolean!
-  status: SprintStatus! # Computed status
+  status: SprintStatus!
+  tasks: [TaskListView!]! # Tasks directly under this sprint
+  milestones: [Milestone!]! # NEW: Milestones directly under this sprint
 }
 
 # You might also consider an ActivityDetails type if you uncomment it
@@ -457,7 +471,6 @@ type SprintDetails {
 #   createdAt: String!
 #   user: UserFullDetails!
 # }
-
 
 type ProjectDetails { # New type to represent the comprehensive data for a single project page
   id: ID!
@@ -479,12 +492,86 @@ type ProjectDetails { # New type to represent the comprehensive data for a singl
   # activities: [ActivityDetails!]! # Uncomment if needed
 }
 
+type UserFullDetails {
+  id: ID!
+  email: String!
+  firstName: String
+  lastName: String
+  avatar: String # Added avatar
+}
+
+type UserAvatarPartial { # For assignee in tasks, similar to UserFullDetails but named for context
+  id: ID!
+  firstName: String
+  lastName: String
+  avatar: String
+}
+
+type SprintNameId { # For the dropdown filter
+  id: ID!
+  name: String!
+}
+
+type TaskListView { # Simplified Task type for list view
+  id: ID!
+  title: String!
+  description: String
+  status: TaskStatusGQL! # Mapped from Prisma TaskStatus
+  priority: PriorityGQL!
+  dueDate: String # YYYY-MM-DD
+  points: Int       # Added points field
+  completionPercentage: Float # Added completionPercentage field
+  assignee: UserAvatarPartial # Assignee details
+}
+
+type SectionWithTasks { # For project sections
+  id: ID!
+  name: String!
+  tasks: [TaskListView!]!
+}
+
+type PersonalSectionWithTasks { # For personal sections
+  id: ID!
+  name: String!
+  tasks: [TaskListView!]!
+}
+
+type ProjectTasksAndSectionsData {
+  sprints: [SprintNameId!]!
+  sections: [SectionWithTasks!]!
+  personalSections: [PersonalSectionWithTasks!]!
+}
+
+type Milestone { # New type for Milestones
+  id: ID!
+  name: String!
+  description: String
+  dueDate: String! # ISO Date string
+  isCompleted: Boolean!
+  createdAt: String!
+  updatedAt: String!
+  sprint: SprintDetails! # Assuming SprintDetails is comprehensive enough, or SprintNameId
+}
 
 
 
+input DeleteSectionOptions {
+  deleteTasks: Boolean! # True to delete tasks, false to reassign
+  reassignToSectionId: ID # Required if deleteTasks is false
+}
 
 
 
+# New model: Section for a project
+type Section {
+  id: ID!
+  name: String!
+  order: Int!
+  createdAt: String!
+  updatedAt: String!
+  project: Project!
+  tasks: [Task!]! # Tasks belonging to this section
+}
 
 
 
@@ -493,12 +580,14 @@ type ProjectDetails { # New type to represent the comprehensive data for a singl
 # Root Queries
 # ----------------------------------
 type Query {
+  getGanttData(projectId: ID!, sprintId: ID): GanttDataResponse # NEW Query
+
+  getProjectTasksAndSections(projectId: ID!, sprintId: ID): ProjectTasksAndSectionsData
 
   getProjectDetails(projectId: ID!): ProjectDetails
 
   getWorkspaceData: WorkspaceData # New query
   me: User
-
 }
 
 # ----------------------------------
@@ -506,26 +595,30 @@ type Query {
 # ----------------------------------
 type Mutation {
 
+
+  deleteProjectSection(id: ID!, options: DeleteSectionOptions): Section! # Updated mutation
+
+  createProjectSection(projectId: ID!, name: String!, order: Int): Section! # New mutation
+  updateProjectSection(id: ID!, name: String, order: Int): Section! # New mutation
+
   createUser(email: String!, password: String, firstName: String, lastName: String, role: UserRole): User! # Added password to creation
-  
+
   setupWorkspace(
-      userId: ID!
-      workspaceName: String!
-      workspaceDescription: String
-      projectName: String!
-      projectDescription: String
-      industry: String
-      teamSize: String
-      workFields: [String!]
-    ): Workspace! # Returns the created Workspace
+    userId: ID!
+    workspaceName: String!
+    workspaceDescription: String
+    projectName: String!
+    projectDescription: String
+    industry: String
+    teamSize: String
+    workFields: [String!]
+  ): Workspace! # Returns the created Workspace
 
-
-
-    createProject(
-      workspaceId: ID!
-      name: String!
-      description: String
-    ): Project! # Returns the created Project
+  createProject(
+    workspaceId: ID!
+    name: String!
+    description: String
+  ): Project! # Returns the created Project
 }
 
 # ----------------------------------

@@ -147,6 +147,224 @@ export const projectResolver = {
         throw error;
       }
     },
+
+    getProjectTasksAndSections: async (_parent: unknown, args: GetProjectTasksAndSectionsArgs, context: GraphQLContext) => {
+      log("[getProjectTasksAndSections Query]", "called with args:", args);
+
+      if (!context.user?.id) {
+        log("[getProjectTasksAndSections Query]", "No authenticated user found in context.");
+        throw new Error("Authentication required: No user ID found in context.");
+      }
+
+      const { projectId, sprintId } = args;
+      const userId = context.user.id;
+
+      try {
+        // 1. Verify user access to the project
+        const projectMember = await prisma.projectMember.findFirst({
+          where: { projectId: projectId, userId: userId },
+        });
+
+        if (!projectMember) {
+          log("[getProjectTasksAndSections Query]", `User ${userId} is not a member of project ${projectId}. Access denied.`);
+          throw new Error("Access Denied: You are not a member of this project.");
+        }
+        log("[getProjectTasksAndSections Query]", `Access granted for user ${userId} to project ${projectId}.`);
+
+        // 2. Fetch all Sprints for the project (for the dropdown filter)
+        const projectSprints = await prisma.sprint.findMany({
+          where: { projectId: projectId },
+          select: { id: true, name: true },
+          orderBy: { startDate: 'asc' },
+        });
+        log("[getProjectTasksAndSections Query]", `Fetched ${projectSprints.length} sprints for project ${projectId}.`);
+
+        // 3. Define base task filtering
+        const taskWhereClause: any = {
+          projectId: projectId,
+          // If a sprintId is provided, filter tasks by it
+          ...(sprintId && { sprintId: sprintId }),
+        };
+
+        // 4. Fetch Project Sections with their filtered tasks
+        const projectSections = await prisma.section.findMany({
+          where: { projectId: projectId },
+          orderBy: { order: 'asc' }, // Order sections if you want a specific display order
+          include: {
+            tasks: {
+              where: taskWhereClause,
+              include: {
+                assignee: {
+                  select: { id: true, firstName: true, lastName: true, avatar: true },
+                },
+              },
+              orderBy: { createdAt: 'desc' }, // Or by due date, priority etc.
+            },
+          },
+        });
+        log("[getProjectTasksAndSections Query]", `Fetched ${projectSections.length} project sections.`);
+
+
+
+        // 6. Transform the data for the GraphQL response
+        const transformedProjectSections = projectSections.map(section => ({
+          id: section.id,
+          name: section.name,
+          tasks: section.tasks.map(task => ({
+            id: task.id,
+            title: task.title,
+            description: task.description,
+            status: task.status,
+            priority: task.priority,
+            dueDate: task.dueDate?.toISOString().split('T')[0] || null, // Format date to YYYY-MM-DD
+            points: 0, // Placeholder for 'points' - add to Prisma Task model if needed
+            assignee: task.assignee ? {
+              id: task.assignee.id,
+              firstName: task.assignee.firstName,
+              lastName: task.assignee.lastName,
+              avatar: task.assignee.avatar,
+            } : null,
+          })),
+        }));
+
+
+
+
+        const result = {
+          sprints: projectSprints,
+          sections: transformedProjectSections,
+        };
+
+        log("[getProjectTasksAndSections Query]", "Tasks and sections fetched successfully.", result);
+        return result;
+
+      } catch (error) {
+        log("[getProjectTasksAndSections Query]", "Error fetching project tasks and sections:", error);
+        throw error;
+      }
+    },
+
+
+    getGanttData: async (_parent: unknown, args: GetGanttDataArgs, context: GraphQLContext) => {
+      log("[getGanttData Query]", "called with args:", args);
+
+      if (!context.user?.id) {
+        log("[getGanttData Query]", "No authenticated user found in context.");
+        throw new Error("Authentication required: No user ID found in context.");
+      }
+
+      const { projectId, sprintId } = args;
+      const userId = context.user.id;
+
+      try {
+        // 1. Verify user access to the project
+        const projectMember = await prisma.projectMember.findFirst({
+          where: { projectId: projectId, userId: userId },
+        });
+
+        if (!projectMember) {
+          log("[getGanttData Query]", `User ${userId} is not a member of project ${projectId}. Access denied.`);
+          throw new Error("Access Denied: You are not a member of this project.");
+        }
+        log("[getGanttData Query]", `Access granted for user ${userId} to project ${projectId}.`);
+
+        // 2. Fetch all Sprints for the project (for the dropdown filter)
+        const projectSprints = await prisma.sprint.findMany({
+          where: { projectId: projectId },
+          select: { id: true, name: true, startDate: true, endDate: true, isCompleted: true },
+          orderBy: { startDate: 'asc' },
+        });
+        log("[getGanttData Query]", `Fetched ${projectSprints.length} sprints for project ${projectId}.`);
+
+        const ganttTasks: any[] = [];
+        let displayOrder = 1;
+
+        // Determine which sprints to process based on sprintId filter
+        const sprintsToProcess = sprintId
+          ? projectSprints.filter(s => s.id === sprintId)
+          : projectSprints;
+
+        for (const sprint of sprintsToProcess) {
+          // Add the sprint itself as a 'project' type task in Gantt
+          ganttTasks.push({
+            id: sprint.id,
+            name: sprint.name,
+            start: sprint.startDate.toISOString(),
+            end: sprint.endDate.toISOString(),
+            progress: sprint.isCompleted ? 100 : 0, // Simplified progress for sprint
+            type: "project",
+            hideChildren: false,
+            displayOrder: displayOrder++,
+            description: sprint.description,
+          });
+
+          // Fetch Tasks for the current sprint
+          const tasks = await prisma.task.findMany({
+            where: { sprintId: sprint.id },
+            include: {
+              assignee: {
+                select: { id: true, firstName: true, lastName: true, avatar: true },
+              },
+            },
+            orderBy: { startDate: 'asc' },
+          });
+
+          for (const task of tasks) {
+            ganttTasks.push({
+              id: task.id,
+              name: task.title,
+              start: task.startDate ? task.startDate.toISOString() : sprint.startDate.toISOString(), // Fallback to sprint start
+              end: task.endDate ? task.endDate.toISOString() : task.dueDate?.toISOString() || sprint.endDate.toISOString(), // Fallback to due or sprint end
+              progress: task.status === 'DONE' ? 100 : (task.status === 'TODO' ? 50 : 0), // Basic progress
+              type: "task",
+              sprint: sprint.id, // Link to parent sprint
+              displayOrder: displayOrder++,
+              description: task.description,
+              assignee: task.assignee ? {
+                id: task.assignee.id,
+                firstName: task.assignee.firstName,
+                lastName: task.assignee.lastName,
+                avatar: task.assignee.avatar,
+              } : null,
+            });
+          }
+
+          // Fetch Milestones for the current sprint
+          const milestones = await prisma.milestone.findMany({
+            where: { sprintId: sprint.id },
+            orderBy: { dueDate: 'asc' },
+          });
+
+          for (const milestone of milestones) {
+            ganttTasks.push({
+              id: milestone.id,
+              name: milestone.name,
+              start: milestone.dueDate.toISOString(), // Milestones are points in time
+              end: milestone.dueDate.toISOString(),
+              progress: milestone.isCompleted ? 100 : 0,
+              type: "milestone",
+              sprint: sprint.id, // Link to parent sprint
+              displayOrder: displayOrder++,
+              description: milestone.description,
+              // Milestones typically don't have assignees, but could if your schema allows
+              assignee: null,
+            });
+          }
+        }
+
+        const result = {
+          sprints: projectSprints.map(s => ({ id: s.id, name: s.name })), // Only ID and name for filter dropdown
+          tasks: ganttTasks,
+        };
+
+        log("[getGanttData Query]", "Gantt data fetched and transformed successfully.", result);
+        return result;
+
+      } catch (error) {
+        log("[getGanttData Query]", "Error fetching Gantt data:", error);
+        throw error;
+      }
+    },
   },
   Mutation: {
     // Existing createProject mutation
@@ -268,3 +486,10 @@ export const projectResolver = {
 };
 
 export default projectResolver;
+
+
+
+
+
+
+
