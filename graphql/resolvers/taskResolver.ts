@@ -1,179 +1,4 @@
-// // graphql/resolvers/taskResolver.ts
-
-// import { prisma } from "@/lib/prisma";
-// import { TaskStatus, Priority } from "@prisma/client";
-
-// function log(prefix: string, message: string, data?: any) {
-//   const timestamp = new Date().toISOString();
-//   if (data !== undefined) {
-//     console.log(`${timestamp} ${prefix} ${message}`, data);
-//   } else {
-//     console.log(`${timestamp} ${prefix} ${message}`);
-//   }
-// }
-
-// interface GraphQLContext {
-//   prisma: typeof prisma;
-//   user?: { id: string; email: string; role: string };
-// }
-
-// // ... (existing CreateProjectTaskInput and UpdateProjectTaskInput interfaces) ...
-
-// // **REVISED UpdateProjectTaskInput interface** for clarity with optional vs. nullable
-// interface UpdateProjectTaskInput {
-//   id: string;
-//   title?: string | null;       // optional, can be set to null
-//   description?: string | null;  // optional, can be set to null
-//   status?: TaskStatus;         // optional
-//   priority?: Priority;         // optional
-//   dueDate?: string | null;     // optional, can be set to null (for "clear date")
-//   startDate?: string | null;   // optional, can be set to null
-//   endDate?: string | null;     // optional, can be set to null
-//   assigneeId?: string | null;  // optional, can be set to null (for "unassign")
-//   sprintId?: string | null;    // optional, can be set to null (for "remove from sprint")
-//   points?: number | null;      // optional, can be set to null (for "clear points")
-//   parentId?: string | null;    // optional, can be set to null
-// }
-
-// // REMOVE: export const taskResolver: IResolvers<any, GraphQLContext> = {
-// export const taskResolver = { // Define as a plain object
-//   Mutation: {
-//     // ... (existing createProjectTask mutation) ...
-
-//     updateProjectTask: async (_parent: unknown, args: { input: UpdateProjectTaskInput }, context: GraphQLContext) => {
-//       log("[updateProjectTask Mutation]", "called with input:", args.input);
-
-//       if (!context.user?.id) {
-//         log("[updateProjectTask Mutation]", "No authenticated user found in context.");
-//         throw new Error("Authentication required: No user ID found in context.");
-//       }
-
-//       const userId = context.user.id;
-//       const { id: taskId, ...updates } = args.input;
-
-//       try {
-//         // 1. Fetch existing task and verify user access
-//         const existingTask = await prisma.task.findUnique({
-//           where: { id: taskId },
-//           select: {
-//             id: true,
-//             projectId: true,
-//             project: { select: { members: { where: { userId: userId }, select: { userId: true } } } },
-//             // Include existing relationships if needed for validation of new values
-//             assigneeId: true,
-//             sprintId: true,
-//             sectionId: true,
-//           },
-//         });
-
-//         if (!existingTask) {
-//           log("[updateProjectTask Mutation]", `Task with ID ${taskId} not found.`);
-//           throw new Error(`Task with ID ${taskId} not found.`);
-//         }
-//         if (!existingTask.project || existingTask.project.members.length === 0) {
-//           log("[updateProjectTask Mutation]", `User ${userId} is not a member of the project owning task ${taskId}. Access denied.`);
-//           throw new Error("Access Denied: You are not authorized to update this task.");
-//         }
-//         log("[updateProjectTask Mutation]", `Access granted for user ${userId} to update task ${taskId}.`);
-
-//         // 2. Validate relationships if they are being updated (and not being set to null)
-//         if (updates.sectionId !== undefined && updates.sectionId !== null) { // Only validate if changing and not nulling
-//           const section = await prisma.section.findUnique({ where: { id: updates.sectionId } });
-//           if (!section || section.projectId !== existingTask.projectId) {
-//             log("[updateProjectTask Mutation]", `Updated section ${updates.sectionId} not found or doesn't belong to project ${existingTask.projectId}.`);
-//             throw new Error("Invalid section provided for update.");
-//           }
-//         }
-//         if (updates.sprintId !== undefined && updates.sprintId !== null) {
-//           const sprint = await prisma.sprint.findUnique({ where: { id: updates.sprintId } });
-//           if (!sprint || sprint.projectId !== existingTask.projectId) {
-//             log("[updateProjectTask Mutation]", `Updated sprint ${updates.sprintId} not found or doesn't belong to project ${existingTask.projectId}.`);
-//             throw new Error("Invalid sprint provided for update.");
-//           }
-//         }
-//         if (updates.assigneeId !== undefined && updates.assigneeId !== null) {
-//           const assigneeMember = await prisma.projectMember.findUnique({
-//             where: {
-//               projectId_userId: { projectId: existingTask.projectId, userId: updates.assigneeId }
-//             },
-//           });
-//           if (!assigneeMember) {
-//             log("[updateProjectTask Mutation]", `Updated assignee ${updates.assigneeId} is not a member of project ${existingTask.projectId}.`);
-//             throw new Error("Assignee is not a member of this project.");
-//           }
-//         }
-
-//         // 3. Prepare data for update, mapping date strings to Date objects or null
-//         const dataToUpdate: any = {};
-//         for (const key in updates) {
-//           if (Object.prototype.hasOwnProperty.call(updates, key)) {
-//             const value = (updates as any)[key];
-
-//             // If the value is undefined, it means the field was not provided in the input, so we skip it.
-//             // If the value is explicitly null, it means we want to set it to null in the DB.
-//             // If the value is defined and not null, we use it.
-//             if (value !== undefined) {
-//               if (key === 'dueDate' || key === 'startDate' || key === 'endDate') {
-//                 dataToUpdate[key] = value ? new Date(value) : null;
-//               } else {
-//                 dataToUpdate[key] = value;
-//               }
-//             }
-//           }
-//         }
-
-//         // 4. Perform the update
-//         const updatedTask = await prisma.task.update({
-//           where: { id: taskId },
-//           data: dataToUpdate,
-//           include: {
-//             assignee: {
-//               select: { id: true, firstName: true, lastName: true, avatar: true },
-//             },
-//           },
-//         });
-//         log("[updateProjectTask Mutation]", "Task updated successfully:", { id: updatedTask.id, title: updatedTask.title, updates: dataToUpdate });
-
-//         // Transform and return the task
-//         return {
-//           id: updatedTask.id,
-//           title: updatedTask.title,
-//           description: updatedTask.description,
-//           status: updatedTask.status,
-//           priority: updatedTask.priority,
-//           dueDate: updatedTask.dueDate?.toISOString().split('T')[0] || null,
-//           points: updatedTask.points,
-//           completed: updatedTask.status === 'DONE',
-//           assignee: updatedTask.assignee ? {
-//             id: updatedTask.assignee.id,
-//             firstName: updatedTask.assignee.firstName,
-//             lastName: updatedTask.assignee.lastName,
-//             avatar: updatedTask.assignee.avatar,
-//           } : null,
-//         };
-
-//       } catch (error) {
-//         log("[updateProjectTask Mutation]", "Error updating project task:", error);
-//         throw error;
-//       }
-//     },
-
-//     // ... (existing deleteProjectTask mutation) ...
-//   },
-//   // ... (existing TaskListView resolver, if you had one. Make sure its fields are typed correctly) ...
-// };
-
-// export default taskResolver;
-
-
-
-
-
-
-
-
 import { prisma } from "@/lib/prisma";
-// REMOVE THIS LINE: import { IResolvers } from 'graphql-tools';
 import { TaskStatus, Priority } from "@prisma/client"; // Import Prisma enums
 
 function log(prefix: string, message: string, data?: any) {
@@ -451,6 +276,83 @@ export const taskResolver = {
 
       } catch (error) {
         log("[updateProjectTask Mutation]", "Error updating project task:", error);
+        throw error;
+      }
+    },
+
+    // NEW: deleteProjectTask Mutation
+    deleteProjectTask: async (_parent: unknown, args: { id: string }, context: GraphQLContext) => {
+      log("[deleteProjectTask Mutation]", "called with ID:", args.id);
+
+      if (!context.user?.id) {
+        log("[deleteProjectTask Mutation]", "No authenticated user found in context.");
+        throw new Error("Authentication required: No user ID found in context.");
+      }
+
+      const userId = context.user.id;
+      const taskId = args.id;
+
+      try {
+        // 1. Fetch existing task and verify user access
+        const existingTask = await prisma.task.findUnique({
+          where: { id: taskId },
+          select: {
+            id: true,
+            projectId: true,
+            project: { select: { members: { where: { userId: userId }, select: { userId: true } } } },
+          },
+        });
+
+        if (!existingTask) {
+          log("[deleteProjectTask Mutation]", `Task with ID ${taskId} not found.`);
+          throw new Error(`Task with ID ${taskId} not found.`);
+        }
+        if (!existingTask.project || existingTask.project.members.length === 0) {
+          log("[deleteProjectTask Mutation]", `User ${userId} is not a member of the project owning task ${taskId}. Access denied.`);
+          throw new Error("Access Denied: You are not authorized to delete this task.");
+        }
+        log("[deleteProjectTask Mutation]", `Access granted for user ${userId} to delete task ${taskId}.`);
+
+        // 2. Delete the Task
+        const deletedTask = await prisma.task.delete({
+          where: { id: taskId },
+          select: { // Select enough fields to satisfy the TaskListView return type, even if empty
+            id: true,
+            title: true,
+            description: true,
+            status: true,
+            priority: true,
+            dueDate: true,
+            points: true,
+            assignee: { select: { id: true, firstName: true, lastName: true, avatar: true } },
+            sectionId: true,
+            sprintId: true,
+          }
+        });
+        log("[deleteProjectTask Mutation]", "Task deleted successfully:", { id: deletedTask.id, title: deletedTask.title });
+
+        // Transform and return the deleted task (minimal data is fine for deletion response)
+        return {
+          id: deletedTask.id,
+          title: deletedTask.title,
+          description: deletedTask.description,
+          status: deletedTask.status,
+          priority: deletedTask.priority,
+          dueDate: deletedTask.dueDate?.toISOString().split('T')[0] || null,
+          points: deletedTask.points,
+          completed: deletedTask.status === 'DONE', // Always true if it was done, but often just placeholder for deleted
+          assignee: deletedTask.assignee ? {
+            id: deletedTask.assignee.id,
+            firstName: deletedTask.assignee.firstName,
+            lastName: deletedTask.assignee.lastName,
+            avatar: deletedTask.assignee.avatar,
+          } : null,
+          sectionId: deletedTask.sectionId,
+          sprintId: deletedTask.sprintId,
+        };
+
+      } catch (error) {
+        log("[deleteProjectTask Mutation]", "Error deleting project task:", error);
         throw error;
       }
     },

@@ -652,7 +652,7 @@ type Mutation {
   
   createProjectTask(input: CreateProjectTaskInput!): TaskListView! # New mutation
   updateProjectTask(input: UpdateProjectTaskInput!): TaskListView! # New mutation
-
+  deleteProjectTask(id: ID!): TaskListView! # NEW: Mutation to delete a task
   deleteProjectSection(id: ID!, options: DeleteSectionOptions): Section! # Updated mutation
 
   createProjectSection(projectId: ID!, name: String!, order: Int): Section! # New mutation

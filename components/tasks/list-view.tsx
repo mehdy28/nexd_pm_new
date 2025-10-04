@@ -125,14 +125,19 @@ export function ListView({ projectId }: ListViewProps) {
   const [newTask, setNewTask] = useState<Record<string, NewTaskForm>>({});
   const [isSectionMutating, setIsSectionMutating] = useState(false); // To disable section buttons during mutation
 
-  // State for delete confirmation modal
-  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  // State for delete section confirmation modal
+  const [deleteSectionModalOpen, setDeleteSectionModalOpen] = useState(false);
   const [sectionToDelete, setSectionToDelete] = useState<SectionUI | null>(null);
   const [deleteTasksConfirmed, setDeleteTasksConfirmed] = useState(false);
   const [reassignToSectionOption, setReassignToSectionOption] = useState<string | null>(null);
 
+  // NEW: State for delete task confirmation modal
+  const [deleteTaskModalOpen, setDeleteTaskModalOpen] = useState(false);
+  const [taskToDelete, setTaskToDelete] = useState<{ sectionId: string; task: TaskUI } | null>(null);
+
   // Ref for the custom modal for focus management
   const customModalRef = useRef<HTMLDivElement>(null);
+  const customTaskModalRef = useRef<HTMLDivElement>(null); // NEW: Ref for task modal
 
 
   // Memoized lists/objects
@@ -247,8 +252,10 @@ export function ListView({ projectId }: ListViewProps) {
     if (updates.points !== undefined && updates.points !== originalTask.points) mutationInput.points = updates.points;
     if (updates.due !== undefined && updates.due !== originalTask.due) mutationInput.dueDate = updates.due;
     if (updates.assignee !== undefined && updates.assignee?.id !== originalTask.assignee?.id) mutationInput.assigneeId = updates.assignee?.id || null;
-    if (updates.completed !== undefined && (updates.completed ? 'DONE' : 'TODO') !== originalTask.status) {
-      mutationInput.status = updates.completed ? 'DONE' : 'TODO';
+    // For status, check against original.status (which is 'TODO' or 'DONE')
+    const newStatus = updates.completed !== undefined ? (updates.completed ? 'DONE' : 'TODO') : undefined;
+    if (newStatus !== undefined && newStatus !== originalTask.status) {
+      mutationInput.status = newStatus;
     }
     // Add sprintId update here if needed (e.g., if task could be moved to another sprint from sheet)
     // if (updates.sprintId !== undefined && updates.sprintId !== originalTask.sprintId) mutationInput.sprintId = updates.sprintId;
@@ -265,8 +272,8 @@ export function ListView({ projectId }: ListViewProps) {
               tasks: s.tasks.map((t) => (t.id === taskId ? { ...t, ...updates } : t)),
             }
           : s,
-      ),
-    );
+    ),
+  );
 
     // Only send mutation if there are actual updates
     if (Object.keys(mutationInput).length > 1) { // 1 because 'id' is always present
@@ -279,24 +286,38 @@ export function ListView({ projectId }: ListViewProps) {
     }
   }, [sections, updateTaskMutation]);
 
-  const deleteTask = useCallback(async (sectionId: string, taskId: string) => {
+  // OLD: deleteTask handler - now opens modal
+  const openDeleteTaskModal = useCallback((sectionId: string, task: TaskUI) => {
+    setTaskToDelete({ sectionId, task });
+    setDeleteTaskModalOpen(true);
+  }, []);
+
+  // NEW: handler for confirming task deletion from modal
+  const handleConfirmTaskDelete = useCallback(async () => {
+    if (!taskToDelete) return;
+
     // Optimistic update
     setSections((prev) =>
-      prev.map((s) => (s.id === sectionId ? { ...s, tasks: s.tasks.filter((t) => t.id !== taskId) } : s)),
+      prev.map((s) =>
+        s.id === taskToDelete.sectionId ? { ...s, tasks: s.tasks.filter((t) => t.id !== taskToDelete.task.id) } : s,
+      ),
     );
     setSelected((prev) => {
       const copy = { ...prev };
-      delete copy[taskId];
+      delete copy[taskToDelete.task.id];
       return copy;
     });
 
     try {
-      await deleteTaskMutation(taskId); // Hook handles refetch
+      await deleteTaskMutation(taskToDelete.task.id); // Hook handles refetch
     } catch (err) {
       console.error("Failed to delete task:", err);
       // Revert optimistic update on error (complex)
+    } finally {
+      setDeleteTaskModalOpen(false);
+      setTaskToDelete(null);
     }
-  }, [deleteTaskMutation]);
+  }, [taskToDelete, deleteTaskMutation]);
 
 
   const allTaskIds = useMemo(() => {
@@ -482,16 +503,16 @@ export function ListView({ projectId }: ListViewProps) {
     });
   }, [fetchedSections]);
 
-  const handleOpenDeleteModal = useCallback((section: SectionUI) => {
+  const handleOpenDeleteSectionModal = useCallback((section: SectionUI) => {
     setSectionToDelete(section);
     setDeleteTasksConfirmed(false);
     const availableOtherSections = sections.filter(s => s.id !== section.id);
     const defaultReassignId = availableOtherSections[0]?.id || null;
     setReassignToSectionOption(defaultReassignId);
-    setDeleteModalOpen(true);
+    setDeleteSectionModalOpen(true);
   }, [sections]);
 
-  const handleConfirmDelete = useCallback(async () => {
+  const handleConfirmDeleteSection = useCallback(async () => {
     if (!sectionToDelete) return;
 
     setIsSectionMutating(true);
@@ -516,7 +537,7 @@ export function ListView({ projectId }: ListViewProps) {
       console.error("Failed to delete section:", err);
     } finally {
       setIsSectionMutating(false);
-      setDeleteModalOpen(false); // Crucial to close modal
+      setDeleteSectionModalOpen(false); // Crucial to close modal
       setSectionToDelete(null);
       setDeleteTasksConfirmed(false);
       setReassignToSectionOption(null);
@@ -525,10 +546,19 @@ export function ListView({ projectId }: ListViewProps) {
 
   // Effect for focusing the custom modal when it opens
   useEffect(() => {
-    if (deleteModalOpen && customModalRef.current) {
+    if (deleteSectionModalOpen && customModalRef.current) {
       customModalRef.current.focus();
     }
-  }, [deleteModalOpen]);
+  }, [deleteSectionModalOpen]);
+
+
+  // NEW: Effect for focusing the custom task modal when it opens
+  useEffect(() => {
+    if (deleteTaskModalOpen && customTaskModalRef.current) {
+      customTaskModalRef.current.focus();
+    }
+  }, [deleteTaskModalOpen]);
+
 
   // --- END: All Hooks declared unconditionally ---
 
@@ -673,7 +703,7 @@ export function ListView({ projectId }: ListViewProps) {
                         </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => handleOpenDeleteModal(section)} className="text-red-600">
+                        <DropdownMenuItem onClick={() => handleOpenDeleteSectionModal(section)} className="text-red-600">
                             <Trash2 className="h-4 w-4 mr-2" /> Delete Section
                         </DropdownMenuItem>
                     </DropdownMenuContent>
@@ -693,7 +723,7 @@ export function ListView({ projectId }: ListViewProps) {
                     onToggleCompleted={() => toggleTaskCompleted(section.id, task.id)}
                     onChange={(updates) => updateTask(section.id, task.id, updates)} // Keep for inline edits
                     onOpen={() => openSheetFor(section.id, task.id)}
-                    onDelete={() => deleteTask(section.id, task.id)}
+                    onDelete={() => openDeleteTaskModal(section.id, task)} 
                     assignees={availableAssignees}
                   />
                 ))}
@@ -998,7 +1028,7 @@ export function ListView({ projectId }: ListViewProps) {
         </SheetContent>
       </Sheet>
       {/* Custom Delete Section Confirmation Modal (replaces AlertDialog) */}
-      {sectionToDelete && deleteModalOpen && (
+      {sectionToDelete && deleteSectionModalOpen && (
         <div
           ref={customModalRef}
           role="alertdialog"
@@ -1008,7 +1038,7 @@ export function ListView({ projectId }: ListViewProps) {
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
           onClick={(e) => { // Close when clicking outside content
             if (e.target === e.currentTarget) {
-              setDeleteModalOpen(false);
+              setDeleteSectionModalOpen(false);
               setSectionToDelete(null);
               setDeleteTasksConfirmed(false);
               setReassignToSectionOption(null);
@@ -1016,7 +1046,7 @@ export function ListView({ projectId }: ListViewProps) {
           }}
           onKeyDown={(e) => { // Close on Escape key
             if (e.key === "Escape") {
-              setDeleteModalOpen(false);
+              setDeleteSectionModalOpen(false);
               setSectionToDelete(null);
               setDeleteTasksConfirmed(false);
               setReassignToSectionOption(null);
@@ -1099,7 +1129,7 @@ export function ListView({ projectId }: ListViewProps) {
                 variant="outline"
                 className="mt-2 sm:mt-0"
                 onClick={() => {
-                  setDeleteModalOpen(false);
+                  setDeleteSectionModalOpen(false);
                   setSectionToDelete(null);
                   setDeleteTasksConfirmed(false);
                   setReassignToSectionOption(null);
@@ -1110,13 +1140,75 @@ export function ListView({ projectId }: ListViewProps) {
               </Button>
               <Button
                 className="bg-red-600 hover:bg-red-700 text-white"
-                onClick={handleConfirmDelete}
+                onClick={handleConfirmDeleteSection}
                 disabled={isSectionMutating || (sectionToDelete.tasks.length > 0 && !deleteTasksConfirmed && !reassignToSectionOption)}
               >
                 {isSectionMutating ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
                   "Delete Section"
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* NEW: Custom Delete Task Confirmation Modal */}
+      {taskToDelete && deleteTaskModalOpen && (
+        <div
+          ref={customTaskModalRef} // Assign ref here
+          role="alertdialog"
+          aria-labelledby="delete-task-title"
+          aria-describedby="delete-task-description"
+          tabIndex={-1} // Make it focusable
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+          onClick={(e) => { // Close when clicking outside content
+            if (e.target === e.currentTarget) {
+              setDeleteTaskModalOpen(false);
+              setTaskToDelete(null);
+            }
+          }}
+          onKeyDown={(e) => { // Close on Escape key
+            if (e.key === "Escape") {
+              setDeleteTaskModalOpen(false);
+              setTaskToDelete(null);
+            }
+          }}
+        >
+          <div className="w-full max-w-sm rounded-lg border bg-white p-6 shadow-lg sm:rounded-xl">
+            {/* Modal Header */}
+            <div className="flex flex-col space-y-2 text-center sm:text-left">
+              <h2 id="delete-task-title" className="text-lg font-semibold text-foreground">
+                Delete Task "{taskToDelete.task.title}"?
+              </h2>
+              <p id="delete-task-description" className="text-sm text-muted-foreground">
+                Are you sure you want to delete this task? This action cannot be undone.
+              </p>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="mt-4 flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2">
+              <Button
+                variant="outline"
+                className="mt-2 sm:mt-0"
+                onClick={() => {
+                  setDeleteTaskModalOpen(false);
+                  setTaskToDelete(null);
+                }}
+                disabled={isTaskMutating}
+              >
+                Cancel
+              </Button>
+              <Button
+                className="bg-red-600 hover:bg-red-700 text-white"
+                onClick={handleConfirmTaskDelete}
+                disabled={isTaskMutating}
+              >
+                {isTaskMutating ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  "Delete Task"
                 )}
               </Button>
             </div>
@@ -1156,7 +1248,7 @@ interface TaskRowProps {
   onToggleCompleted: () => void;
   onChange: (updates: Partial<TaskUI>) => void;
   onOpen: () => void;
-  onDelete: () => void;
+  onDelete: () => void; // This will now open the modal
   assignees: UserAvatarPartial[];
 }
 
@@ -1167,7 +1259,7 @@ function TaskRow({
   onToggleCompleted,
   onChange,
   onOpen,
-  onDelete,
+  onDelete, // This function now triggers the modal
   assignees,
 }: TaskRowProps) {
   const Icon = task.completed ? CheckCircle2 : Circle;
@@ -1297,7 +1389,7 @@ function TaskRow({
           variant="ghost"
           size="icon"
           className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
-          onClick={onDelete}
+          onClick={onDelete} // This now triggers the modal
           title="Delete task"
         >
           <Trash2 className="h-4 w-4" />
