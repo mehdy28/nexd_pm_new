@@ -3,7 +3,7 @@ import setupResolver from "./setupResolver"
 import workspaceResolver from "./workspaceResolver"
 import projectResolver from "./projectResolver"
 import projectSectionResolver from "./projectSectionResolver"
-
+import taskResolver from "./taskResolver"
 
 export const resolvers = {
   Query: {
@@ -17,5 +17,7 @@ export const resolvers = {
     ...userResolver.Mutation,
     ...projectResolver.Mutation,
     ...projectSectionResolver.Mutation,
+    ...taskResolver.Mutation,
+
   },
 }

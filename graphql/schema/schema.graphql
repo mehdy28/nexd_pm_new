@@ -233,6 +233,7 @@ type Task {
   endDate: String
   createdAt: String!
   updatedAt: String!
+  completed: Boolean!
 
   # New fields for points and completion percentage
   points: Int
@@ -430,6 +431,8 @@ type UserFullDetails { # More detailed user info
   # Add other relevant user fields
 }
 
+
+
 # --- NEW TYPES FOR GANTT VIEW QUERY ---
 type GanttTaskData { # Custom type to match Gantt library's Task structure
   id: ID!
@@ -522,6 +525,7 @@ type TaskListView { # Simplified Task type for list view
   points: Int       # Added points field
   completionPercentage: Float # Added completionPercentage field
   assignee: UserAvatarPartial # Assignee details
+  completed: Boolean! # Derived field for UI
 }
 
 type SectionWithTasks { # For project sections
@@ -536,11 +540,6 @@ type PersonalSectionWithTasks { # For personal sections
   tasks: [TaskListView!]!
 }
 
-type ProjectTasksAndSectionsData {
-  sprints: [SprintNameId!]!
-  sections: [SectionWithTasks!]!
-  personalSections: [PersonalSectionWithTasks!]!
-}
 
 type Milestone { # New type for Milestones
   id: ID!
@@ -590,11 +589,69 @@ type Query {
   me: User
 }
 
+
+
+# Input type for creating a task
+input CreateProjectTaskInput {
+  projectId: ID!
+  sectionId: ID!
+  title: String!
+  description: String
+  status: TaskStatusGQL
+  priority: PriorityGQL
+  dueDate: String
+  startDate: String
+  endDate: String
+  assigneeId: ID
+  sprintId: ID
+  points: Int
+  parentId: ID # For subtasks, if you implement this in ListView
+}
+
+# Input type for updating a task
+input UpdateProjectTaskInput {
+  id: ID!
+  title: String # Changed from String! to String (optional, not nullable)
+  description: String
+  status: TaskStatusGQL
+  priority: PriorityGQL
+  dueDate: String # Changed to String (optional)
+  startDate: String
+  endDate: String
+  assigneeId: ID # Changed to ID (optional)
+  sprintId: ID # Changed to ID (optional)
+  points: Int # Changed to Int (optional)
+  parentId: ID
+}
+
+
+
+
+
+type ProjectMemberFullDetails { # NEW: For project members list
+  id: ID! # This is the ProjectMember ID
+  role: ProjectRole!
+  user: UserFullDetails!
+}
+
+type ProjectTasksAndSectionsData {
+  sprints: [SprintNameId!]!
+  sections: [SectionWithTasks!]!
+  personalSections: [PersonalSectionWithTasks!]!
+  projectMembers: [ProjectMemberFullDetails!]! # NEW: Project members
+}
+
+
+
 # ----------------------------------
 # Root Mutations (CRUD-style)
 # ----------------------------------
 type Mutation {
 
+
+  
+  createProjectTask(input: CreateProjectTaskInput!): TaskListView! # New mutation
+  updateProjectTask(input: UpdateProjectTaskInput!): TaskListView! # New mutation
 
   deleteProjectSection(id: ID!, options: DeleteSectionOptions): Section! # Updated mutation
 

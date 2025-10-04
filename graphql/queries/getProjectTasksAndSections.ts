@@ -1,25 +1,26 @@
+// graphql/queries/getProjectTasksAndSections.ts
+
 import { gql } from '@apollo/client';
 
 export const GET_PROJECT_TASKS_AND_SECTIONS_QUERY = gql`
   query GetProjectTasksAndSections($projectId: ID!, $sprintId: ID) {
     getProjectTasksAndSections(projectId: $projectId, sprintId: $sprintId) {
-      sprints { # List of all sprints for the dropdown filter
+      sprints {
         id
         name
       }
       sections {
         id
-        name # Maps to title in your UI
+        name
         tasks {
           id
           title
           description
-          status # Maps to completed in your UI
+          status
           priority
-          dueDate # Maps to due in your UI
-          # Assuming you'll add 'points' to the Task model/schema
-          points # Placeholder for Story Points
-          assignee { # Detailed assignee information
+          dueDate
+          points
+          assignee {
             id
             firstName
             lastName
@@ -27,6 +28,19 @@ export const GET_PROJECT_TASKS_AND_SECTIONS_QUERY = gql`
           }
         }
       }
+      # --- NEW: Request projectMembers ---
+      projectMembers {
+        id # ProjectMember ID
+        role # ProjectRole of the member
+        user {
+          id
+          firstName
+          lastName
+          avatar
+          email
+        }
+      }
+      # -----------------------------------
     }
   }
 `;

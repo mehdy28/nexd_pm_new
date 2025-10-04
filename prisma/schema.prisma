@@ -284,56 +284,57 @@ model PersonalSection {
 }
 
 model Task {
-  id          String     @id @default(cuid())
-  title       String
-  description String?
-  status      TaskStatus @default(TODO) // Keep TaskStatus, but actual section dictates visibility
-  priority    Priority   @default(MEDIUM)
-  dueDate     DateTime?
-  startDate   DateTime?
-  endDate     DateTime?
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+  id                   String           @id @default(cuid())
+  title                String
+  description          String?
+  status               TaskStatus       @default(TODO) // Keep TaskStatus, but actual section dictates visibility
+  priority             Priority         @default(MEDIUM)
+  dueDate              DateTime?
+  startDate            DateTime?
+  endDate              DateTime?
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+  completed            Boolean         @default(false) // New field: indicates if the task is completed
 
   // New fields for points and completion percentage
-  points             Int?    // Optional field for points, e.g., for Scrum stories or epics
-  completionPercentage Float? // Optional field for tracking progress, 0.0 to 100.0
+  points               Int?             // Optional field for points, e.g., for Scrum stories or epics
+  completionPercentage Float?           // Optional field for tracking progress, 0.0 to 100.0
 
   // Relationships for project tasks
-  projectId  String?
-  sprintId   String?  // New: for project tasks, nullable
-  sectionId  String?  // New: for project tasks, nullable
-  project    Project? @relation("ProjectTasks", fields: [projectId], references: [id], onDelete: Cascade)
-  sprint     Sprint?  @relation(fields: [sprintId], references: [id], onDelete: SetNull) // If sprint is deleted, tasks remain but lose sprint
-  section    Section? @relation(fields: [sectionId], references: [id], onDelete: SetNull) // If section is deleted, tasks remain but lose section
+  projectId            String?
+  sprintId             String?          // New: for project tasks, nullable
+  sectionId            String?          // New: for project tasks, nullable
+  project              Project?         @relation("ProjectTasks", fields: [projectId], references: [id], onDelete: Cascade)
+  sprint               Sprint?          @relation(fields: [sprintId], references: [id], onDelete: SetNull) // If sprint is deleted, tasks remain but lose sprint
+  section              Section?         @relation(fields: [sectionId], references: [id], onDelete: SetNull) // If section is deleted, tasks remain but lose section
 
   // Relationships for personal tasks
-  personalUserId      String? // Original userId renamed for clarity for personal tasks
-  personalWorkspaceId String? // New: Workspace for personal tasks
-  personalSectionId   String? // New: for personal tasks, nullable
-  personalUser        User?     @relation("UserPersonalTasks", fields: [personalUserId], references: [id], onDelete: Cascade)
-  personalWorkspace   Workspace? @relation("WorkspacePersonalTasks", fields: [personalWorkspaceId], references: [id], onDelete: SetNull) // Link personal task to workspace
-  personalSection     PersonalSection? @relation(fields: [personalSectionId], references: [id], onDelete: SetNull) // Link personal task to personal section
+  personalUserId       String?          // Original userId renamed for clarity for personal tasks
+  personalWorkspaceId  String?          // New: Workspace for personal tasks
+  personalSectionId    String?          // New: for personal tasks, nullable
+  personalUser         User?            @relation("UserPersonalTasks", fields: [personalUserId], references: [id], onDelete: Cascade)
+  personalWorkspace    Workspace?       @relation("WorkspacePersonalTasks", fields: [personalWorkspaceId], references: [id], onDelete: SetNull) // Link personal task to workspace
+  personalSection      PersonalSection? @relation(fields: [personalSectionId], references: [id], onDelete: SetNull) // Link personal task to personal section
 
   // Common relationships (assignee, creator, subtasks, dependencies)
-  assigneeId String?
-  creatorId  String
-  assignee   User?    @relation("TaskAssignee", fields: [assigneeId], references: [id])
-  creator    User     @relation("TaskCreator", fields: [creatorId], references: [id])
+  assigneeId           String?
+  creatorId            String
+  assignee             User?            @relation("TaskAssignee", fields: [assigneeId], references: [id])
+  creator              User             @relation("TaskCreator", fields: [creatorId], references: [id])
 
   // Subtasks
-  parentId String?
-  parent   Task?   @relation("TaskSubtasks", fields: [parentId], references: [id])
-  subtasks Task[]  @relation("TaskSubtasks")
+  parentId             String?
+  parent               Task?            @relation("TaskSubtasks", fields: [parentId], references: [id])
+  subtasks             Task[]           @relation("TaskSubtasks")
 
   // Dependencies
-  dependencies TaskDependency[] @relation("DependentTask")
-  dependents   TaskDependency[] @relation("PrecedingTask")
+  dependencies         TaskDependency[] @relation("DependentTask")
+  dependents           TaskDependency[] @relation("PrecedingTask")
 
   // Collaboration
-  comments   Comment[]
-  activities Activity[]
-  labels     TaskLabel[]
+  comments             Comment[]
+  activities           Activity[]
+  labels               TaskLabel[]
 
   // Ensure either it's a project task OR a personal task, but not both or neither
   // This cannot be enforced directly in Prisma schema, but will be enforced via application logic
