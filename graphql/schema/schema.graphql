@@ -209,6 +209,32 @@ type Sprint {
   updatedAt: String!
   project: Project!
   tasks: [Task!]! # Tasks belonging to this sprint
+  milestones: [Milestone!]!
+}
+
+type Milestone {
+  id: ID!
+  name: String!
+  description: String
+  dueDate: String! # ISO Date string
+  isCompleted: Boolean!
+  createdAt: String!
+  updatedAt: String!
+  sprint: SprintDetails! # Assuming SprintDetails is comprehensive enough, or SprintNameId
+}
+
+
+
+# New model: Section for a project
+type Section {
+  id: ID!
+  name: String!
+  order: Int! # To define the order of sections (e.g., TODO, IN_PROGRESS)
+  createdAt: String!
+  updatedAt: String!
+  project: Project!
+
+  tasks: [Task!]! # Tasks belonging to this section
 }
 
 # New model: PersonalSection for a user's personal tasks
@@ -241,11 +267,11 @@ type Task {
 
   # Relationships for project tasks
   project: Project
-  sprint: Sprint      # New: for project tasks
-  section: Section    # New: for project tasks
+  sprint: Sprint # New: for project tasks
+  section: Section # New: for project tasks
 
   # Relationships for personal tasks
-  personalUser: User  # Original userId renamed for clarity for personal tasks
+  personalUser: User # Original userId renamed for clarity for personal tasks
   personalWorkspace: Workspace # New: Workspace for personal tasks
   personalSection: PersonalSection # New: for personal tasks
 
@@ -274,6 +300,8 @@ type Label {
 }
 
 type TaskLabel {
+  taskId: String!
+  labelId: String!
   task: Task!
   label: Label!
 }
@@ -422,17 +450,6 @@ type ProjectMemberDetails { # For ProjectDetails, more detailed than WorkspaceMe
   user: UserFullDetails! # More user info needed here
 }
 
-type UserFullDetails { # More detailed user info
-  id: ID!
-  email: String!
-  firstName: String
-  lastName: String
-  avatar: String
-  # Add other relevant user fields
-}
-
-
-
 # --- NEW TYPES FOR GANTT VIEW QUERY ---
 type GanttTaskData { # Custom type to match Gantt library's Task structure
   id: ID!
@@ -541,19 +558,6 @@ type PersonalSectionWithTasks { # For personal sections
 }
 
 
-type Milestone { # New type for Milestones
-  id: ID!
-  name: String!
-  description: String
-  dueDate: String! # ISO Date string
-  isCompleted: Boolean!
-  createdAt: String!
-  updatedAt: String!
-  sprint: SprintDetails! # Assuming SprintDetails is comprehensive enough, or SprintNameId
-}
-
-
-
 input DeleteSectionOptions {
   deleteTasks: Boolean! # True to delete tasks, false to reassign
   reassignToSectionId: ID # Required if deleteTasks is false
@@ -562,16 +566,27 @@ input DeleteSectionOptions {
 
 
 # New model: Section for a project
-type Section {
-  id: ID!
-  name: String!
-  order: Int!
-  createdAt: String!
-  updatedAt: String!
-  project: Project!
-  tasks: [Task!]! # Tasks belonging to this section
-}
+# Redundant type definition, as 'Section' is already defined above.
+# This one should be removed or merged if it represents the same concept.
+# I will assume the first 'Section' definition is the correct one.
+# type Section {
+#   id: ID!
+#   name: String!
+#   order: Int!
+#   createdAt: String!
+#   updatedAt: String!
+#   project: Project!
+#   tasks: [Task!]! # Tasks belonging to this section
+# }
 
+
+type ProjectTasksAndSectionsData {
+  sprints: [SprintNameId!]!
+  sections: [SectionWithTasks!]!
+  personalSections: [PersonalSectionWithTasks!]!
+  projectMembers: [ProjectMemberFullDetails!]!
+  defaultSelectedSprintId: ID # NEW: Add this field to the type
+}
 
 
 
@@ -634,15 +649,6 @@ type ProjectMemberFullDetails { # NEW: For project members list
   user: UserFullDetails!
 }
 
-type ProjectTasksAndSectionsData {
-  sprints: [SprintNameId!]!
-  sections: [SectionWithTasks!]!
-  personalSections: [PersonalSectionWithTasks!]!
-  projectMembers: [ProjectMemberFullDetails!]! # NEW: Project members
-}
-
-
-
 # ----------------------------------
 # Root Mutations (CRUD-style)
 # ----------------------------------
@@ -652,7 +658,7 @@ type Mutation {
   
   createProjectTask(input: CreateProjectTaskInput!): TaskListView! # New mutation
   updateProjectTask(input: UpdateProjectTaskInput!): TaskListView! # New mutation
-  deleteProjectTask(id: ID!): TaskListView! # NEW: Mutation to delete a task
+
   deleteProjectSection(id: ID!, options: DeleteSectionOptions): Section! # Updated mutation
 
   createProjectSection(projectId: ID!, name: String!, order: Int): Section! # New mutation
@@ -676,6 +682,8 @@ type Mutation {
     name: String!
     description: String
   ): Project! # Returns the created Project
+
+  deleteProjectTask(id: ID!): TaskListView! # NEW: Mutation to delete a task
 }
 
 # ----------------------------------

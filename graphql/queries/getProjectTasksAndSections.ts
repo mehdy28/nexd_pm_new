@@ -28,10 +28,9 @@ export const GET_PROJECT_TASKS_AND_SECTIONS_QUERY = gql`
           }
         }
       }
-      # --- NEW: Request projectMembers ---
       projectMembers {
-        id # ProjectMember ID
-        role # ProjectRole of the member
+        id
+        role
         user {
           id
           firstName
@@ -40,7 +39,7 @@ export const GET_PROJECT_TASKS_AND_SECTIONS_QUERY = gql`
           email
         }
       }
-      # -----------------------------------
+      defaultSelectedSprintId # NEW: Add this field
     }
   }
 `;

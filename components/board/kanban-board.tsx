@@ -28,7 +28,7 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core"
 import { SortableContext, verticalListSortingStrategy, horizontalListSortingStrategy } from "@dnd-kit/sortable"
-import { ChevronDown } from "lucide-react"
+import { ChevronDown, Loader2, Trash2, EllipsisVertical } from "lucide-react"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -37,20 +37,37 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { cn } from "@/lib/utils";
 
-// Removed the 'seed' mock data
+import { UserAvatarPartial, PriorityUI } from "@/hooks/useProjectTasksAndSections";
 
-type CardOverlay = { kind: "card"; card: Card; width?: number; height?: number }
-type ColumnOverlay = { kind: "column"; column: Column; width?: number; height?: number }
-type OverlayState = CardOverlay | ColumnOverlay | null
+const priorityDot: Record<PriorityUI, string> = {
+  Low: "bg-green-500",
+  Medium: "bg-orange-500",
+  High: "bg-red-500",
+};
+
 
 interface KanbanBoardProps {
-  projectId?: string;
-  initialColumns: Column[]; // New prop for initial data
-  sprintOptions: { id: string; name: string }[]; // New prop for sprint options
-  currentSprintId?: string | null; // New prop for current sprint
-  onSprintChange: (sprintId: string | null) => void; // New prop for changing sprint
-  onColumnsChange: (newColumns: Column[]) => void; // New callback for when columns change
+  projectId: string;
+  initialColumns: Column[];
+  sprintOptions: { id: string; name: string }[];
+  currentSprintId?: string | null;
+  onSprintChange: (sprintId: string | null) => void;
+  onColumnsChange: (newColumns: Column[]) => void;
+
+  onCreateColumn: (title: string) => Promise<void>;
+  onUpdateColumn: (columnId: string, title: string) => Promise<void>;
+  onDeleteColumn: (columnId: string) => Promise<void>;
+
+  onCreateCard: (columnId: string, title: string, description?: string, assigneeId?: string | null) => Promise<void>;
+  onUpdateCard: (columnId: string, cardId: string, updates: Partial<Card>) => Promise<void>;
+  onDeleteCard: (cardId: string) => Promise<void>;
+
+  availableAssignees: UserAvatarPartial[];
+  isMutating: boolean;
 }
 
 export function KanbanBoard({
@@ -60,79 +77,60 @@ export function KanbanBoard({
   currentSprintId,
   onSprintChange,
   onColumnsChange,
+  onCreateColumn,
+  onUpdateColumn,
+  onDeleteColumn,
+  onCreateCard,
+  onUpdateCard,
+  onDeleteCard,
+  availableAssignees,
+  isMutating,
 }: KanbanBoardProps) {
-  // Initialize columns state with initialColumns prop
   const [columns, setColumns] = useState<Column[]>(initialColumns);
-
-  // Effect to update internal columns state when initialColumns prop changes
-  // This is crucial for when the parent hook fetches new data (e.g., sprint changes)
-  useEffect(() => {
-    // Only update if initialColumns is a different reference or has truly changed content
-    // Deep comparison might be needed here if initialColumns reference changes but content doesn't.
-    // For now, assuming Apollo's memoization handles this for `initialColumns` from `useProjectTasksAndSections`.
-    setColumns(initialColumns);
-  }, [initialColumns]);
-
 
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [selected, setSelected] = useState<{ columnId: string; cardId: string } | null>(null)
   const [overlay, setOverlay] = useState<OverlayState>(null)
 
-  // Use the currentSprintId prop for the displayed sprint
-  const displaySprintName = sprintOptions.find(s => s.id === currentSprintId)?.name || "Select Sprint";
-
-  const nextCol = useRef(5) // Still useful for new client-side columns
-  const nextCard = useRef(12) // Still useful for new client-side cards
   const rowRef = useRef<HTMLDivElement | null>(null)
-
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
 
-  // Helper to update columns and then call the parent's onColumnsChange callback
-  const updateColumnsState = (updater: (prev: Column[]) => Column[]) => {
-    setColumns((prev) => {
-      const newCols = updater(prev);
-      onColumnsChange(newCols); // Notify parent of the change
-      return newCols;
-    });
-  };
-
-  function addColumn() {
-    const id = `col-${nextCol.current++}` // Simple ID generation, consider UUID for real apps
-    const col: Column = { id, title: "New Column", editing: true, cards: [] }
-    updateColumnsState((prev) => [...prev, col])
-    setTimeout(() => rowRef.current?.scrollTo({ left: rowRef.current.scrollWidth, behavior: "smooth" }), 0)
-  }
-
-  function addCard(columnId: string) {
-    const id = `c-${nextCard.current++}` // Simple ID generation, consider UUID for real apps
-    updateColumnsState((prev) =>
-      prev.map((c) =>
-        c.id === columnId ? { ...c, cards: [{ id, title: "New Task", editing: true }, ...c.cards] } : c,
-      ),
-    )
-  }
-
-  function updateColumn(columnId: string, patch: Partial<Column>) {
-    updateColumnsState((prev) => prev.map((c) => (c.id === columnId ? { ...c, ...patch } : c)))
-  }
-
-  function updateCard(columnId: string, cardId: string, patch: Partial<Card>) {
-    updateColumnsState((prev) =>
-      prev.map((c) =>
-        c.id === columnId ? { ...c, cards: c.cards.map((k) => (k.id === cardId ? { ...k, ...patch } : k)) } : c,
-      ),
-    )
-  }
-
-  function openDrawer(columnId: string, cardId: string) {
-    setSelected({ columnId, cardId })
-    setDrawerOpen(true)
-  }
+  useEffect(() => {
+    setColumns(initialColumns);
+  }, [initialColumns]);
 
   const activeCard: Card | undefined = useMemo(() => {
     if (!selected) return
     return columns.find((c) => c.id === selected.columnId)?.cards.find((k) => k.id === selected.cardId)
   }, [selected, columns])
+
+  const [editingCardLocal, setEditingCardLocal] = useState<Card | null>(null);
+  useEffect(() => {
+    if (activeCard) {
+      setEditingCardLocal(activeCard);
+    } else {
+      setEditingCardLocal(null);
+    }
+  }, [activeCard]);
+
+
+  const handleSaveDrawerChanges = async () => {
+    if (!selected || !editingCardLocal || !activeCard) return;
+
+    const patch: Partial<Card> = {};
+    if (editingCardLocal.title !== activeCard.title) patch.title = editingCardLocal.title;
+    if (editingCardLocal.description !== activeCard.description) patch.description = editingCardLocal.description;
+    if (editingCardLocal.priority !== activeCard.priority) patch.priority = editingCardLocal.priority;
+    if (editingCardLocal.points !== activeCard.points) patch.points = editingCardLocal.points;
+    if (editingCardLocal.due !== activeCard.due) patch.due = editingCardLocal.due;
+    if (editingCardLocal.assignee?.id !== activeCard.assignee?.id) patch.assignee = editingCardLocal.assignee;
+
+    if (Object.keys(patch).length > 0) {
+      await onUpdateCard(selected.columnId, selected.cardId, patch);
+    }
+    setDrawerOpen(false);
+  };
+
 
   function findColumnIdByCardId(cardId: string) {
     return columns.find((c) => c.cards.some((k) => k.id === cardId))?.id
@@ -140,6 +138,35 @@ export function KanbanBoard({
   function indexOfCard(columnId: string, cardId: string) {
     const col = columns.find((c) => c.id === columnId)
     return col ? col.cards.findIndex((k) => k.id === cardId) : -1
+  }
+
+  function handleDragStart(e: DragStartEvent) {
+    const activeType = e.active.data.current?.type as string | undefined
+    const rect = e.active.rect?.current as any
+
+    if (activeType === "card") {
+      const activeId = String(e.active.id)
+      const fromCol = columns.find((c) => c.cards.some((k) => k.id === activeId))
+      const card = fromCol?.cards.find((k) => k.id === activeId)
+      if (card) {
+        setOverlay({
+          kind: "card",
+          card,
+          width: rect?.width,
+          height: rect?.height,
+        })
+      }
+    } else if (activeType === "column") {
+      const col = columns.find((c) => c.id === String(e.active.id))
+      if (col) {
+        setOverlay({
+          kind: "column",
+          column: col,
+          width: rect?.width,
+          height: rect?.height,
+        })
+      }
+    }
   }
 
   function handleDragEnd(event: DragEndEvent) {
@@ -151,25 +178,25 @@ export function KanbanBoard({
       return
     }
 
-    // Column reordering
     if (activeType === "column") {
       const fromIndex = columns.findIndex((c) => c.id === activeId)
       const toIndex = columns.findIndex((c) => c.id === overId)
       if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) {
         setOverlay(null)
-        return
+        return;
       }
-      updateColumnsState((prev) => {
+
+      setColumns((prev) => {
         const next = [...prev]
         const [moved] = next.splice(fromIndex, 1)
         next.splice(toIndex, 0, moved)
+        onColumnsChange(next);
         return next
       })
-      setOverlay(null)
-      return
+      setOverlay(null);
+      return;
     }
 
-    // Card moving/reordering
     if (activeType === "card") {
       const fromColumnId = findColumnIdByCardId(activeId)
       if (!fromColumnId) {
@@ -205,7 +232,7 @@ export function KanbanBoard({
         return
       }
 
-      updateColumnsState((prev) => {
+      setColumns((prev) => {
         const next = prev.map((c) => ({ ...c, cards: [...c.cards] }))
         const fromCol = next.find((c) => c.id === fromColumnId)!
         const toCol = next.find((c) => c.id === toColumnId)!
@@ -215,6 +242,7 @@ export function KanbanBoard({
         if (fromColumnId === toColumnId && toIndex > fromIndex) insertAt = toIndex - 1
 
         toCol.cards.splice(insertAt, 0, moved)
+        onColumnsChange(next);
         return next
       })
     }
@@ -222,44 +250,22 @@ export function KanbanBoard({
     setOverlay(null)
   }
 
-  function handleDragStart(e: DragStartEvent) {
-    const activeType = e.active.data.current?.type as string | undefined
-    const rect = e.active.rect?.current as any
-    if (activeType === "card") {
-      const activeId = String(e.active.id)
-      const fromCol = columns.find((c) => c.cards.some((k) => k.id === activeId))
-      const card = fromCol?.cards.find((k) => k.id === activeId)
-      if (card) {
-        setOverlay({
-          kind: "card",
-          card,
-          width: rect?.width,
-          height: rect?.height,
-        })
-      }
-    } else if (activeType === "column") {
-      const col = columns.find((c) => c.id === String(e.active.id))
-      if (col) {
-        setOverlay({
-          kind: "column",
-          column: col,
-          width: rect?.width,
-          height: rect?.height,
-        })
-      }
-    }
-  }
+  const currentSprintName = useMemo(() => {
+    return sprintOptions.find(s => s.id === currentSprintId)?.name || "";
+  }, [currentSprintId, sprintOptions]);
 
   return (
     <div className="page-scroller">
       <div className="flex items-center  pr-6 pl-6 pt-3 gap-3">
-        <Button onClick={addColumn} className="bg-[#4ab5ae] text-white h-9 rounded-md">
+        <Button onClick={() => onCreateColumn("New Column")} className="bg-[#4ab5ae] text-white h-9 rounded-md" disabled={isMutating}>
+          {isMutating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
           + Add column
         </Button>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" className="h-9 rounded-md gap-2 bg-transparent">
-              {displaySprintName} <ChevronDown className="h-4 w-4 text-muted-foreground" />
+            <Button variant="outline" className="h-9 rounded-md gap-2 bg-transparent" disabled={isMutating}>
+              {currentSprintName} {/* Directly display the sprint name, which will always be populated */}
+              <ChevronDown className="h-4 w-4 text-muted-foreground" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start">
@@ -267,14 +273,10 @@ export function KanbanBoard({
             {sprintOptions.length > 0 ? (
               <>
                 {sprintOptions.map((sprint) => (
-                  <DropdownMenuItem key={sprint.id} onClick={() => onSprintChange(sprint.id)}>
+                  <DropdownMenuItem key={sprint.id} onClick={() => onSprintChange(sprint.id)} disabled={isMutating}>
                     {sprint.name}
                   </DropdownMenuItem>
                 ))}
-                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => onSprintChange(null)}>
-                  All Sprints
-                </DropdownMenuItem>
               </>
             ) : (
               <DropdownMenuItem disabled>No Sprints Available</DropdownMenuItem>
@@ -282,7 +284,7 @@ export function KanbanBoard({
           </DropdownMenuContent>
         </DropdownMenu>
         <div className="ml-auto relative w-[260px]">
-          <Input className="h-9" placeholder="Search tasks..." />
+          <Input className="h-9" placeholder="Search tasks..." disabled={isMutating} />
         </div>
       </div>
 
@@ -294,18 +296,18 @@ export function KanbanBoard({
         onDragEnd={handleDragEnd}
       >
         <div ref={rowRef} className="columns-scroll" aria-label="Board columns">
-          {/* Columns are sortable horizontally */}
           <SortableContext items={columns.map((c) => c.id)} strategy={horizontalListSortingStrategy}>
             {columns.map((column) => (
               <KanbanSortableColumn
                 key={column.id}
                 column={column}
-                onAddCard={() => addCard(column.id)}
-                onTitleChange={(title) => updateColumn(column.id, { title, editing: false })}
-                onStartTitleEdit={() => updateColumn(column.id, { editing: true })}
-                onStopTitleEdit={() => updateColumn(column.id, { editing: false })}
+                onAddCard={() => onCreateCard(column.id, "New Task")}
+                onTitleChange={(title) => onUpdateColumn(column.id, title)}
+                onStartTitleEdit={() => {}}
+                onStopTitleEdit={() => {}}
+                onDeleteColumn={() => onDeleteColumn(column.id)}
+                isMutating={isMutating}
               >
-                {/* Cards are sortable vertically within each column */}
                 <SortableContext items={column.cards.map((c) => c.id)} strategy={verticalListSortingStrategy}>
                   {column.cards.map((card) => (
                     <KanbanSortableCard
@@ -313,8 +315,13 @@ export function KanbanBoard({
                       columnId={column.id}
                       card={card}
                       onOpen={() => !card.editing && openDrawer(column.id, card.id)}
-                      onStartInline={() => updateCard(column.id, card.id, { editing: true })}
-                      onFinishInline={(patch) => updateCard(column.id, card.id, { ...patch, editing: false })}
+                      onStartInline={() => setColumns(prev => prev.map(c => c.id === column.id ? { ...c, cards: c.cards.map(k => k.id === card.id ? { ...k, editing: true } : k) } : c))}
+                      onFinishInline={(patch) => {
+                        onUpdateCard(column.id, card.id, patch);
+                        setColumns(prev => prev.map(c => c.id === column.id ? { ...c, cards: c.cards.map(k => k.id === card.id ? { ...k, ...patch, editing: false } : k) } : c));
+                      }}
+                      onDeleteCard={() => onDeleteCard(card.id)}
+                      isMutating={isMutating}
                     />
                   ))}
                 </SortableContext>
@@ -323,7 +330,6 @@ export function KanbanBoard({
           </SortableContext>
         </div>
 
-        {/* Unified overlay for smooth dragging (cards and columns) */}
         <DragOverlay dropAnimation={{ duration: 180, easing: "cubic-bezier(0.2, 0, 0, 1)" }}>
           {overlay?.kind === "card" ? (
             <div
@@ -372,7 +378,6 @@ export function KanbanBoard({
         </DragOverlay>
       </DndContext>
 
-      {/* Right Drawer for details */}
       <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
         <SheetContent side="right" className="w-full sm:max-w-md bg-white">
           <SheetHeader>
@@ -380,80 +385,124 @@ export function KanbanBoard({
             <SheetDescription className="text-muted-foreground">Edit the card fields below.</SheetDescription>
           </SheetHeader>
 
-          {activeCard ? (
+          {activeCard && editingCardLocal ? (
             <div className="mt-4 space-y-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium text-foreground">Title</label>
                 <Input
-                  value={activeCard.title}
-                  onChange={(e) => {
-                    if (!selected) return
-                    updateCard(selected.columnId, selected.cardId, { title: e.target.value })
-                  }}
+                  value={editingCardLocal.title}
+                  onChange={(e) => setEditingCardLocal(prev => prev ? { ...prev, title: e.target.value } : null)}
                   className="bg-white border-border"
+                  disabled={isMutating}
                 />
               </div>
 
               <div className="space-y-2">
                 <label className="text-sm font-medium text-foreground">Description</label>
                 <Textarea
-                  value={activeCard.description || ""}
-                  onChange={(e) => {
-                    if (!selected) return
-                    updateCard(selected.columnId, selected.cardId, { description: e.target.value })
-                  }}
+                  value={editingCardLocal.description || ""}
+                  onChange={(e) => setEditingCardLocal(prev => prev ? { ...prev, description: e.target.value } : null)}
                   rows={6}
                   className="bg-white border-border resize-none"
+                  disabled={isMutating}
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-foreground">Priority</label>
-                  <select
-                    className="h-9 w-full rounded-md border border-border bg-white px-3 text-sm text-foreground"
-                    value={activeCard.priority || "Low"}
-                    onChange={(e) => {
-                      if (!selected) return
-                      updateCard(selected.columnId, selected.cardId, { priority: e.target.value as Priority })
-                    }}
+                  <Select
+                    value={editingCardLocal.priority || "Low"}
+                    onValueChange={(v: PriorityUI) =>
+                      setEditingCardLocal(prev => prev ? { ...prev, priority: v } : null)
+                    }
+                    disabled={isMutating}
                   >
-                    <option value="Low">Low</option>
-                    <option value="Medium">Medium</option>
-                    <option value="High">High</option>
-                  </select>
+                    <SelectTrigger className="h-9 w-full bg-white border-border">
+                      <SelectValue placeholder="Priority" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(["Low", "Medium", "High"] as PriorityUI[]).map((p) => (
+                        <SelectItem key={p} value={p}>
+                          <div className="flex items-center gap-2">
+                            <span className={cn("h-2 w-2 rounded-full", priorityDot[p])} />
+                            {p}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-foreground">Story Points</label>
                   <Input
                     type="number"
-                    value={activeCard.points ?? 0}
+                    value={editingCardLocal.points ?? ""}
                     onChange={(e) => {
-                      if (!selected) return
-                      updateCard(selected.columnId, selected.cardId, { points: Number(e.target.value) })
+                      setEditingCardLocal(prev => prev ? { ...prev, points: Number.isFinite(Number.parseInt(e.target.value)) ? Number.parseInt(e.target.value) : null } : null);
                     }}
                     className="bg-white border-border"
+                    min={0}
+                    disabled={isMutating}
                   />
                 </div>
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">Due</label>
+                <label className="text-sm font-medium text-foreground">Due Date</label>
                 <Input
-                  placeholder="e.g. May 31"
-                  value={activeCard.due || ""}
+                  type="date"
+                  value={editingCardLocal.due || ""}
                   onChange={(e) => {
-                    if (!selected) return
-                    updateCard(selected.columnId, selected.cardId, { due: e.target.value })
+                    setEditingCardLocal(prev => prev ? { ...prev, due: e.target.value } : null);
                   }}
                   className="bg-white border-border"
+                  disabled={isMutating}
                 />
               </div>
 
-              <SheetFooter className="pt-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">Assignee</label>
+                <Select
+                  value={editingCardLocal.assignee?.id || "null"}
+                  onValueChange={(v) =>
+                    setEditingCardLocal(prev => prev ? { ...prev, assignee: availableAssignees.find(a => a.id === v) || null } : null)
+                  }
+                  disabled={isMutating}
+                >
+                  <SelectTrigger className="h-9 w-full bg-white border-border">
+                    <SelectValue placeholder="Assignee" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="null">Unassigned</SelectItem>
+                    <DropdownMenuSeparator />
+                    {availableAssignees.map((a) => (
+                      <SelectItem key={a.id} value={a.id}>
+                        <div className="flex items-center gap-2">
+                          <Avatar className="h-5 w-5">
+                            <AvatarImage src={a.avatar || undefined} />
+                            <AvatarFallback className="text-xs">{`${a.firstName?.[0] || ''}${a.lastName?.[0] || ''}` || '?'}</AvatarFallback>
+                          </Avatar>
+                          <span>{a.firstName} {a.lastName}</span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <SheetFooter className="pt-4 flex-row justify-between">
+                <Button variant="destructive" onClick={() => {
+                  if (selected) onDeleteCard(selected.cardId);
+                  setDrawerOpen(false);
+                }} disabled={isMutating} className="bg-red-600 hover:bg-red-700">
+                  {isMutating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                  Delete Task
+                </Button>
                 <SheetClose asChild>
-                  <Button type="button" className="bg-primary text-white hover:bg-primary/90">
-                    Close
+                  <Button type="button" onClick={handleSaveDrawerChanges} disabled={isMutating} className="bg-primary text-white hover:bg-primary/90">
+                    {isMutating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                    Save Changes
                   </Button>
                 </SheetClose>
               </SheetFooter>

@@ -1,4 +1,3 @@
-// components/tasks/list-view.tsx
 "use client";
 
 import { useMemo, useState, useEffect, useCallback, useRef } from "react";
@@ -37,33 +36,29 @@ import {
   SheetClose,
 } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
-// REMOVED: AlertDialog imports
 import { Label } from "@/components/ui/label";
 
-// --- NEW IMPORTS ---
 import {
   useProjectTasksAndSections,
   TaskUI,
   SectionUI,
   PriorityUI,
   SprintFilterOption,
-  ProjectMemberFullDetails, // Not directly used in UI, but its user part is
+  ProjectMemberFullDetails,
   TaskStatusUI,
 } from "@/hooks/useProjectTasksAndSections";
-import { useProjectTaskMutations } from "@/hooks/useProjectTaskMutations"; // Import task mutations hook
+import { useProjectTaskMutations } from "@/hooks/useProjectTaskMutations";
 import { UserAvatarPartial } from "@/types/useProjectTasksAndSections";
 
-// --- Type Definitions ---
 type NewTaskForm = {
   title: string;
-  assigneeId?: string | null; // Changed to assigneeId to match backend
-  due?: string | null; // YYYY-MM-DD
+  assigneeId?: string | null;
+  due?: string | null;
   priority: PriorityUI;
   points?: number | null;
   description?: string | null;
-  sprintId?: string | null; // For task creation
+  sprintId?: string | null;
 };
-// --- End Type Definitions ---
 
 const priorityStyles: Record<PriorityUI, string> = {
   Low: "bg-green-100 text-green-700 ring-1 ring-green-200",
@@ -82,12 +77,11 @@ interface ListViewProps {
 }
 
 export function ListView({ projectId }: ListViewProps) {
-  // --- START: All Hooks MUST be declared unconditionally at the very top ---
+  // We'll manage internal state for selectedSprintId, initialized to undefined
+  const [internalSelectedSprintId, setInternalSelectedSprintId] = useState<string | undefined>(undefined);
+  // console.log("[ListView] Component Render - current internalSelectedSprintId:", internalSelectedSprintId);
 
-  // State for sprint filter
-  const [selectedSprintId, setSelectedSprintId] = useState<string | undefined>(undefined);
 
-  // Custom hook for data fetching and section mutations
   const {
     sections: fetchedSections,
     sprintFilterOptions,
@@ -97,10 +91,25 @@ export function ListView({ projectId }: ListViewProps) {
     createSection,
     updateSection,
     deleteSection,
-    projectMembers, // Get project members from here
-  } = useProjectTasksAndSections(projectId, selectedSprintId);
+    projectMembers,
+    defaultSelectedSprintId: fetchedDefaultSprintId, // Capture default sprint ID
+  } = useProjectTasksAndSections(projectId, internalSelectedSprintId); // Pass internal state to hook
 
-  // NEW: Custom hook for task mutations
+
+  useEffect(() => {
+    // console.log("[ListView] useEffect - internalSelectedSprintId:", internalSelectedSprintId, "fetchedDefaultSprintId:", fetchedDefaultSprintId);
+    // This effect should run once after the initial data fetch from useProjectTasksAndSections.
+    // If internalSelectedSprintId is still undefined (meaning no user has selected a sprint yet)
+    // AND a default sprint ID was successfully fetched, then set it.
+    if (internalSelectedSprintId === undefined && fetchedDefaultSprintId) {
+      // console.log("[ListView] Setting internalSelectedSprintId to fetchedDefaultSprintId:", fetchedDefaultSprintId);
+      setInternalSelectedSprintId(fetchedDefaultSprintId);
+    }
+    // Dependency array includes fetchedDefaultSprintId to react to its availability
+    // and internalSelectedSprintId to ensure this only runs once for default setting.
+  }, [fetchedDefaultSprintId, internalSelectedSprintId]);
+
+
   const {
     createTask,
     updateTask: updateTaskMutation,
@@ -111,36 +120,30 @@ export function ListView({ projectId }: ListViewProps) {
   } = useProjectTaskMutations(projectId);
 
 
-  // Local UI states
   const [sections, setSections] = useState<SectionUI[]>([]);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [sheetTask, setSheetTask] = useState<{ sectionId: string; taskId: string } | null>(null);
 
-  // NEW: Local state for task being edited in the sheet
   const [editingTaskLocal, setEditingTaskLocal] = useState<TaskUI | null>(null);
 
 
   const [newTaskOpen, setNewTaskOpen] = useState<Record<string, boolean>>({});
   const [newTask, setNewTask] = useState<Record<string, NewTaskForm>>({});
-  const [isSectionMutating, setIsSectionMutating] = useState(false); // To disable section buttons during mutation
+  const [isSectionMutating, setIsSectionMutating] = useState(false);
 
-  // State for delete section confirmation modal
   const [deleteSectionModalOpen, setDeleteSectionModalOpen] = useState(false);
   const [sectionToDelete, setSectionToDelete] = useState<SectionUI | null>(null);
   const [deleteTasksConfirmed, setDeleteTasksConfirmed] = useState(false);
   const [reassignToSectionOption, setReassignToSectionOption] = useState<string | null>(null);
 
-  // NEW: State for delete task confirmation modal
   const [deleteTaskModalOpen, setDeleteTaskModalOpen] = useState(false);
   const [taskToDelete, setTaskToDelete] = useState<{ sectionId: string; task: TaskUI } | null>(null);
 
-  // Ref for the custom modal for focus management
   const customModalRef = useRef<HTMLDivElement>(null);
-  const customTaskModalRef = useRef<HTMLDivElement>(null); // NEW: Ref for task modal
+  const customTaskModalRef = useRef<HTMLDivElement>(null);
 
 
-  // Memoized lists/objects
   const availableAssignees: UserAvatarPartial[] = useMemo(() => {
     return projectMembers.map(member => ({
       id: member.user.id,
@@ -151,7 +154,6 @@ export function ListView({ projectId }: ListViewProps) {
   }, [projectMembers]);
 
 
-  // Memoized helper functions
   const getAssigneeFromFetched = useCallback((id: string | undefined | null): UserAvatarPartial | null => {
     if (!id) return null;
     const found = availableAssignees.find(a => a.id === id);
@@ -202,11 +204,9 @@ export function ListView({ projectId }: ListViewProps) {
   }, [createSection]);
 
   const toggleTaskCompleted = useCallback(async (sectionId: string, taskId: string) => {
-    // Find the task's current status (needed for mutation)
     const taskToUpdate = sections.find(s => s.id === sectionId)?.tasks.find(t => t.id === taskId);
     if (!taskToUpdate) return;
 
-    // Optimistic UI Update
     setSections((prev) =>
       prev.map((s) =>
         s.id === sectionId
@@ -219,10 +219,9 @@ export function ListView({ projectId }: ListViewProps) {
     );
 
     try {
-      await toggleTaskCompletedMutation(taskId, taskToUpdate.status); // Pass current status to hook
+      await toggleTaskCompletedMutation(taskId, taskToUpdate.status);
     } catch (err) {
       console.error("Failed to toggle task completion:", err);
-      // Revert optimistic update on error
       setSections((prev) =>
         prev.map((s) =>
           s.id === sectionId
@@ -238,32 +237,22 @@ export function ListView({ projectId }: ListViewProps) {
 
 
   const updateTask = useCallback(async (sectionId: string, taskId: string, updates: Partial<TaskUI>) => {
-    // Find the original task to build a partial update
     const originalTask = sections.find(s => s.id === sectionId)?.tasks.find(t => t.id === taskId);
     if (!originalTask) return;
 
-    // Construct the input for the mutation, only including fields that are explicitly provided in `updates`
     const mutationInput: { [key: string]: any } = { id: taskId };
 
-    // Compare with original task to build a truly partial update
     if (updates.title !== undefined && updates.title !== originalTask.title) mutationInput.title = updates.title;
     if (updates.description !== undefined && updates.description !== originalTask.description) mutationInput.description = updates.description;
     if (updates.priority !== undefined && updates.priority !== originalTask.priority) mutationInput.priority = updates.priority;
     if (updates.points !== undefined && updates.points !== originalTask.points) mutationInput.points = updates.points;
     if (updates.due !== undefined && updates.due !== originalTask.due) mutationInput.dueDate = updates.due;
     if (updates.assignee !== undefined && updates.assignee?.id !== originalTask.assignee?.id) mutationInput.assigneeId = updates.assignee?.id || null;
-    // For status, check against original.status (which is 'TODO' or 'DONE')
     const newStatus = updates.completed !== undefined ? (updates.completed ? 'DONE' : 'TODO') : undefined;
     if (newStatus !== undefined && newStatus !== originalTask.status) {
       mutationInput.status = newStatus;
     }
-    // Add sprintId update here if needed (e.g., if task could be moved to another sprint from sheet)
-    // if (updates.sprintId !== undefined && updates.sprintId !== originalTask.sprintId) mutationInput.sprintId = updates.sprintId;
 
-
-    // Optimistic UI Update (only for immediate feedback if not relying on full refetch for this)
-    // For sheet updates, the local state will handle immediate feedback, and the mutation will then refetch.
-    // So this section is less critical for the sheet, but useful for inline edits.
     setSections((prev) =>
       prev.map((s) =>
         s.id === sectionId
@@ -275,28 +264,23 @@ export function ListView({ projectId }: ListViewProps) {
     ),
   );
 
-    // Only send mutation if there are actual updates
-    if (Object.keys(mutationInput).length > 1) { // 1 because 'id' is always present
+    if (Object.keys(mutationInput).length > 1) {
       try {
         await updateTaskMutation(taskId, mutationInput);
       } catch (err) {
         console.error("Failed to update task:", err);
-        // Revert optimistic update on error (complex, requires storing previous state or refetching)
       }
     }
   }, [sections, updateTaskMutation]);
 
-  // OLD: deleteTask handler - now opens modal
   const openDeleteTaskModal = useCallback((sectionId: string, task: TaskUI) => {
     setTaskToDelete({ sectionId, task });
     setDeleteTaskModalOpen(true);
   }, []);
 
-  // NEW: handler for confirming task deletion from modal
   const handleConfirmTaskDelete = useCallback(async () => {
     if (!taskToDelete) return;
 
-    // Optimistic update
     setSections((prev) =>
       prev.map((s) =>
         s.id === taskToDelete.sectionId ? { ...s, tasks: s.tasks.filter((t) => t.id !== taskToDelete.task.id) } : s,
@@ -309,10 +293,9 @@ export function ListView({ projectId }: ListViewProps) {
     });
 
     try {
-      await deleteTaskMutation(taskToDelete.task.id); // Hook handles refetch
+      await deleteTaskMutation(taskToDelete.task.id);
     } catch (err) {
       console.error("Failed to delete task:", err);
-      // Revert optimistic update on error (complex)
     } finally {
       setDeleteTaskModalOpen(false);
       setTaskToDelete(null);
@@ -349,7 +332,6 @@ export function ListView({ projectId }: ListViewProps) {
         .map(([k]) => k),
     );
     if (toDelete.size === 0) return;
-    // TODO: Implement bulk delete mutation for tasks
     setSections((prev) =>
       prev.map((s) => ({
         ...s,
@@ -365,15 +347,15 @@ export function ListView({ projectId }: ListViewProps) {
       ...p,
       [sectionId]: p[sectionId] || {
         title: "",
-        assigneeId: availableAssignees[0]?.id || null, // Default to first available or null
+        assigneeId: availableAssignees[0]?.id || null,
         due: null,
         priority: "Medium",
         points: null,
         description: null,
-        sprintId: selectedSprintId || null, // Pre-select current filter sprint
+        sprintId: internalSelectedSprintId || null, // Use internalSelectedSprintId
       },
     }));
-  }, [availableAssignees, selectedSprintId]); // Dependency on selectedSprintId
+  }, [availableAssignees, internalSelectedSprintId]);
 
   const cancelNewTask = useCallback((sectionId: string) => {
     setNewTaskOpen((p) => ({ ...p, [sectionId]: false }));
@@ -394,7 +376,7 @@ export function ListView({ projectId }: ListViewProps) {
         priority: form.priority,
         points: form.points,
         sprintId: form.sprintId,
-        status: 'TODO', // New tasks default to TODO
+        status: 'TODO',
       });
       setNewTaskOpen((p) => ({ ...p, [sectionId]: false }));
     } catch (err) {
@@ -409,7 +391,7 @@ export function ListView({ projectId }: ListViewProps) {
 
   const closeSheet = useCallback(() => {
     setSheetTask(null);
-    setEditingTaskLocal(null); // Clear local editing state on close
+    setEditingTaskLocal(null);
   }, []);
 
   const sheetData = useMemo(() => {
@@ -419,7 +401,6 @@ export function ListView({ projectId }: ListViewProps) {
     return t ? { sectionId: sheetTask.sectionId, task: t } : null;
   }, [sheetTask, sections]);
 
-  // Effect to initialize local editing state when sheetTask changes
   useEffect(() => {
     if (sheetData) {
       setEditingTaskLocal(sheetData.task);
@@ -429,31 +410,26 @@ export function ListView({ projectId }: ListViewProps) {
   }, [sheetData]);
 
 
-  // Handler for saving changes from the sheet
   const handleSheetSave = useCallback(async () => {
     if (!sheetTask || !editingTaskLocal || !sheetData) return;
 
     const originalTask = sheetData.task;
     const updates: Partial<TaskUI> = {};
 
-    // Compare local state with original to find changes
     if (editingTaskLocal.title !== originalTask.title) updates.title = editingTaskLocal.title;
     if (editingTaskLocal.description !== originalTask.description) updates.description = editingTaskLocal.description;
     if (editingTaskLocal.priority !== originalTask.priority) updates.priority = editingTaskLocal.priority;
     if (editingTaskLocal.points !== originalTask.points) updates.points = editingTaskLocal.points;
     if (editingTaskLocal.due !== originalTask.due) updates.due = editingTaskLocal.due;
     if (editingTaskLocal.assignee?.id !== originalTask.assignee?.id) updates.assignee = editingTaskLocal.assignee;
-    // Note: completed status is typically toggled directly, not edited via a form field here.
-    // If you add a status dropdown, you'd add similar logic.
 
     if (Object.keys(updates).length > 0) {
       await updateTask(sheetTask.sectionId, sheetTask.taskId, updates);
     }
-    closeSheet(); // Close sheet after saving
+    closeSheet();
   }, [sheetTask, editingTaskLocal, sheetData, updateTask, closeSheet]);
 
 
-  // UseEffects for syncing data
   useEffect(() => {
     if (!fetchedSections) {
       return;
@@ -537,14 +513,13 @@ export function ListView({ projectId }: ListViewProps) {
       console.error("Failed to delete section:", err);
     } finally {
       setIsSectionMutating(false);
-      setDeleteSectionModalOpen(false); // Crucial to close modal
+      setDeleteSectionModalOpen(false);
       setSectionToDelete(null);
       setDeleteTasksConfirmed(false);
       setReassignToSectionOption(null);
     }
   }, [sectionToDelete, deleteTasksConfirmed, reassignToSectionOption, deleteSection]);
 
-  // Effect for focusing the custom modal when it opens
   useEffect(() => {
     if (deleteSectionModalOpen && customModalRef.current) {
       customModalRef.current.focus();
@@ -552,7 +527,6 @@ export function ListView({ projectId }: ListViewProps) {
   }, [deleteSectionModalOpen]);
 
 
-  // NEW: Effect for focusing the custom task modal when it opens
   useEffect(() => {
     if (deleteTaskModalOpen && customTaskModalRef.current) {
       customTaskModalRef.current.focus();
@@ -560,15 +534,26 @@ export function ListView({ projectId }: ListViewProps) {
   }, [deleteTaskModalOpen]);
 
 
-  // --- END: All Hooks declared unconditionally ---
-
-
-  // All subsequent computations or conditional renders depend on the state derived from hooks.
   const allSelected = selectedCount > 0 && selectedCount === allTaskIds.length;
 
   const otherSections = useMemo(() => {
     return sections.filter(s => s.id !== sectionToDelete?.id);
   }, [sections, sectionToDelete]);
+
+  const currentSprintName = useMemo(() => {
+    // Determine the active sprint ID: prefer the internally selected one, then fallback to the fetched default.
+    const activeSprintId = internalSelectedSprintId === undefined ? fetchedDefaultSprintId : internalSelectedSprintId;
+    console.log("[ListView] Calculating currentSprintName: internalSelectedSprintId =", internalSelectedSprintId, "fetchedDefaultSprintId =", fetchedDefaultSprintId, "activeSprintId =", activeSprintId); // Restored log
+    
+    // Find the sprint name using the activeSprintId from the available sprint options.
+    const foundSprint = sprintFilterOptions.find(s => s.id === activeSprintId); 
+    
+    // Return the found name or an empty string if not found.
+    const name = foundSprint?.name || "";
+    console.log("  sprintFilterOptions =", sprintFilterOptions, "Resolved name =", name); // Restored log
+    return name;
+  }, [internalSelectedSprintId, sprintFilterOptions, fetchedDefaultSprintId]); // Depend on all relevant states
+
 
   if (loading) {
     return (
@@ -587,12 +572,28 @@ export function ListView({ projectId }: ListViewProps) {
     );
   }
 
+  // Handle case where no sprints are available for the project at all
+  if (sprintFilterOptions.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[calc(10vh-64px)] bg-muted/30 p-8 text-center">
+        <h2 className="text-3xl font-bold text-foreground mb-4">No Sprints Found</h2>
+        <p className="text-muted-foreground leading-relaxed max-w-xl mb-8">
+          It looks like there are no sprints in this project yet. Create a new project to get started.
+        </p>
+        {/* Potentially add a button to create the first sprint if allowed */}
+      </div>
+    );
+  }
+
+  // If sprints exist but no sections/tasks for the selected sprint
+  // This state is reached if `sections` is empty but `sprintFilterOptions` is not.
   if (!sections || sections.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(10vh-64px)] bg-muted/30 p-8 text-center">
-        <h2 className="text-3xl font-bold text-foreground mb-4">No Tasks Found</h2>
+        {/* The currentSprintName is guaranteed to be a valid sprint name here */}
+        <h2 className="text-3xl font-bold text-foreground mb-4">No Tasks in "{currentSprintName}"</h2>
         <p className="text-muted-foreground leading-relaxed max-w-xl mb-8">
-          It looks like there are no tasks in this project yet. Start by adding a new section or task!
+          The selected sprint "{currentSprintName}" has no tasks. Add a new task or select a different sprint.
         </p>
         <Button onClick={addSection} disabled={isSectionMutating} className="bg-[#4ab5ae] text-white h-9 rounded-md">
           {isSectionMutating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
@@ -604,7 +605,6 @@ export function ListView({ projectId }: ListViewProps) {
 
   return (
     <div className="p-6 pt-3">
-      {/* ... (rest of your component's JSX) ... */}
       <div className="flex items-center gap-3">
         <Button onClick={addSection} disabled={isSectionMutating} className="bg-[#4ab5ae] text-white h-9 rounded-md">
           {isSectionMutating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
@@ -613,19 +613,16 @@ export function ListView({ projectId }: ListViewProps) {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" className="h-9 rounded-md gap-2 bg-transparent">
-              {selectedSprintId ? sprintFilterOptions.find(s => s.id === selectedSprintId)?.name : "All Sprints"}
+              {currentSprintName} {/* Directly display the sprint name */}
               <ChevronDown className="h-4 w-4 text-muted-foreground" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start">
             <DropdownMenuLabel>Sprints</DropdownMenuLabel>
-            <DropdownMenuItem onClick={() => {
-              setSelectedSprintId(undefined);
-            }}>All Sprints</DropdownMenuItem>
-            <DropdownMenuSeparator />
+            {/* The outer `if (sprintFilterOptions.length === 0)` block handles the no sprints case */}
             {sprintFilterOptions.map((sprint) => (
               <DropdownMenuItem key={sprint.id} onClick={() => {
-                setSelectedSprintId(sprint.id);
+                setInternalSelectedSprintId(sprint.id); // Update internal state
               }}>
                 {sprint.name}
               </DropdownMenuItem>
@@ -650,7 +647,6 @@ export function ListView({ projectId }: ListViewProps) {
         <Separator />
         {sections.map((section) => (
           <div key={section.id} className="w-full">
-            {/* Section header */}
             <div className="flex w-full items-center gap-2 px-5 py-4">
               <button
                 onClick={() => toggleSection(section.id)}
@@ -711,7 +707,6 @@ export function ListView({ projectId }: ListViewProps) {
               </div>
             </div>
 
-            {/* Rows */}
             {!collapsed[section.id] && (
               <div className="w-full">
                 {section.tasks.map((task) => (
@@ -721,14 +716,13 @@ export function ListView({ projectId }: ListViewProps) {
                     selected={!!selected[task.id]}
                     onSelect={(checked) => toggleSelect(task.id, checked)}
                     onToggleCompleted={() => toggleTaskCompleted(section.id, task.id)}
-                    onChange={(updates) => updateTask(section.id, task.id, updates)} // Keep for inline edits
+                    onChange={(updates) => updateTask(section.id, task.id, updates)}
                     onOpen={() => openSheetFor(section.id, task.id)}
-                    onDelete={() => openDeleteTaskModal(section.id, task)} 
+                    onDelete={() => openDeleteTaskModal(section.id, task)}
                     assignees={availableAssignees}
                   />
                 ))}
 
-                {/* Full-width create form below the section (buttons inline to the right of Points) */}
                 {newTaskOpen[section.id] && (
                   <div className="px-10 py-4">
                     <div className="rounded-md border p-4">
@@ -843,7 +837,6 @@ export function ListView({ projectId }: ListViewProps) {
                           </Select>
                         </div>
 
-                        {/* Points + Buttons inline */}
                         <div className="space-y-2">
                           <label className="text-xs text-muted-foreground">Story Points</label>
                           <div className="flex items-center gap-2">
@@ -896,10 +889,9 @@ export function ListView({ projectId }: ListViewProps) {
         ))}
       </div>
 
-      {/* Task details Sheet opened by the pen tool */}
       <Sheet open={!!sheetData} onOpenChange={(open) => (!open ? closeSheet() : null)}>
         <SheetContent side="right" className="w-full sm:max-w-md bg-white border-l">
-          {sheetData && editingTaskLocal && ( // Ensure both are available
+          {sheetData && editingTaskLocal && (
             <>
               <SheetHeader>
                 <SheetTitle className="text-foreground">Edit Task</SheetTitle>
@@ -939,7 +931,7 @@ export function ListView({ projectId }: ListViewProps) {
                                 <AvatarImage src={a.avatar || undefined} />
                                 <AvatarFallback className="text-xs">{`${a.firstName?.[0] || ''}${a.lastName?.[0] || ''}` || '?'}</AvatarFallback>
                               </Avatar>
-                              {a.firstName} {a.lastName}
+                              <span>{a.firstName} {a.lastName}</span>
                             </div>
                           </SelectItem>
                         ))}
@@ -1034,9 +1026,9 @@ export function ListView({ projectId }: ListViewProps) {
           role="alertdialog"
           aria-labelledby="delete-section-title"
           aria-describedby="delete-section-description"
-          tabIndex={-1} // Make it focusable
+          tabIndex={-1}
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
-          onClick={(e) => { // Close when clicking outside content
+          onClick={(e) => {
             if (e.target === e.currentTarget) {
               setDeleteSectionModalOpen(false);
               setSectionToDelete(null);
@@ -1044,7 +1036,7 @@ export function ListView({ projectId }: ListViewProps) {
               setReassignToSectionOption(null);
             }
           }}
-          onKeyDown={(e) => { // Close on Escape key
+          onKeyDown={(e) => {
             if (e.key === "Escape") {
               setDeleteSectionModalOpen(false);
               setSectionToDelete(null);
@@ -1157,19 +1149,19 @@ export function ListView({ projectId }: ListViewProps) {
       {/* NEW: Custom Delete Task Confirmation Modal */}
       {taskToDelete && deleteTaskModalOpen && (
         <div
-          ref={customTaskModalRef} // Assign ref here
+          ref={customTaskModalRef}
           role="alertdialog"
           aria-labelledby="delete-task-title"
           aria-describedby="delete-task-description"
-          tabIndex={-1} // Make it focusable
+          tabIndex={-1}
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
-          onClick={(e) => { // Close when clicking outside content
+          onClick={(e) => {
             if (e.target === e.currentTarget) {
               setDeleteTaskModalOpen(false);
               setTaskToDelete(null);
             }
           }}
-          onKeyDown={(e) => { // Close on Escape key
+          onKeyDown={(e) => {
             if (e.key === "Escape") {
               setDeleteTaskModalOpen(false);
               setTaskToDelete(null);
@@ -1248,7 +1240,7 @@ interface TaskRowProps {
   onToggleCompleted: () => void;
   onChange: (updates: Partial<TaskUI>) => void;
   onOpen: () => void;
-  onDelete: () => void; // This will now open the modal
+  onDelete: () => void;
   assignees: UserAvatarPartial[];
 }
 
@@ -1259,7 +1251,7 @@ function TaskRow({
   onToggleCompleted,
   onChange,
   onOpen,
-  onDelete, // This function now triggers the modal
+  onDelete,
   assignees,
 }: TaskRowProps) {
   const Icon = task.completed ? CheckCircle2 : Circle;
@@ -1389,7 +1381,7 @@ function TaskRow({
           variant="ghost"
           size="icon"
           className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
-          onClick={onDelete} // This now triggers the modal
+          onClick={onDelete}
           title="Delete task"
         >
           <Trash2 className="h-4 w-4" />

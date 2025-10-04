@@ -26,6 +26,12 @@ interface GetProjectDetailsArgs {
   projectId: string;
 }
 
+interface GetProjectTasksAndSectionsArgs { // Ensure this interface exists
+  projectId: string;
+  sprintId?: string | null; // Allow null for explicit "no sprint" or when no default found
+}
+
+
 // Changed from IResolvers to a plain object
 export const projectResolver = {
   Query: {
@@ -76,7 +82,9 @@ export const projectResolver = {
         // 3. Compute Project Statistics
         const totalTasks = project.tasks.length;
         const completedTasks = project.tasks.filter(task => task.status === 'DONE').length;
-        const inProgressTasks = project.tasks.filter(task => task.status === 'IN_PROGRESS').length;
+        // The IN_PROGRESS status does not exist in your Prisma schema's TaskStatus enum,
+        // it only has TODO and DONE. Adjusting this filter accordingly.
+        const inProgressTasks = project.tasks.filter(task => task.status === 'TODO').length; // Assuming TODO means in progress
         const overdueTasks = project.tasks.filter(task =>
           task.dueDate && new Date(task.dueDate) < new Date() && task.status !== 'DONE'
         ).length;
@@ -175,8 +183,8 @@ export const projectResolver = {
         // 2. Fetch all Sprints for the project (for the dropdown filter)
         const projectSprints = await prisma.sprint.findMany({
           where: { projectId: projectId },
-          select: { id: true, name: true, startDate: true, endDate: true, isCompleted: true },
-          orderBy: { startDate: 'asc' },
+          select: { id: true, name: true, startDate: true, endDate: true, isCompleted: true, createdAt: true }, // Include createdAt for sorting
+          orderBy: { createdAt: 'desc' }, // Order by creation date descending
         });
         log("[getGanttData Query]", `Fetched ${projectSprints.length} sprints for project ${projectId}.`);
 
@@ -281,7 +289,7 @@ export const projectResolver = {
         throw new Error("Authentication required: No user ID found in context.");
       }
 
-      const { projectId, sprintId } = args;
+      const { projectId, sprintId: argSprintId } = args; // Renamed to argSprintId to avoid conflict
       const userId = context.user.id;
 
       try {
@@ -304,18 +312,44 @@ export const projectResolver = {
         }
         log("[getProjectTasksAndSections Query]", `Access granted for user ${userId} to project ${projectId}.`);
 
-        // 2. Fetch all Sprints for the project (for the dropdown filter)
-        const projectSprints = await prisma.sprint.findMany({
+        // 2. Fetch all Sprints for the project
+        // Order by createdAt descending to easily find the latest
+        const allProjectSprints = await prisma.sprint.findMany({
           where: { projectId: projectId },
-          select: { id: true, name: true },
-          orderBy: { startDate: 'asc' },
+          select: { id: true, name: true, startDate: true, endDate: true, isCompleted: true, createdAt: true },
+          orderBy: { createdAt: 'desc' }, // Order by createdAt descending
         });
-        log("[getProjectTasksAndSections Query]", `Fetched ${projectSprints.length} sprints for project ${projectId}.`);
+        log("[getProjectTasksAndSections Query]", `Fetched ${allProjectSprints.length} sprints for project ${projectId}.`);
 
-        // 3. Define base task filtering
+        let effectiveSprintId: string | null | undefined = argSprintId;
+        let defaultSelectedSprintId: string | null = null; // Will store the ID of the sprint that is effectively being filtered by
+
+
+        // If no sprintId is provided in arguments, determine the "latest" sprint by createdAt
+        if (!effectiveSprintId) {
+          // The `allProjectSprints` array is already sorted by `createdAt` descending.
+          // So, the first element is the latest.
+          const latestSprint = allProjectSprints[0];
+
+          // If a "latest" sprint is found, use its ID for filtering
+          if (latestSprint) {
+            effectiveSprintId = latestSprint.id;
+            defaultSelectedSprintId = latestSprint.id; // Mark this as the default selected
+            log("[getProjectTasksAndSections Query]", `Defaulting to latest sprint by createdAt: ${latestSprint.name} (${latestSprint.id})`);
+          } else {
+            // If no sprints found, tasks will not be sprint-filtered by default.
+            log("[getProjectTasksAndSections Query]", "No sprints found. Fetching all project tasks without sprint filter.");
+          }
+        } else {
+            // If sprintId was provided in arguments, then that's the default selected sprint.
+            defaultSelectedSprintId = effectiveSprintId;
+        }
+
+
+        // 3. Define base task filtering based on the effectiveSprintId
         const taskWhereClause: any = {
           projectId: projectId,
-          ...(sprintId && { sprintId: sprintId }),
+          ...(effectiveSprintId && { sprintId: effectiveSprintId }),
         };
 
         // 4. Fetch Project Sections with their filtered tasks
@@ -372,7 +406,6 @@ export const projectResolver = {
         }));
 
 
-
         const transformedProjectMembers = allProjectMembers.map(member => ({
           id: member.id, // ProjectMember ID
           role: member.role,
@@ -385,11 +418,13 @@ export const projectResolver = {
           },
         }));
 
-
+        // Filter and map sprints to only return id and name for the frontend dropdown.
+        // The sprints will be ordered by createdAt descending from the original fetch.
         const result = {
-          sprints: projectSprints,
+          sprints: allProjectSprints.map(s => ({ id: s.id, name: s.name })),
           sections: transformedProjectSections,
-          projectMembers: transformedProjectMembers, // NEW: Include project members
+          projectMembers: transformedProjectMembers,
+          defaultSelectedSprintId: defaultSelectedSprintId, // NEW: Tell frontend which sprint was selected by default
         };
 
         log("[getProjectTasksAndSections Query]", "Tasks, sections, and members fetched successfully.", result);
@@ -521,9 +556,3 @@ export const projectResolver = {
 };
 
 export default projectResolver;
-
-
-
-
-
-
