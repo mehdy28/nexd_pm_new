@@ -1,5 +1,4 @@
 // graphql/queries/getProjectTasksAndSections.ts
-
 import { gql } from '@apollo/client';
 
 export const GET_PROJECT_TASKS_AND_SECTIONS_QUERY = gql`
@@ -8,10 +7,12 @@ export const GET_PROJECT_TASKS_AND_SECTIONS_QUERY = gql`
       sprints {
         id
         name
+        __typename # <--- Add __typename
       }
       sections {
         id
         name
+        order # <--- ADD THIS FOR SECTION REORDERING
         tasks {
           id
           title
@@ -20,14 +21,22 @@ export const GET_PROJECT_TASKS_AND_SECTIONS_QUERY = gql`
           priority
           dueDate
           points
+          completed # <--- ADD THIS (derived field for UI)
+          sprintId # <--- ADD THIS
+          sectionId # <--- ADD THIS
           assignee {
             id
             firstName
             lastName
             avatar
+            __typename # <--- Add __typename
           }
+          __typename # <--- Add __typename
         }
+        __typename # <--- Add __typename
       }
+      # Removed defaultSelectedSprintId from here as it's confusing state management.
+      # Client-side derived from sprintIdFromProps or local default.
       projectMembers {
         id
         role
@@ -37,9 +46,11 @@ export const GET_PROJECT_TASKS_AND_SECTIONS_QUERY = gql`
           lastName
           avatar
           email
+          __typename # <--- Add __typename
         }
+        __typename # <--- Add __typename
       }
-      defaultSelectedSprintId # NEW: Add this field
+      __typename # <--- Add __typename
     }
   }
 `;

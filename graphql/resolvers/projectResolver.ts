@@ -1,6 +1,7 @@
 // graphql/resolvers/projectResolver.ts
 
 import { prisma } from "@/lib/prisma";
+import { TaskStatus, Priority } from "@prisma/client"; // Ensure these are imported if used in transformations
 
 function log(prefix: string, message: string, data?: any) {
   const timestamp = new Date().toISOString();
@@ -26,13 +27,17 @@ interface GetProjectDetailsArgs {
   projectId: string;
 }
 
-interface GetProjectTasksAndSectionsArgs { // Ensure this interface exists
+interface GetGanttDataArgs {
   projectId: string;
-  sprintId?: string | null; // Allow null for explicit "no sprint" or when no default found
+  sprintId?: string | null;
+}
+
+interface GetProjectTasksAndSectionsArgs {
+  projectId: string;
+  sprintId?: string | null;
 }
 
 
-// Changed from IResolvers to a plain object
 export const projectResolver = {
   Query: {
     getProjectDetails: async (_parent: unknown, args: GetProjectDetailsArgs, context: GraphQLContext) => {
@@ -47,21 +52,14 @@ export const projectResolver = {
       const userId = context.user.id;
 
       try {
-        // 1. Fetch Project data with related members, tasks, and sprints
         const project = await prisma.project.findUnique({
           where: { id: projectId },
           include: {
             members: {
               include: { user: true },
             },
-            tasks: true, // Fetch all tasks to compute stats
-            sprints: true, // Fetch all sprints
-            // If you had activities, you'd include them here too
-            // activities: {
-            //   include: { user: true },
-            //   orderBy: { createdAt: 'desc' },
-            //   take: 5, // Limit recent activities
-            // },
+            tasks: true,
+            sprints: true,
           },
         });
 
@@ -70,7 +68,6 @@ export const projectResolver = {
           return null;
         }
 
-        // 2. Validate if the current user is a member of this project
         const isMember = project.members.some(member => member.userId === userId);
         if (!isMember) {
           log("[getProjectDetails Query]", `User ${userId} is not a member of project ${projectId}. Access denied.`);
@@ -79,12 +76,9 @@ export const projectResolver = {
         log("[getProjectDetails Query]", `Access granted for user ${userId} to project ${projectId}.`);
 
 
-        // 3. Compute Project Statistics
         const totalTasks = project.tasks.length;
         const completedTasks = project.tasks.filter(task => task.status === 'DONE').length;
-        // The IN_PROGRESS status does not exist in your Prisma schema's TaskStatus enum,
-        // it only has TODO and DONE. Adjusting this filter accordingly.
-        const inProgressTasks = project.tasks.filter(task => task.status === 'TODO').length; // Assuming TODO means in progress
+        const inProgressTasks = project.tasks.filter(task => task.status === 'TODO').length;
         const overdueTasks = project.tasks.filter(task =>
           task.dueDate && new Date(task.dueDate) < new Date() && task.status !== 'DONE'
         ).length;
@@ -97,9 +91,8 @@ export const projectResolver = {
           return dueDate > now && dueDate < oneWeekLater;
         }).length;
 
-        // 4. Transform members for output
         const transformedMembers = project.members.map(member => ({
-          id: member.id, // ProjectMember ID
+          id: member.id,
           role: member.role,
           user: {
             id: member.user.id,
@@ -110,11 +103,8 @@ export const projectResolver = {
           },
         }));
 
-        // 5. Transform sprints for output
         const transformedSprints = project.sprints.map(sprint => ({
           ...sprint,
-          // 'status' in your mock was "Planning" | "Active" | "Completed"
-          // We can derive this from `isCompleted` and current date relative to start/end dates.
           status: sprint.isCompleted ? "Completed" : (
             new Date(sprint.startDate) <= new Date() && new Date(sprint.endDate) >= new Date() ? "Active" : "Planning"
           ),
@@ -124,7 +114,7 @@ export const projectResolver = {
           id: project.id,
           name: project.name,
           description: project.description,
-          status: project.status, // Prisma enum value, e.g., 'ACTIVE'
+          status: project.status,
           color: project.color,
           createdAt: project.createdAt.toISOString(),
 
@@ -136,15 +126,6 @@ export const projectResolver = {
 
           members: transformedMembers,
           sprints: transformedSprints,
-          // activities: project.activities.map(activity => ({
-          //   ...activity,
-          //   user: {
-          //     id: activity.user.id,
-          //     firstName: activity.user.firstName,
-          //     lastName: activity.user.lastName,
-          //     avatar: activity.user.avatar,
-          //   },
-          // })),
         };
 
         log("[getProjectDetails Query]", "Project data fetched and transformed successfully.", result);
@@ -169,7 +150,6 @@ export const projectResolver = {
       const userId = context.user.id;
 
       try {
-        // 1. Verify user access to the project
         const projectMember = await prisma.projectMember.findFirst({
           where: { projectId: projectId, userId: userId },
         });
@@ -180,37 +160,33 @@ export const projectResolver = {
         }
         log("[getGanttData Query]", `Access granted for user ${userId} to project ${projectId}.`);
 
-        // 2. Fetch all Sprints for the project (for the dropdown filter)
         const projectSprints = await prisma.sprint.findMany({
           where: { projectId: projectId },
-          select: { id: true, name: true, startDate: true, endDate: true, isCompleted: true, createdAt: true }, // Include createdAt for sorting
-          orderBy: { createdAt: 'desc' }, // Order by creation date descending
+          select: { id: true, name: true, startDate: true, endDate: true, isCompleted: true, createdAt: true, description: true },
+          orderBy: { createdAt: 'desc' },
         });
         log("[getGanttData Query]", `Fetched ${projectSprints.length} sprints for project ${projectId}.`);
 
         const ganttTasks: any[] = [];
         let displayOrder = 1;
 
-        // Determine which sprints to process based on sprintId filter
         const sprintsToProcess = sprintId
           ? projectSprints.filter(s => s.id === sprintId)
           : projectSprints;
 
         for (const sprint of sprintsToProcess) {
-          // Add the sprint itself as a 'project' type task in Gantt
           ganttTasks.push({
             id: sprint.id,
             name: sprint.name,
             start: sprint.startDate.toISOString(),
             end: sprint.endDate.toISOString(),
-            progress: sprint.isCompleted ? 100 : 0, // Simplified progress for sprint
+            progress: sprint.isCompleted ? 100 : 0,
             type: "project",
             hideChildren: false,
             displayOrder: displayOrder++,
             description: sprint.description,
           });
 
-          // Fetch Tasks for the current sprint
           const tasks = await prisma.task.findMany({
             where: { sprintId: sprint.id },
             include: {
@@ -225,11 +201,11 @@ export const projectResolver = {
             ganttTasks.push({
               id: task.id,
               name: task.title,
-              start: task.startDate ? task.startDate.toISOString() : sprint.startDate.toISOString(), // Fallback to sprint start
-              end: task.endDate ? task.endDate.toISOString() : task.dueDate?.toISOString() || sprint.endDate.toISOString(), // Fallback to due or sprint end
-              progress: task.status === 'DONE' ? 100 : (task.status === 'TODO' ? 50 : 0), // Basic progress
+              start: task.startDate ? task.startDate.toISOString() : sprint.startDate.toISOString(),
+              end: task.endDate ? task.endDate.toISOString() : task.dueDate?.toISOString() || sprint.endDate.toISOString(),
+              progress: task.status === 'DONE' ? 100 : (task.status === 'TODO' ? 50 : 0),
               type: "task",
-              sprint: sprint.id, // Link to parent sprint
+              sprint: sprint.id,
               displayOrder: displayOrder++,
               description: task.description,
               assignee: task.assignee ? {
@@ -241,7 +217,6 @@ export const projectResolver = {
             });
           }
 
-          // Fetch Milestones for the current sprint
           const milestones = await prisma.milestone.findMany({
             where: { sprintId: sprint.id },
             orderBy: { dueDate: 'asc' },
@@ -251,21 +226,20 @@ export const projectResolver = {
             ganttTasks.push({
               id: milestone.id,
               name: milestone.name,
-              start: milestone.dueDate.toISOString(), // Milestones are points in time
+              start: milestone.dueDate.toISOString(),
               end: milestone.dueDate.toISOString(),
               progress: milestone.isCompleted ? 100 : 0,
               type: "milestone",
-              sprint: sprint.id, // Link to parent sprint
+              sprint: sprint.id,
               displayOrder: displayOrder++,
               description: milestone.description,
-              // Milestones typically don't have assignees, but could if your schema allows
               assignee: null,
             });
           }
         }
 
         const result = {
-          sprints: projectSprints.map(s => ({ id: s.id, name: s.name })), // Only ID and name for filter dropdown
+          sprints: projectSprints.map(s => ({ id: s.id, name: s.name })),
           tasks: ganttTasks,
         };
 
@@ -279,8 +253,6 @@ export const projectResolver = {
     },
 
 
-
-
     getProjectTasksAndSections: async (_parent: unknown, args: GetProjectTasksAndSectionsArgs, context: GraphQLContext) => {
       log("[getProjectTasksAndSections Query]", "called with args:", args);
 
@@ -289,17 +261,16 @@ export const projectResolver = {
         throw new Error("Authentication required: No user ID found in context.");
       }
 
-      const { projectId, sprintId: argSprintId } = args; // Renamed to argSprintId to avoid conflict
+      const { projectId, sprintId: argSprintId } = args;
       const userId = context.user.id;
 
       try {
-        // 1. Verify user access to the project
         const project = await prisma.project.findUnique({
           where: { id: projectId },
           select: {
             id: true,
-            workspaceId: true, // Needed for personal tasks filtering
-            members: { // Fetch project members for validation and return
+            workspaceId: true,
+            members: {
               where: { userId: userId },
               select: { userId: true }
             }
@@ -312,47 +283,26 @@ export const projectResolver = {
         }
         log("[getProjectTasksAndSections Query]", `Access granted for user ${userId} to project ${projectId}.`);
 
-        // 2. Fetch all Sprints for the project
-        // Order by createdAt descending to easily find the latest
         const allProjectSprints = await prisma.sprint.findMany({
           where: { projectId: projectId },
           select: { id: true, name: true, startDate: true, endDate: true, isCompleted: true, createdAt: true },
-          orderBy: { createdAt: 'desc' }, // Order by createdAt descending
+          orderBy: { createdAt: 'desc' },
         });
         log("[getProjectTasksAndSections Query]", `Fetched ${allProjectSprints.length} sprints for project ${projectId}.`);
 
         let effectiveSprintId: string | null | undefined = argSprintId;
-        let defaultSelectedSprintId: string | null = null; // Will store the ID of the sprint that is effectively being filtered by
 
-
-        // If no sprintId is provided in arguments, determine the "latest" sprint by createdAt
-        if (!effectiveSprintId) {
-          // The `allProjectSprints` array is already sorted by `createdAt` descending.
-          // So, the first element is the latest.
-          const latestSprint = allProjectSprints[0];
-
-          // If a "latest" sprint is found, use its ID for filtering
-          if (latestSprint) {
-            effectiveSprintId = latestSprint.id;
-            defaultSelectedSprintId = latestSprint.id; // Mark this as the default selected
-            log("[getProjectTasksAndSections Query]", `Defaulting to latest sprint by createdAt: ${latestSprint.name} (${latestSprint.id})`);
-          } else {
-            // If no sprints found, tasks will not be sprint-filtered by default.
-            log("[getProjectTasksAndSections Query]", "No sprints found. Fetching all project tasks without sprint filter.");
-          }
-        } else {
-            // If sprintId was provided in arguments, then that's the default selected sprint.
-            defaultSelectedSprintId = effectiveSprintId;
+        if (!effectiveSprintId && allProjectSprints.length > 0) {
+          effectiveSprintId = allProjectSprints[0].id;
+          log("[getProjectTasksAndSections Query]", `Defaulting to latest sprint by createdAt: ${allProjectSprints[0].name} (${allProjectSprints[0].id})`);
         }
 
 
-        // 3. Define base task filtering based on the effectiveSprintId
         const taskWhereClause: any = {
           projectId: projectId,
           ...(effectiveSprintId && { sprintId: effectiveSprintId }),
         };
 
-        // 4. Fetch Project Sections with their filtered tasks
         const projectSections = await prisma.section.findMany({
           where: { projectId: projectId },
           orderBy: { order: 'asc' },
@@ -370,24 +320,31 @@ export const projectResolver = {
         });
         log("[getProjectTasksAndSections Query]", `Fetched ${projectSections.length} project sections.`);
 
-
-
-        // 6. Fetch all Project Members (for assignee dropdown)
-        const allProjectMembers = await prisma.projectMember.findMany({
-          where: { projectId: projectId },
-          include: {
-            user: {
-              select: { id: true, firstName: true, lastName: true, avatar: true, email: true },
+        const personalSections = await prisma.personalSection.findMany({
+            where: { userId: userId },
+            orderBy: { order: 'asc' },
+            include: {
+                tasks: {
+                    where: {
+                        personalUserId: userId,
+                        personalWorkspaceId: project.workspaceId,
+                        sprintId: null,
+                        projectId: null,
+                    },
+                    include: {
+                        assignee: { select: { id: true, firstName: true, lastName: true, avatar: true } },
+                    },
+                    orderBy: { createdAt: 'desc' },
+                },
             },
-          },
         });
-        log("[getProjectTasksAndSections Query]", `Fetched ${allProjectMembers.length} project members.`);
+        log("[getProjectTasksAndSections Query]", `Fetched ${personalSections.length} personal sections for user ${userId}.`);
 
 
-        // 7. Transform the data for the GraphQL response
         const transformedProjectSections = projectSections.map(section => ({
           id: section.id,
           name: section.name,
+          order: section.order, // <--- INCLUDE ORDER HERE
           tasks: section.tasks.map(task => ({
             id: task.id,
             title: task.title,
@@ -396,6 +353,9 @@ export const projectResolver = {
             priority: task.priority,
             dueDate: task.dueDate?.toISOString().split('T')[0] || null,
             points: task.points,
+            completed: task.status === 'DONE', // <--- INCLUDE COMPLETED HERE
+            sprintId: task.sprintId, // <--- INCLUDE SPRINTID HERE
+            sectionId: task.sectionId, // <--- INCLUDE SECTIONID HERE
             assignee: task.assignee ? {
               id: task.assignee.id,
               firstName: task.assignee.firstName,
@@ -405,9 +365,44 @@ export const projectResolver = {
           })),
         }));
 
+        const transformedPersonalSections = personalSections.map(section => ({
+            id: section.id,
+            name: section.name,
+            order: section.order, // <--- INCLUDE ORDER HERE
+            tasks: section.tasks.map(task => ({
+                id: task.id,
+                title: task.title,
+                description: task.description,
+                status: task.status,
+                priority: task.priority,
+                dueDate: task.dueDate?.toISOString().split('T')[0] || null,
+                points: task.points,
+                completed: task.status === 'DONE', // <--- INCLUDE COMPLETED HERE
+                sprintId: task.sprintId, // <--- INCLUDE SPRINTID HERE
+                sectionId: task.sectionId, // <--- INCLUDE SECTIONID HERE
+                assignee: task.assignee ? {
+                  id: task.assignee.id,
+                  firstName: task.assignee.firstName,
+                  lastName: task.assignee.lastName,
+                  avatar: task.assignee.avatar,
+                } : null,
+            })),
+        }));
+
+
+        // --- FIX HERE: FETCH ALL PROJECT MEMBERS BEFORE MAPPING ---
+        const allProjectMembers = await prisma.projectMember.findMany({
+            where: { projectId: projectId },
+            include: {
+                user: {
+                    select: { id: true, firstName: true, lastName: true, avatar: true, email: true },
+                },
+            },
+        });
+        log("[getProjectTasksAndSections Query]", `Fetched ${allProjectMembers.length} project members.`);
 
         const transformedProjectMembers = allProjectMembers.map(member => ({
-          id: member.id, // ProjectMember ID
+          id: member.id,
           role: member.role,
           user: {
             id: member.user.id,
@@ -418,13 +413,12 @@ export const projectResolver = {
           },
         }));
 
-        // Filter and map sprints to only return id and name for the frontend dropdown.
-        // The sprints will be ordered by createdAt descending from the original fetch.
         const result = {
           sprints: allProjectSprints.map(s => ({ id: s.id, name: s.name })),
           sections: transformedProjectSections,
+          personalSections: transformedPersonalSections,
           projectMembers: transformedProjectMembers,
-          defaultSelectedSprintId: defaultSelectedSprintId, // NEW: Tell frontend which sprint was selected by default
+          // defaultSelectedSprintId: defaultSelectedSprintId, // Removed as per previous instruction
         };
 
         log("[getProjectTasksAndSections Query]", "Tasks, sections, and members fetched successfully.", result);
@@ -437,7 +431,6 @@ export const projectResolver = {
     },
   },
   Mutation: {
-    // Existing createProject mutation
     createProject: async (
       _parent: unknown,
       args: CreateProjectArgs,
@@ -483,7 +476,6 @@ export const projectResolver = {
               },
             },
           },
-          // Include necessary relations for the return type of the mutation
           include: {
             members: { include: { user: true } },
             sprints: true,
@@ -500,7 +492,7 @@ export const projectResolver = {
             name: "Initial Sprint",
             startDate: now,
             endDate: oneWeekLater,
-            projectId: project.id, // Direct connect via ID
+            projectId: project.id,
           },
         });
         log("[createProject Mutation]", `Initial Sprint created for project ${project.id}.`);
@@ -516,7 +508,6 @@ export const projectResolver = {
         });
         log("[createProject Mutation]", `Default sections created for project ${project.id}.`);
 
-        // Refetch the project to get all newly created sprints/sections for the return
         const createdProject = await prisma.project.findUnique({
             where: { id: project.id },
             include: {
@@ -538,17 +529,7 @@ export const projectResolver = {
       }
     },
   },
-  // Custom field resolvers for Project to explicitly define computed fields
   Project: {
-    // These fields are populated by the getWorkspaceData resolver,
-    // but the GraphQL schema (SDL) might reference Project type directly.
-    // They are primarily for ProjectData/WorkspaceData types.
-    // If you add them to the main 'Project' type in SDL, you would need
-    // resolver functions here if they aren't computed on the root object.
-    // For getProjectDetails, we compute them upfront in the main resolver.
-    // So, this part might be redundant depending on how your schema uses 'Project'.
-    // It's critical if your schema's 'Project' type directly has these fields
-    // and they aren't always part of the root query response object.
     projectMemberCount: (parent: any) => parent.projectMemberCount,
     totalTaskCount: (parent: any) => parent.totalTaskCount,
     completedTaskCount: (parent: any) => parent.completedTaskCount,

@@ -1,3 +1,4 @@
+// components/board/kanban-board.tsx
 "use client"
 
 import { useEffect, useMemo, useRef, useState, useCallback } from "react"
@@ -94,7 +95,7 @@ export function KanbanBoard({
     updateColumn,
     deleteColumn,
     createCard,
-    updateCard, // Now `updateCard` has parameters `(currentSectionId: string, cardId: string, updates: Partial<TaskUI>)`
+    updateCard,
     deleteCard,
     isMutating,
     mutationError,
@@ -106,9 +107,47 @@ export function KanbanBoard({
     setDrawerOpen(true);
   }, []);
 
+  // --- ADJUSTED useEffect for initialColumns synchronization with added logs ---
   useEffect(() => {
-    setColumns(initialColumns);
-  }, [initialColumns]);
+    console.log("--- useEffect: Initializing sync check ---");
+    console.log("Current local columns state (IDs, order):", columns.map(c => ({ id: c.id, order: c.order, name: c.name })));
+    console.log("Incoming initialColumns prop (IDs, order):", initialColumns.map(c => ({ id: c.id, order: c.order, name: c.name })));
+    console.log("Current sprint ID:", currentSprintId);
+
+    const isSprintIdChanged =
+        currentSprintId && columns.some(col => col.sprintId && col.sprintId !== currentSprintId);
+    if (isSprintIdChanged) {
+        console.log("Reason for sync: Sprint ID changed.");
+    }
+
+    const hasCoreStructuralChanges =
+        columns.length !== initialColumns.length ||
+        columns.some((col, index) =>
+            !initialColumns[index] ||
+            col.id !== initialColumns[index].id
+        );
+    if (hasCoreStructuralChanges) {
+        console.log("Reason for sync: Core structural changes detected (length or ID mismatch at position).");
+    }
+
+    const isEmptyInitialColumnsAndLocalHasData = initialColumns.length === 0 && columns.length > 0;
+    if (isEmptyInitialColumnsAndLocalHasData) {
+        console.log("Reason for sync: initialColumns is empty, but local state has data.");
+    }
+
+    const isInitialLoad = columns.length === 0 && initialColumns.length > 0;
+    if (isInitialLoad) {
+        console.log("Reason for sync: Initial load (local state empty, initialColumns has data).");
+    }
+
+    if (isSprintIdChanged || hasCoreStructuralChanges || isEmptyInitialColumnsAndLocalHasData || isInitialLoad) {
+        console.log("[sprint] KANBAN_BOARD: PERFORMING FULL SYNC. Overwriting local columns with initialColumns.");
+        setColumns(initialColumns);
+    } else {
+        console.log("[sprint] KANBAN_BOARD: No significant structural or sprint change detected. Retaining optimistic state.");
+    }
+    console.log("--- useEffect: Sync check finished ---");
+  }, [initialColumns, currentSprintId]); 
 
   const activeCard: Card | undefined = useMemo(() => {
     if (!selected) return
@@ -137,7 +176,6 @@ export function KanbanBoard({
     if (editingCardLocal.assignee?.id !== activeCard.assignee?.id) patch.assignee = editingCardLocal.assignee;
 
     if (Object.keys(patch).length > 0) {
-      // CORRECTED CALL: Pass all 3 parameters
       await updateCard(selected.columnId, selected.cardId, patch);
     }
     setDrawerOpen(false);
@@ -185,7 +223,12 @@ export function KanbanBoard({
     const activeType = event.active.data.current?.type as string | undefined
     const activeId = String(event.active.id)
     const overId = event.over?.id ? String(event.over.id) : null
+    
+    console.log("--- handleDragEnd: Drag ended ---");
+    console.log(`Active type: ${activeType}, Active ID: ${activeId}, Over ID: ${overId}`);
+
     if (!overId) {
+      console.log("handleDragEnd: No overId, resetting overlay.");
       setOverlay(null)
       return
     }
@@ -193,33 +236,48 @@ export function KanbanBoard({
     if (activeType === "column") {
       const fromIndex = columns.findIndex((c) => c.id === activeId)
       const toIndex = columns.findIndex((c) => c.id === overId)
+
+      console.log(`Column drag: fromIndex=${fromIndex}, toIndex=${toIndex}`);
+
       if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) {
+        console.log("Column drag: Invalid indices or no effective change, resetting overlay.");
         setOverlay(null)
         return;
       }
 
       setColumns((prev) => {
+        console.log("Column drag: Optimistically updating local columns state.");
         const next = [...prev]
         const [moved] = next.splice(fromIndex, 1)
         next.splice(toIndex, 0, moved)
 
-        // Update backend with new order for all columns
-        // This is a bulk update, or iterate and call updateColumn for each affected one
+        console.log("Column drag: New optimistic local columns order (IDs, order):", next.map(c => ({ id: c.id, order: c.order, name: c.name })));
+
         next.forEach((col, idx) => {
-            // Only update if order changed to avoid unnecessary backend calls
-            if (col.order === undefined || col.order !== idx) {
-                updateColumn(col.id, col.title, idx); // Use hook's updateColumn
+            // Apply optimistic order to the local state here as well.
+            // This is crucial for the useEffect's 'hasCoreStructuralChanges' logic.
+            // If the local 'order' matches the new index, and 'id' matches initialColumns[index].id,
+            // then the useEffect should ideally NOT re-sync based purely on 'order' differences.
+            // But since 'order' is part of the state, we update it.
+            col.order = idx; 
+            
+            // Send to backend. These are asynchronous calls.
+            if (col.order !== undefined) { 
+                console.log(`[sprint] KANBAN_BOARD: Calling backend updateColumn for ${col.name} (ID: ${col.id}) to order ${idx}.`);
+                updateColumn(col.id, col.name, idx); 
             }
         });
         return next
       })
       setOverlay(null);
+      console.log("--- handleDragEnd: Column drag processing complete ---");
       return;
     }
 
     if (activeType === "card") {
       const fromColumnId = findColumnIdByCardId(activeId)
       if (!fromColumnId) {
+        console.log("Card drag: Could not find source column for card, resetting overlay.");
         setOverlay(null)
         return
       }
@@ -235,6 +293,7 @@ export function KanbanBoard({
       } else {
         toColumnId = findColumnIdByCardId(overId)
         if (!toColumnId) {
+          console.log("Card drag: Could not find destination column for card, resetting overlay.");
           setOverlay(null)
           return
         }
@@ -244,16 +303,19 @@ export function KanbanBoard({
 
       const fromIndex = indexOfCard(fromColumnId, activeId)
       if (fromIndex < 0 || !toColumnId) {
+        console.log("Card drag: Invalid indices or no destination column, resetting overlay.");
         setOverlay(null)
         return
       }
       if (fromColumnId === toColumnId && fromIndex === toIndex) {
+        console.log("Card drag: Card dropped in same spot, no change, resetting overlay.");
         setOverlay(null)
         return
       }
 
       // Optimistic UI update for card movement
       setColumns((prev) => {
+        console.log("Card drag: Optimistically updating local cards state.");
         const next = prev.map((c) => ({ ...c, cards: [...c.cards] }))
         const fromCol = next.find((c) => c.id === fromColumnId)!
         const toCol = next.find((c) => c.id === toColumnId)!
@@ -266,50 +328,48 @@ export function KanbanBoard({
         
         // If the column changed, trigger backend update for sectionId
         if (fromColumnId !== toColumnId) {
-            // CORRECTED CALL: Pass all 3 parameters
-            updateCard(fromColumnId, moved.id, { sectionId: toCol.id }); // Use hook's updateCard, send only sectionId
+            console.log(`[sprint] KANBAN_BOARD: Calling backend updateCard for ${moved.title} (ID: ${moved.id}) to section ${toCol.name}.`);
+            updateCard(fromColumnId, moved.id, { sectionId: toCol.id });
         }
-        // If only order within same column changed, but we don't care about internal order, no backend update.
+        // Note: For card reordering within the same column, we're currently not sending an update.
+        // If card order matters for the backend, an update for card.order would be needed here too.
 
         return next
       })
     }
 
     setOverlay(null)
+    console.log("--- handleDragEnd: Finished processing ---");
   }
 
   const currentSprintName = useMemo(() => {
     return sprintOptions.find(s => s.id === currentSprintId)?.name || "";
   }, [currentSprintId, sprintOptions]);
 
-  // Handler for adding a card
   const handleAddCard = useCallback(async (columnId: string, title: string) => {
+    console.log(`Calling createCard for column ${columnId} with title "${title}"`);
     await createCard(columnId, title);
   }, [createCard]);
 
-  // Handler for updating a column title
   const handleUpdateColumnTitle = useCallback(async (columnId: string, title: string) => {
-    // Note: The `updateColumn` mutation expects `name` and `order`.
-    // When only title changes, `order` can be passed as `undefined` or its current value.
-    const currentOrder = columns.find(c => c.id === columnId)?.order;
-    await updateColumn(columnId, title, currentOrder);
-  }, [updateColumn, columns]); // Added columns to deps for currentOrder
+    const currentColumn = columns.find(c => c.id === columnId);
+    console.log(`Calling updateColumn for title change for column ${columnId} to "${title}"`);
+    await updateColumn(columnId, title, currentColumn?.order);
+  }, [updateColumn, columns]);
 
-  // Handler for deleting a column
   const handleDeleteColumn = useCallback(async (columnId: string) => {
+    console.log(`Calling deleteColumn for column ${columnId}`);
     await deleteColumn(columnId);
   }, [deleteColumn]);
 
-  // Handler for deleting a card
   const handleDeleteCard = useCallback(async (cardId: string) => {
-    // We need the currentSectionId to pass to the updateCard hook for refetchQueries context.
-    // Find the card's current column
     const currentColumnId = findColumnIdByCardId(cardId);
     if (currentColumnId) {
-        await deleteCard(cardId); // The hook's deleteCard doesn't need currentSectionId explicitly in its signature
+        console.log(`Calling deleteCard for card ${cardId} from column ${currentColumnId}`);
+        await deleteCard(cardId);
     } else {
-        console.warn(`[sprint] KANBAN_BOARD: Could not find column for card ${cardId} to delete.`);
-        await deleteCard(cardId); // Still attempt deletion even if column not found in local state
+        console.warn(`[sprint] KANBAN_BOARD: Could not find column for card ${cardId} to delete. Calling deleteCard anyway.`);
+        await deleteCard(cardId);
     }
     setDrawerOpen(false);
   }, [deleteCard, columns]);
@@ -383,8 +443,7 @@ export function KanbanBoard({
                       onOpen={() => !card.editing && openDrawer(column.id, card.id)}
                       onStartInline={() => setColumns(prev => prev.map(c => c.id === column.id ? { ...c, cards: c.cards.map(k => k.id === card.id ? { ...k, editing: true } : k) } : c))}
                       onFinishInline={(patch) => {
-                        // CORRECTED CALL: Pass all 3 parameters
-                        updateCard(column.id, card.id, patch);
+                        updateCard(column.id, card.id, patch); 
                         setColumns(prev => prev.map(c => c.id === column.id ? { ...c, cards: c.cards.map(k => k.id === card.id ? { ...k, ...patch, editing: false } : k) } : c));
                       }}
                       onDeleteCard={() => handleDeleteCard(card.id)}

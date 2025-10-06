@@ -1,5 +1,4 @@
 // graphql/mutations/updateProjectTask.ts
-
 import { gql } from '@apollo/client';
 
 export const UPDATE_PROJECT_TASK_MUTATION = gql`
@@ -13,12 +12,16 @@ export const UPDATE_PROJECT_TASK_MUTATION = gql`
       dueDate
       points
       completed # Derived field
+      sprintId # <--- ADD THIS
+      sectionId # <--- ADD THIS
       assignee {
         id
         firstName
         lastName
         avatar
+        __typename
       }
+      __typename
     }
   }
 `;
