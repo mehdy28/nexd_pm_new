@@ -47,11 +47,13 @@ enum ProjectStatus {
   CANCELLED
 }
 
+# Consolidated TaskStatus (removing TaskStatusGQL in favor of this one)
 enum TaskStatus {
   TODO
   DONE
 }
 
+# Consolidated Priority (removing PriorityGQL in favor of this one)
 enum Priority {
   LOW
   MEDIUM
@@ -210,6 +212,7 @@ type Sprint {
   project: Project!
   tasks: [Task!]! # Tasks belonging to this sprint
   milestones: [Milestone!]!
+  status: SprintStatus! # NEW: Add status to Sprint
 }
 
 type Milestone {
@@ -220,7 +223,7 @@ type Milestone {
   isCompleted: Boolean!
   createdAt: String!
   updatedAt: String!
-  sprint: SprintDetails! # Assuming SprintDetails is comprehensive enough, or SprintNameId
+  sprint: Sprint! # Corrected: Reference Sprint directly, not SprintDetails
 }
 
 
@@ -252,8 +255,8 @@ type Task {
   id: ID!
   title: String!
   description: String
-  status: TaskStatus!
-  priority: Priority!
+  status: TaskStatus! # Using consolidated TaskStatus
+  priority: Priority! # Using consolidated Priority
   dueDate: String
   startDate: String
   endDate: String
@@ -478,7 +481,7 @@ type SprintDetails { # Update SprintDetails type
   startDate: String!
   endDate: String!
   isCompleted: Boolean!
-  status: SprintStatus!
+  status: SprintStatus! # Using the new SprintStatus enum
   tasks: [TaskListView!]! # Tasks directly under this sprint
   milestones: [Milestone!]! # NEW: Milestones directly under this sprint
 }
@@ -506,6 +509,7 @@ type ProjectDetails { # New type to represent the comprehensive data for a singl
   inProgressTasks: Int!
   overdueTasks: Int!
   upcomingDeadlines: Int!
+  displayStatus: String! # Added for UI convenience, can be derived from status
 
   members: [ProjectMemberDetails!]!
   sprints: [SprintDetails!]!
@@ -536,18 +540,21 @@ type TaskListView { # Simplified Task type for list view
   id: ID!
   title: String!
   description: String
-  status: TaskStatusGQL! # Mapped from Prisma TaskStatus
-  priority: PriorityGQL!
+  status: TaskStatus! # Mapped from Prisma TaskStatus, using consolidated enum
+  priority: Priority! # Mapped from Prisma Priority, using consolidated enum
   dueDate: String # YYYY-MM-DD
   points: Int       # Added points field
   completionPercentage: Float # Added completionPercentage field
   assignee: UserAvatarPartial # Assignee details
   completed: Boolean! # Derived field for UI
+  sprintId: ID # <--- ADD THIS IF NOT ALREADY PRESENT (CRITICAL for previous fixes)
+  sectionId: ID # <--- ADD THIS SO UI KNOWS THE TASK'S SECTION
 }
 
 type SectionWithTasks { # For project sections
   id: ID!
   name: String!
+  order: Int! # <--- ADD THIS FOR SECTION REORDERING
   tasks: [TaskListView!]!
 }
 
@@ -563,21 +570,6 @@ input DeleteSectionOptions {
   reassignToSectionId: ID # Required if deleteTasks is false
 }
 
-
-
-# New model: Section for a project
-# Redundant type definition, as 'Section' is already defined above.
-# This one should be removed or merged if it represents the same concept.
-# I will assume the first 'Section' definition is the correct one.
-# type Section {
-#   id: ID!
-#   name: String!
-#   order: Int!
-#   createdAt: String!
-#   updatedAt: String!
-#   project: Project!
-#   tasks: [Task!]! # Tasks belonging to this section
-# }
 
 
 type ProjectTasksAndSectionsData {
@@ -612,8 +604,8 @@ input CreateProjectTaskInput {
   sectionId: ID!
   title: String!
   description: String
-  status: TaskStatusGQL
-  priority: PriorityGQL
+  status: TaskStatus # Using consolidated TaskStatus
+  priority: Priority # Using consolidated Priority
   dueDate: String
   startDate: String
   endDate: String
@@ -628,8 +620,8 @@ input UpdateProjectTaskInput {
   id: ID!
   title: String # Changed from String! to String (optional, not nullable)
   description: String
-  status: TaskStatusGQL
-  priority: PriorityGQL
+  status: TaskStatus # Using consolidated TaskStatus
+  priority: Priority # Using consolidated Priority
   dueDate: String # Changed to String (optional)
   startDate: String
   endDate: String
@@ -637,10 +629,30 @@ input UpdateProjectTaskInput {
   sprintId: ID # Changed to ID (optional)
   points: Int # Changed to Int (optional)
   parentId: ID
+  isCompleted: Boolean # NEW: For updating sprint completion status
+  sectionId: ID # <--- ADD THIS FOR MOVING TASKS BETWEEN SECTIONS
 }
 
+# Input type for creating a sprint
+input CreateSprintInput {
+  projectId: ID!
+  name: String!
+  description: String
+  startDate: String! # ISO Date string
+  endDate: String!   # ISO Date string
+  status: SprintStatus # NEW: Allow setting initial status
+}
 
-
+# Input type for updating a sprint
+input UpdateSprintInput {
+  id: ID!
+  name: String
+  description: String
+  startDate: String # ISO Date string
+  endDate: String   # ISO Date string
+  isCompleted: Boolean
+  status: SprintStatus # NEW: Allow updating status
+}
 
 
 type ProjectMemberFullDetails { # NEW: For project members list
@@ -653,9 +665,6 @@ type ProjectMemberFullDetails { # NEW: For project members list
 # Root Mutations (CRUD-style)
 # ----------------------------------
 type Mutation {
-
-
-  
   createProjectTask(input: CreateProjectTaskInput!): TaskListView! # New mutation
   updateProjectTask(input: UpdateProjectTaskInput!): TaskListView! # New mutation
 
@@ -684,6 +693,11 @@ type Mutation {
   ): Project! # Returns the created Project
 
   deleteProjectTask(id: ID!): TaskListView! # NEW: Mutation to delete a task
+
+  # Sprint Mutations
+  createSprint(input: CreateSprintInput!): SprintDetails! # Returns the created sprint
+  updateSprint(input: UpdateSprintInput!): SprintDetails! # Returns the updated sprint
+  deleteSprint(id: ID!): SprintDetails! # Returns the deleted sprint
 }
 
 # ----------------------------------

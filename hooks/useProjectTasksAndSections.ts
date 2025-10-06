@@ -1,6 +1,6 @@
 // hooks/useProjectTasksAndSections.ts
 import { useQuery, useMutation } from "@apollo/client";
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useEffect } from "react";
 import { GET_PROJECT_TASKS_AND_SECTIONS_QUERY } from "@/graphql/queries/getProjectTasksAndSections";
 import { CREATE_PROJECT_SECTION_MUTATION } from "@/graphql/mutations/createProjectSection";
 import { UPDATE_PROJECT_SECTION_MUTATION } from "@/graphql/mutations/updateProjectSection";
@@ -29,6 +29,7 @@ export interface TaskUI {
   completed: boolean; // Derived from TaskStatusUI
   description?: string;
   status: TaskStatusUI; // Keep original status for backend updates
+  sprintId?: string | null; // IMPORTANT: Ensure this is explicitly typed as potentially null
 }
 
 export interface SectionUI {
@@ -59,6 +60,7 @@ interface ProjectTasksAndSectionsResponse {
         dueDate?: string; // YYYY-MM-DD
         points: number;
         assignee: UserAvatarPartial | null;
+        sprintId?: string | null; // IMPORTANT: Ensure sprintId is part of the API response structure
       }>;
     }>;
 
@@ -82,12 +84,27 @@ const mapTaskStatusToUI = (status: TaskStatus): boolean => {
 };
 
 
-export function useProjectTasksAndSections(projectId: string, sprintId?: string | null) {
+export function useProjectTasksAndSections(projectId: string, sprintIdFromProps?: string | null) { // Renamed for clarity
+  console.log(`[sprint] HOOK: useProjectTasksAndSections called with projectId: ${projectId}, sprintIdFromProps: ${sprintIdFromProps}`);
+
   const { data, loading, error, refetch } = useQuery<ProjectTasksAndSectionsResponse>(GET_PROJECT_TASKS_AND_SECTIONS_QUERY, {
-    variables: { projectId, sprintId },
+    variables: { projectId, sprintId: sprintIdFromProps }, // Use sprintIdFromProps directly as the variable
     skip: !projectId,
-    fetchPolicy: "network-only",
+    fetchPolicy: "network-only", // Ensure fresh data on each call
   });
+
+  useEffect(() => {
+    if (data) {
+      console.log("[sprint] HOOK: Data received from GET_PROJECT_TASKS_AND_SECTIONS_QUERY.");
+      console.log("[sprint] HOOK: Query variables used for fetch (sprintId):", sprintIdFromProps);
+      console.log("[sprint] HOOK: Fetched sprints:", data.getProjectTasksAndSections?.sprints);
+      // console.log("[sprint] HOOK: Fetched sections (first 2 tasks of first section):", JSON.stringify(data.getProjectTasksAndSections?.sections?.[0]?.tasks.slice(0,2), null, 2));
+    }
+    if (error) {
+      console.error("[sprint] HOOK: Query error:", error);
+    }
+  }, [data, error, sprintIdFromProps]);
+
 
   // --- Section Mutations ---
   const [createProjectSectionMutation] = useMutation<any, any>(CREATE_PROJECT_SECTION_MUTATION, {
@@ -131,34 +148,39 @@ export function useProjectTasksAndSections(projectId: string, sprintId?: string 
             completed: mapTaskStatusToUI(task.status),
             description: task.description,
             status: task.status,
+            sprintId: task.sprintId, // Ensure sprintId is mapped here
           })),
           editing: false,
         });
       });
-
-
     }
+    console.log(`[sprint] HOOK: Memoized sections count: ${tempSections.length}`);
     return tempSections;
   }, [transformedData]);
 
   // Expose project members from the query result
   const projectMembers: ProjectMemberFullDetails[] = useMemo(() => {
+    console.log(`[sprint] HOOK: Memoized projectMembers count: ${transformedData?.projectMembers.length || 0}`);
     return transformedData?.projectMembers || [];
   }, [transformedData]);
 
-  // Determine the default selected sprint ID.
-  // This logic runs whenever transformedData or sprintFilterOptions change.
-  const defaultSelectedSprintId: string | undefined = useMemo(() => {
-    // If there's an active sprintId passed to the hook (meaning user selected one previously), use that.
-    // Otherwise, if sprints are available, default to the first one.
-    if (sprintId) return sprintId; // If sprintId is passed, that's the current selected one.
-    if (transformedData?.sprints && transformedData.sprints.length > 0) return transformedData.sprints[0].id;
+  // The *suggested* default sprint ID. This will only be used by ListView
+  // if its own internalSelectedSprintId is initially undefined.
+  const defaultSprintIdToSuggest: string | undefined = useMemo(() => {
+    if (transformedData?.sprints && transformedData.sprints.length > 0) {
+      // Assuming transformedData.sprints[0] is the desired "default" or "latest" if no sprintIdFromProps is given.
+      // If there's a more specific logic for the "latest" or "active" sprint, implement it here.
+      const suggestedId = transformedData.sprints[0].id; // For example, the first one returned by the backend.
+      console.log(`[sprint] HOOK: Suggested default sprint ID for initial ListView state: ${suggestedId} (from fetched sprints[0])`);
+      return suggestedId;
+    }
+    console.log("[sprint] HOOK: No default sprint ID suggested (no sprints available or transformedData is null).");
     return undefined;
-  }, [transformedData?.sprints, sprintId]);
-
+  }, [transformedData?.sprints]); // Depend on transformedData.sprints to re-calculate if the list changes
 
   // --- Functions to expose for section mutations ---
   const createSection = useCallback(async (name: string, order?: number | null) => {
+    console.log(`[sprint] HOOK: createSection called for projectId: ${projectId}, name: ${name}`);
     try {
       const response = await createProjectSectionMutation({
         variables: {
@@ -167,15 +189,17 @@ export function useProjectTasksAndSections(projectId: string, sprintId?: string 
           order: order ?? null,
         },
       });
+      console.log("[sprint] HOOK: createSection mutation successful. Response:", response.data);
       return response.data?.createProjectSection;
     } catch (err: any) {
-      console.error("Error creating section:", err);
+      console.error("[sprint] HOOK: Error creating section:", err);
       throw err;
     }
   }, [projectId, createProjectSectionMutation]);
 
 
   const updateSection = useCallback(async (id: string, name?: string | null, order?: number | null) => {
+    console.log(`[sprint] HOOK: updateSection called for sectionId: ${id}, name: ${name}`);
     try {
       const response = await updateProjectSectionMutation({
         variables: {
@@ -184,14 +208,16 @@ export function useProjectTasksAndSections(projectId: string, sprintId?: string 
           order: order ?? null,
         },
       });
+      console.log("[sprint] HOOK: updateSection mutation successful. Response:", response.data);
       return response.data?.updateSection;
     } catch (err: any) {
-      console.error("Error updating section:", err);
+      console.error("[sprint] HOOK: Error updating section:", err);
       throw err;
     }
   }, [updateProjectSectionMutation]);
 
   const deleteSection = useCallback(async (id: string, options: { deleteTasks: boolean; reassignToSectionId?: string | null }) => {
+    console.log(`[sprint] HOOK: deleteSection called for sectionId: ${id}. Options:`, options);
     try {
       const response = await deleteProjectSectionMutation({
         variables: {
@@ -199,9 +225,10 @@ export function useProjectTasksAndSections(projectId: string, sprintId?: string 
           options,
         },
       });
+      console.log("[sprint] HOOK: deleteSection mutation successful. Response:", response.data);
       return response.data?.deleteProjectSection;
     } catch (err: any) {
-      console.error("Error deleting section:", err);
+      console.error("[sprint] HOOK: Error deleting section:", err);
       throw err;
     }
   }, [deleteProjectSectionMutation]);
@@ -218,6 +245,8 @@ export function useProjectTasksAndSections(projectId: string, sprintId?: string 
     updateSection,
     deleteSection,
     projectMembers, // Expose project members
-    defaultSelectedSprintId, // Now returning the derived default sprint ID
+    // This return ensures ListView always gets its initially desired sprint,
+    // and if ListView itself has no preference yet, it gets a default suggestion.
+    defaultSelectedSprintId: sprintIdFromProps !== undefined ? sprintIdFromProps : defaultSprintIdToSuggest,
   };
 }

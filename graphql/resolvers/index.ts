@@ -4,6 +4,8 @@ import workspaceResolver from "./workspaceResolver"
 import projectResolver from "./projectResolver"
 import projectSectionResolver from "./projectSectionResolver"
 import taskResolver from "./taskResolver"
+import { sprintResolvers } from "./sprintResolver"
+
 
 export const resolvers = {
   Query: {
@@ -18,6 +20,7 @@ export const resolvers = {
     ...projectResolver.Mutation,
     ...projectSectionResolver.Mutation,
     ...taskResolver.Mutation,
+    ...sprintResolvers.Mutation,
 
   },
 }

@@ -1,5 +1,5 @@
 // hooks/useProjectTaskMutations.ts
-import { useMutation, ApolloCache, Reference } from "@apollo/client"; // Import ApolloCache, Reference
+import { useMutation, ApolloCache, Reference } from "@apollo/client";
 import { useCallback } from "react";
 import { CREATE_PROJECT_TASK_MUTATION } from "@/graphql/mutations/createProjectTask";
 import { UPDATE_PROJECT_TASK_MUTATION } from "@/graphql/mutations/updateProjectTask";
@@ -7,7 +7,7 @@ import { GET_PROJECT_TASKS_AND_SECTIONS_QUERY } from "@/graphql/queries/getProje
 import { GET_PROJECT_DETAILS_QUERY } from "@/graphql/queries/getProjectDetails";
 import { UserAvatarPartial, PriorityUI, TaskStatusUI, SectionUI, TaskUI } from "./useProjectTasksAndSections";
 import { Priority, TaskStatus } from "@prisma/client";
-import { gql } from "@apollo/client"; // For delete mutation placeholder
+import { gql } from "@apollo/client";
 
 // --- Mutation Variable Interfaces ---
 interface CreateProjectTaskVariables {
@@ -68,20 +68,19 @@ const mapPriorityToUI = (priority: "LOW" | "MEDIUM" | "HIGH"): PriorityUI => {
 
 
 // --- Main Hook ---
-export function useProjectTaskMutations(projectId: string) {
-  // Refetch queries function, now also used by optimisticResponse for create.
-  // It's crucial that any changes potentially affecting the list view or project details are covered.
-  const refetchQueries = useCallback((sprintId?: string | null) => [
-    { query: GET_PROJECT_TASKS_AND_SECTIONS_QUERY, variables: { projectId, sprintId: sprintId === undefined ? null : sprintId } },
+// NOW ACCEPTS currentSprintIdFromProps TO INFORM REFETCH QUERIES
+export function useProjectTaskMutations(projectId: string, currentSprintIdFromProps?: string | null) {
+  console.log(`[sprint] MUTATION HOOK: useProjectTaskMutations called with projectId: ${projectId}, currentSprintIdFromProps: ${currentSprintIdFromProps}`);
+
+  // This helper now uses the currentSprintIdFromProps passed to the hook
+  const getRefetchQueries = useCallback(() => [
+    { query: GET_PROJECT_TASKS_AND_SECTIONS_QUERY, variables: { projectId, sprintId: currentSprintIdFromProps || null } },
     { query: GET_PROJECT_DETAILS_QUERY, variables: { projectId } },
-  ], [projectId]);
+  ], [projectId, currentSprintIdFromProps]); // Dependency on currentSprintIdFromProps
 
   // Create Task Mutation with Optimistic Update
-  const [createProjectTaskMutation, { loading: createLoading, error: createError }] = useMutation<any, CreateProjectTaskVariables>(CREATE_PROJECT_TASK_MUTATION, {
-    // REMOVED 'update' function to prevent 'cache.snapshot is not a function' error.
-    // Relying on `refetchQueries` for cache synchronization.
+  const [createProjectTaskApolloMutation, { loading: createLoading, error: createError }] = useMutation<any, CreateProjectTaskVariables>(CREATE_PROJECT_TASK_MUTATION, {
     optimisticResponse: (vars) => {
-      // Create a temporary ID for optimistic response
       const tempId = `temp-task-${Math.random().toString(36).substring(2, 9)}`;
       return {
         createProjectTask: {
@@ -90,52 +89,36 @@ export function useProjectTaskMutations(projectId: string) {
           title: vars.input.title,
           description: vars.input.description,
           status: vars.input.status || 'TODO',
-          priority: vars.input.priority || 'MEDIUM', // Assuming default for UI
+          priority: vars.input.priority || 'MEDIUM',
           dueDate: vars.input.dueDate,
           points: vars.input.points || 0,
           completed: (vars.input.status || 'TODO') === 'DONE',
           assignee: vars.input.assigneeId ? { __typename: "UserAvatarPartial", id: vars.input.assigneeId, firstName: "...", lastName: "...", avatar: null } : null,
-          sectionId: vars.input.sectionId, // Not directly in return type, but useful for cache update logic
-          sprintId: vars.input.sprintId,   // Not directly in return type, but useful for cache update logic
+          // sprintId is crucial for optimistic updates and refetching.
+          // Since the backend doesn't return it reliably, we use the input here.
+          // This is still part of the optimistic response, not the actual backend return.
+          sprintId: vars.input.sprintId,
         },
       };
     },
-    // The `refetchQueries` is mainly a fallback. Optimistic update is primary.
-    // However, if the query includes projectMembers which needs updating due to assignees,
-    // a full refetch might be simpler than complex cache updates for related entities.
-    refetchQueries: (mutationResult) => {
-        const sprintIdFromNewTask = mutationResult.data?.createProjectTask?.sprintId;
-        // Use the refetchQueries helper function
-        return refetchQueries(sprintIdFromNewTask);
-    },
+    // CRITICAL CHANGE: Use the getRefetchQueries helper directly.
+    // It will capture the correct currentSprintIdFromProps at the time of mutation.
+    refetchQueries: getRefetchQueries,
   });
 
   // Update Task Mutation with Optimistic Update
-  const [updateProjectTaskMutation, { loading: updateLoading, error: updateError }] = useMutation<any, UpdateProjectTaskVariables>(UPDATE_PROJECT_TASK_MUTATION, {
-    // REMOVED 'update' function to prevent 'cache.snapshot is not a function' error.
-    // Relying on `refetchQueries` for cache synchronization.
-    refetchQueries: (mutationResult) => {
-        const sprintIdFromUpdatedTask = mutationResult.data?.updateProjectTask?.sprintId;
-        // Use the refetchQueries helper function
-        return refetchQueries(sprintIdFromUpdatedTask);
-    },
+  const [updateProjectTaskApolloMutation, { loading: updateLoading, error: updateError }] = useMutation<any, UpdateProjectTaskVariables>(UPDATE_PROJECT_TASK_MUTATION, {
+    // CRITICAL CHANGE: Use the getRefetchQueries helper directly.
+    refetchQueries: getRefetchQueries,
   });
 
 
   // Delete Task Mutation
-  const [deleteProjectTaskMutation, { loading: deleteLoading, error: deleteError }] = useMutation<any, { id: string }>(
+  const [deleteProjectTaskApolloMutation, { loading: deleteLoading, error: deleteError }] = useMutation<any, { id: string }>(
     gql`mutation DeleteProjectTask($id: ID!) { deleteProjectTask(id: $id) { id } }`,
     {
-      // REMOVED 'update' function to prevent 'cache.snapshot is not a function' error.
-      // Relying on `refetchQueries` for cache synchronization.
-      refetchQueries: (mutationResult) => {
-          // Fallback refetch if cache update is tricky
-          // After deleting a task, it's safer to refetch all tasks,
-          // as we don't know which sprint it belonged to from the mutation result.
-          // Or, if the mutation returns the deleted task's sprintId, use that.
-          // Assuming a broad refetch for safety, or refine if deletion returns sprintId.
-          return refetchQueries(null); // Refetching with sprintId: null to get all tasks for the project
-      },
+      // CRITICAL CHANGE: Use the getRefetchQueries helper directly.
+      refetchQueries: getRefetchQueries,
     }
   );
 
@@ -143,8 +126,9 @@ export function useProjectTaskMutations(projectId: string) {
   // --- Exposed Functions ---
 
   const createTask = useCallback(async (sectionId: string, input: Omit<CreateProjectTaskVariables['input'], 'projectId' | 'sectionId'>) => {
+    console.log(`[sprint] MUTATION: createTask function called. Target section: ${sectionId}. Current sprint: ${currentSprintIdFromProps}`);
     try {
-      const response = await createProjectTaskMutation({
+      const response = await createProjectTaskApolloMutation({
         variables: {
           input: {
             projectId: projectId,
@@ -163,22 +147,23 @@ export function useProjectTaskMutations(projectId: string) {
           }
         },
       });
+      console.log(`[sprint] MUTATION: createTask response received. Task ID: ${response.data?.createProjectTask?.id}`);
       return response.data?.createProjectTask;
     } catch (err: any) {
-      console.error("Error creating task:", err);
+      console.error("[sprint] MUTATION: Error creating task:", err);
       throw err;
     }
-  }, [projectId, createProjectTaskMutation]);
+  }, [projectId, currentSprintIdFromProps, createProjectTaskApolloMutation]); // Add currentSprintIdFromProps to deps
 
   const updateTask = useCallback(async (taskId: string, input: Omit<UpdateProjectTaskVariables['input'], 'id'>) => {
-    // Dynamically build variables to only send what's defined
+    console.log(`[sprint] MUTATION: updateTask function called. Target task: ${taskId}. Current sprint: ${currentSprintIdFromProps}`);
     const variables: UpdateProjectTaskVariables['input'] = {
         id: taskId,
     };
     if (input.title !== undefined) variables.title = input.title;
     if (input.description !== undefined) variables.description = input.description;
     if (input.status !== undefined) variables.status = input.status;
-    if (input.priority !== undefined) variables.priority = mapPriorityToPrisma(input.priority as PriorityUI); // Convert UI to Prisma
+    if (input.priority !== undefined) variables.priority = mapPriorityToPrisma(input.priority as PriorityUI);
     if (input.dueDate !== undefined) variables.dueDate = input.dueDate;
     if (input.startDate !== undefined) variables.startDate = input.startDate;
     if (input.endDate !== undefined) variables.endDate = input.endDate;
@@ -188,21 +173,23 @@ export function useProjectTaskMutations(projectId: string) {
     if (input.parentId !== undefined) variables.parentId = input.parentId;
 
     try {
-      const response = await updateProjectTaskMutation({
+      const response = await updateProjectTaskApolloMutation({
         variables: { input: variables },
       });
+      console.log(`[sprint] MUTATION: updateTask response received. Task ID: ${response.data?.updateProjectTask?.id}`);
       return response.data?.updateProjectTask;
     } catch (err: any) {
-      console.error("Error updating task:", err);
+      console.error("[sprint] MUTATION: Error updating task:", err);
       throw err;
     }
-  }, [updateProjectTaskMutation]);
+  }, [updateProjectTaskApolloMutation, currentSprintIdFromProps]);
 
 
   const toggleTaskCompleted = useCallback(async (taskId: string, currentStatus: TaskStatusUI) => {
+    console.log(`[sprint] MUTATION: toggleTaskCompleted function called. Target task: ${taskId}. Current sprint: ${currentSprintIdFromProps}`);
     try {
       const newStatus = currentStatus === 'DONE' ? 'TODO' : 'DONE';
-      const response = await updateProjectTaskMutation({
+      const response = await updateProjectTaskApolloMutation({
         variables: {
           input: {
             id: taskId,
@@ -210,24 +197,27 @@ export function useProjectTaskMutations(projectId: string) {
           },
         },
       });
+      console.log(`[sprint] MUTATION: toggleTaskCompleted response received. Task ID: ${response.data?.updateProjectTask?.id}`);
       return response.data?.updateProjectTask;
     } catch (err: any) {
-      console.error("Error toggling task completion:", err);
+      console.error("[sprint] MUTATION: Error toggling task completion:", err);
       throw err;
     }
-  }, [updateProjectTaskMutation]);
+  }, [updateProjectTaskApolloMutation, currentSprintIdFromProps]);
 
-  const deleteTask = useCallback(async (taskId: string) => { // Removed sprintId here, as refetchQueries will handle it
+  const deleteTask = useCallback(async (taskId: string) => {
+    console.log(`[sprint] MUTATION: deleteTask function called. Target task: ${taskId}. Current sprint: ${currentSprintIdFromProps}`);
     try {
-      const response = await deleteProjectTaskMutation({
+      const response = await deleteProjectTaskApolloMutation({
         variables: { id: taskId },
       });
+      console.log(`[sprint] MUTATION: deleteTask response received. Deleted task ID: ${response.data?.deleteProjectTask?.id}`);
       return response.data?.deleteProjectTask;
     } catch (err: any) {
-      console.error("Error deleting task:", err);
+      console.error("[sprint] MUTATION: Error deleting task:", err);
       throw err;
     }
-  }, [deleteProjectTaskMutation]);
+  }, [deleteProjectTaskApolloMutation, currentSprintIdFromProps]);
 
 
   return {

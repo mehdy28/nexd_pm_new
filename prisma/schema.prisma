@@ -49,6 +49,11 @@ enum Priority {
   HIGH
 }
 
+enum SprintStatus { // NEW: Add SprintStatus enum to Prisma
+  PLANNING
+  ACTIVE
+  COMPLETED
+}
 
 enum DependencyType {
   FINISH_TO_START
@@ -218,19 +223,20 @@ model ProjectMember {
 
 // New model: Sprint for a project
 model Sprint {
-  id          String   @id @default(cuid())
+  id          String     @id @default(cuid())
   name        String
   description String?
   startDate   DateTime
   endDate     DateTime
-  isCompleted Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  isCompleted Boolean    @default(false)
+  status      SprintStatus @default(PLANNING) // NEW: Add status field
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
   projectId   String
-  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project     Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   tasks Task[] // Tasks belonging to this sprint
-  milestones Milestone[] 
+  milestones Milestone[]
 
   @@map("sprints")
 }
@@ -372,7 +378,7 @@ model Document {
   updatedAt DateTime     @updatedAt
 
   projectId String?
-  userId    String? 
+  userId    String?
 
   project      Project? @relation("ProjectDocuments", fields: [projectId], references: [id], onDelete: Cascade)
   personalUser User?    @relation("UserPersonalDocuments", fields: [userId], references: [id], onDelete: Cascade)
@@ -386,7 +392,7 @@ model Document {
 model Wireframe {
   id        String   @id @default(cuid())
   title     String
-  data      Json 
+  data      Json
   thumbnail String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

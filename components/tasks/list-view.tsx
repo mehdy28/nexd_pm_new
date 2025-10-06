@@ -1,3 +1,4 @@
+// components/tasks/list-view.tsx
 "use client";
 
 import { useMemo, useState, useEffect, useCallback, useRef } from "react";
@@ -77,9 +78,8 @@ interface ListViewProps {
 }
 
 export function ListView({ projectId }: ListViewProps) {
-  // We'll manage internal state for selectedSprintId, initialized to undefined
   const [internalSelectedSprintId, setInternalSelectedSprintId] = useState<string | undefined>(undefined);
-  // console.log("[ListView] Component Render - current internalSelectedSprintId:", internalSelectedSprintId);
+  console.log("[sprint] ListView Render - Current internalSelectedSprintId (state):", internalSelectedSprintId);
 
 
   const {
@@ -92,22 +92,16 @@ export function ListView({ projectId }: ListViewProps) {
     updateSection,
     deleteSection,
     projectMembers,
-    defaultSelectedSprintId: fetchedDefaultSprintId, // Capture default sprint ID
-  } = useProjectTasksAndSections(projectId, internalSelectedSprintId); // Pass internal state to hook
+    defaultSelectedSprintId: suggestedDefaultSprintId,
+  } = useProjectTasksAndSections(projectId, internalSelectedSprintId);
 
 
   useEffect(() => {
-    // console.log("[ListView] useEffect - internalSelectedSprintId:", internalSelectedSprintId, "fetchedDefaultSprintId:", fetchedDefaultSprintId);
-    // This effect should run once after the initial data fetch from useProjectTasksAndSections.
-    // If internalSelectedSprintId is still undefined (meaning no user has selected a sprint yet)
-    // AND a default sprint ID was successfully fetched, then set it.
-    if (internalSelectedSprintId === undefined && fetchedDefaultSprintId) {
-      // console.log("[ListView] Setting internalSelectedSprintId to fetchedDefaultSprintId:", fetchedDefaultSprintId);
-      setInternalSelectedSprintId(fetchedDefaultSprintId);
+    if (internalSelectedSprintId === undefined && suggestedDefaultSprintId) {
+      console.log("[sprint] ListView Effect: Initializing internalSelectedSprintId to suggestedDefaultSprintId:", suggestedDefaultSprintId);
+      setInternalSelectedSprintId(suggestedDefaultSprintId);
     }
-    // Dependency array includes fetchedDefaultSprintId to react to its availability
-    // and internalSelectedSprintId to ensure this only runs once for default setting.
-  }, [fetchedDefaultSprintId, internalSelectedSprintId]);
+  }, [suggestedDefaultSprintId]);
 
 
   const {
@@ -117,7 +111,7 @@ export function ListView({ projectId }: ListViewProps) {
     deleteTask: deleteTaskMutation,
     isTaskMutating,
     taskMutationError,
-  } = useProjectTaskMutations(projectId);
+  } = useProjectTaskMutations(projectId, internalSelectedSprintId); // <--- Pass internalSelectedSprintId here
 
 
   const [sections, setSections] = useState<SectionUI[]>([]);
@@ -183,9 +177,11 @@ export function ListView({ projectId }: ListViewProps) {
     }
     setIsSectionMutating(true);
     try {
+      console.log(`[sprint] Renaming section "${id}" to "${title}"`);
       await updateSection(id, title);
+      console.log(`[sprint] Section "${id}" renamed successfully.`);
     } catch (err) {
-      console.error("Failed to rename section:", err);
+      console.error(`[sprint] Failed to rename section "${id}":`, err);
     } finally {
       setIsSectionMutating(false);
       setSections((prev) => prev.map((s) => (s.id === id ? { ...s, editing: false } : s)));
@@ -195,24 +191,32 @@ export function ListView({ projectId }: ListViewProps) {
   const addSection = useCallback(async () => {
     setIsSectionMutating(true);
     try {
+      console.log("[sprint] Attempting to add new section.");
       await createSection("New Section");
+      console.log("[sprint] New section created. Triggering refetchProjectTasksAndSections.");
+      refetchProjectTasksAndSections(); // Refetch after creating a new section
     } catch (err) {
-      console.error("Failed to add section:", err);
+      console.error("[sprint] Failed to add section:", err);
     } finally {
       setIsSectionMutating(false);
     }
-  }, [createSection]);
+  }, [createSection, refetchProjectTasksAndSections]);
 
   const toggleTaskCompleted = useCallback(async (sectionId: string, taskId: string) => {
     const taskToUpdate = sections.find(s => s.id === sectionId)?.tasks.find(t => t.id === taskId);
-    if (!taskToUpdate) return;
+    if (!taskToUpdate) {
+      console.warn(`[sprint] Task ${taskId} not found in section ${sectionId} for toggle completion.`);
+      return;
+    }
 
+    console.log(`[sprint] Toggling completion for task "${taskId}". Current status: ${taskToUpdate.completed}`);
+    // Optimistic UI update
     setSections((prev) =>
       prev.map((s) =>
         s.id === sectionId
           ? {
               ...s,
-              tasks: s.tasks.map((t) => (t.id === taskId ? { ...t, completed: !t.completed } : t)),
+              tasks: s.tasks.map((t) => (t.id === taskId ? { ...t, completed: !t.completed, status: !t.completed ? 'DONE' : 'TODO' } : t)),
             }
           : s,
       ),
@@ -220,14 +224,16 @@ export function ListView({ projectId }: ListViewProps) {
 
     try {
       await toggleTaskCompletedMutation(taskId, taskToUpdate.status);
+      console.log(`[sprint] Task "${taskId}" completion toggled successfully in backend.`);
     } catch (err) {
-      console.error("Failed to toggle task completion:", err);
+      console.error(`[sprint] Failed to toggle task "${taskId}" completion:`, err);
+      // Revert optimistic update on error
       setSections((prev) =>
         prev.map((s) =>
           s.id === sectionId
             ? {
                 ...s,
-                tasks: s.tasks.map((t) => (t.id === taskId ? { ...t, completed: !t.completed } : t)),
+                tasks: s.tasks.map((t) => (t.id === taskId ? { ...t, completed: !t.completed, status: !t.completed ? 'TODO' : 'DONE' } : t)), // Revert to original
               }
             : s,
         ),
@@ -238,7 +244,10 @@ export function ListView({ projectId }: ListViewProps) {
 
   const updateTask = useCallback(async (sectionId: string, taskId: string, updates: Partial<TaskUI>) => {
     const originalTask = sections.find(s => s.id === sectionId)?.tasks.find(t => t.id === taskId);
-    if (!originalTask) return;
+    if (!originalTask) {
+      console.warn(`[sprint] Task ${taskId} not found in section ${sectionId} for update.`);
+      return;
+    }
 
     const mutationInput: { [key: string]: any } = { id: taskId };
 
@@ -253,6 +262,8 @@ export function ListView({ projectId }: ListViewProps) {
       mutationInput.status = newStatus;
     }
 
+    console.log(`[sprint] Attempting to update task "${taskId}". Changes:`, updates);
+    // Optimistic UI update
     setSections((prev) =>
       prev.map((s) =>
         s.id === sectionId
@@ -267,40 +278,69 @@ export function ListView({ projectId }: ListViewProps) {
     if (Object.keys(mutationInput).length > 1) {
       try {
         await updateTaskMutation(taskId, mutationInput);
+        console.log(`[sprint] Task "${taskId}" updated successfully in backend.`);
       } catch (err) {
-        console.error("Failed to update task:", err);
+        console.error(`[sprint] Failed to update task "${taskId}":`, err);
+        // Revert optimistic update on error
+        setSections((prev) =>
+          prev.map((s) =>
+            s.id === sectionId
+              ? {
+                  ...s,
+                  tasks: s.tasks.map((t) => (t.id === taskId ? originalTask : t)), // Revert to original
+                }
+              : s,
+          ),
+        );
       }
+    } else {
+        console.log(`[sprint] No significant changes detected for task "${taskId}", skipping backend mutation.`);
     }
   }, [sections, updateTaskMutation]);
 
   const openDeleteTaskModal = useCallback((sectionId: string, task: TaskUI) => {
+    console.log(`[sprint] Opening delete modal for task "${task.id}" in section "${sectionId}".`);
     setTaskToDelete({ sectionId, task });
     setDeleteTaskModalOpen(true);
   }, []);
 
   const handleConfirmTaskDelete = useCallback(async () => {
-    if (!taskToDelete) return;
+    if (!taskToDelete) {
+      console.warn("[sprint] No task selected for deletion.");
+      return;
+    }
+
+    console.log(`[sprint] Confirming deletion for task "${taskToDelete.task.id}".`);
+    // Optimistic UI update
+    const sectionId = taskToDelete.sectionId;
+    const taskId = taskToDelete.task.id;
+    const originalSections = [...sections]; // Store current state for potential rollback
 
     setSections((prev) =>
       prev.map((s) =>
-        s.id === taskToDelete.sectionId ? { ...s, tasks: s.tasks.filter((t) => t.id !== taskToDelete.task.id) } : s,
+        s.id === sectionId ? { ...s, tasks: s.tasks.filter((t) => t.id !== taskId) } : s,
       ),
     );
     setSelected((prev) => {
       const copy = { ...prev };
-      delete copy[taskToDelete.task.id];
+      delete copy[taskId];
       return copy;
     });
 
     try {
-      await deleteTaskMutation(taskToDelete.task.id);
+      await deleteTaskMutation(taskId);
+      console.log(`[sprint] Task "${taskId}" deleted successfully in backend.`);
     } catch (err) {
-      console.error("Failed to delete task:", err);
+      console.error(`[sprint] Failed to delete task "${taskId}":`, err);
+      // Revert optimistic update on error
+      setSections(originalSections); // Revert to original state
+      console.log("[sprint] Task deletion failed, reverting UI and triggering refetchProjectTasksAndSections.");
+      refetchProjectTasksAndSections(); // Also refetch to ensure consistency
     } finally {
       setDeleteTaskModalOpen(false);
       setTaskToDelete(null);
     }
-  }, [taskToDelete, deleteTaskMutation]);
+  }, [taskToDelete, sections, deleteTaskMutation, refetchProjectTasksAndSections]);
 
 
   const allTaskIds = useMemo(() => {
@@ -312,6 +352,7 @@ export function ListView({ projectId }: ListViewProps) {
   }, []);
 
   const toggleSelectAll = useCallback((checked: boolean) => {
+    console.log(`[sprint] Toggling select all tasks to: ${checked}`);
     if (!checked) {
       setSelected({});
       return;
@@ -325,13 +366,20 @@ export function ListView({ projectId }: ListViewProps) {
     return Object.values(selected).filter(Boolean).length;
   }, [selected]);
 
-  const bulkDeleteSelected = useCallback(() => {
+  const bulkDeleteSelected = useCallback(async () => {
     const toDelete = new Set(
       Object.entries(selected)
         .filter(([, v]) => v)
         .map(([k]) => k),
     );
-    if (toDelete.size === 0) return;
+    if (toDelete.size === 0) {
+        console.log("[sprint] No tasks selected for bulk deletion.");
+        return;
+    }
+    console.log(`[sprint] Attempting bulk delete for ${toDelete.size} tasks.`);
+
+    // Optimistic UI update for bulk delete
+    const originalSections = [...sections]; // Store current state for potential rollback
     setSections((prev) =>
       prev.map((s) => ({
         ...s,
@@ -339,9 +387,24 @@ export function ListView({ projectId }: ListViewProps) {
       })),
     );
     setSelected({});
-  }, [selected]);
+
+    try {
+      // Assuming a bulk delete mutation function exists or iterating over individual deletes
+      for (const taskId of Array.from(toDelete)) {
+        await deleteTaskMutation(taskId); // Or call a bulkDeleteTasks mutation
+        console.log(`[sprint] Bulk deleted task "${taskId}" successfully in backend.`);
+      }
+    } catch (err) {
+      console.error("[sprint] Failed to bulk delete tasks:", err);
+      // Revert optimistic update on error
+      setSections(originalSections); // Revert to original state
+      console.log("[sprint] Bulk deletion failed, reverting UI and triggering refetchProjectTasksAndSections.");
+      refetchProjectTasksAndSections(); // Also refetch to ensure consistency
+    }
+  }, [selected, sections, deleteTaskMutation, refetchProjectTasksAndSections]);
 
   const openNewTask = useCallback((sectionId: string) => {
+    console.log(`[sprint] Opening new task form for section "${sectionId}". Current selected sprint: ${internalSelectedSprintId}`);
     setNewTaskOpen((p) => ({ ...p, [sectionId]: true }));
     setNewTask((p) => ({
       ...p,
@@ -352,44 +415,84 @@ export function ListView({ projectId }: ListViewProps) {
         priority: "Medium",
         points: null,
         description: null,
-        sprintId: internalSelectedSprintId || null, // Use internalSelectedSprintId
+        sprintId: internalSelectedSprintId || null, // Use internalSelectedSprintId as default
       },
     }));
   }, [availableAssignees, internalSelectedSprintId]);
 
   const cancelNewTask = useCallback((sectionId: string) => {
+    console.log(`[sprint] Cancelling new task creation for section "${sectionId}".`);
     setNewTaskOpen((p) => ({ ...p, [sectionId]: false }));
   }, []);
 
   const saveNewTask = useCallback(async (sectionId: string) => {
     const form = newTask[sectionId];
     if (!form || !form.title.trim()) {
+      console.warn(`[sprint] New task title is empty for section "${sectionId}". Aborting creation.`);
       return;
     }
 
+    const assignedSprintId = internalSelectedSprintId || null;
+    const createTaskInput = {
+      title: form.title,
+      description: form.description,
+      assigneeId: form.assigneeId,
+      dueDate: form.due,
+      priority: form.priority,
+      points: form.points,
+      sprintId: assignedSprintId,
+      status: 'TODO',
+    };
+
+    console.log(`[sprint] Attempting to create new task in section "${sectionId}" for sprint "${assignedSprintId}". Input:`, createTaskInput);
+
     try {
-      await createTask(sectionId, {
-        title: form.title,
-        description: form.description,
-        assigneeId: form.assigneeId,
-        dueDate: form.due,
-        priority: form.priority,
-        points: form.points,
-        sprintId: form.sprintId,
-        status: 'TODO',
-      });
+      let createdTask: TaskUI = await createTask(sectionId, createTaskInput);
+      console.log(`[sprint] Task created successfully in backend. Returned task:`, createdTask);
+
+      if (!createdTask.sprintId) {
+          console.warn(`[sprint] Returned task "${createdTask.id}" is missing sprintId. Applying client-side workaround using input sprintId: ${assignedSprintId}`);
+          createdTask = { ...createdTask, sprintId: assignedSprintId };
+      }
+
+      setSections(prevSections => prevSections.map(s => {
+        if (s.id === sectionId) {
+          const taskBelongsToCurrentSprint = !assignedSprintId || (createdTask.sprintId === assignedSprintId);
+
+          if (taskBelongsToCurrentSprint) {
+              console.log(`[sprint] Adding created task "${createdTask.id}" to section "${s.id}" in UI. Task sprintId: ${createdTask.sprintId}. Current view sprintId: ${assignedSprintId}`);
+              return {
+                  ...s,
+                  tasks: [...s.tasks, createdTask],
+              };
+          } else {
+              console.log(`[sprint] Created task "${createdTask.id}" (sprint: ${createdTask.sprintId}) does not belong to currently selected sprint (${assignedSprintId}). Not adding to current UI view.`);
+          }
+        }
+        return s;
+      }));
+
       setNewTaskOpen((p) => ({ ...p, [sectionId]: false }));
+      setNewTask((p) => {
+          const newState = { ...p };
+          delete newState[sectionId];
+          return newState;
+      });
+      console.log(`[sprint] UI updated, form closed for section "${sectionId}". Current selected sprint remains: ${internalSelectedSprintId}`);
+
     } catch (err) {
-      console.error("Failed to create task:", err);
+      console.error(`[sprint] Failed to create task in section "${sectionId}":`, err);
     }
-  }, [newTask, createTask]);
+  }, [newTask, createTask, internalSelectedSprintId, availableAssignees]);
 
 
   const openSheetFor = useCallback((sectionId: string, taskId: string) => {
+    console.log(`[sprint] Opening sheet for task "${taskId}" in section "${sectionId}".`);
     setSheetTask({ sectionId, taskId });
   }, []);
 
   const closeSheet = useCallback(() => {
+    console.log("[sprint] Closing task details sheet.");
     setSheetTask(null);
     setEditingTaskLocal(null);
   }, []);
@@ -403,15 +506,20 @@ export function ListView({ projectId }: ListViewProps) {
 
   useEffect(() => {
     if (sheetData) {
+      console.log(`[sprint] Sheet data available for task "${sheetData.task.id}". Setting local editing state.`);
       setEditingTaskLocal(sheetData.task);
     } else {
+      console.log("[sprint] No sheet data, resetting local editing state.");
       setEditingTaskLocal(null);
     }
   }, [sheetData]);
 
 
   const handleSheetSave = useCallback(async () => {
-    if (!sheetTask || !editingTaskLocal || !sheetData) return;
+    if (!sheetTask || !editingTaskLocal || !sheetData) {
+        console.warn("[sprint] Cannot save sheet: missing task data or local editing state.");
+        return;
+    }
 
     const originalTask = sheetData.task;
     const updates: Partial<TaskUI> = {};
@@ -424,7 +532,10 @@ export function ListView({ projectId }: ListViewProps) {
     if (editingTaskLocal.assignee?.id !== originalTask.assignee?.id) updates.assignee = editingTaskLocal.assignee;
 
     if (Object.keys(updates).length > 0) {
+      console.log(`[sprint] Saving sheet changes for task "${sheetTask.taskId}". Updates:`, updates);
       await updateTask(sheetTask.sectionId, sheetTask.taskId, updates);
+    } else {
+        console.log(`[sprint] No changes detected in sheet for task "${sheetTask.taskId}".`);
     }
     closeSheet();
   }, [sheetTask, editingTaskLocal, sheetData, updateTask, closeSheet]);
@@ -432,13 +543,17 @@ export function ListView({ projectId }: ListViewProps) {
 
   useEffect(() => {
     if (!fetchedSections) {
+      console.log("[sprint] fetchedSections is null or undefined.");
       return;
     }
+    console.log("[sprint] fetchedSections updated. Updating local sections state.");
 
     setSections(currentSections => {
       if (currentSections === fetchedSections) {
+        console.log("[sprint] sections state already matches fetchedSections reference. No change.");
         return currentSections;
       }
+      console.log("[sprint] sections state updated to new fetchedSections.");
       return fetchedSections;
     });
 
@@ -473,6 +588,7 @@ export function ListView({ projectId }: ListViewProps) {
         currentCollapsedKeys.every(key => prevCollapsed[key] === newCollapsedState[key]);
 
       if (!isEffectivelySame) {
+        console.log("[sprint] Collapsed state updated due to section changes.");
         return newCollapsedState;
       }
       return prevCollapsed;
@@ -480,6 +596,7 @@ export function ListView({ projectId }: ListViewProps) {
   }, [fetchedSections]);
 
   const handleOpenDeleteSectionModal = useCallback((section: SectionUI) => {
+    console.log(`[sprint] Opening delete section modal for section "${section.title}" (${section.id}).`);
     setSectionToDelete(section);
     setDeleteTasksConfirmed(false);
     const availableOtherSections = sections.filter(s => s.id !== section.id);
@@ -489,8 +606,12 @@ export function ListView({ projectId }: ListViewProps) {
   }, [sections]);
 
   const handleConfirmDeleteSection = useCallback(async () => {
-    if (!sectionToDelete) return;
+    if (!sectionToDelete) {
+      console.warn("[sprint] No section selected for deletion.");
+      return;
+    }
 
+    console.log(`[sprint] Confirming deletion for section "${sectionToDelete.id}". Delete tasks: ${deleteTasksConfirmed}, Reassign to: ${reassignToSectionOption}`);
     setIsSectionMutating(true);
     try {
       const hasTasks = sectionToDelete.tasks.length > 0;
@@ -499,6 +620,7 @@ export function ListView({ projectId }: ListViewProps) {
       if (hasTasks && !deleteTasksConfirmed) {
         reassignId = reassignToSectionOption;
         if (!reassignId) {
+          console.warn("[sprint] Reassignment target not selected, cannot proceed with section deletion if tasks exist and not confirmed for deletion.");
           setIsSectionMutating(false);
           return;
         }
@@ -508,9 +630,11 @@ export function ListView({ projectId }: ListViewProps) {
         deleteTasks: hasTasks ? deleteTasksConfirmed : true,
         reassignToSectionId: reassignId,
       });
+      console.log(`[sprint] Section "${sectionToDelete.id}" deleted successfully in backend. Triggering refetchProjectTasksAndSections.`);
+      refetchProjectTasksAndSections(); // Re-fetch sections after successful delete
 
     } catch (err) {
-      console.error("Failed to delete section:", err);
+      console.error(`[sprint] Failed to delete section "${sectionToDelete.id}":`, err);
     } finally {
       setIsSectionMutating(false);
       setDeleteSectionModalOpen(false);
@@ -518,7 +642,7 @@ export function ListView({ projectId }: ListViewProps) {
       setDeleteTasksConfirmed(false);
       setReassignToSectionOption(null);
     }
-  }, [sectionToDelete, deleteTasksConfirmed, reassignToSectionOption, deleteSection]);
+  }, [sectionToDelete, deleteTasksConfirmed, reassignToSectionOption, deleteSection, refetchProjectTasksAndSections]);
 
   useEffect(() => {
     if (deleteSectionModalOpen && customModalRef.current) {
@@ -541,21 +665,26 @@ export function ListView({ projectId }: ListViewProps) {
   }, [sections, sectionToDelete]);
 
   const currentSprintName = useMemo(() => {
-    // Determine the active sprint ID: prefer the internally selected one, then fallback to the fetched default.
-    const activeSprintId = internalSelectedSprintId === undefined ? fetchedDefaultSprintId : internalSelectedSprintId;
-    console.log("[ListView] Calculating currentSprintName: internalSelectedSprintId =", internalSelectedSprintId, "fetchedDefaultSprintId =", fetchedDefaultSprintId, "activeSprintId =", activeSprintId); // Restored log
+    const activeSprintId = internalSelectedSprintId || suggestedDefaultSprintId;
+    console.log("[sprint] ListView: Calculating currentSprintName: internalSelectedSprintId =", internalSelectedSprintId, "suggestedDefaultSprintId =", suggestedDefaultSprintId, "activeSprintId =", activeSprintId);
     
-    // Find the sprint name using the activeSprintId from the available sprint options.
     const foundSprint = sprintFilterOptions.find(s => s.id === activeSprintId); 
     
-    // Return the found name or an empty string if not found.
     const name = foundSprint?.name || "";
-    console.log("  sprintFilterOptions =", sprintFilterOptions, "Resolved name =", name); // Restored log
+    console.log("[sprint] ListView: sprintFilterOptions =", sprintFilterOptions, "Resolved name =", name);
     return name;
-  }, [internalSelectedSprintId, sprintFilterOptions, fetchedDefaultSprintId]); // Depend on all relevant states
+  }, [internalSelectedSprintId, sprintFilterOptions, suggestedDefaultSprintId]);
+
+  const handleSprintSelectionChange = useCallback((sprintId: string) => {
+    console.log(`[sprint] ListView: Changing selected sprint from "${internalSelectedSprintId}" to "${sprintId}".`);
+    setInternalSelectedSprintId(sprintId);
+    console.log(`[sprint] ListView: Refetching data for new sprint selection "${sprintId}".`);
+    refetchProjectTasksAndSections();
+  }, [internalSelectedSprintId, refetchProjectTasksAndSections]);
 
 
   if (loading) {
+    console.log("[sprint] ListView: Loading tasks and sections...");
     return (
       <div className="flex items-center justify-center min-h-[calc(100vh-64px)] bg-muted/30">
         <Loader2 className="h-10 w-10 animate-spin text-teal-500" />
@@ -565,6 +694,7 @@ export function ListView({ projectId }: ListViewProps) {
   }
 
   if (error) {
+    console.error("[sprint] ListView: Error loading tasks:", error.message);
     return (
       <div className="flex items-center justify-center min-h-[calc(100vh-64px)] bg-red-100 text-red-700 p-4">
         <p className="text-lg">Error loading tasks: {error.message}</p>
@@ -572,25 +702,22 @@ export function ListView({ projectId }: ListViewProps) {
     );
   }
 
-  // Handle case where no sprints are available for the project at all
   if (sprintFilterOptions.length === 0) {
+    console.log("[sprint] ListView: No sprints found for the project.");
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(10vh-64px)] bg-muted/30 p-8 text-center">
         <h2 className="text-3xl font-bold text-foreground mb-4">No Sprints Found</h2>
         <p className="text-muted-foreground leading-relaxed max-w-xl mb-8">
           It looks like there are no sprints in this project yet. Create a new project to get started.
         </p>
-        {/* Potentially add a button to create the first sprint if allowed */}
       </div>
     );
   }
 
-  // If sprints exist but no sections/tasks for the selected sprint
-  // This state is reached if `sections` is empty but `sprintFilterOptions` is not.
   if (!sections || sections.length === 0) {
+    console.log(`[sprint] ListView: No sections or tasks for the current sprint "${currentSprintName}".`);
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(10vh-64px)] bg-muted/30 p-8 text-center">
-        {/* The currentSprintName is guaranteed to be a valid sprint name here */}
         <h2 className="text-3xl font-bold text-foreground mb-4">No Tasks in "{currentSprintName}"</h2>
         <p className="text-muted-foreground leading-relaxed max-w-xl mb-8">
           The selected sprint "{currentSprintName}" has no tasks. Add a new task or select a different sprint.
@@ -613,16 +740,15 @@ export function ListView({ projectId }: ListViewProps) {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" className="h-9 rounded-md gap-2 bg-transparent">
-              {currentSprintName} {/* Directly display the sprint name */}
+              {currentSprintName}
               <ChevronDown className="h-4 w-4 text-muted-foreground" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start">
             <DropdownMenuLabel>Sprints</DropdownMenuLabel>
-            {/* The outer `if (sprintFilterOptions.length === 0)` block handles the no sprints case */}
             {sprintFilterOptions.map((sprint) => (
               <DropdownMenuItem key={sprint.id} onClick={() => {
-                setInternalSelectedSprintId(sprint.id); // Update internal state
+                handleSprintSelectionChange(sprint.id);
               }}>
                 {sprint.name}
               </DropdownMenuItem>
@@ -804,33 +930,6 @@ export function ListView({ projectId }: ListViewProps) {
                                     <span className={cn("h-2 w-2 rounded-full", priorityDot[p])} />
                                     {p}
                                   </div>
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        <div className="space-y-2">
-                          <label className="text-xs text-muted-foreground">Sprint</label>
-                          <Select
-                            value={newTask[section.id]?.sprintId || "null"}
-                            onValueChange={(v) =>
-                              setNewTask((p) => ({
-                                ...p,
-                                [section.id]: { ...(p[section.id] as NewTaskForm), sprintId: v === "null" ? null : v },
-                              }))
-                            }
-                            disabled={isTaskMutating}
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select Sprint" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="null">No Sprint</SelectItem>
-                              <DropdownMenuSeparator />
-                              {sprintFilterOptions.map((sprint) => (
-                                <SelectItem key={sprint.id} value={sprint.id}>
-                                  {sprint.name}
                                 </SelectItem>
                               ))}
                             </SelectContent>

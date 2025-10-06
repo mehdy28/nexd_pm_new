@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState, useCallback } from "react"
 import type { Card, Column, Priority } from "./kanban-types"
 import { KanbanSortableColumn } from "./kanban-sortable-column"
 import { KanbanSortableCard } from "./kanban-sortable-card"
@@ -42,12 +42,25 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 
 import { UserAvatarPartial, PriorityUI } from "@/hooks/useProjectTasksAndSections";
+import { useKanbanMutations } from "@/hooks/useKanbanMutations";
 
 const priorityDot: Record<PriorityUI, string> = {
   Low: "bg-green-500",
   Medium: "bg-orange-500",
   High: "bg-red-500",
 };
+
+type OverlayState = {
+  kind: "card";
+  card: Card;
+  width?: number;
+  height?: number;
+} | {
+  kind: "column";
+  column: Column;
+  width?: number;
+  height?: number;
+} | null;
 
 
 interface KanbanBoardProps {
@@ -56,18 +69,7 @@ interface KanbanBoardProps {
   sprintOptions: { id: string; name: string }[];
   currentSprintId?: string | null;
   onSprintChange: (sprintId: string | null) => void;
-  onColumnsChange: (newColumns: Column[]) => void;
-
-  onCreateColumn: (title: string) => Promise<void>;
-  onUpdateColumn: (columnId: string, title: string) => Promise<void>;
-  onDeleteColumn: (columnId: string) => Promise<void>;
-
-  onCreateCard: (columnId: string, title: string, description?: string, assigneeId?: string | null) => Promise<void>;
-  onUpdateCard: (columnId: string, cardId: string, updates: Partial<Card>) => Promise<void>;
-  onDeleteCard: (cardId: string) => Promise<void>;
-
   availableAssignees: UserAvatarPartial[];
-  isMutating: boolean;
 }
 
 export function KanbanBoard({
@@ -76,15 +78,7 @@ export function KanbanBoard({
   sprintOptions,
   currentSprintId,
   onSprintChange,
-  onColumnsChange,
-  onCreateColumn,
-  onUpdateColumn,
-  onDeleteColumn,
-  onCreateCard,
-  onUpdateCard,
-  onDeleteCard,
   availableAssignees,
-  isMutating,
 }: KanbanBoardProps) {
   const [columns, setColumns] = useState<Column[]>(initialColumns);
 
@@ -94,6 +88,23 @@ export function KanbanBoard({
 
   const rowRef = useRef<HTMLDivElement | null>(null)
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
+
+  const {
+    createColumn,
+    updateColumn,
+    deleteColumn,
+    createCard,
+    updateCard, // Now `updateCard` has parameters `(currentSectionId: string, cardId: string, updates: Partial<TaskUI>)`
+    deleteCard,
+    isMutating,
+    mutationError,
+  } = useKanbanMutations(projectId, currentSprintId);
+
+
+  const openDrawer = useCallback((columnId: string, cardId: string) => {
+    setSelected({ columnId, cardId });
+    setDrawerOpen(true);
+  }, []);
 
   useEffect(() => {
     setColumns(initialColumns);
@@ -126,7 +137,8 @@ export function KanbanBoard({
     if (editingCardLocal.assignee?.id !== activeCard.assignee?.id) patch.assignee = editingCardLocal.assignee;
 
     if (Object.keys(patch).length > 0) {
-      await onUpdateCard(selected.columnId, selected.cardId, patch);
+      // CORRECTED CALL: Pass all 3 parameters
+      await updateCard(selected.columnId, selected.cardId, patch);
     }
     setDrawerOpen(false);
   };
@@ -190,7 +202,15 @@ export function KanbanBoard({
         const next = [...prev]
         const [moved] = next.splice(fromIndex, 1)
         next.splice(toIndex, 0, moved)
-        onColumnsChange(next);
+
+        // Update backend with new order for all columns
+        // This is a bulk update, or iterate and call updateColumn for each affected one
+        next.forEach((col, idx) => {
+            // Only update if order changed to avoid unnecessary backend calls
+            if (col.order === undefined || col.order !== idx) {
+                updateColumn(col.id, col.title, idx); // Use hook's updateColumn
+            }
+        });
         return next
       })
       setOverlay(null);
@@ -232,6 +252,7 @@ export function KanbanBoard({
         return
       }
 
+      // Optimistic UI update for card movement
       setColumns((prev) => {
         const next = prev.map((c) => ({ ...c, cards: [...c.cards] }))
         const fromCol = next.find((c) => c.id === fromColumnId)!
@@ -242,7 +263,14 @@ export function KanbanBoard({
         if (fromColumnId === toColumnId && toIndex > fromIndex) insertAt = toIndex - 1
 
         toCol.cards.splice(insertAt, 0, moved)
-        onColumnsChange(next);
+        
+        // If the column changed, trigger backend update for sectionId
+        if (fromColumnId !== toColumnId) {
+            // CORRECTED CALL: Pass all 3 parameters
+            updateCard(fromColumnId, moved.id, { sectionId: toCol.id }); // Use hook's updateCard, send only sectionId
+        }
+        // If only order within same column changed, but we don't care about internal order, no backend update.
+
         return next
       })
     }
@@ -254,17 +282,55 @@ export function KanbanBoard({
     return sprintOptions.find(s => s.id === currentSprintId)?.name || "";
   }, [currentSprintId, sprintOptions]);
 
+  // Handler for adding a card
+  const handleAddCard = useCallback(async (columnId: string, title: string) => {
+    await createCard(columnId, title);
+  }, [createCard]);
+
+  // Handler for updating a column title
+  const handleUpdateColumnTitle = useCallback(async (columnId: string, title: string) => {
+    // Note: The `updateColumn` mutation expects `name` and `order`.
+    // When only title changes, `order` can be passed as `undefined` or its current value.
+    const currentOrder = columns.find(c => c.id === columnId)?.order;
+    await updateColumn(columnId, title, currentOrder);
+  }, [updateColumn, columns]); // Added columns to deps for currentOrder
+
+  // Handler for deleting a column
+  const handleDeleteColumn = useCallback(async (columnId: string) => {
+    await deleteColumn(columnId);
+  }, [deleteColumn]);
+
+  // Handler for deleting a card
+  const handleDeleteCard = useCallback(async (cardId: string) => {
+    // We need the currentSectionId to pass to the updateCard hook for refetchQueries context.
+    // Find the card's current column
+    const currentColumnId = findColumnIdByCardId(cardId);
+    if (currentColumnId) {
+        await deleteCard(cardId); // The hook's deleteCard doesn't need currentSectionId explicitly in its signature
+    } else {
+        console.warn(`[sprint] KANBAN_BOARD: Could not find column for card ${cardId} to delete.`);
+        await deleteCard(cardId); // Still attempt deletion even if column not found in local state
+    }
+    setDrawerOpen(false);
+  }, [deleteCard, columns]);
+
+
   return (
     <div className="page-scroller">
+      {mutationError && (
+          <div className="bg-red-100 text-red-700 p-3 rounded-md mb-4">
+              Error performing mutation: {mutationError.message}
+          </div>
+      )}
       <div className="flex items-center  pr-6 pl-6 pt-3 gap-3">
-        <Button onClick={() => onCreateColumn("New Column")} className="bg-[#4ab5ae] text-white h-9 rounded-md" disabled={isMutating}>
+        <Button onClick={() => createColumn("New Column")} className="bg-[#4ab5ae] text-white h-9 rounded-md" disabled={isMutating}>
           {isMutating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
           + Add column
         </Button>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" className="h-9 rounded-md gap-2 bg-transparent" disabled={isMutating}>
-              {currentSprintName} {/* Directly display the sprint name, which will always be populated */}
+              {currentSprintName}
               <ChevronDown className="h-4 w-4 text-muted-foreground" />
             </Button>
           </DropdownMenuTrigger>
@@ -301,11 +367,11 @@ export function KanbanBoard({
               <KanbanSortableColumn
                 key={column.id}
                 column={column}
-                onAddCard={() => onCreateCard(column.id, "New Task")}
-                onTitleChange={(title) => onUpdateColumn(column.id, title)}
+                onAddCard={() => handleAddCard(column.id, "New Task")}
+                onTitleChange={(title) => handleUpdateColumnTitle(column.id, title)}
                 onStartTitleEdit={() => {}}
                 onStopTitleEdit={() => {}}
-                onDeleteColumn={() => onDeleteColumn(column.id)}
+                onDeleteColumn={() => handleDeleteColumn(column.id)}
                 isMutating={isMutating}
               >
                 <SortableContext items={column.cards.map((c) => c.id)} strategy={verticalListSortingStrategy}>
@@ -317,10 +383,11 @@ export function KanbanBoard({
                       onOpen={() => !card.editing && openDrawer(column.id, card.id)}
                       onStartInline={() => setColumns(prev => prev.map(c => c.id === column.id ? { ...c, cards: c.cards.map(k => k.id === card.id ? { ...k, editing: true } : k) } : c))}
                       onFinishInline={(patch) => {
-                        onUpdateCard(column.id, card.id, patch);
+                        // CORRECTED CALL: Pass all 3 parameters
+                        updateCard(column.id, card.id, patch);
                         setColumns(prev => prev.map(c => c.id === column.id ? { ...c, cards: c.cards.map(k => k.id === card.id ? { ...k, ...patch, editing: false } : k) } : c));
                       }}
-                      onDeleteCard={() => onDeleteCard(card.id)}
+                      onDeleteCard={() => handleDeleteCard(card.id)}
                       isMutating={isMutating}
                     />
                   ))}
@@ -493,7 +560,7 @@ export function KanbanBoard({
 
               <SheetFooter className="pt-4 flex-row justify-between">
                 <Button variant="destructive" onClick={() => {
-                  if (selected) onDeleteCard(selected.cardId);
+                  if (selected) handleDeleteCard(selected.cardId);
                   setDrawerOpen(false);
                 }} disabled={isMutating} className="bg-red-600 hover:bg-red-700">
                   {isMutating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}

@@ -50,7 +50,7 @@ const getProjectData = (id: string) => {
   }
   return (
     projects[id as keyof typeof projects] || {
-      name: `Project ${id}`,
+      name: `Project page`,
       description: "Project description not available",
       status: "Unknown",
       members: 0,
