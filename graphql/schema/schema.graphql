@@ -577,24 +577,11 @@ type ProjectTasksAndSectionsData {
   sections: [SectionWithTasks!]!
   personalSections: [PersonalSectionWithTasks!]!
   projectMembers: [ProjectMemberFullDetails!]!
-  defaultSelectedSprintId: ID # NEW: Add this field to the type
+  # defaultSelectedSprintId: ID # REMOVED: Managed on client
 }
 
 
 
-# ----------------------------------
-# Root Queries
-# ----------------------------------
-type Query {
-  getGanttData(projectId: ID!, sprintId: ID): GanttDataResponse # NEW Query
-
-  getProjectTasksAndSections(projectId: ID!, sprintId: ID): ProjectTasksAndSectionsData
-
-  getProjectDetails(projectId: ID!): ProjectDetails
-
-  getWorkspaceData: WorkspaceData # New query
-  me: User
-}
 
 
 
@@ -661,6 +648,115 @@ type ProjectMemberFullDetails { # NEW: For project members list
   user: UserFullDetails!
 }
 
+
+
+
+
+
+
+
+
+
+
+
+# NEW TYPES FOR GANTT VIEW QUERY (from your provided schema, ensure they are complete)
+type GanttTaskData {
+  id: ID!
+  name: String!
+  start: String! # ISO Date string (startDate)
+  end: String!   # ISO Date string (endDate or dueDate)
+  progress: Int!
+  type: String!  # "task", "milestone", "project" (for sprint groups)
+  sprint: ID     # The ID of the parent sprint (if type is task/milestone)
+  hideChildren: Boolean
+  displayOrder: Int
+  description: String
+  assignee: UserAvatarPartial
+  # Add other relevant fields if you have them in Task/Milestone
+  # For task updates, we need the original task ID, type, and sprint ID for context
+  originalTaskId: ID # To link back to Task.id or Milestone.id
+  originalType: String # "TASK" or "MILESTONE"
+}
+
+type GanttDataResponse {
+  sprints: [SprintNameId!]! # List of sprints for filter dropdown
+  tasks: [GanttTaskData!]! # Flattened list of tasks/milestones for Gantt chart
+}
+
+type SprintDetails { # Update SprintDetails type (used in getProjectDetails)
+  id: ID!
+  name: String!
+  description: String
+  startDate: String!
+  endDate: String!
+  isCompleted: Boolean!
+  status: SprintStatus!
+  tasks: [TaskListView!]! # Tasks directly under this sprint
+  milestones: [Milestone!]!
+}
+
+# Input for creating a new task from Gantt (simplified)
+input CreateGanttTaskInput {
+  projectId: ID!
+  sprintId: ID! # Tasks always belong to a sprint in Gantt context
+  name: String!
+  description: String
+  startDate: String!
+  endDate: String! # Use endDate here for Gantt's `end`
+  assigneeId: ID
+  progress: Int # For initial progress
+  type: String! # "task" or "milestone"
+}
+
+# Input for updating a Gantt task/milestone
+input UpdateGanttTaskInput {
+  id: ID! # ID of the original Task or Milestone
+  type: String! # "TASK" or "MILESTONE" - tells resolver which model to update
+  name: String
+  description: String
+  startDate: String
+  endDate: String # For task (maps to Task.endDate) or milestone (maps to Milestone.dueDate)
+  assigneeId: ID # For task only
+  progress: Int # For task only
+}
+
+# Input for updating a sprint's dates (and other fields)
+input UpdateSprintInput {
+  id: ID!
+  name: String
+  description: String
+  startDate: String # ISO Date string
+  endDate: String   # ISO Date string
+  isCompleted: Boolean
+  status: SprintStatus
+}
+
+
+
+
+
+
+
+
+
+# ----------------------------------
+# Root Queries
+# ----------------------------------
+type Query {
+
+  getGanttData(projectId: ID!, sprintId: ID): GanttDataResponse # NEW Query
+
+
+  getProjectTasksAndSections(projectId: ID!, sprintId: ID): ProjectTasksAndSectionsData
+
+  getProjectDetails(projectId: ID!): ProjectDetails
+
+  getWorkspaceData: WorkspaceData # New query
+  me: User
+}
+
+
+
 # ----------------------------------
 # Root Mutations (CRUD-style)
 # ----------------------------------
@@ -698,7 +794,19 @@ type Mutation {
   createSprint(input: CreateSprintInput!): SprintDetails! # Returns the created sprint
   updateSprint(input: UpdateSprintInput!): SprintDetails! # Returns the updated sprint
   deleteSprint(id: ID!): SprintDetails! # Returns the deleted sprint
+
+
+
+
+  createGanttTask(input: CreateGanttTaskInput!): GanttTaskData! # NEW: Create a task/milestone for Gantt
+  updateGanttTask(input: UpdateGanttTaskInput!): GanttTaskData! # NEW: Update a task/milestone for Gantt
 }
+
+
+
+
+
+
 
 # ----------------------------------
 # Scalars

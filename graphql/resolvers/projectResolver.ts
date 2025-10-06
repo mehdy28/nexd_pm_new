@@ -1,7 +1,7 @@
 // graphql/resolvers/projectResolver.ts
 
 import { prisma } from "@/lib/prisma";
-import { TaskStatus, Priority } from "@prisma/client"; // Ensure these are imported if used in transformations
+import { TaskStatus, Priority, SprintStatus } from "@prisma/client"; // Added SprintStatus
 
 function log(prefix: string, message: string, data?: any) {
   const timestamp = new Date().toISOString();
@@ -35,6 +35,17 @@ interface GetGanttDataArgs {
 interface GetProjectTasksAndSectionsArgs {
   projectId: string;
   sprintId?: string | null;
+}
+
+// Input for updating a sprint
+interface UpdateSprintInput {
+  id: string;
+  name?: string | null;
+  description?: string | null;
+  startDate?: string | null;
+  endDate?: string | null;
+  isCompleted?: boolean;
+  status?: SprintStatus; // Use Prisma enum for status
 }
 
 
@@ -105,8 +116,8 @@ export const projectResolver = {
 
         const transformedSprints = project.sprints.map(sprint => ({
           ...sprint,
-          status: sprint.isCompleted ? "Completed" : (
-            new Date(sprint.startDate) <= new Date() && new Date(sprint.endDate) >= new Date() ? "Active" : "Planning"
+          status: sprint.isCompleted ? "COMPLETED" : (
+            new Date(sprint.startDate) <= new Date() && new Date(sprint.endDate) >= new Date() ? "ACTIVE" : "PLANNING"
           ),
         }));
 
@@ -168,7 +179,7 @@ export const projectResolver = {
         log("[getGanttData Query]", `Fetched ${projectSprints.length} sprints for project ${projectId}.`);
 
         const ganttTasks: any[] = [];
-        let displayOrder = 1;
+        let currentDisplayOrder = 1; // Renamed to avoid conflict with `displayOrder` property
 
         const sprintsToProcess = sprintId
           ? projectSprints.filter(s => s.id === sprintId)
@@ -183,8 +194,10 @@ export const projectResolver = {
             progress: sprint.isCompleted ? 100 : 0,
             type: "project",
             hideChildren: false,
-            displayOrder: displayOrder++,
+            displayOrder: currentDisplayOrder++,
             description: sprint.description,
+            originalTaskId: sprint.id, // For sprint, originalTaskId is its own ID
+            originalType: "SPRINT", // Indicate it's a sprint
           });
 
           const tasks = await prisma.task.findMany({
@@ -203,10 +216,11 @@ export const projectResolver = {
               name: task.title,
               start: task.startDate ? task.startDate.toISOString() : sprint.startDate.toISOString(),
               end: task.endDate ? task.endDate.toISOString() : task.dueDate?.toISOString() || sprint.endDate.toISOString(),
-              progress: task.status === 'DONE' ? 100 : (task.status === 'TODO' ? 50 : 0),
+              // FIX: Use task.completionPercentage directly.
+              progress: Math.round(task.completionPercentage ?? 0), // Use completionPercentage, default to 0 if null
               type: "task",
               sprint: sprint.id,
-              displayOrder: displayOrder++,
+              displayOrder: currentDisplayOrder++,
               description: task.description,
               assignee: task.assignee ? {
                 id: task.assignee.id,
@@ -214,6 +228,8 @@ export const projectResolver = {
                 lastName: task.assignee.lastName,
                 avatar: task.assignee.avatar,
               } : null,
+              originalTaskId: task.id, // Link to the actual Task ID
+              originalType: "TASK", // Indicate it's a task
             });
           }
 
@@ -231,9 +247,11 @@ export const projectResolver = {
               progress: milestone.isCompleted ? 100 : 0,
               type: "milestone",
               sprint: sprint.id,
-              displayOrder: displayOrder++,
+              displayOrder: currentDisplayOrder++,
               description: milestone.description,
               assignee: null,
+              originalTaskId: milestone.id, // Link to the actual Milestone ID
+              originalType: "MILESTONE", // Indicate it's a milestone
             });
           }
         }
@@ -344,7 +362,7 @@ export const projectResolver = {
         const transformedProjectSections = projectSections.map(section => ({
           id: section.id,
           name: section.name,
-          order: section.order, // <--- INCLUDE ORDER HERE
+          order: section.order,
           tasks: section.tasks.map(task => ({
             id: task.id,
             title: task.title,
@@ -353,9 +371,9 @@ export const projectResolver = {
             priority: task.priority,
             dueDate: task.dueDate?.toISOString().split('T')[0] || null,
             points: task.points,
-            completed: task.status === 'DONE', // <--- INCLUDE COMPLETED HERE
-            sprintId: task.sprintId, // <--- INCLUDE SPRINTID HERE
-            sectionId: task.sectionId, // <--- INCLUDE SECTIONID HERE
+            completed: task.status === 'DONE',
+            sprintId: task.sprintId,
+            sectionId: task.sectionId,
             assignee: task.assignee ? {
               id: task.assignee.id,
               firstName: task.assignee.firstName,
@@ -368,7 +386,7 @@ export const projectResolver = {
         const transformedPersonalSections = personalSections.map(section => ({
             id: section.id,
             name: section.name,
-            order: section.order, // <--- INCLUDE ORDER HERE
+            order: section.order,
             tasks: section.tasks.map(task => ({
                 id: task.id,
                 title: task.title,
@@ -377,9 +395,9 @@ export const projectResolver = {
                 priority: task.priority,
                 dueDate: task.dueDate?.toISOString().split('T')[0] || null,
                 points: task.points,
-                completed: task.status === 'DONE', // <--- INCLUDE COMPLETED HERE
-                sprintId: task.sprintId, // <--- INCLUDE SPRINTID HERE
-                sectionId: task.sectionId, // <--- INCLUDE SECTIONID HERE
+                completed: task.status === 'DONE',
+                sprintId: task.sprintId,
+                sectionId: task.sectionId,
                 assignee: task.assignee ? {
                   id: task.assignee.id,
                   firstName: task.assignee.firstName,
@@ -390,7 +408,6 @@ export const projectResolver = {
         }));
 
 
-        // --- FIX HERE: FETCH ALL PROJECT MEMBERS BEFORE MAPPING ---
         const allProjectMembers = await prisma.projectMember.findMany({
             where: { projectId: projectId },
             include: {
@@ -418,7 +435,6 @@ export const projectResolver = {
           sections: transformedProjectSections,
           personalSections: transformedPersonalSections,
           projectMembers: transformedProjectMembers,
-          // defaultSelectedSprintId: defaultSelectedSprintId, // Removed as per previous instruction
         };
 
         log("[getProjectTasksAndSections Query]", "Tasks, sections, and members fetched successfully.", result);
@@ -525,6 +541,79 @@ export const projectResolver = {
 
       } catch (error) {
         log("[createProject Mutation]", "Error creating project:", error);
+        throw error;
+      }
+    },
+
+    updateSprint: async (_parent: unknown, args: { input: UpdateSprintInput }, context: GraphQLContext) => {
+      log("[updateSprint Mutation]", "called with input:", args.input);
+
+      if (!context.user?.id) {
+        log("[updateSprint Mutation]", "No authenticated user found in context.");
+        throw new Error("Authentication required: No user ID found in context.");
+      }
+
+      const userId = context.user.id;
+      const { id: sprintId, ...updates } = args.input;
+
+      try {
+        // 1. Verify user access (must be project member)
+        const sprint = await prisma.sprint.findUnique({
+          where: { id: sprintId },
+          select: {
+            id: true,
+            projectId: true,
+            project: { select: { members: { where: { userId: userId }, select: { userId: true } } } },
+          },
+        });
+
+        if (!sprint) {
+          log("[updateSprint Mutation]", `Sprint with ID ${sprintId} not found.`);
+          throw new Error(`Sprint with ID ${sprintId} not found.`);
+        }
+        if (!sprint.project || sprint.project.members.length === 0) {
+          log("[updateSprint Mutation]", `User ${userId} is not a member of the project owning sprint ${sprintId}. Access denied.`);
+          throw new Error("Access Denied: You are not authorized to update this sprint.");
+        }
+        log("[updateSprint Mutation]", `Access granted for user ${userId} to update sprint ${sprintId}.`);
+
+        // 2. Prepare data for update
+        const dataToUpdate: any = {};
+        for (const key in updates) {
+          if (Object.prototype.hasOwnProperty.call(updates, key)) {
+            const value = (updates as any)[key];
+            if (value !== undefined) {
+              if (key === 'startDate' || key === 'endDate') {
+                dataToUpdate[key] = value ? new Date(value) : null;
+              } else {
+                dataToUpdate[key] = value;
+              }
+            }
+          }
+        }
+
+        // 3. Perform the update
+        const updatedSprint = await prisma.sprint.update({
+          where: { id: sprintId },
+          data: dataToUpdate,
+        });
+        log("[updateSprint Mutation]", "Sprint updated successfully:", { id: updatedSprint.id, updates: dataToUpdate });
+
+        // Return SprintDetails compatible object
+        return {
+          ...updatedSprint,
+          startDate: updatedSprint.startDate.toISOString(),
+          endDate: updatedSprint.endDate.toISOString(),
+          // Derive status for consistency with getProjectDetails
+          status: updatedSprint.isCompleted ? "COMPLETED" : (
+            new Date(updatedSprint.startDate) <= new Date() && new Date(updatedSprint.endDate) >= new Date() ? "ACTIVE" : "PLANNING"
+          ),
+          tasks: [], // Not fetching tasks for this mutation response
+          milestones: [], // Not fetching milestones for this mutation response
+        };
+
+      } catch (error) {
+        log("[updateSprint Mutation]", "Error updating sprint:", error);
         throw error;
       }
     },

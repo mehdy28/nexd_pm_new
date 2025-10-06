@@ -15,7 +15,6 @@ import { Priority, TaskStatus } from "@prisma/client";
 import {
   PriorityUI,
   TaskStatusUI,
-  UserAvatarPartial,
   TaskUI,
   SectionUI,
 } from "./useProjectTasksAndSections";

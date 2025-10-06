@@ -1,15 +1,25 @@
 // hooks/useGanttData.ts
 import { useQuery } from "@apollo/client";
+import { useCallback, useMemo, useEffect, useState } from "react";
 import { GET_GANTT_DATA_QUERY } from "@/graphql/queries/getGanttData";
-import { Task as GanttTask, ViewMode } from "gantt-task-react"; // Import Task type from gantt-task-react
-import { UserAvatarPartial } from "@/types/useProjectTasksAndSections";
-import { useMemo } from "react";
+import { UserAvatarPartial } from "@/types/useProjectTasksAndSections"; // Reuse UserAvatarPartial
 
-// Extend Gantt library's Task type with our custom fields
-export interface CustomGanttTask extends GanttTask {
-  sprint?: string; // Parent sprint ID
+// --- Type Definitions specific to Gantt ---
+export interface CustomGanttTask {
+  id: string;
+  name: string;
+  start: Date;
+  end: Date;
+  progress: number;
+  type: string; // "task", "milestone", "project" (for sprint groups)
+  sprint?: string; // The ID of the parent sprint (if type is task/milestone)
+  hideChildren?: boolean;
+  displayOrder?: number;
   description?: string;
-  assignee?: UserAvatarPartial | null;
+  assignee?: UserAvatarPartial;
+  // New fields for linking back to original model for mutations
+  originalTaskId: string; // The ID of the actual Task or Milestone object
+  originalType: "TASK" | "MILESTONE"; // To differentiate when updating
 }
 
 export interface SprintGanttFilterOption {
@@ -17,63 +27,83 @@ export interface SprintGanttFilterOption {
   name: string;
 }
 
-interface GetGanttDataResponse {
+// Full response type for the Gantt query
+interface GanttDataResponse {
   getGanttData: {
     sprints: SprintGanttFilterOption[];
     tasks: Array<{
-      id: string;
+      id: string; // This is the GanttTaskData's ID (sprint.id or task.id or milestone.id)
       name: string;
-      start: string; // ISO Date string
-      end: string;   // ISO Date string
+      start: string; // ISO date string
+      end: string;   // ISO date string
       progress: number;
-      type: string;  // "task", "milestone", "project"
-      sprint?: string; // ID of the parent sprint
+      type: string;
+      sprint?: string;
       hideChildren?: boolean;
       displayOrder?: number;
       description?: string;
-      assignee?: UserAvatarPartial | null;
+      assignee?: UserAvatarPartial;
+      originalTaskId: string;
+      originalType: "TASK" | "MILESTONE";
     }>;
   } | null;
 }
 
-export function useGanttData(projectId: string, sprintId?: string | null) {
-  const { data, loading, error, refetch } = useQuery<GetGanttDataResponse>(GET_GANTT_DATA_QUERY, {
-    variables: { projectId, sprintId },
+// --- Main Hook ---
+export function useGanttData(projectId: string, selectedSprintIdFromProps?: string | null) {
+  console.log(`[sprint] GANTT_HOOK: useGanttData called with projectId: ${projectId}, selectedSprintIdFromProps: ${selectedSprintIdFromProps}`);
+
+  // Apollo Query for Gantt data
+  const { data, loading, error, refetch } = useQuery<GanttDataResponse>(GET_GANTT_DATA_QUERY, {
+    variables: { projectId, sprintId: selectedSprintIdFromProps || null }, // Pass selectedSprintId or null
     skip: !projectId,
-    fetchPolicy: "network-only", // Always get fresh data, especially with sprint filtering
+    fetchPolicy: "network-only", // Ensure fresh data
   });
 
-  const transformedTasks: CustomGanttTask[] = [];
+  // Derived state from query data
+  const transformedGanttData = data?.getGanttData;
 
-  // Transform data from API into Gantt-task-react's expected format
-  if (data?.getGanttData?.tasks) {
-    data.getGanttData.tasks.forEach((task) => {
-      transformedTasks.push({
-        ...task,
-        start: new Date(task.start), // Convert ISO string to Date object
-        end: new Date(task.end),     // Convert ISO string to Date object
-        // Ensure progress is a number (it should be from API)
-        progress: task.progress,
-        type: task.type as "task" | "milestone" | "project", // Cast to Gantt's types
-        // Gantt library expects these to be boolean or undefined
-        hideChildren: task.hideChildren || undefined,
-        displayOrder: task.displayOrder || undefined,
-        // Custom fields
-        sprint: task.sprint || undefined,
-        description: task.description || undefined,
-        assignee: task.assignee || undefined,
-      });
-    });
-  }
+  const ganttTasks: CustomGanttTask[] = useMemo(() => {
+    if (!transformedGanttData?.tasks) return [];
 
-  // Memoize the transformed tasks to avoid unnecessary re-renders in Gantt component
-  const memoizedTasks = useMemo(() => transformedTasks, [transformedTasks]);
+    return transformedGanttData.tasks.map((task) => ({
+      ...task,
+      start: new Date(task.start),
+      end: new Date(task.end),
+      progress: task.progress || 0,
+      hideChildren: task.hideChildren || false,
+      displayOrder: task.displayOrder || 1, // Default order
+      originalTaskId: task.originalTaskId,
+      originalType: task.originalType,
+    }));
+  }, [transformedGanttData?.tasks]);
+
+  const sprintFilterOptions: SprintGanttFilterOption[] = useMemo(() => {
+    return transformedGanttData?.sprints || [];
+  }, [transformedGanttData?.sprints]);
+
+  const refetchGanttData = useCallback(() => {
+    console.log("[sprint] GANTT_HOOK: refetchGanttData triggered.");
+    refetch();
+  }, [refetch]);
+
+  // Determine a default sprint to suggest for the dropdown on initial load
+  const defaultSelectedSprintIdToSuggest: string | undefined = useMemo(() => {
+    if (sprintFilterOptions.length > 0) {
+      // Pick the first sprint from the fetched options as a default suggestion
+      console.log(`[sprint] GANTT_HOOK: Suggesting default sprint ID: ${sprintFilterOptions[0].id}`);
+      return sprintFilterOptions[0].id;
+    }
+    console.log("[sprint] GANTT_HOOK: No default sprint ID suggested (no sprints available).");
+    return undefined;
+  }, [sprintFilterOptions]);
 
   return {
-    ganttTasks: memoizedTasks,
-    sprintFilterOptions: data?.getGanttData?.sprints || [],
+    ganttTasks,
+    sprintFilterOptions,
     loading,
     error,
-    refetchGanttData: refetch,
+    refetchGanttData,
+    defaultSelectedSprintId: selectedSprintIdFromProps !== undefined ? selectedSprintIdFromProps : defaultSelectedSprintIdToSuggest,
   };
 }
