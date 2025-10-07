@@ -162,7 +162,7 @@ export function DocumentsView({ projectId }: DocumentsViewProps) {
                 className="hidden"
                 onChange={handleFileChange}
               />
-              <Button
+              {/* <Button
                 variant="outline"
                 className="h-9 gap-2 bg-transparent"
                 onClick={() => fileInputRef.current?.click()}
@@ -170,7 +170,7 @@ export function DocumentsView({ projectId }: DocumentsViewProps) {
               >
                 <Upload className="h-4 w-4" />
                 PDF
-              </Button>
+              </Button> */}
               <Button className="h-9 bg-emerald-600 text-white hover:bg-emerald-700" onClick={handleCreateDoc}>
                 <Plus className="mr-1 h-4 w-4" />
                 New
