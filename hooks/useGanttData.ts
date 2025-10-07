@@ -27,8 +27,8 @@ export interface SprintGanttFilterOption {
   name: string;
 }
 
-// Full response type for the Gantt query
-interface GanttDataResponse {
+// Full response type for the Gantt query - EXPORTED FOR useGanttMutations.ts
+export interface GanttDataResponse {
   getGanttData: {
     sprints: SprintGanttFilterOption[];
     tasks: Array<{
@@ -57,7 +57,7 @@ export function useGanttData(projectId: string, selectedSprintIdFromProps?: stri
   const { data, loading, error, refetch } = useQuery<GanttDataResponse>(GET_GANTT_DATA_QUERY, {
     variables: { projectId, sprintId: selectedSprintIdFromProps || null }, // Pass selectedSprintId or null
     skip: !projectId,
-    fetchPolicy: "network-only", // Ensure fresh data
+    fetchPolicy: "cache-and-network", // Changed to cache-and-network to leverage cache updates
   });
 
   // Derived state from query data
@@ -66,7 +66,7 @@ export function useGanttData(projectId: string, selectedSprintIdFromProps?: stri
   const ganttTasks: CustomGanttTask[] = useMemo(() => {
     if (!transformedGanttData?.tasks) return [];
 
-    return transformedGanttData.tasks.map((task) => ({
+    const tasks = transformedGanttData.tasks.map((task) => ({
       ...task,
       start: new Date(task.start),
       end: new Date(task.end),
@@ -76,6 +76,20 @@ export function useGanttData(projectId: string, selectedSprintIdFromProps?: stri
       originalTaskId: task.originalTaskId,
       originalType: task.originalType,
     }));
+
+    // NEW: Apply consistent sorting
+    return tasks.sort((a, b) => {
+      // Prioritize projects (sprints) first
+      if (a.type === 'project' && b.type !== 'project') return -1;
+      if (a.type !== 'project' && b.type === 'project') return 1;
+
+      // Then sort by displayOrder
+      if (a.displayOrder !== b.displayOrder) {
+        return (a.displayOrder || 0) - (b.displayOrder || 0);
+      }
+      // Fallback for stable sort: sort by ID
+      return a.id.localeCompare(b.id);
+    });
   }, [transformedGanttData?.tasks]);
 
   const sprintFilterOptions: SprintGanttFilterOption[] = useMemo(() => {
