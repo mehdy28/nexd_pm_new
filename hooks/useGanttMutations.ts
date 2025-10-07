@@ -1,5 +1,5 @@
 // hooks/useGanttMutations.ts
-import { useMutation } from "@apollo/client";
+import { useMutation, useApolloClient } from "@apollo/client";
 import { useCallback, useEffect } from "react";
 import {
   GET_GANTT_DATA_QUERY,
@@ -13,7 +13,7 @@ import {
 } from "@/graphql/mutations/ganttMutations";
 
 import { TaskStatus, Priority } from "@prisma/client";
-import { GanttDataResponse } from "./useGanttData"; // Import the GanttDataResponse interface
+import { GanttDataResponse } from "./useGanttData";
 
 // --- Input Interfaces for Mutations ---
 interface CreateGanttTaskVariables {
@@ -43,16 +43,28 @@ interface UpdateGanttTaskVariables {
   };
 }
 
-// Ensure the server returns enough information for cache update
 interface UpdateGanttTaskResult {
   updateGanttTask: {
-    id: string; // The originalTaskId
-    type: "TASK" | "MILESTONE"; // The originalType
-    name?: string | null;
-    startDate?: string | null;
-    endDate?: string | null;
-    progress?: number | null;
-    // Include any other fields that can be updated and need to be reflected in the Gantt chart
+    id: string;
+    __typename: "GanttTaskData"; // <--- ADDED __typename HERE
+    name: string;
+    start: string;
+    end: string;
+    progress: number;
+    type: string;
+    sprint?: string;
+    hideChildren?: boolean;
+    displayOrder?: number;
+    description?: string;
+    assignee?: {
+      id: string;
+      firstName?: string | null;
+      lastName?: string | null;
+      avatar?: string | null;
+      __typename: "UserAvatarPartial"; // <--- Add for nested types if they are also distinct GraphQL types
+    } | null;
+    originalTaskId?: string;
+    originalType?: string;
   };
 }
 
@@ -72,6 +84,8 @@ interface UpdateSprintVariables {
 // --- Main Hook ---
 export function useGanttMutations(projectId: string, currentSelectedSprintId?: string | null) {
   console.log(`[useGanttMutations Hook] Initializing/Re-running for projectId: ${projectId}, currentSelectedSprintId: ${currentSelectedSprintId}`);
+
+  const client = useApolloClient();
 
   const getGanttRefetchQueries = useCallback(() => {
     const queries = [];
@@ -99,9 +113,8 @@ export function useGanttMutations(projectId: string, currentSelectedSprintId?: s
   const [updateGanttTaskMutation, { loading: updateGanttTaskLoading, error: updateGanttTaskError }] = useMutation<UpdateGanttTaskResult, UpdateGanttTaskVariables>(
     UPDATE_GANTT_TASK_MUTATION,
     {
-      // --- IMPORTANT: Directly update the cache to prevent refetches for individual task updates ---
       update(cache, { data }) {
-        const updatedItem = data?.updateGanttTask; // This is the data returned by the server
+        const updatedItem = data?.updateGanttTask;
         if (!updatedItem) {
           console.warn("[useGanttMutations] Cache update for updateGanttTask: No data returned from mutation.");
           return;
@@ -115,24 +128,25 @@ export function useGanttMutations(projectId: string, currentSelectedSprintId?: s
 
         if (cachedGanttData && cachedGanttData.getGanttData) {
           const newTasks = cachedGanttData.getGanttData.tasks.map(task => {
-            // Match the task in cache using its originalTaskId and originalType
-            // The `updatedItem.id` here is the original database ID (e.g., Task.id or Milestone.id)
             if (task.originalTaskId === updatedItem.id && task.originalType === updatedItem.type) {
               console.log(`[useGanttMutations] Cache update: Found matching task in cache to update: ${task.name} (originalId: ${task.originalTaskId})`);
-              // Create a new object for the updated task, merging changes from the server response
               return {
                 ...task,
                 name: updatedItem.name ?? task.name,
-                start: updatedItem.startDate ?? task.start,
-                end: updatedItem.endDate ?? task.end,
+                start: updatedItem.start ?? task.start,
+                end: updatedItem.end ?? task.end,
                 progress: updatedItem.progress ?? task.progress,
-                // Ensure to update other fields if they can be modified by this mutation
+                type: updatedItem.type ?? task.type,
+                sprint: updatedItem.sprint ?? task.sprint,
+                description: updatedItem.description ?? task.description,
+                assignee: updatedItem.assignee ?? task.assignee, // Ensure nested __typename if assignee is complex
+                hideChildren: updatedItem.hideChildren ?? task.hideChildren,
+                displayOrder: updatedItem.displayOrder ?? task.displayOrder,
               };
             }
             return task;
           });
 
-          // Write the modified data back to the cache
           cache.writeQuery({
             ...queryOptions,
             data: {
@@ -149,7 +163,6 @@ export function useGanttMutations(projectId: string, currentSelectedSprintId?: s
       },
       onError: (error) => {
         console.error("[useGanttMutations] Error updating Gantt task:", error);
-        // You might want to add logic here to trigger a UI revert if the optimistic update failed.
       },
     }
   );
@@ -209,10 +222,51 @@ export function useGanttMutations(projectId: string, currentSelectedSprintId?: s
         }
       }
 
+      const queryOptions = {
+        query: GET_GANTT_DATA_QUERY,
+        variables: { projectId, sprintId: currentSelectedSprintId || null },
+      };
+      const cachedGanttData = client.readQuery<GanttDataResponse>(queryOptions);
+      const currentTaskInCache = cachedGanttData?.getGanttData?.tasks.find(
+        t => t.originalTaskId === cleanedInput.id && t.originalType === cleanedInput.type
+      );
+
+      if (!currentTaskInCache) {
+          console.warn(`[useGanttMutations] Optimistic update: Could not find task with originalTaskId=${cleanedInput.id} and type=${cleanedInput.type} in cache. Skipping optimisticResponse.`);
+          const response = await updateGanttTaskMutation({
+            variables: { input: cleanedInput as UpdateGanttTaskVariables['input'] },
+          });
+          console.log(`[useGanttMutations Hook] updateGanttTask successful (no optimisticResponse). Response:`, response.data);
+          return response.data?.updateGanttTask;
+      }
+
+      const assigneeOptimistic = currentTaskInCache.assignee ? {
+          ...currentTaskInCache.assignee,
+          __typename: "UserAvatarPartial" // Add __typename for nested objects
+      } : null;
+
+      const optimisticResponse: UpdateGanttTaskResult = {
+        updateGanttTask: {
+          __typename: "GanttTaskData", // <--- CRITICAL: ADD THIS HERE
+          id: currentTaskInCache.originalTaskId,
+          type: currentTaskInCache.originalType, // Ensure this reflects 'task' or 'milestone' as a string
+          name: cleanedInput.name ?? currentTaskInCache.name,
+          start: cleanedInput.startDate ?? currentTaskInCache.start,
+          end: cleanedInput.endDate ?? currentTaskInCache.end,
+          progress: cleanedInput.progress ?? currentTaskInCache.progress ?? 0,
+          sprint: currentTaskInCache.sprint,
+          description: cleanedInput.description ?? currentTaskInCache.description,
+          assignee: assigneeOptimistic,
+          hideChildren: currentTaskInCache.hideChildren,
+          displayOrder: currentTaskInCache.displayOrder,
+          originalTaskId: currentTaskInCache.originalTaskId,
+          originalType: currentTaskInCache.originalType,
+        },
+      };
+
       const response = await updateGanttTaskMutation({
         variables: { input: cleanedInput as UpdateGanttTaskVariables['input'] },
-        // The 'update' function in useMutation options handles cache changes directly.
-        // No 'refetchQueries' needed here for individual task updates.
+        optimisticResponse,
       });
       console.log(`[useGanttMutations Hook] updateGanttTask successful. Response:`, response.data);
       return response.data?.updateGanttTask;
@@ -220,7 +274,7 @@ export function useGanttMutations(projectId: string, currentSelectedSprintId?: s
       console.error("[useGanttMutations Hook] Error updating Gantt task:", err);
       throw err;
     }
-  }, [updateGanttTaskMutation, projectId, currentSelectedSprintId]); // Add these dependencies so the `update` function (which is part of `updateGanttTaskMutation`) correctly captures them.
+  }, [updateGanttTaskMutation, projectId, currentSelectedSprintId, client]);
 
 
   const updateSprintDates = useCallback(async (sprintId: string, startDate: Date, endDate: Date): Promise<any> => {
