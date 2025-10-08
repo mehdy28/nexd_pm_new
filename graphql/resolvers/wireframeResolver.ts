@@ -75,8 +75,6 @@ const wireframeResolvers = {
       }
       log("info", `${operation}: User ${user.id} authenticated.`, { userId: user.id, projectId });
 
-      console.log(`della3a 1`);
-
       try {
         const wireframes = await context.prisma.wireframe.findMany({
           where: {
@@ -542,40 +540,42 @@ const wireframeResolvers = {
 
   // Type resolvers for Wireframe fields not always eager-loaded by root queries
   Wireframe: {
-    // TEMPORARILY REMOVING THE PROJECT RESOLVER TO DEBUG THE ROOT CAUSE
-    // project: async (parent: PrismaWireframeWithRelations, _args: any, context: GraphQLContext) => {
-    //   const operation = "Wireframe.project Type Resolver";
-    //   log("info", `${operation} called for wireframe.`, { parentObject: parent, wireframeId: parent?.id, parentProjectId: parent?.projectId });
+    project: async (parent: PrismaWireframeWithRelations, _args: any, context: GraphQLContext) => {
+      const operation = "Wireframe.project Type Resolver";
+      // This resolver should only run if 'project' is requested by the client
+      // AND it wasn't already eager-loaded by the parent resolver (e.g., getWireframeDetails).
 
-    //   if (parent && parent.project) {
-    //     log("info", `${operation}: Project already present on parent for wireframe ${parent.id}.`, { wireframeId: parent.id, projectId: parent.project.id });
-    //     return { ...parent.project, __typename: 'Project' };
-    //   }
+      // If project data is already on the parent (eager-loaded), return it.
+      if (parent.project) {
+        log("info", `${operation}: Project already present on parent for wireframe ${parent.id}.`, { wireframeId: parent.id, projectId: parent.project.id });
+        return { ...parent.project, __typename: 'Project' };
+      }
 
-    //   if (parent && parent.projectId) {
-    //     log("info", `${operation}: Lazily fetching project for wireframe ${parent.id} (projectId: ${parent.projectId}).`, { wireframeId: parent.id, projectId: parent.projectId });
-    //     try {
-    //       const project = await context.prisma.project.findUnique({
-    //         where: { id: parent.projectId },
-    //         select: { id: true, name: true, workspaceId: true },
-    //       });
-    //       if (!project) {
-    //          log("warn", `${operation}: Project ${parent.projectId} not found for wireframe ${parent.id}. Returning null.`, { wireframeId: parent.id, projectId: parent.projectId });
-    //          return null;
-    //       }
-    //       log("info", `${operation}: Project ${project.id} fetched for wireframe ${parent.id}.`, { wireframeId: parent.id, projectId: project.id });
-    //       return { ...project, __typename: 'Project' };
-    //     } catch (error: any) {
-    //       log("error", `${operation}: Database error fetching project ${parent.projectId} for wireframe ${parent.id}.`, {
-    //         wireframeId: parent.id, projectId: parent.projectId, errorName: error.name, errorMessage: error.message, stack: error.stack,
-    //       });
-    //       throw new GraphQLError(`Failed to resolve project for wireframe ${parent.id}: ${error.message}`, { extensions: { code: "DATABASE_ERROR" } });
-    //     }
-    //   }
+      // If not eager-loaded, but projectId exists, fetch it.
+      if (parent.projectId) {
+        log("info", `${operation}: Lazily fetching project for wireframe ${parent.id} (projectId: ${parent.projectId}).`, { wireframeId: parent.id, projectId: parent.projectId });
+        try {
+          const project = await context.prisma.project.findUnique({
+            where: { id: parent.projectId },
+            select: { id: true, name: true, workspaceId: true },
+          });
+          if (!project) {
+             log("warn", `${operation}: Project ${parent.projectId} not found for wireframe ${parent.id}. Returning null.`, { wireframeId: parent.id, projectId: parent.projectId });
+             return null;
+          }
+          log("info", `${operation}: Project ${project.id} fetched for wireframe ${parent.id}.`, { wireframeId: parent.id, projectId: project.id });
+          return { ...project, __typename: 'Project' };
+        } catch (error: any) {
+          log("error", `${operation}: Database error fetching project ${parent.projectId} for wireframe ${parent.id}.`, {
+            wireframeId: parent.id, projectId: parent.projectId, errorName: error.name, errorMessage: error.message, stack: error.stack,
+          });
+          throw new GraphQLError(`Failed to resolve project for wireframe ${parent.id}: ${error.message}`, { extensions: { code: "DATABASE_ERROR" } });
+        }
+      }
 
-    //   log("info", `${operation}: No project found for wireframe ${parent?.id} (no projectId present on parent). Returning null.`, { wireframeId: parent?.id });
-    //   return null;
-    // },
+      log("info", `${operation}: No project found for wireframe ${parent.id} (no projectId present on parent). Returning null.`, { wireframeId: parent.id });
+      return null;
+    },
 
     personalUser: async (parent: PrismaWireframeWithRelations, _args: any, context: GraphQLContext) => {
       const operation = "Wireframe.personalUser Type Resolver";
@@ -611,10 +611,15 @@ const wireframeResolvers = {
       log("info", `${operation}: No personal user found for wireframe ${parent.id} (no userId present on parent). Returning null.`, { wireframeId: parent.id });
       return null;
     },
+    // Assuming comments and activities are handled by other resolvers or are always empty arrays here
     comments: async (parent: PrismaWireframeWithRelations, _args: any, context: GraphQLContext) => {
+        // Implement logic to fetch comments for the wireframe
+        // For now, return an empty array if not implemented
         return [];
     },
     activities: async (parent: PrismaWireframeWithRelations, _args: any, context: GraphQLContext) => {
+        // Implement logic to fetch activities for the wireframe
+        // For now, return an empty array if not implemented
         return [];
     },
   },
