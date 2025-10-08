@@ -6,6 +6,9 @@ import projectSectionResolver from "./projectSectionResolver"
 import taskResolver from "./taskResolver"
 import { sprintResolvers } from "./sprintResolver"
 import documentResolvers from "./documentResolver"
+import wireframeResolvers from "./wireframeResolver"
+
+
 
 export const resolvers = {
   Query: {
@@ -13,6 +16,8 @@ export const resolvers = {
     ...userResolver.Query,
     ...projectResolver.Query,
     ...documentResolvers.Query, // NEW
+    ...wireframeResolvers.Query,
+
 
 
   },
@@ -24,6 +29,7 @@ export const resolvers = {
     ...taskResolver.Mutation,
     ...sprintResolvers.Mutation,
     ...documentResolvers.Mutation, // NEW
+    ...wireframeResolvers.Mutation,
 
 
   },

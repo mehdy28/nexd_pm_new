@@ -339,6 +339,30 @@ type Wireframe {
   activities: [Activity!]!
 }
 
+# --- NEW TYPES FOR WIREFRAMES ---
+type WireframeListItem {
+  id: ID!
+  title: String!
+  updatedAt: String!
+  thumbnail: String # Renamed from previewDataUrl
+  projectId: ID # To filter by project
+}
+
+input CreateWireframeInput {
+  projectId: ID!
+  title: String!
+  data: JSON! # Initial data for the wireframe
+  thumbnail: String # Optional thumbnail base64 string
+}
+
+input UpdateWireframeInput {
+  id: ID!
+  title: String
+  data: JSON # Optional, expects JSON data
+  thumbnail: String # Optional thumbnail base64 string
+}
+
+
 type Comment {
   id: ID!
   content: String!
@@ -689,7 +713,7 @@ type SprintDetails { # Update SprintDetails type (used in getProjectDetails)
   name: String!
   description: String
   startDate: String!
-  endDate: String!
+  endDate: String!   # ISO Date string
   isCompleted: Boolean!
   status: SprintStatus!
   tasks: [TaskListView!]! # Tasks directly under this sprint
@@ -777,6 +801,10 @@ type Query {
   # --- NEW DOCUMENT QUERIES ---
   getProjectDocuments(projectId: ID!): [DocumentListItem!]! # Get list of documents for a project
   getDocumentDetails(id: ID!): Document # Get full details of a single document
+
+  # --- NEW WIREFRAME QUERIES ---
+  getProjectWireframes(projectId: ID!): [WireframeListItem!]! # Get list of wireframes for a project
+  getWireframeDetails(id: ID!): Wireframe # Get full details of a single wireframe
 }
 
 
@@ -829,6 +857,11 @@ type Mutation {
   createDocument(input: CreateDocumentInput!): DocumentListItem! # Returns the created document item
   updateDocument(input: UpdateDocumentInput!): DocumentListItem! # Returns the updated document item
   deleteDocument(id: ID!): DocumentListItem! # Returns the deleted document item
+
+  # --- NEW WIREFRAME MUTATIONS ---
+  createWireframe(input: CreateWireframeInput!): WireframeListItem! # Returns the created wireframe item
+  updateWireframe(input: UpdateWireframeInput!): WireframeListItem! # Returns the updated wireframe item
+  deleteWireframe(id: ID!): WireframeListItem! # Returns the deleted wireframe item
 }
 
 

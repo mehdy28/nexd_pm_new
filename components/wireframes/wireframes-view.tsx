@@ -1,24 +1,39 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
-// import Link from "next/link" // Remove this import if not used elsewhere for navigation
+import { useEffect, useMemo, useState, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Plus, Trash2, PencilLine, ArrowLeft, ArrowRight, LayoutGrid, Rows } from "lucide-react"
-import { wireframesStore, type Wireframe } from "./store"
+import { Plus, Trash2, PencilLine, ArrowLeft, ArrowRight, LayoutGrid, Rows, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 // Import WireframeEditorComponent
 import WireframeEditorComponent from "@/components/wireframes/wireframe-editor"
+
+// Import the new hooks and types
+import {
+  useProjectWireframes,
+  useWireframeDetails, // Although not directly used in the list view, good to have it
+  WireframeListItem, // Use the WireframeListItem type from the hook
+} from "@/hooks/useWireframes" // Adjust path as necessary
 
 type SortKey = "updatedAt" | "title"
 type SortDir = "desc" | "asc"
 type ViewMode = "grid" | "list"
 
 export function WireframesView({ projectId }: { projectId?: string }) {
-  const [items, setItems] = useState<Wireframe[]>([])
+  // Use the new hook for fetching project wireframes
+  const {
+    wireframes,
+    loading: wireframesLoading,
+    error: wireframesError,
+    refetch,
+    createWireframe,
+    updateWireframe,
+    deleteWireframe,
+  } = useProjectWireframes(projectId || ""); // Pass projectId, handle potential undefined
+
   const [q, setQ] = useState("")
   const [hasPreviewOnly, setHasPreviewOnly] = useState(false)
   const [sortKey, setSortKey] = useState<SortKey>("updatedAt")
@@ -28,36 +43,38 @@ export function WireframesView({ projectId }: { projectId?: string }) {
   const [selected, setSelected] = useState<Record<string, boolean>>({})
   const [view, setView] = useState<ViewMode>("grid")
 
-  // NEW: State to manage the active editor
+  // State to manage the active editor
   const [editingWireframeId, setEditingWireframeId] = useState<string | null>(null)
 
-  function refresh() {
-    setItems(wireframesStore.list(projectId))
-  }
+  // Effect to refetch wireframes when projectId changes or component mounts
   useEffect(() => {
-    refresh()
-  }, [projectId])
+    if (projectId) {
+      refetch();
+    }
+  }, [projectId, refetch]);
 
   // Reset page on filters or sorting
   useEffect(() => {
     setPage(1)
-  }, [q, hasPreviewOnly, sortKey, sortDir, pageSize, projectId])
+  }, [q, hasPreviewOnly, sortKey, sortDir, pageSize, projectId, wireframes]); // Added wireframes dependency
 
   const filteredSorted = useMemo(() => {
     const query = q.trim().toLowerCase()
-    let arr = items
-    if (projectId) {
-      arr = arr.filter((w) => w.projectId === projectId)
-    }
+    let arr = wireframes // Use wireframes from the hook
     if (query) {
       arr = arr.filter((w) => w.title.toLowerCase().includes(query))
     }
+    // The `hasPreviewOnly` filter would depend on your GraphQL schema.
+    // If your `WireframeListItem` has a `thumbnail` field that acts as a preview, use that.
+    // Otherwise, you might need to adjust your GraphQL query or remove this filter.
     if (hasPreviewOnly) {
-      arr = arr.filter((w) => !!w.previewDataUrl)
+      arr = arr.filter((w) => !!w.thumbnail) // Assuming 'thumbnail' is equivalent to 'previewDataUrl'
     }
+
     const sorted = [...arr].sort((a, b) => {
       let va: any = a[sortKey]
       let vb: any = b[sortKey]
+
       if (sortKey === "title") {
         va = String(va || "").toLowerCase()
         vb = String(vb || "").toLowerCase()
@@ -65,11 +82,13 @@ export function WireframesView({ projectId }: { projectId?: string }) {
         if (va > vb) return sortDir === "asc" ? 1 : -1
         return 0
       }
-      // updatedAt numeric
-      return sortDir === "asc" ? va - vb : vb - va
+      // updatedAt is an ISO string, convert to Date for numeric comparison
+      const dateA = new Date(va).getTime();
+      const dateB = new Date(vb).getTime();
+      return sortDir === "asc" ? dateA - dateB : dateB - dateA
     })
     return sorted
-  }, [items, projectId, q, hasPreviewOnly, sortKey, sortDir])
+  }, [wireframes, q, hasPreviewOnly, sortKey, sortDir])
 
   const total = filteredSorted.length
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
@@ -84,10 +103,11 @@ export function WireframesView({ projectId }: { projectId?: string }) {
     [pageItems, selected],
   )
 
-  function toggleSelect(id: string, checked: boolean) {
+  const toggleSelect = useCallback((id: string, checked: boolean) => {
     setSelected((prev) => ({ ...prev, [id]: checked }))
-  }
-  function toggleSelectAllPage(checked: boolean) {
+  }, [])
+
+  const toggleSelectAllPage = useCallback((checked: boolean) => {
     if (!checked) {
       const next = { ...selected }
       for (const w of pageItems) delete next[w.id]
@@ -97,72 +117,124 @@ export function WireframesView({ projectId }: { projectId?: string }) {
     const next = { ...selected }
     for (const w of pageItems) next[w.id] = true
     setSelected(next)
-  }
+  }, [pageItems, selected])
 
-  function createNew() {
-    const wf = wireframesStore.create("Untitled Wireframe", projectId)
-    refresh()
-    // Open the new wireframe directly in the editor
-    setEditingWireframeId(wf.id)
-  }
-
-  function rename(id: string) {
-    const cur = items.find((w) => w.id === id)
-    const next = prompt("Rename wireframe", cur?.title || "Untitled Wireframe")
-    if (next !== null) {
-      wireframesStore.update(id, { title: next.trim() || "Untitled Wireframe" })
-      refresh()
+  const handleCreateNew = useCallback(async () => {
+    if (!projectId) {
+      console.error("Project ID is required to create a wireframe.");
+      return;
     }
-  }
-
-  function remove(id: string) {
-    if (!confirm("Delete this wireframe? This cannot be undone.")) return
-    wireframesStore.remove(id)
-    setSelected((prev) => {
-      const copy = { ...prev }
-      delete copy[id]
-      return copy
-    })
-    refresh()
-    // If the deleted wireframe was being edited, close the editor
-    if (editingWireframeId === id) {
-      setEditingWireframeId(null)
+    try {
+      // Default initial data for a new wireframe
+      const initialData = { nodes: [], edges: [] }; // Or whatever your default empty wireframe data looks like
+      const newWireframe = await createWireframe("Untitled Wireframe", initialData);
+      if (newWireframe) {
+        setEditingWireframeId(newWireframe.id); // Open the new wireframe directly in the editor
+        // refetch is handled by the mutation's `refetchQueries`
+      }
+    } catch (err) {
+      console.error("Failed to create new wireframe:", err);
+      // TODO: Show a user-friendly error message
     }
-  }
+  }, [projectId, createWireframe]);
 
-  function bulkDelete() {
-    if (selectedCount === 0) return
-    if (!confirm(`Delete ${selectedCount} selected wireframe(s)? This cannot be undone.`)) return
-    const ids = Object.entries(selected)
+  const handleRename = useCallback(async (id: string, currentTitle: string) => {
+    const nextTitle = prompt("Rename wireframe", currentTitle);
+    if (nextTitle !== null) {
+      const trimmedTitle = nextTitle.trim();
+      if (trimmedTitle && trimmedTitle !== currentTitle) {
+        try {
+          await updateWireframe(id, { title: trimmedTitle });
+          // refetch is handled by the mutation's `refetchQueries`
+        } catch (err) {
+          console.error("Failed to rename wireframe:", err);
+          // TODO: Show error
+        }
+      }
+    }
+  }, [updateWireframe]);
+
+  const handleRemove = useCallback(async (id: string) => {
+    if (!confirm("Delete this wireframe? This cannot be undone.")) return;
+    try {
+      await deleteWireframe(id);
+      setSelected((prev) => {
+        const copy = { ...prev };
+        delete copy[id];
+        return copy;
+      });
+      // If the deleted wireframe was being edited, close the editor
+      if (editingWireframeId === id) {
+        setEditingWireframeId(null);
+      }
+      // refetch is handled by the mutation's `refetchQueries`
+    } catch (err) {
+      console.error("Failed to delete wireframe:", err);
+      // TODO: Show error
+    }
+  }, [deleteWireframe, editingWireframeId]);
+
+  const handleBulkDelete = useCallback(async () => {
+    if (selectedCount === 0) return;
+    if (!confirm(`Delete ${selectedCount} selected wireframe(s)? This cannot be undone.`)) return;
+
+    const idsToDelete = Object.entries(selected)
+      .filter(([, v]) => v)
+      .map(([k]) => k);
+
+    try {
+      // Execute deletions in parallel
+      await Promise.all(idsToDelete.map((id) => deleteWireframe(id)));
+      setSelected({}); // Clear selection after successful deletion
+
+      // If the currently edited wireframe was part of the bulk delete, close the editor
+      if (editingWireframeId && idsToDelete.includes(editingWireframeId)) {
+        setEditingWireframeId(null);
+      }
+      // refetch is handled by the mutation's `refetchQueries` (or you can manually refetch once)
+    } catch (err) {
+      console.error("Failed to bulk delete wireframes:", err);
+      // TODO: Show error, maybe indicate which ones failed
+    }
+  }, [selectedCount, selected, deleteWireframe, editingWireframeId]);
+
+  const handleExportSelected = useCallback(() => {
+    const idsToExport = Object.entries(selected)
       .filter(([, v]) => v)
       .map(([k]) => k)
-    ids.forEach((id) => wireframesStore.remove(id))
-    setSelected({})
-    refresh()
-    // If the currently edited wireframe was part of the bulk delete, close the editor
-    if (editingWireframeId && ids.includes(editingWireframeId)) {
-      setEditingWireframeId(null)
-    }
-  }
-
-  function exportSelected() {
-    const ids = Object.entries(selected)
-      .filter(([, v]) => v)
-      .map(([k]) => k)
-    const data = items.filter((w) => ids.includes(w.id))
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" })
+    const dataToExport = wireframes.filter((w) => idsToExport.includes(w.id)) // Use 'wireframes' from hook
+    const blob = new Blob([JSON.stringify(dataToExport, null, 2)], { type: "application/json" })
     const url = URL.createObjectURL(blob)
     const a = document.createElement("a")
     a.href = url
     a.download = `wireframes-export-${new Date().toISOString().slice(0, 10)}.json`
     a.click()
     URL.revokeObjectURL(url)
+  }, [selected, wireframes]);
+
+
+  // Render the WireframeEditorComponent if editingWireframeId is set
+  if (editingWireframeId) {
+    return <WireframeEditorComponent wireframeId={editingWireframeId} onBack={() => {
+      setEditingWireframeId(null);
+      refetch(); // Refetch list after returning from editor to show potential updates
+    }} />
   }
 
-  // NEW: Render the WireframeEditorComponent if editingWireframeId is set
-  if (editingWireframeId) {
-    // The onBack prop should reset editingWireframeId to null to go back to the list/grid view
-    return <WireframeEditorComponent wireframeId={editingWireframeId} onBack={() => setEditingWireframeId(null)} />
+  if (wireframesLoading) {
+    return (
+      <div className="page-scroller grid h-full place-items-center p-4">
+        <Loader2 className="h-8 w-8 animate-spin text-emerald-500" />
+      </div>
+    );
+  }
+
+  if (wireframesError) {
+    return (
+      <div className="page-scroller grid h-full place-items-center p-4 text-red-600">
+        Error loading wireframes: {wireframesError.message}
+      </div>
+    );
   }
 
   return (
@@ -230,16 +302,16 @@ export function WireframesView({ projectId }: { projectId?: string }) {
           <div className="flex items-center justify-start gap-2 md:justify-end">
             {selectedCount > 0 && (
               <>
-                <Button variant="outline" className="h-9 bg-transparent" onClick={exportSelected}>
+                <Button variant="outline" className="h-9 bg-transparent" onClick={handleExportSelected}>
                   Export ({selectedCount})
                 </Button>
-                <Button variant="destructive" className="h-9" onClick={bulkDelete}>
+                <Button variant="destructive" className="h-9" onClick={handleBulkDelete}>
                   <Trash2 className="mr-1 h-4 w-4" />
                   Delete selected
                 </Button>
               </>
             )}
-            <Button className="h-9 btn-primary" onClick={createNew}>
+            <Button className="h-9 btn-primary" onClick={handleCreateNew}>
               <Plus className="mr-1 h-4 w-4" />
               New wireframe
             </Button>
@@ -263,19 +335,18 @@ export function WireframesView({ projectId }: { projectId?: string }) {
                   />
                 </div>
 
-                {/* MODIFIED: Replaced Link with a div that calls setEditingWireframeId */}
                 <div
                   onClick={() => setEditingWireframeId(w.id)}
                   title="Open wireframe"
-                  className="block cursor-pointer" // Added cursor-pointer for better UX
+                  className="block cursor-pointer"
                 >
                   <div className="aspect-[16/10] w-full bg-slate-50">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
+                      // Use w.thumbnail from the GraphQL response
                       src={
-                        w.previewDataUrl ||
-                        "/placeholder.svg?height=200&width=320&query=wireframe%20preview%20grid" ||
-                        "/placeholder.svg"
+                        w.thumbnail ||
+                        "/placeholder.svg?height=200&width=320&query=wireframe%20preview%20grid"
                       }
                       alt={`${w.title} preview`}
                       className="h-full w-full object-cover"
@@ -286,17 +357,18 @@ export function WireframesView({ projectId }: { projectId?: string }) {
                 <div className="flex items-center justify-between px-3 py-2">
                   <div className="min-w-0">
                     <div className="truncate text-sm font-medium">{w.title}</div>
-                    <div className="text-xs text-slate-500">Updated {timeAgo(w.updatedAt)}</div>
+                    {/* Use w.updatedAt which is a string from GraphQL, timeAgo can handle it */}
+                    <div className="text-xs text-slate-500">Updated {timeAgo(new Date(w.updatedAt).getTime())}</div>
                   </div>
                   <div className="flex items-center gap-1">
-                    <Button size="sm" variant="ghost" className="h-8 px-2" onClick={() => rename(w.id)} title="Rename">
+                    <Button size="sm" variant="ghost" className="h-8 px-2" onClick={() => handleRename(w.id, w.title)} title="Rename">
                       <PencilLine className="h-4 w-4" />
                     </Button>
                     <Button
                       size="sm"
                       variant="ghost"
                       className="h-8 px-2 text-red-600 hover:text-red-700 hover:bg-red-50"
-                      onClick={() => remove(w.id)}
+                      onClick={() => handleRemove(w.id)}
                       title="Delete"
                     >
                       <Trash2 className="h-4 w-4" />
@@ -336,9 +408,8 @@ export function WireframesView({ projectId }: { projectId?: string }) {
                     </td>
                     <td className="px-2 py-2">
                       <div className="flex items-center gap-2">
-                        {/* MODIFIED: Replaced Link with a Button that calls setEditingWireframeId */}
                         <Button
-                          variant="link" // Use link variant for similar styling
+                          variant="link"
                           className="p-0 h-auto text-emerald-700 hover:underline"
                           onClick={() => setEditingWireframeId(w.id)}
                         >
@@ -347,11 +418,11 @@ export function WireframesView({ projectId }: { projectId?: string }) {
                       </div>
                     </td>
                     <td className="px-2 py-2">
-                      {w.previewDataUrl ? (
+                      {w.thumbnail ? ( // Use w.thumbnail
                         <div className="h-10 w-16 overflow-hidden rounded border bg-slate-50">
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img
-                            src={w.previewDataUrl || "/placeholder.svg"}
+                            src={w.thumbnail}
                             alt={`${w.title} preview`}
                             className="h-full w-full object-cover"
                           />
@@ -360,21 +431,21 @@ export function WireframesView({ projectId }: { projectId?: string }) {
                         <span className="text-xs text-slate-500">—</span>
                       )}
                     </td>
-                    <td className="px-2 py-2 text-slate-600">{timeAgo(w.updatedAt)}</td>
+                    {/* Use w.updatedAt which is a string from GraphQL, timeAgo can handle it */}
+                    <td className="px-2 py-2 text-slate-600">{timeAgo(new Date(w.updatedAt).getTime())}</td>
                     <td className="px-2 py-2">
                       <div className="flex items-center justify-end gap-2">
-                        {/* MODIFIED: Replaced Link with a Button that calls setEditingWireframeId */}
                         <Button size="sm" variant="outline" className="h-8 bg-transparent" onClick={() => setEditingWireframeId(w.id)}>
                           Open
                         </Button>
-                        <Button size="sm" variant="ghost" className="h-8 px-2" onClick={() => rename(w.id)}>
+                        <Button size="sm" variant="ghost" className="h-8 px-2" onClick={() => handleRename(w.id, w.title)}>
                           <PencilLine className="h-4 w-4" />
                         </Button>
                         <Button
                           size="sm"
                           variant="ghost"
                           className="h-8 px-2 text-red-600 hover:text-red-700 hover:bg-red-50"
-                          onClick={() => remove(w.id)}
+                          onClick={() => handleRemove(w.id)}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
