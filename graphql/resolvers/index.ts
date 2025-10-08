@@ -5,13 +5,15 @@ import projectResolver from "./projectResolver"
 import projectSectionResolver from "./projectSectionResolver"
 import taskResolver from "./taskResolver"
 import { sprintResolvers } from "./sprintResolver"
-
+import documentResolvers from "./documentResolver"
 
 export const resolvers = {
   Query: {
     ...workspaceResolver.Query,
     ...userResolver.Query,
     ...projectResolver.Query,
+    ...documentResolvers.Query, // NEW
+
 
   },
   Mutation: {
@@ -21,6 +23,10 @@ export const resolvers = {
     ...projectSectionResolver.Mutation,
     ...taskResolver.Mutation,
     ...sprintResolvers.Mutation,
+    ...documentResolvers.Mutation, // NEW
+
 
   },
+  Document: documentResolvers.Document, // NEW: Include the Document type resolver
+
 }

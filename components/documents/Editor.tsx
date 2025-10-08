@@ -1,40 +1,37 @@
 "use client"; // this registers <Editor> as a Client Component
 import "@blocknote/core/fonts/inter.css";
-import { useCreateBlockNote } from "@blocknote/react";
+import { useCreateBlockNote, BlockNoteEditor } from "@blocknote/react"; // ADDED BlockNoteEditor type
 import { BlockNoteView } from "@blocknote/mantine";
+import type { Block } from "@blocknote/core"; // NEW IMPORT: Block type from BlockNote core
 
 import "@blocknote/mantine/style.css";
 
-// Our <Editor> component we can reuse later
-export default function Editor({ initialContent, onChange }) {
-  let parsedContent: any[] | undefined = undefined;
-  try {
-    if (initialContent) {
-      const parsed = JSON.parse(initialContent);
-      // Check if the parsed content is an array of blocks and if it's not just an empty paragraph
-      if (
-        Array.isArray(parsed) &&
-        parsed.length > 0 &&
-        !(
-          parsed.length === 1 &&
-          parsed[0].type === "paragraph" &&
-          parsed[0].content &&
-          parsed[0].content.length === 0
-        )
-      ) {
-        parsedContent = parsed;
-      }
-    }
-  } catch (e) {
-    console.error("Failed to parse initialContent for BlockNote:", e);
-    parsedContent = undefined;
-  }
 
-  // Creates a new editor instance.
-  const editor = useCreateBlockNote({ initialContent: parsedContent });
+
+// Define props for the Editor component
+interface EditorProps {
+  initialContent: Block[] | null; // UPDATED: Explicitly type as Block[] | null
+  onChange: (document: Block[]) => void; // UPDATED: onChange expects Block[]
+}
+
+// Our <Editor> component we can reuse later
+export default function Editor({ initialContent, onChange }: EditorProps) { // Added types to props
+  // The initialContent is already a Block[] | null from the GraphQL query.
+  // No need for JSON.parse or complex parsing logic here.
+  // We can pass it directly to useCreateBlockNote.
+
+  // If initialContent is null or empty array, BlockNote will start with a default empty paragraph.
+  // The `useCreateBlockNote` hook internally handles default content if `initialContent` is undefined or empty.
+  const editor = useCreateBlockNote({
+    initialContent: initialContent || undefined // Pass null as undefined to let BlockNote handle defaults
+  });
 
   // Renders the editor instance using a React component.
-  return <BlockNoteView 
-  theme='light'
-  editor={editor} onChange={() => onChange?.(editor.document)} />;
+  return (
+    <BlockNoteView
+      theme='light'
+      editor={editor}
+      onChange={() => onChange?.(editor.document)} // editor.document already returns Block[]
+    />
+  );
 }

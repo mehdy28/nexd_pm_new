@@ -1,115 +1,147 @@
-"use client"
+// components/documents/documents-view.tsx
+"use client";
 
-import type React from "react"
+import type React from "react";
 
-import { useEffect, useMemo, useRef, useState } from "react"
-import { Input } from "@/components/ui/input"
-import { Button } from "@/components/ui/button"
-import { Upload, Plus, ChevronLeft } from "lucide-react"
-import { useDocuments } from "./use-documents"
-import { Editor } from "./DynamicEditor"
-import { DocumentList } from "./document-list"
-import type { Doc } from "./types"
-import { PdfViewer } from "./pdf-viewer"
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Upload, Plus, ChevronLeft } from "lucide-react";
+// REMOVE THIS: import { useDocuments } from "./use-documents";
+import { useProjectDocuments, type ProjectDocument } from "@/hooks/useProjectDocuments"; // NEW IMPORT
+import { Editor } from "./DynamicEditor";
+import { DocumentList } from "./document-list";
+// REMOVE THIS: import type { Doc } from "./types"; // If 'Doc' type is only used here, it can be removed
+import { PdfViewer } from "./pdf-viewer";
 
 interface DocumentsViewProps {
-  projectId?: string
+  // projectId?: string; // projectId is now obtained via useParams in the hook
 }
 
-export function DocumentsView({ projectId }: DocumentsViewProps) {
-  const { docs, createDoc, createPdfFromDataUrl, update, remove } = useDocuments()
-  const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [query, setQuery] = useState("")
-  const [showEditor, setShowEditor] = useState(false) // New state to control view
-  const fileInputRef = useRef<HTMLInputElement | null>(null)
+export function DocumentsView({ /* projectId */ }: DocumentsViewProps) { // Remove projectId prop here
+  const {
+    documents: docs, // Renamed to 'docs' for consistency with original component
+    selectedDocument: selected, // Renamed to 'selected'
+    loading,
+    error,
+    createProjectDocument, // Renamed from createDoc
+    createPdfFromDataUrl,
+    updateProjectDocument, // Renamed from update
+    deleteProjectDocument, // Renamed from remove
+    selectDocument, // New explicit select method
+    refetchDocumentsList, // Optional: if you need a manual refresh button
+  } = useProjectDocuments(); // Initialize the new hook
 
+  // const [selectedId, setSelectedId] = useState<string | null>(null); // This state is now managed by the hook's `selectDocument`
+  const [query, setQuery] = useState("");
+  const [showEditor, setShowEditor] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Sync internal state with hook's selectedDocument
   useEffect(() => {
-    console.log("[Doc] useEffect triggered.");
-    console.log("[Doc] Current docs length:", docs.length);
-    console.log("[Doc] Current selectedId:", selectedId);
-    console.log("[Doc] Current showEditor:", showEditor);
-
-    if (!selectedId && docs.length > 0) {
-      console.log("[Doc] No selectedId, but docs exist. Setting showEditor to false.");
-      setShowEditor(false);
-    } else if (selectedId && !docs.some((d) => d.id === selectedId)) {
-      console.log("[Doc] Invalid selectedId. Resetting and setting showEditor to false.");
-      setSelectedId(null);
-      setShowEditor(false);
-    } else if (selectedId && showEditor) {
-      console.log("[Doc] Valid selectedId and showEditor is true. Keeping editor visible.");
+    // Determine showEditor based on whether a document is selected
+    if (selected) {
       setShowEditor(true);
-    } else if (selectedId && !showEditor) {
-      console.log("[Doc] Valid selectedId but showEditor is false. Keeping list visible.");
+    } else {
       setShowEditor(false);
     }
-  }, [docs, selectedId, showEditor]);
+  }, [selected]); // Only re-run when `selected` document changes
+
+  // Logging for debugging (can be removed in production)
+  useEffect(() => {
+    console.log("[DocView] useEffect triggered.");
+    console.log("[DocView] Current docs length:", docs.length);
+    console.log("[DocView] Current selected doc ID:", selected?.id);
+    console.log("[DocView] Current showEditor:", showEditor);
+    console.log("[DocView] Loading:", loading);
+    console.log("[DocView] Error:", error);
+
+    // Initial selection logic (if no doc is selected and docs exist, ensure editor is not shown)
+    if (!selected && docs.length > 0 && showEditor) {
+      setShowEditor(false);
+    } else if (!selected && docs.length === 0 && showEditor) {
+      setShowEditor(false);
+    }
+
+  }, [docs, selected, showEditor, loading, error]);
+
 
   const filteredDocs = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    let byTime = [...docs].sort((a, b) => b.updatedAt - a.updatedAt)
-    console.log("[Doc] unfiltered docs count:", byTime.length);
-
-    if (projectId) {
-      byTime = byTime.filter((doc) => doc.projectId === projectId)
-      console.log("[Doc] docs filtered by projectId (", projectId, ") count:", byTime.length);
-    }
+    const q = query.trim().toLowerCase();
+    // Documents are already filtered by project ID by the hook.
+    let sortedDocs = [...docs].sort((a, b) => b.updatedAt - a.updatedAt);
 
     if (!q) {
-      console.log("[Doc] filteredDocs (no query):", byTime.map(d => d.title));
-      return byTime;
+      console.log("[DocView] filteredDocs (no query):", sortedDocs.map(d => d.title));
+      return sortedDocs;
     }
-    const result = byTime.filter((d) => d.title.toLowerCase().includes(q));
-    console.log("[Doc] filteredDocs (with query ", q, "):", result.map(d => d.title));
+    const result = sortedDocs.filter((d) => d.title.toLowerCase().includes(q));
+    console.log("[DocView] filteredDocs (with query ", q, "):", result.map(d => d.title));
     return result;
-  }, [docs, query, projectId])
-
-  const selected: Doc | null = useMemo(() => docs.find((d) => d.id === selectedId) || null, [docs, selectedId])
+  }, [docs, query]);
 
   function handleCreateDoc() {
-    console.log("[Doc] handleCreateDoc called.");
-    const doc = createDoc("Untitled", projectId); // Pass projectId here
-    console.log("[Doc] New document created:", doc);
-    setSelectedId(doc.id)
-    console.log("[Doc] setSelectedId to:", doc.id);
+    console.log("[DocView] handleCreateDoc called.");
+    const doc = createProjectDocument("Untitled"); // Project ID is handled by the hook
+    console.log("[DocView] New document created:", doc);
+    // selectDocument(doc.id); // The hook already auto-selects and sets local state
+    // setShowEditor(true); // The useEffect above will handle this based on `selected`
   }
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    console.log("[Doc] handleFileChange called.");
-    const file = e.target.files?.[0]
+    console.log("[DocView] handleFileChange called.");
+    const file = e.target.files?.[0];
     if (!file) {
-      console.log("[Doc] No file selected.");
+      console.log("[DocView] No file selected.");
       return;
     }
     if (file.type !== "application/pdf") {
-      console.log("[Doc] File is not a PDF.");
-      e.target.value = ""
-      return
+      console.log("[DocView] File is not a PDF.");
+      e.target.value = "";
+      return;
     }
-    const reader = new FileReader()
+    const reader = new FileReader();
     reader.onload = () => {
-      console.log("[Doc] FileReader onload.");
-      const newDoc = createPdfFromDataUrl(String(reader.result), file.name, projectId);
-      console.log("[Doc] New PDF document created:", newDoc);
-      setSelectedId(newDoc.id)
-      console.log("[Doc] setSelectedId to:", newDoc.id);
-      setShowEditor(false) // Keep the list view visible after uploading a new PDF
-      e.target.value = ""
-    }
-    reader.readAsDataURL(file)
+      console.log("[DocView] FileReader onload.");
+      createPdfFromDataUrl(String(reader.result), file.name); // Project ID handled by hook
+      console.log("[DocView] New PDF document created.");
+      // selectDocument(newDoc.id); // PDFs are not automatically selected for editor view
+      setShowEditor(false); // Stay in list view after PDF upload
+      e.target.value = "";
+    };
+    reader.readAsDataURL(file);
   }
 
   function handleSelectDocument(id: string) {
-    console.log("[Doc] handleSelectDocument called with id:", id);
-    setSelectedId(id)
-    setShowEditor(true) // Show editor when a document is selected
+    console.log("[DocView] handleSelectDocument called with id:", id);
+    selectDocument(id); // Use the hook's method
+    // setShowEditor(true); // useEffect will handle this based on `selected`
   }
 
   function handleBackToList() {
-    console.log("[Doc] handleBackToList called.");
-    setSelectedId(null)
-    setShowEditor(false) // Go back to the list view
+    console.log("[DocView] handleBackToList called.");
+    selectDocument(null); // Deselect document
+    // setShowEditor(false); // useEffect will handle this based on `selected`
   }
+
+  // Handle loading and error states
+  if (loading && !docs.length) { // Only show full loading spinner if no docs are loaded yet
+    return (
+      <div className="h-full w-full grid place-items-center">
+        <p className="text-slate-500">Loading documents...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="h-full w-full grid place-items-center text-red-500">
+        <p>Error: {error}</p>
+        <Button onClick={refetchDocumentsList}>Try Again</Button>
+      </div>
+    );
+  }
+
 
   return (
     <div className="h-full w-full overflow-hidden p-4 flex flex-col">
@@ -123,7 +155,7 @@ export function DocumentsView({ projectId }: DocumentsViewProps) {
             <Input
               value={selected.title}
               onChange={(e) =>
-                update(selected.id, {
+                updateProjectDocument(selected.id, {
                   title: e.target.value || (selected.type === "pdf" ? "PDF Document" : "Untitled"),
                 })
               }
@@ -136,7 +168,7 @@ export function DocumentsView({ projectId }: DocumentsViewProps) {
               <Editor
                 key={selected.id}
                 initialContent={selected.content}
-                onChange={(editor) => update(selected.id, { content: editor.topLevelBlocks })}
+                onChange={(documentBlocks) => updateProjectDocument(selected.id, { content: documentBlocks })}
               />
             ) : (
               <PdfViewer dataUrl={selected.dataUrl} />
@@ -162,15 +194,7 @@ export function DocumentsView({ projectId }: DocumentsViewProps) {
                 className="hidden"
                 onChange={handleFileChange}
               />
-              {/* <Button
-                variant="outline"
-                className="h-9 gap-2 bg-transparent"
-                onClick={() => fileInputRef.current?.click()}
-                title="Upload PDF"
-              >
-                <Upload className="h-4 w-4" />
-                PDF
-              </Button> */}
+              {/* You can re-enable the PDF upload button if needed, but it's commented in your original*/}
               <Button className="h-9 bg-emerald-600 text-white hover:bg-emerald-700" onClick={handleCreateDoc}>
                 <Plus className="mr-1 h-4 w-4" />
                 New
@@ -182,12 +206,12 @@ export function DocumentsView({ projectId }: DocumentsViewProps) {
             {filteredDocs.length > 0 ? (
               <DocumentList
                 docs={filteredDocs}
-                selectedId={selectedId}
-                onSelect={handleSelectDocument} // Use new handler
-                onRename={(id, title) => update(id, { title })}
+                selectedId={selected?.id || null} // Pass selectedId from the hook
+                onSelect={handleSelectDocument}
+                onRename={(id, title) => updateProjectDocument(id, { title })}
                 onDelete={(id) => {
-                  remove(id)
-                  if (selectedId === id) setSelectedId(null)
+                  deleteProjectDocument(id);
+                  // The hook will handle deselecting if the deleted doc was selected
                 }}
               />
             ) : (
@@ -199,5 +223,5 @@ export function DocumentsView({ projectId }: DocumentsViewProps) {
         </>
       )}
     </div>
-  )
+  );
 }

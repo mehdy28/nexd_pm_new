@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import Link from "next/link"
+// import Link from "next/link" // Remove this import if not used elsewhere for navigation
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -9,6 +9,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Plus, Trash2, PencilLine, ArrowLeft, ArrowRight, LayoutGrid, Rows } from "lucide-react"
 import { wireframesStore, type Wireframe } from "./store"
 import { cn } from "@/lib/utils"
+
+// Import WireframeEditorComponent
+import WireframeEditorComponent from "@/components/wireframes/wireframe-editor"
 
 type SortKey = "updatedAt" | "title"
 type SortDir = "desc" | "asc"
@@ -24,6 +27,9 @@ export function WireframesView({ projectId }: { projectId?: string }) {
   const [page, setPage] = useState<number>(1)
   const [selected, setSelected] = useState<Record<string, boolean>>({})
   const [view, setView] = useState<ViewMode>("grid")
+
+  // NEW: State to manage the active editor
+  const [editingWireframeId, setEditingWireframeId] = useState<string | null>(null)
 
   function refresh() {
     setItems(wireframesStore.list(projectId))
@@ -96,7 +102,8 @@ export function WireframesView({ projectId }: { projectId?: string }) {
   function createNew() {
     const wf = wireframesStore.create("Untitled Wireframe", projectId)
     refresh()
-    // Keep on list; user can click to open
+    // Open the new wireframe directly in the editor
+    setEditingWireframeId(wf.id)
   }
 
   function rename(id: string) {
@@ -117,6 +124,10 @@ export function WireframesView({ projectId }: { projectId?: string }) {
       return copy
     })
     refresh()
+    // If the deleted wireframe was being edited, close the editor
+    if (editingWireframeId === id) {
+      setEditingWireframeId(null)
+    }
   }
 
   function bulkDelete() {
@@ -128,6 +139,10 @@ export function WireframesView({ projectId }: { projectId?: string }) {
     ids.forEach((id) => wireframesStore.remove(id))
     setSelected({})
     refresh()
+    // If the currently edited wireframe was part of the bulk delete, close the editor
+    if (editingWireframeId && ids.includes(editingWireframeId)) {
+      setEditingWireframeId(null)
+    }
   }
 
   function exportSelected() {
@@ -142,6 +157,12 @@ export function WireframesView({ projectId }: { projectId?: string }) {
     a.download = `wireframes-export-${new Date().toISOString().slice(0, 10)}.json`
     a.click()
     URL.revokeObjectURL(url)
+  }
+
+  // NEW: Render the WireframeEditorComponent if editingWireframeId is set
+  if (editingWireframeId) {
+    // The onBack prop should reset editingWireframeId to null to go back to the list/grid view
+    return <WireframeEditorComponent wireframeId={editingWireframeId} onBack={() => setEditingWireframeId(null)} />
   }
 
   return (
@@ -242,7 +263,12 @@ export function WireframesView({ projectId }: { projectId?: string }) {
                   />
                 </div>
 
-                <Link href={`/wireframes/${w.id}?tab=wireframes`} title="Open wireframe" className="block">
+                {/* MODIFIED: Replaced Link with a div that calls setEditingWireframeId */}
+                <div
+                  onClick={() => setEditingWireframeId(w.id)}
+                  title="Open wireframe"
+                  className="block cursor-pointer" // Added cursor-pointer for better UX
+                >
                   <div className="aspect-[16/10] w-full bg-slate-50">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
@@ -255,7 +281,7 @@ export function WireframesView({ projectId }: { projectId?: string }) {
                       className="h-full w-full object-cover"
                     />
                   </div>
-                </Link>
+                </div>
 
                 <div className="flex items-center justify-between px-3 py-2">
                   <div className="min-w-0">
@@ -310,12 +336,14 @@ export function WireframesView({ projectId }: { projectId?: string }) {
                     </td>
                     <td className="px-2 py-2">
                       <div className="flex items-center gap-2">
-                        <Link
-                          href={`/wireframes/${w.id}?tab=wireframes`}
-                          className="font-medium text-emerald-700 hover:underline"
+                        {/* MODIFIED: Replaced Link with a Button that calls setEditingWireframeId */}
+                        <Button
+                          variant="link" // Use link variant for similar styling
+                          className="p-0 h-auto text-emerald-700 hover:underline"
+                          onClick={() => setEditingWireframeId(w.id)}
                         >
                           {w.title}
-                        </Link>
+                        </Button>
                       </div>
                     </td>
                     <td className="px-2 py-2">
@@ -335,8 +363,9 @@ export function WireframesView({ projectId }: { projectId?: string }) {
                     <td className="px-2 py-2 text-slate-600">{timeAgo(w.updatedAt)}</td>
                     <td className="px-2 py-2">
                       <div className="flex items-center justify-end gap-2">
-                        <Button size="sm" variant="outline" className="h-8 bg-transparent" asChild>
-                          <Link href={`/wireframes/${w.id}?tab=wireframes`}>Open</Link>
+                        {/* MODIFIED: Replaced Link with a Button that calls setEditingWireframeId */}
+                        <Button size="sm" variant="outline" className="h-8 bg-transparent" onClick={() => setEditingWireframeId(w.id)}>
+                          Open
                         </Button>
                         <Button size="sm" variant="ghost" className="h-8 px-2" onClick={() => rename(w.id)}>
                           <PencilLine className="h-4 w-4" />

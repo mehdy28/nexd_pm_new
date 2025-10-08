@@ -312,16 +312,17 @@ type TaskLabel {
 type Document {
   id: ID!
   title: String!
-  content: JSON
+  content: JSON # The BlockNote content is JSON
+  dataUrl: String # For PDF content
   createdAt: String!
   updatedAt: String!
-
+  type: String! # "doc" or "pdf"
+  projectId: ID
   project: Project
   personalUser: User
-
-  comments: [Comment!]!
-  activities: [Activity!]!
+  # ... other fields
 }
+
 
 type Wireframe {
   id: ID!
@@ -732,12 +733,31 @@ input UpdateSprintInput {
 }
 
 
+# --- NEW TYPES FOR DOCUMENTS ---
+
+# Minimal Document type for list view
+type DocumentListItem {
+  id: ID!
+  title: String!
+  updatedAt: String! # For sorting/display
+  type: String! # "doc" or "pdf" (derived, if content is null assume PDF, else doc)
+  projectId: ID # To filter by project
+}
+
+input CreateDocumentInput {
+  projectId: ID!
+  title: String!
+  content: JSON # Expects Block[] as JSON
+  dataUrl: String # Optional for PDF
+}
 
 
-
-
-
-
+input UpdateDocumentInput {
+  id: ID!
+  title: String
+  content: JSON # Optional, expects Block[] as JSON
+  dataUrl: String # Optional for PDF
+}
 
 # ----------------------------------
 # Root Queries
@@ -753,6 +773,10 @@ type Query {
 
   getWorkspaceData: WorkspaceData # New query
   me: User
+
+  # --- NEW DOCUMENT QUERIES ---
+  getProjectDocuments(projectId: ID!): [DocumentListItem!]! # Get list of documents for a project
+  getDocumentDetails(id: ID!): Document # Get full details of a single document
 }
 
 
@@ -800,6 +824,11 @@ type Mutation {
 
   createGanttTask(input: CreateGanttTaskInput!): GanttTaskData! # NEW: Create a task/milestone for Gantt
   updateGanttTask(input: UpdateGanttTaskInput!): GanttTaskData! # NEW: Update a task/milestone for Gantt
+
+  # --- NEW DOCUMENT MUTATIONS ---
+  createDocument(input: CreateDocumentInput!): DocumentListItem! # Returns the created document item
+  updateDocument(input: UpdateDocumentInput!): DocumentListItem! # Returns the updated document item
+  deleteDocument(id: ID!): DocumentListItem! # Returns the deleted document item
 }
 
 

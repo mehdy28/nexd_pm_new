@@ -373,7 +373,8 @@ model TaskLabel {
 model Document {
   id        String       @id @default(cuid())
   title     String
-  content   Json?
+  content     Json?    // Make sure this is 'Json?' for optional content (e.g., for PDFs)
+  dataUrl     String?  // Keep this for PDFs
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt
 
