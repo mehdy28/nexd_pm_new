@@ -1,447 +1,623 @@
-// src/graphql/resolvers/wireframe.ts (or wherever your resolvers are located)
+// graphql/resolvers/wireframeResolver.ts
 
 import { prisma } from "@/lib/prisma";
 import { GraphQLError } from "graphql";
+import type { Prisma } from "@prisma/client"; // Import Prisma types for full type safety
 
+// Extend Prisma's Wireframe type to include relations we often fetch
+type PrismaWireframeWithRelations = Prisma.WireframeGetPayload<{
+  include: {
+    project: {
+      select: { id: true; name: true; workspaceId: true };
+    };
+    personalUser: {
+      select: { id: true; firstName: true; lastName: true };
+    };
+  };
+}>;
+
+// GraphQL Context Interface
 interface GraphQLContext {
   prisma: typeof prisma;
   user?: { id: string; email: string; role: string };
 }
 
-// Ensure JSON scalar type is handled by your GraphQL server setup
-// If you're using Apollo Server, you might have something like:
-// const resolvers = {
-//   JSON: GraphQLJSON, // import GraphQLJSON from 'graphql-type-json';
-//   // ... your other resolvers
-// };
-// For these types, we'll use 'any' as discussed.
+// Input Types based on your Schema (for internal use, matching schema definitions)
+interface CreateWireframeInput {
+  projectId: string;
+  title: string;
+  data: any; // JSON scalar
+  thumbnail?: string | null;
+}
+
+interface UpdateWireframeInput {
+  id: string;
+  title?: string | null;
+  data?: any | null; // JSON scalar
+  thumbnail?: string | null;
+}
+
+// Return Types based on your Schema (for internal use)
+interface WireframeListItem {
+  id: string;
+  title: string;
+  updatedAt: string; // ISO date string
+  thumbnail: string | null;
+  projectId: string;
+  __typename: "WireframeListItem"; // Explicitly match type name
+}
+
+// Helper for consistent logging
+const log = (level: "info" | "warn" | "error", message: string, context?: Record<string, any>) => {
+  const timestamp = new Date().toISOString();
+  console.log(`[${timestamp}] [WIREFRAME_RESOLVERS] [${level.toUpperCase()}] ${message}`);
+  if (context) {
+    console.log(`  Context: ${JSON.stringify(context)}`);
+  }
+};
 
 const wireframeResolvers = {
   Query: {
-    // Resolver for fetching a list of wireframes for a project
     getProjectWireframes: async (
       _parent: any,
       { projectId }: { projectId: string },
       context: GraphQLContext,
-    ) => {
-      console.log(`[Query] getProjectWireframes called for projectId: ${projectId}`);
-      const { user } = context;
+    ): Promise<WireframeListItem[]> => {
+      const operation = "getProjectWireframes";
+      log("info", `${operation} called.`, { projectId });
 
-      if (!user) {
-        console.warn("[Query] getProjectWireframes: Unauthorized - User not logged in.");
-        throw new GraphQLError("Unauthorized: Must be logged in.", {
+      const { user } = context;
+      if (!user?.id) {
+        log("warn", `${operation}: Authentication required.`, { projectId });
+        throw new GraphQLError("Authentication required", {
           extensions: { code: "UNAUTHENTICATED" },
         });
       }
-      console.log(`[Query] getProjectWireframes: User ${user.id} is logged in.`);
+      log("info", `${operation}: User ${user.id} authenticated.`, { userId: user.id, projectId });
 
-      // Check if the user is a member of the project's workspace or the project itself
-      const project = await context.prisma.project.findUnique({
-        where: { id: projectId },
-        select: {
-          workspace: {
-            select: {
-              members: {
-                where: { userId: user.id },
-              },
-            },
+      console.log(`della3a 1`);
+
+      try {
+        const wireframes = await context.prisma.wireframe.findMany({
+          where: {
+            projectId: projectId,
           },
-          members: {
-            where: { userId: user.id },
+          orderBy: {
+            updatedAt: "desc",
           },
-        },
-      });
+          select: {
+            id: true,
+            title: true,
+            updatedAt: true,
+            thumbnail: true,
+            projectId: true,
+          },
+        });
 
-      const isWorkspaceMember = project?.workspace?.members?.length > 0;
-      const isProjectMember = project?.members?.length > 0;
+        log("info", `${operation}: Found ${wireframes.length} wireframes.`, { projectId, wireframeCount: wireframes.length });
 
-      if (!isWorkspaceMember && !isProjectMember) {
-        console.warn(
-          `[Query] getProjectWireframes: Forbidden - User ${user.id} not a member of project ${projectId} or its workspace.`,
-        );
-        throw new GraphQLError("Forbidden: Not a member of this project or its workspace.", {
-          extensions: { code: "FORBIDDEN" },
+        // Map to WireframeListItem and add __typename
+        return wireframes.map((wf) => ({
+          ...wf,
+          updatedAt: wf.updatedAt.toISOString(), // Ensure ISO string format
+          thumbnail: wf.thumbnail, // thumbnail can be null from DB
+          __typename: "WireframeListItem", // Explicitly define __typename as per schema
+        }));
+      } catch (error: any) {
+        log("error", `${operation}: Failed to fetch wireframes.`, {
+          projectId,
+          errorName: error.name,
+          errorMessage: error.message,
+          stack: error.stack,
+        });
+        throw new GraphQLError(`Failed to retrieve wireframes: ${error.message}`, {
+          extensions: { code: "DATABASE_ERROR" },
         });
       }
-      console.log(
-        `[Query] getProjectWireframes: User ${user.id} authorized for project ${projectId}.`,
-      );
-
-      const wireframes = await context.prisma.wireframe.findMany({
-        where: {
-          projectId: projectId,
-        },
-        orderBy: {
-          updatedAt: "desc", // Default sort for list view
-        },
-        // Select specific fields for WireframeListItem
-        select: {
-          id: true,
-          title: true,
-          updatedAt: true,
-          thumbnail: true,
-          projectId: true, // Included for consistency with WireframeListItem
-        },
-      });
-
-      console.log(
-        `[Query] getProjectWireframes: Found ${wireframes.length} wireframes for project ${projectId}.`,
-      );
-      return wireframes;
     },
 
-    // Resolver for fetching full details of a single wireframe
-    getWireframeDetails: async (_parent: any, { id }: { id: string }, context: GraphQLContext) => {
-      console.log(`[Query] getWireframeDetails called for wireframeId: ${id}`);
-      const { user } = context;
+    getWireframeDetails: async (
+      _parent: any,
+      { id }: { id: string },
+      context: GraphQLContext,
+    ): Promise<PrismaWireframeWithRelations | null> => {
+      const operation = "getWireframeDetails";
+      log("info", `${operation} called.`, { wireframeId: id });
 
-      if (!user) {
-        console.warn("[Query] getWireframeDetails: Unauthorized - User not logged in.");
-        throw new GraphQLError("Unauthorized: Must be logged in.", {
+      const { user } = context;
+      if (!user?.id) {
+        log("warn", `${operation}: Authentication required.`, { wireframeId: id });
+        throw new GraphQLError("Authentication required", {
           extensions: { code: "UNAUTHENTICATED" },
         });
       }
-      console.log(`[Query] getWireframeDetails: User ${user.id} is logged in.`);
+      log("info", `${operation}: User ${user.id} authenticated.`, { userId: user.id, wireframeId: id });
 
-      const wireframe = await context.prisma.wireframe.findUnique({
-        where: { id },
-        include: {
-          project: {
-            select: { id: true, name: true, workspaceId: true }, // Select workspaceId to check membership
+      let wireframe: PrismaWireframeWithRelations | null = null;
+      try {
+        wireframe = await context.prisma.wireframe.findUnique({
+          where: { id },
+          include: {
+            project: {
+              select: { id: true, name: true, workspaceId: true },
+            },
+            personalUser: {
+              select: { id: true, firstName: true, lastName: true },
+            },
           },
-          personalUser: {
-            select: { id: true, firstName: true, lastName: true },
-          },
-        },
-      });
-
-      if (!wireframe) {
-        console.warn(`[Query] getWireframeDetails: Wireframe ${id} not found.`);
-        throw new GraphQLError("Wireframe not found.", {
-          extensions: { code: "NOT_FOUND" },
+        });
+      } catch (error: any) {
+        log("error", `${operation}: Database error while fetching wireframe ${id}.`, {
+          wireframeId: id,
+          errorName: error.name,
+          errorMessage: error.message,
+          stack: error.stack,
+        });
+        throw new GraphQLError(`Failed to retrieve wireframe details: ${error.message}`, {
+          extensions: { code: "DATABASE_ERROR" },
         });
       }
-      console.log(
-        `[Query] getWireframeDetails: Wireframe ${id} found. Project ID: ${wireframe.projectId}, User ID: ${wireframe.userId}.`,
-      );
 
-      // Authorization check:
-      // 1. If it's a project wireframe, check project/workspace membership
+      if (!wireframe) {
+        log("warn", `${operation}: Wireframe ${id} not found.`, { wireframeId: id });
+        return null; // Return null if not found as per schema
+      }
+      log("info", `${operation}: Wireframe ${id} found.`, {
+        wireframeId: id,
+        projectId: wireframe.projectId,
+        ownerUserId: wireframe.userId,
+      });
+
+      // Authorization check
+      let isAuthorized = false;
       if (wireframe.projectId) {
-        const project = wireframe.project;
-        if (!project) {
-          console.error(
-            `[Query] getWireframeDetails: Project not found for wireframe ${id} despite having projectId set.`,
-          );
-          throw new GraphQLError("Project not found for this wireframe.", {
-            extensions: { code: "INTERNAL_SERVER_ERROR" },
-          });
+        // Project wireframe
+        if (!wireframe.project) {
+          log("error", `${operation}: Project data inconsistency (project relation missing).`, { wireframeId: id, projectId: wireframe.projectId });
+          throw new GraphQLError("Project data inconsistency for this wireframe.", { extensions: { code: "INTERNAL_SERVER_ERROR" } });
         }
 
         const isProjectMember = await context.prisma.projectMember.findFirst({
-          where: {
-            projectId: project.id,
-            userId: user.id,
-          },
+          where: { projectId: wireframe.project.id, userId: user.id },
         });
-
         const isWorkspaceMember = await context.prisma.workspaceMember.findFirst({
-          where: {
-            workspaceId: project.workspaceId,
-            userId: user.id,
-          },
+          where: { workspaceId: wireframe.project.workspaceId, userId: user.id },
         });
 
-        if (!isProjectMember && !isWorkspaceMember) {
-          console.warn(
-            `[Query] getWireframeDetails: Forbidden - User ${user.id} not authorized for project wireframe ${id} (project: ${project.id}).`,
-          );
-          throw new GraphQLError("Forbidden: Not authorized to view this project wireframe.", {
-            extensions: { code: "FORBIDDEN" },
-          });
-        }
-        console.log(
-          `[Query] getWireframeDetails: User ${user.id} authorized for project wireframe ${id}.`,
-        );
+        isAuthorized = !!isProjectMember || !!isWorkspaceMember;
+        log("info", `${operation}: Project wireframe authorization check.`, {
+          wireframeId: id, userId: user.id, isProjectMember: !!isProjectMember, isWorkspaceMember: !!isWorkspaceMember, authorized: isAuthorized
+        });
+      } else if (wireframe.userId) {
+        // Personal wireframe
+        isAuthorized = wireframe.userId === user.id;
+        log("info", `${operation}: Personal wireframe authorization check.`, {
+          wireframeId: id, userId: user.id, ownerUserId: wireframe.userId, authorized: isAuthorized
+        });
+      } else {
+        log("error", `${operation}: Wireframe ${id} has no associated project or user.`, { wireframeId: id });
+        throw new GraphQLError("Wireframe has no associated project or user.", { extensions: { code: "FORBIDDEN" } });
       }
-      // 2. If it's a personal wireframe, check if the user is the owner
-      else if (wireframe.userId) {
-        if (wireframe.userId !== user.id) {
-          console.warn(
-            `[Query] getWireframeDetails: Forbidden - User ${user.id} tried to access personal wireframe ${id} owned by ${wireframe.userId}.`,
-          );
-          throw new GraphQLError("Forbidden: Not authorized to view this personal wireframe.", {
-            extensions: { code: "FORBIDDEN" },
-          });
-        }
-        console.log(
-          `[Query] getWireframeDetails: User ${user.id} authorized for personal wireframe ${id}.`,
-        );
-      }
-      // 3. If neither projectId nor userId is set (should ideally not happen per schema), deny access
-      else {
-        console.error(
-          `[Query] getWireframeDetails: Forbidden - Wireframe ${id} has no associated project or user.`,
-        );
-        throw new GraphQLError("Forbidden: Wireframe has no associated project or user.", {
+
+      if (!isAuthorized) {
+        log("warn", `${operation}: Forbidden: User ${user.id} not authorized to access wireframe ${id}.`, { wireframeId: id, userId: user.id });
+        throw new GraphQLError("Authorization required: Not authorized to access this wireframe", {
           extensions: { code: "FORBIDDEN" },
         });
       }
 
-      console.log(`[Query] getWireframeDetails: Successfully retrieved details for ${id}.`);
-      return wireframe;
+      // Add __typename to the top-level wireframe object and nested relations
+      const result = {
+        ...wireframe,
+        createdAt: wireframe.createdAt.toISOString(),
+        updatedAt: wireframe.updatedAt.toISOString(),
+        __typename: 'Wireframe', // As per schema Type Wireframe
+        project: wireframe.project ? { ...wireframe.project, __typename: 'Project' } : null,
+        personalUser: wireframe.personalUser ? { ...wireframe.personalUser, __typename: 'User' } : null,
+        // Assuming comments and activities are handled by other resolvers or are always empty arrays here
+        comments: [], // Placeholder, if not fetched
+        activities: [], // Placeholder, if not fetched
+      } as PrismaWireframeWithRelations & { __typename: 'Wireframe' }; // Type assertion to include __typename
+
+      log("info", `${operation}: Successfully retrieved details for ${id}.`, { wireframeId: id });
+      return result;
     },
   },
 
   Mutation: {
-    // Resolver for creating a new wireframe
     createWireframe: async (
       _parent: any,
-      { input }: { input: { projectId: string; title: string; data: any; thumbnail?: string } },
+      { input }: { input: CreateWireframeInput },
       context: GraphQLContext,
-    ) => {
-      console.log(`[Mutation] createWireframe called for projectId: ${input.projectId}`);
-      const { user } = context;
+    ): Promise<WireframeListItem> => {
+      const operation = "createWireframe";
+      log("info", `${operation} called.`, { input: { ...input, data: "[REDACTED]" } });
 
-      if (!user) {
-        console.warn("[Mutation] createWireframe: Unauthorized - User not logged in.");
-        throw new GraphQLError("Unauthorized: Must be logged in.", {
+      const { user } = context;
+      if (!user?.id) {
+        log("warn", `${operation}: Authentication required.`);
+        throw new GraphQLError("Authentication required", {
           extensions: { code: "UNAUTHENTICATED" },
         });
       }
-      console.log(`[Mutation] createWireframe: User ${user.id} is logged in.`);
+      log("info", `${operation}: User ${user.id} authenticated.`, { userId: user.id });
 
       const { projectId, title, data, thumbnail } = input;
 
+      // Validate input for projectId
+      if (!projectId) {
+        log("warn", `${operation}: Validation Error: Project ID is required.`, { input });
+        throw new GraphQLError("Project ID is required to create a wireframe.", { extensions: { code: "BAD_USER_INPUT" } });
+      }
+
       // Authorization: Check if user is a member of the project's workspace or the project itself
-      const project = await context.prisma.project.findUnique({
-        where: { id: projectId },
-        select: {
-          workspace: {
-            select: {
-              members: {
-                where: { userId: user.id },
-              },
+      let projectContext;
+      try {
+        projectContext = await context.prisma.project.findUnique({
+          where: { id: projectId },
+          select: {
+            id: true,
+            workspaceId: true,
+            members: { where: { userId: user.id } },
+            workspace: { select: { members: { where: { userId: user.id } } } },
+          },
+        });
+      } catch (error: any) {
+        log("error", `${operation}: Database error fetching project for authorization.`, { projectId, errorName: error.name, errorMessage: error.message });
+        throw new GraphQLError(`Failed to authorize wireframe creation: ${error.message}`, { extensions: { code: "DATABASE_ERROR" } });
+      }
+
+      if (!projectContext) {
+        log("warn", `${operation}: Project ${projectId} not found.`, { projectId });
+        throw new GraphQLError("Project not found.", { extensions: { code: "NOT_FOUND" } });
+      }
+
+      const isProjectMember = projectContext.members.length > 0;
+      const isWorkspaceMember = projectContext.workspace?.members.length > 0;
+
+      if (!isProjectMember && !isWorkspaceMember) {
+        log("warn", `${operation}: Forbidden: User ${user.id} not authorized to create wireframe in project ${projectId}.`, { projectId, userId: user.id });
+        throw new GraphQLError("Forbidden: Not authorized to create wireframe in this project.", { extensions: { code: "FORBIDDEN" } });
+      }
+      log("info", `${operation}: User ${user.id} authorized to create wireframe.`, { projectId, userId: user.id });
+
+      let newWireframe;
+      try {
+        newWireframe = await context.prisma.wireframe.create({
+          data: {
+            title,
+            data,
+            thumbnail,
+            projectId,
+            userId: user.id, // Associate creator for activity/tracking
+          },
+          select: {
+            id: true,
+            title: true,
+            updatedAt: true,
+            thumbnail: true,
+            projectId: true,
+          },
+        });
+        log("info", `${operation}: Wireframe ${newWireframe.id} created.`, { wireframeId: newWireframe.id, title: newWireframe.title });
+
+        // Create activity log (non-critical, warn on failure)
+        try {
+          await context.prisma.activity.create({
+            data: {
+              type: "WIREFRAME_CREATED",
+              data: { wireframeTitle: newWireframe.title },
+              userId: user.id,
+              projectId: newWireframe.projectId,
+              wireframeId: newWireframe.id,
             },
-          },
-          members: {
-            where: { userId: user.id },
-          },
-        },
-      });
+          });
+          log("info", `${operation}: Activity log created.`, { wireframeId: newWireframe.id, activityType: "WIREFRAME_CREATED" });
+        } catch (activityError: any) {
+          log("warn", `${operation}: Failed to create activity log.`, { wireframeId: newWireframe.id, activityError: activityError.message });
+        }
 
-
-      const newWireframe = await context.prisma.wireframe.create({
-        data: {
-          title,
-          data,
-          thumbnail,
-          projectId,
-          userId: user.id, // Associate creator for activity/tracking, even if it's a project wireframe
-        },
-        select: {
-          id: true,
-          title: true,
-          updatedAt: true,
-          thumbnail: true,
-          projectId: true,
-        },
-      });
-
-      console.log(
-        `[Mutation] createWireframe: Wireframe ${newWireframe.id} '${newWireframe.title}' created in project ${projectId}.`,
-      );
-
-      // Optional: Create an activity entry
-      await context.prisma.activity.create({
-        data: {
-          type: "WIREFRAME_CREATED",
-          data: { wireframeTitle: newWireframe.title },
-          userId: user.id,
-          projectId: newWireframe.projectId,
-          wireframeId: newWireframe.id,
-        },
-      });
-      console.log(
-        `[Mutation] createWireframe: Activity log for wireframe ${newWireframe.id} created.`,
-      );
-
-      return newWireframe;
+        return {
+          ...newWireframe,
+          updatedAt: newWireframe.updatedAt.toISOString(),
+          thumbnail: newWireframe.thumbnail,
+          __typename: "WireframeListItem",
+        };
+      } catch (error: any) {
+        log("error", `${operation}: Failed to create wireframe.`, { errorName: error.name, errorMessage: error.message, stack: error.stack });
+        throw new GraphQLError(`Failed to create wireframe: ${error.message}`, { extensions: { code: "DATABASE_ERROR" } });
+      }
     },
 
-    // Resolver for updating an existing wireframe
     updateWireframe: async (
       _parent: any,
-      { input }: { input: { id: string; title?: string; data?: any; thumbnail?: string } },
+      { input }: { input: UpdateWireframeInput },
       context: GraphQLContext,
-    ) => {
-      console.log(`[Mutation] updateWireframe called for wireframeId: ${input.id}`);
-      const { user } = context;
+    ): Promise<WireframeListItem> => {
+      const operation = "updateWireframe";
+      log("info", `${operation} called.`, { input: { ...input, data: "[REDACTED]" } });
 
-      if (!user) {
-        console.warn("[Mutation] updateWireframe: Unauthorized - User not logged in.");
-        throw new GraphQLError("Unauthorized: Must be logged in.", {
-          extensions: { code: "UNAUTHENTICATED" },
-        });
+      const { user } = context;
+      if (!user?.id) {
+        log("warn", `${operation}: Authentication required.`);
+        throw new GraphQLError("Authentication required", { extensions: { code: "UNAUTHENTICATED" } });
       }
-      console.log(`[Mutation] updateWireframe: User ${user.id} is logged in.`);
+      log("info", `${operation}: User ${user.id} authenticated.`, { userId: user.id });
 
       const { id, title, data, thumbnail } = input;
 
-      const existingWireframe = await context.prisma.wireframe.findUnique({
-        where: { id },
-        select: {
-          projectId: true,
-          userId: true,
-          project: {
-            select: {
-              workspace: {
-                select: {
-                  members: {
-                    where: { userId: user.id },
-                  },
-                },
-              },
-              members: {
-                where: { userId: user.id },
-              },
-            },
+      let existingWireframe;
+      try {
+        existingWireframe = await context.prisma.wireframe.findUnique({
+          where: { id },
+          select: {
+            id: true, projectId: true, userId: true, title: true, // Need title for activity log
+            project: { select: { workspaceId: true, members: { where: { userId: user.id } } } },
+            personalUser: { select: { id: true } }
           },
-        },
-      });
+        });
+      } catch (error: any) {
+        log("error", `${operation}: Database error fetching existing wireframe ${id} for authorization.`, { wireframeId: id, errorName: error.name, errorMessage: error.message });
+        throw new GraphQLError(`Failed to authorize wireframe update: ${error.message}`, { extensions: { code: "DATABASE_ERROR" } });
+      }
 
       if (!existingWireframe) {
-        console.warn(`[Mutation] updateWireframe: Wireframe ${id} not found.`);
-        throw new GraphQLError("Wireframe not found.", {
-          extensions: { code: "NOT_FOUND" },
-        });
+        log("warn", `${operation}: Wireframe ${id} not found.`, { wireframeId: id });
+        throw new GraphQLError("Wireframe not found.", { extensions: { code: "NOT_FOUND" } });
       }
-      console.log(
-        `[Mutation] updateWireframe: Wireframe ${id} found. Project ID: ${existingWireframe.projectId}, User ID: ${existingWireframe.userId}.`,
-      );
+      log("info", `${operation}: Found existing wireframe for update.`, { wireframeId: id, projectId: existingWireframe.projectId, ownerUserId: existingWireframe.userId });
 
+      // Authorization checks
+      let isAuthorized = false;
+      if (existingWireframe.projectId) {
+        if (!existingWireframe.project) {
+          log("error", `${operation}: Project data inconsistency (project relation missing for existingWireframe).`, { wireframeId: id, projectId: existingWireframe.projectId });
+          throw new GraphQLError("Project data inconsistency for this wireframe.", { extensions: { code: "INTERNAL_SERVER_ERROR" } });
+        }
+        const isProjectMember = existingWireframe.project.members.length > 0;
+        const isWorkspaceMember = await context.prisma.workspaceMember.findFirst({
+          where: { workspaceId: existingWireframe.project.workspaceId, userId: user.id },
+        });
+        isAuthorized = isProjectMember || !!isWorkspaceMember;
+      } else if (existingWireframe.userId) {
+        isAuthorized = existingWireframe.userId === user.id;
+      } else {
+        log("error", `${operation}: Wireframe ${id} has no associated project or user.`, { wireframeId: id });
+        throw new GraphQLError("Wireframe has no associated project or user.", { extensions: { code: "FORBIDDEN" } });
+      }
 
+      if (!isAuthorized) {
+        log("warn", `${operation}: Forbidden: User ${user.id} not authorized to update wireframe ${id}.`, { wireframeId: id, userId: user.id });
+        throw new GraphQLError("Forbidden: Not authorized to update this wireframe", { extensions: { code: "FORBIDDEN" } });
+      }
+      log("info", `${operation}: User ${user.id} authorized to update wireframe ${id}.`, { wireframeId: id, userId: user.id });
 
-      const updatedWireframe = await context.prisma.wireframe.update({
-        where: { id },
-        data: {
-          title: title ?? undefined, // Only update if provided
-          data: data ?? undefined,
-          thumbnail: thumbnail ?? undefined,
-        },
-        select: {
-          id: true,
-          title: true,
-          updatedAt: true,
-          thumbnail: true,
-          projectId: true,
-        },
-      });
+      let updatedWireframe;
+      try {
+        updatedWireframe = await context.prisma.wireframe.update({
+          where: { id },
+          data: {
+            title: title ?? undefined,
+            data: data ?? undefined,
+            thumbnail: thumbnail ?? undefined,
+          },
+          select: {
+            id: true,
+            title: true,
+            updatedAt: true,
+            thumbnail: true,
+            projectId: true,
+          },
+        });
+        log("info", `${operation}: Wireframe ${updatedWireframe.id} updated.`, { wireframeId: updatedWireframe.id, newTitle: updatedWireframe.title });
 
-      console.log(
-        `[Mutation] updateWireframe: Wireframe ${updatedWireframe.id} updated. New title: ${updatedWireframe.title}.`,
-      );
+        // Create activity log (non-critical, warn on failure)
+        try {
+          await context.prisma.activity.create({
+            data: {
+              type: "WIREFRAME_UPDATED",
+              data: { wireframeTitle: updatedWireframe.title },
+              userId: user.id,
+              projectId: updatedWireframe.projectId,
+              wireframeId: updatedWireframe.id,
+            },
+          });
+          log("info", `${operation}: Activity log created.`, { wireframeId: updatedWireframe.id, activityType: "WIREFRAME_UPDATED" });
+        } catch (activityError: any) {
+          log("warn", `${operation}: Failed to create activity log.`, { wireframeId: updatedWireframe.id, activityError: activityError.message });
+        }
 
-      // Optional: Create an activity entry
-      await context.prisma.activity.create({
-        data: {
-          type: "WIREFRAME_UPDATED",
-          data: { wireframeTitle: updatedWireframe.title },
-          userId: user.id,
-          projectId: updatedWireframe.projectId,
-          wireframeId: updatedWireframe.id,
-        },
-      });
-      console.log(
-        `[Mutation] updateWireframe: Activity log for wireframe ${updatedWireframe.id} created.`,
-      );
-
-      return updatedWireframe;
+        return {
+          ...updatedWireframe,
+          updatedAt: updatedWireframe.updatedAt.toISOString(),
+          thumbnail: updatedWireframe.thumbnail,
+          __typename: "WireframeListItem",
+        };
+      } catch (error: any) {
+        log("error", `${operation}: Failed to update wireframe ${id}.`, { wireframeId: id, errorName: error.name, errorMessage: error.message, stack: error.stack });
+        throw new GraphQLError(`Failed to update wireframe: ${error.message}`, { extensions: { code: "DATABASE_ERROR" } });
+      }
     },
 
-    // Resolver for deleting a wireframe
-    deleteWireframe: async (_parent: any, { id }: { id: string }, context: GraphQLContext) => {
-      console.log(`[Mutation] deleteWireframe called for wireframeId: ${id}`);
+    deleteWireframe: async (
+      _parent: any,
+      { id }: { id: string },
+      context: GraphQLContext,
+    ): Promise<WireframeListItem> => {
+      const operation = "deleteWireframe";
+      log("info", `${operation} called.`, { wireframeId: id });
+
       const { user } = context;
-
-      if (!user) {
-        console.warn("[Mutation] deleteWireframe: Unauthorized - User not logged in.");
-        throw new GraphQLError("Unauthorized: Must be logged in.", {
-          extensions: { code: "UNAUTHENTICATED" },
-        });
+      if (!user?.id) {
+        log("warn", `${operation}: Authentication required.`);
+        throw new GraphQLError("Authentication required", { extensions: { code: "UNAUTHENTICATED" } });
       }
-      console.log(`[Mutation] deleteWireframe: User ${user.id} is logged in.`);
+      log("info", `${operation}: User ${user.id} authenticated.`, { userId: user.id });
 
-      const existingWireframe = await context.prisma.wireframe.findUnique({
-        where: { id },
-        select: {
-          projectId: true,
-          userId: true,
-          project: {
-            select: {
-              workspace: {
-                select: {
-                  members: {
-                    where: { userId: user.id },
-                  },
-                },
-              },
-              members: {
-                where: { userId: user.id },
-              },
-            },
+      let existingWireframe;
+      try {
+        existingWireframe = await context.prisma.wireframe.findUnique({
+          where: { id },
+          select: {
+            id: true, title: true, projectId: true, userId: true, updatedAt: true, thumbnail: true, // Select all fields needed for WireframeListItem return
+            project: { select: { workspaceId: true, members: { where: { userId: user.id } } } },
           },
-        },
-      });
+        });
+      } catch (error: any) {
+        log("error", `${operation}: Database error fetching existing wireframe ${id} for authorization.`, { wireframeId: id, errorName: error.name, errorMessage: error.message });
+        throw new GraphQLError(`Failed to authorize wireframe deletion: ${error.message}`, { extensions: { code: "DATABASE_ERROR" } });
+      }
 
       if (!existingWireframe) {
-        console.warn(`[Mutation] deleteWireframe: Wireframe ${id} not found.`);
-        throw new GraphQLError("Wireframe not found.", {
-          extensions: { code: "NOT_FOUND" },
-        });
+        log("warn", `${operation}: Wireframe ${id} not found.`, { wireframeId: id });
+        throw new GraphQLError("Wireframe not found.", { extensions: { code: "NOT_FOUND" } });
       }
-      console.log(
-        `[Mutation] deleteWireframe: Wireframe ${id} found. Project ID: ${existingWireframe.projectId}, User ID: ${existingWireframe.userId}.`,
-      );
+      log("info", `${operation}: Found existing wireframe for deletion.`, { wireframeId: id, projectId: existingWireframe.projectId, ownerUserId: existingWireframe.userId });
+
+      // Authorization checks
+      let isAuthorized = false;
+      if (existingWireframe.projectId) {
+        if (!existingWireframe.project) {
+          log("error", `${operation}: Project data inconsistency (project relation missing for existingWireframe).`, { wireframeId: id, projectId: existingWireframe.projectId });
+          throw new GraphQLError("Project data inconsistency for this wireframe.", { extensions: { code: "INTERNAL_SERVER_ERROR" } });
+        }
+        const isProjectMember = existingWireframe.project.members.length > 0;
+        const isWorkspaceMember = await context.prisma.workspaceMember.findFirst({
+          where: { workspaceId: existingWireframe.project.workspaceId, userId: user.id },
+        });
+        isAuthorized = isProjectMember || !!isWorkspaceMember; // Adjust logic if deletion requires higher role
+      } else if (existingWireframe.userId) {
+        isAuthorized = existingWireframe.userId === user.id;
+      } else {
+        log("error", `${operation}: Wireframe ${id} has no associated project or user.`, { wireframeId: id });
+        throw new GraphQLError("Wireframe has no associated project or user.", { extensions: { code: "FORBIDDEN" } });
+      }
+
+      if (!isAuthorized) {
+        log("warn", `${operation}: Forbidden: User ${user.id} not authorized to delete wireframe ${id}.`, { wireframeId: id, userId: user.id });
+        throw new GraphQLError("Forbidden: Not authorized to delete this wireframe", { extensions: { code: "FORBIDDEN" } });
+      }
+      log("info", `${operation}: User ${user.id} authorized to delete wireframe ${id}.`, { wireframeId: id, userId: user.id });
 
 
-      // Delete the wireframe
-      const deletedWireframe = await context.prisma.wireframe.delete({
-        where: { id },
-        select: {
-          id: true,
-          title: true,
-          projectId: true,
-          // Only return fields needed for WireframeListItem
-        },
-      });
+      // Store info for return value before deletion
+      const deletedWireframeInfo = {
+        id: existingWireframe.id,
+        title: existingWireframe.title,
+        updatedAt: existingWireframe.updatedAt.toISOString(),
+        thumbnail: existingWireframe.thumbnail,
+        projectId: existingWireframe.projectId!, // projectId is nullable in DB, but if it exists here, it's safe to assert
+        __typename: "WireframeListItem",
+      };
 
-      console.log(
-        `[Mutation] deleteWireframe: Wireframe ${deletedWireframe.id} '${deletedWireframe.title}' successfully deleted.`,
-      );
+      try {
+        await context.prisma.wireframe.delete({
+          where: { id },
+        });
+        log("info", `${operation}: Wireframe ${id} deleted.`, { wireframeId: id, title: existingWireframe.title });
 
-      // Optional: Create an activity entry
-      await context.prisma.activity.create({
-        data: {
-          type: "WIREFRAME_DELETED", // Assuming you'll add this ActivityType
-          data: { wireframeTitle: deletedWireframe.title },
-          userId: user.id,
-          projectId: deletedWireframe.projectId,
-          wireframeId: deletedWireframe.id, // Store ID for historical reference
-        },
-      });
-      console.log(
-        `[Mutation] deleteWireframe: Activity log for deleted wireframe ${deletedWireframe.id} created.`,
-      );
+        // Create activity log (non-critical, warn on failure)
+        try {
+          await context.prisma.activity.create({
+            data: {
+              type: "WIREFRAME_DELETED",
+              data: { wireframeTitle: existingWireframe.title },
+              userId: user.id,
+              projectId: existingWireframe.projectId,
+              wireframeId: existingWireframe.id,
+            },
+          });
+          log("info", `${operation}: Activity log created.`, { wireframeId: existingWireframe.id, activityType: "WIREFRAME_DELETED" });
+        } catch (activityError: any) {
+          log("warn", `${operation}: Failed to create activity log.`, { wireframeId: existingWireframe.id, activityError: activityError.message });
+        }
 
-      return deletedWireframe;
+        return deletedWireframeInfo;
+      } catch (error: any) {
+        log("error", `${operation}: Failed to delete wireframe ${id}.`, { wireframeId: id, errorName: error.name, errorMessage: error.message, stack: error.stack });
+        throw new GraphQLError(`Failed to delete wireframe: ${error.message}`, { extensions: { code: "DATABASE_ERROR" } });
+      }
     },
   },
-  // You might also need a Wireframe Type Resolver if you have custom fields
-  // Wireframe: {
-  //   // Example: if you had a `createdBy` field on Wireframe type
-  //   // createdBy: (parent, _args, context) => context.prisma.user.findUnique({ where: { id: parent.userId } }),
-  // }
+
+  // Type resolvers for Wireframe fields not always eager-loaded by root queries
+  Wireframe: {
+    // TEMPORARILY REMOVING THE PROJECT RESOLVER TO DEBUG THE ROOT CAUSE
+    // project: async (parent: PrismaWireframeWithRelations, _args: any, context: GraphQLContext) => {
+    //   const operation = "Wireframe.project Type Resolver";
+    //   log("info", `${operation} called for wireframe.`, { parentObject: parent, wireframeId: parent?.id, parentProjectId: parent?.projectId });
+
+    //   if (parent && parent.project) {
+    //     log("info", `${operation}: Project already present on parent for wireframe ${parent.id}.`, { wireframeId: parent.id, projectId: parent.project.id });
+    //     return { ...parent.project, __typename: 'Project' };
+    //   }
+
+    //   if (parent && parent.projectId) {
+    //     log("info", `${operation}: Lazily fetching project for wireframe ${parent.id} (projectId: ${parent.projectId}).`, { wireframeId: parent.id, projectId: parent.projectId });
+    //     try {
+    //       const project = await context.prisma.project.findUnique({
+    //         where: { id: parent.projectId },
+    //         select: { id: true, name: true, workspaceId: true },
+    //       });
+    //       if (!project) {
+    //          log("warn", `${operation}: Project ${parent.projectId} not found for wireframe ${parent.id}. Returning null.`, { wireframeId: parent.id, projectId: parent.projectId });
+    //          return null;
+    //       }
+    //       log("info", `${operation}: Project ${project.id} fetched for wireframe ${parent.id}.`, { wireframeId: parent.id, projectId: project.id });
+    //       return { ...project, __typename: 'Project' };
+    //     } catch (error: any) {
+    //       log("error", `${operation}: Database error fetching project ${parent.projectId} for wireframe ${parent.id}.`, {
+    //         wireframeId: parent.id, projectId: parent.projectId, errorName: error.name, errorMessage: error.message, stack: error.stack,
+    //       });
+    //       throw new GraphQLError(`Failed to resolve project for wireframe ${parent.id}: ${error.message}`, { extensions: { code: "DATABASE_ERROR" } });
+    //     }
+    //   }
+
+    //   log("info", `${operation}: No project found for wireframe ${parent?.id} (no projectId present on parent). Returning null.`, { wireframeId: parent?.id });
+    //   return null;
+    // },
+
+    personalUser: async (parent: PrismaWireframeWithRelations, _args: any, context: GraphQLContext) => {
+      const operation = "Wireframe.personalUser Type Resolver";
+
+      // If personalUser data is already on the parent (eager-loaded), return it.
+      if (parent.personalUser) {
+        log("info", `${operation}: Personal user already present on parent for wireframe ${parent.id}.`, { wireframeId: parent.id, userId: parent.personalUser.id });
+        return { ...parent.personalUser, __typename: 'User' };
+      }
+
+      // If not eager-loaded, but userId exists, fetch it.
+      if (parent.userId) { // Assuming 'userId' is the field on Wireframe that links to the personal User
+        log("info", `${operation}: Lazily fetching personal user for wireframe ${parent.id} (userId: ${parent.userId}).`, { wireframeId: parent.id, userId: parent.userId });
+        try {
+          const user = await context.prisma.user.findUnique({
+            where: { id: parent.userId },
+            select: { id: true, firstName: true, lastName: true },
+          });
+          if (!user) {
+             log("warn", `${operation}: User ${parent.userId} not found for wireframe ${parent.id}. Returning null.`, { wireframeId: parent.id, userId: parent.userId });
+             return null;
+          }
+          log("info", `${operation}: User ${user.id} fetched for wireframe ${parent.id}.`, { wireframeId: parent.id, userId: user.id });
+          return { ...user, __typename: 'User' };
+        } catch (error: any) {
+          log("error", `${operation}: Database error fetching user ${parent.userId} for wireframe ${parent.id}.`, {
+            wireframeId: parent.id, userId: parent.userId, errorName: error.name, errorMessage: error.message, stack: error.stack,
+          });
+          throw new GraphQLError(`Failed to resolve personal user for wireframe ${parent.id}: ${error.message}`, { extensions: { code: "DATABASE_ERROR" } });
+        }
+      }
+
+      log("info", `${operation}: No personal user found for wireframe ${parent.id} (no userId present on parent). Returning null.`, { wireframeId: parent.id });
+      return null;
+    },
+    comments: async (parent: PrismaWireframeWithRelations, _args: any, context: GraphQLContext) => {
+        return [];
+    },
+    activities: async (parent: PrismaWireframeWithRelations, _args: any, context: GraphQLContext) => {
+        return [];
+    },
+  },
 };
 
 export default wireframeResolvers;
