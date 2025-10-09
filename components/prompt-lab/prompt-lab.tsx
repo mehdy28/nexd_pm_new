@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState, useCallback } from "react" // Added useCallback
-import { usePromptLab, type Prompt, type Version, type PromptVariable } from "./store"
+import { useEffect, useMemo, useRef, useState, useCallback } from "react"
+import { usePromptLab, type Prompt, type Version, type PromptVariable, PromptVariableType, type PromptVariableSource } from "./store" // Added PromptVariableType, PromptVariableSource
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
@@ -11,6 +11,9 @@ import { Copy, RotateCcw, Plus, GitCommit } from "lucide-react"
 import { DndProvider, useDrag, useDrop } from 'react-dnd'
 import { HTML5Backend } from 'react-dnd-html5-backend'
 import { Tab } from "@headlessui/react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select" // Added for variable type selection
+import { Badge } from "@/components/ui/badge" // NEW: Added Badge import
+import { VariableDiscoveryBuilder } from "./variable-discovery-builder"
 
 
 const ItemTypes = { VARIABLE: 'variable', BLOCK: 'block' }
@@ -27,16 +30,38 @@ function mergeRefs<T>(...refs: (React.Ref<T> | undefined)[]): React.RefCallback<
 }
 
 /* Utility to render prompt by substituting placeholder text */
-function renderPrompt(content: string, context: string, variables: PromptVariable[], variableValues: Record<string, string>): string {
+// NOTE: This function will need to be made async and call the backend to resolve project data variables
+async function renderPrompt(
+  content: string,
+  context: string,
+  variables: PromptVariable[],
+  variableValues: Record<string, string>,
+  projectId?: string
+): Promise<string> {
   let renderedContent = content;
   let renderedContext = context;
 
-  variables.forEach(variable => {
-    const value = variableValues[variable.placeholder] || variable.defaultValue || '';
+  // Manual variables are handled by `variableValues`
+  // Project data variables will need to be resolved via backend call
+  for (const variable of variables) {
+    let valueToSubstitute = variableValues[variable.placeholder] || variable.defaultValue || '';
+
+    if (variable.source && projectId) {
+      // TODO: This part requires an actual GraphQL query to your backend
+      // Example:
+      // const resolvedValue = await graphqlClient.query({
+      //   query: RESOLVE_PROMPT_VARIABLE_QUERY,
+      //   variables: { projectId, variableSource: variable.source, promptVariableId: variable.id }
+      // });
+      // valueToSubstitute = resolvedValue || valueToSubstitute;
+      // For now, it will just use defaultValue or an empty string for project data variables until backend is implemented
+      console.warn(`[renderPrompt] Project data variable '${variable.name}' ({{${variable.placeholder}}}) needs backend resolution. Using default value.`);
+    }
+
     const regex = new RegExp(variable.placeholder.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&'), 'g');
-    renderedContent = renderedContent.replace(regex, value);
-    renderedContext = renderedContext.replace(regex, value);
-  });
+    renderedContent = renderedContent.replace(regex, valueToSubstitute);
+    renderedContext = renderedContext.replace(regex, valueToSubstitute);
+  }
 
   const lines = [
     "System role:",
@@ -58,13 +83,14 @@ export function PromptLab({ promptId, onBack, projectId }: { promptId: string; o
   const [compare, setCompare] = useState<{ open: boolean; version?: Version }>({ open: false })
   const [rightTab, setRightTab] = useState<"editor" | "version-details" | "preview">("editor")
   const [leftTab, setLeftTab] = useState<"versions" | "variables">("versions")
-  const [showCreateVariableDialog, setShowCreateVariableDialog] = useState(false)
+  // Replaced two variable dialog states with one for the new builder
+  const [showVariableBuilder, setShowVariableBuilder] = useState(false);
   const [previewVariableValues, setPreviewVariableValues] = useState<Record<string, string>>({})
+  const [renderedPreview, setRenderedPreview] = useState(""); // Make stateful to handle async
 
   const selectedPrompt = useMemo(() => prompts.find((p) => p.id === promptId) || null, [prompts, promptId])
 
   useEffect(() => {
-    console.log('[Prompt Lab] PromptLab useEffect: selectedPrompt or selectedVersionId changed.');
     if (selectedPrompt) {
       if (selectedPrompt.versions.length > 0) {
         if (!selectedVersionId || !selectedPrompt.versions.some((v) => v.id === selectedVersionId)) {
@@ -75,11 +101,26 @@ export function PromptLab({ promptId, onBack, projectId }: { promptId: string; o
       }
       const initialPreviewValues: Record<string, string> = {};
       selectedPrompt.variables.forEach(v => {
-        initialPreviewValues[v.placeholder] = v.defaultValue || '';
+        // Only initialize default values for manual variables in the preview input fields
+        if (!v.source) { // If it's a manual variable
+          initialPreviewValues[v.placeholder] = v.defaultValue || '';
+        }
       });
       setPreviewVariableValues(initialPreviewValues);
     }
   }, [selectedPrompt, selectedVersionId])
+
+  // Effect to update rendered preview when prompt, variables, or manual values change
+  useEffect(() => {
+    if (selectedPrompt) {
+      const generatePreview = async () => {
+        const preview = await renderPrompt(selectedPrompt.content, selectedPrompt.context || '', selectedPrompt.variables, previewVariableValues, projectId);
+        setRenderedPreview(preview);
+      };
+      generatePreview();
+    }
+  }, [selectedPrompt, previewVariableValues, projectId]);
+
 
   const selectedVersion = useMemo(() => selectedPrompt?.versions.find((v) => v.id === selectedVersionId) || null, [selectedPrompt, selectedVersionId])
 
@@ -87,11 +128,7 @@ export function PromptLab({ promptId, onBack, projectId }: { promptId: string; o
     navigator.clipboard.writeText(text).catch(() => {})
   }
 
-  const renderedPreview = useMemo(() => {
-    if (!selectedPrompt) return "";
-    return renderPrompt(selectedPrompt.content, selectedPrompt.context, selectedPrompt.variables, previewVariableValues);
-  }, [selectedPrompt, previewVariableValues]);
-
+  // Handle new variable creation from the builder
   const handleCreateVariable = (newVariable: Omit<PromptVariable, 'id'>) => {
     if (!selectedPrompt) return
 
@@ -103,7 +140,7 @@ export function PromptLab({ promptId, onBack, projectId }: { promptId: string; o
     update(selectedPrompt.id, {
       variables: [...selectedPrompt.variables, variableWithId],
     })
-    setShowCreateVariableDialog(false)
+    setShowVariableBuilder(false) // Close the builder
   }
 
   if (!selectedPrompt) {
@@ -170,15 +207,15 @@ export function PromptLab({ promptId, onBack, projectId }: { promptId: string; o
 
                   {/* Variables tab */}
                   <Tab.Panel className="flex-1 min-h-0 flex flex-col overflow-y-auto">
-                    <div className="flex items-center gap-2 border-b p-3" style={{ borderColor: "var(--border)", background: "var(--muted-bg)" }}>
+                    <div className="flex flex-col gap-2 border-b p-3" style={{ borderColor: "var(--border)", background: "var(--muted-bg)" }}>
                       <h3 className="font-semibold">Variables</h3>
-                      <Button className="ml-auto h-9 btn-primary" onClick={() => setShowCreateVariableDialog(true)}>
-                        <Plus className="mr-1 h-4 w-4" /> New
+                      <Button className="w-full h-9 btn-primary" onClick={() => setShowVariableBuilder(true)}>
+                        <Plus className="mr-1 h-4 w-4" /> Create New Variable
                       </Button>
                     </div>
                     <div className="flex-1 min-h-0 overflow-y-auto p-3">
                       {selectedPrompt.variables.length === 0 ? (
-                        <div className="text-sm text-slate-500">No variables yet. Create one to get started.</div>
+                        <div className="text-sm text-slate-500">No variables yet. Click "Create New Variable" to get started.</div>
                       ) : (
                         <ul className="space-y-2">
                           {selectedPrompt.variables.map((v) => (
@@ -233,19 +270,22 @@ export function PromptLab({ promptId, onBack, projectId }: { promptId: string; o
                       </div>
                       <div className="space-y-4 mb-4">
                         {selectedPrompt.variables.map(v => (
-                          <div key={v.id}>
-                            <label htmlFor={`preview-${v.id}`} className="text-sm font-medium">{v.name} ({v.placeholder})</label>
-                            <Input
-                              id={`preview-${v.id}`}
-                              value={previewVariableValues[v.placeholder] || ''}
-                              onChange={(e) => setPreviewVariableValues(prev => ({
-                                ...prev,
-                                [v.placeholder]: e.target.value,
-                              }))}
-                              placeholder={v.defaultValue || `Enter value for ${v.name}`}
-                              className="mt-1"
-                            />
-                          </div>
+                          // Only show input field for manual variables, others are resolved
+                          !v.source && (
+                            <div key={v.id}>
+                              <label htmlFor={`preview-${v.id}`} className="text-sm font-medium">{v.name} ({v.placeholder})</label>
+                              <Input
+                                id={`preview-${v.id}`}
+                                value={previewVariableValues[v.placeholder] || ''}
+                                onChange={(e) => setPreviewVariableValues(prev => ({
+                                  ...prev,
+                                  [v.placeholder]: e.target.value,
+                                }))}
+                                placeholder={v.defaultValue || `Enter value for ${v.name}`}
+                                className="mt-1"
+                              />
+                            </div>
+                          )
                         ))}
                       </div>
                       <Textarea readOnly value={renderedPreview} className="min-h-[300px] font-mono overflow-y-auto" />
@@ -264,13 +304,15 @@ export function PromptLab({ promptId, onBack, projectId }: { promptId: string; o
           current={selectedPrompt?.content || ""}
         />
 
-        <VariableCreationDialog
-          open={showCreateVariableDialog}
-          onOpenChange={setShowCreateVariableDialog}
+        {/* NEW: Variable Discovery Builder */}
+        <VariableDiscoveryBuilder
+          open={showVariableBuilder}
+          onOpenChange={setShowVariableBuilder}
           onCreate={handleCreateVariable}
+          projectId={projectId}
         />
       </div>
-    </DndProvider> 
+    </DndProvider>
   )
 }
 
@@ -292,7 +334,9 @@ function VariableItem({ variable }: { variable: PromptVariable }) {
         isDragging ? 'opacity-50' : 'bg-gray-100'
       }`}
     >
-      {variable.name || variable.placeholder}
+      <span className="font-semibold">{variable.name}</span>
+      <span className="text-xs text-gray-500 ml-2">({variable.placeholder})</span>
+      {variable.source && <Badge variant="secondary" className="ml-2">Project Data</Badge>}
     </div>
   )
 }
@@ -329,7 +373,7 @@ function parseContentToBlocks(content: string, variables: PromptVariable[]): Blo
   const re = new RegExp(`(${escaped})`, 'g')
   console.log('[Prompt Lab] parseContentToBlocks: Regex for splitting:', re);
 
-  const parts = content.split(re); // Keep all parts, including empty ones, for explicit handling
+  const parts = content.split(re);
   console.log('[Prompt Lab] parseContentToBlocks: Raw split parts:', parts);
 
   const blocks: Block[] = []
@@ -339,27 +383,22 @@ function parseContentToBlocks(content: string, variables: PromptVariable[]): Blo
       console.log(`[Prompt Lab] parseContentToBlocks: Found variable part "${part}".`);
       blocks.push({ type: 'variable', id: uid('v-'), varId: matched.id, placeholder: matched.placeholder, name: matched.name })
     } else {
-      // Heuristic: If part is empty and the previous block was a variable,
-      // it means this empty part is an artifact of split() and not actual content.
-      // This specifically prevents an empty text block from being created immediately after a variable block.
       if (part === '' && blocks.length > 0 && blocks[blocks.length - 1].type === 'variable') {
         console.log(`[Prompt Lab] parseContentToBlocks: Skipping empty part after a variable block.`);
-        return; // Ignore this empty part
+        return;
       }
-      
+
       console.log(`[Prompt Lab] parseContentToBlocks: Found text part "${part}".`);
-      // Merge with previous text block if available
       if (blocks.length === 0 || blocks[blocks.length - 1].type !== 'text') {
         blocks.push({ type: 'text', id: uid('t-'), value: part })
       } else {
-        const last = blocks[blocks.length - 1] as Block & { value: string }; // Type assertion for safety
+        const last = blocks[blocks.length - 1] as Block & { value: string };
         last.value = last.value + part
         console.log(`[Prompt Lab] parseContentToBlocks: Merged text part "${part}" into previous block. New value: "${last.value}"`);
       }
     }
   })
 
-  // Final check: If no blocks were created, still provide an empty text block for editing.
   if (blocks.length === 0) {
     console.log('[Prompt Lab] parseContentToBlocks: No blocks generated, adding initial empty text block.');
     blocks.push({ type: 'text', id: uid('t-'), value: '' })
@@ -397,7 +436,6 @@ function EditorPanel({
     return initialBlocks;
   });
 
-  // Effect to re-parse blocks when prompt.content or prompt.variables change
   useEffect(() => {
     console.log('[Prompt Lab] EditorPanel useEffect [prompt.content, prompt.variables]: Re-parsing blocks...');
     const newBlocks = parseContentToBlocks(prompt.content || '', prompt.variables || []);
@@ -405,7 +443,6 @@ function EditorPanel({
     console.log('[Prompt Lab] EditorPanel useEffect [prompt.content, prompt.variables]: Blocks updated to:', newBlocks);
   }, [prompt.content, prompt.variables]);
 
-  // Effect to serialize blocks and update prompt.content
   useEffect(() => {
     console.log('[Prompt Lab] EditorPanel useEffect [blocks]: Blocks state changed. Serializing...');
     const serialized = serializeBlocks(blocks);
@@ -417,7 +454,6 @@ function EditorPanel({
     }
   }, [blocks, onUpdate, prompt.content]);
 
-  // useCallback to ensure these functions have stable references for DND hooks
   const insertVariableAt = useCallback((index: number, variable: { placeholder: string; id?: string; name?: string }) => {
     console.log(`[Prompt Lab] insertVariableAt: Attempting to insert variable "${variable.placeholder}" at index ${index}.`);
     const newBlock: Block = { type: 'variable', id: uid('v-'), varId: variable.id, placeholder: variable.placeholder, name: variable.name }
@@ -427,7 +463,7 @@ function EditorPanel({
       console.log('[Prompt Lab] insertVariableAt: Blocks state WILL BE updated to:', copy);
       return copy
     })
-  }, []); // Empty dependency array means this function reference is stable
+  }, []);
 
   const insertTextAt = useCallback((index: number, text = '') => {
     console.log(`[Prompt Lab] insertTextAt: Attempting to insert text "${text}" at index ${index}.`);
@@ -438,7 +474,7 @@ function EditorPanel({
       console.log('[Prompt Lab] insertTextAt: Blocks state WILL BE updated to:', copy);
       return copy
     })
-  }, []); // Empty dependency array means this function reference is stable
+  }, []);
 
   const updateTextBlock = useCallback((id: string, value: string) => {
     console.log(`[Prompt Lab] updateTextBlock: Updating block ID "${id}" with value: "${value}".`);
@@ -447,7 +483,7 @@ function EditorPanel({
         console.log('[Prompt Lab] updateTextBlock: Blocks state WILL BE updated to:', updated);
         return updated;
     });
-  }, []); // Empty dependency array means this function reference is stable
+  }, []);
 
   const removeBlock = useCallback((index: number) => {
     console.log(`[Prompt Lab] removeBlock: Removing block at index ${index}.`);
@@ -457,7 +493,7 @@ function EditorPanel({
       console.log('[Prompt Lab] removeBlock: Blocks state WILL BE updated to:', copy);
       return copy
     })
-  }, []); // Empty dependency array means this function reference is stable
+  }, []);
 
   const moveBlock = useCallback((from: number, to: number) => {
     console.log(`[Prompt Lab] moveBlock: Moving block from index ${from} to ${to}.`);
@@ -468,36 +504,29 @@ function EditorPanel({
       console.log('[Prompt Lab] moveBlock: Blocks state WILL BE updated to:', copy);
       return copy
     })
-  }, []); // Empty dependency array means this function reference is stable
+  }, []);
 
 
-  // EditorPanel's useDrop is now only for dropping into an EMPTY container
-  // or implicitly at the end if no BlockRenderer is hovered.
   const [{ isOverBlockContainer }, dropBlockContainer] = useDrop(() => ({
     accept: ItemTypes.VARIABLE,
     drop: (item: { id: string; placeholder: string; name?: string }, monitor) => {
-      // CRITICAL FIX: If a nested drop target already handled the drop, do nothing here.
       if (monitor.didDrop()) {
         console.log('[Prompt Lab] EditorPanel useDrop: Drop already handled by a child component. Exiting.');
         return;
       }
 
-      // Only insert if there are no blocks, otherwise individual BlockRenderers handle drops
       if (blocks.length === 0) {
         console.log('[Prompt Lab] EditorPanel useDrop (empty container): Variable dropped:', item.placeholder);
-        insertVariableAt(0, item); // Insert at the beginning of an empty list
+        insertVariableAt(0, item);
       } else {
         console.log('[Prompt Lab] EditorPanel useDrop (fallback to end): Variable dropped (no specific block target hit, or outside a block). Adding to end.');
-        // This case implies a drop "outside" of specific blocks but still within the container.
-        // It's a fallback to add to the very end.
         insertVariableAt(blocks.length, item);
       }
     },
     collect: (monitor) => ({
-      // Only show hover effect if no child has captured the drop
       isOverBlockContainer: monitor.isOver({ shallow: true }) && monitor.canDrop() && !monitor.didDrop(),
     }),
-  }), [blocks.length, insertVariableAt]); // Depend on blocks.length and insertVariableAt to ensure correct index and function reference
+  }), [blocks.length, insertVariableAt]);
 
 
   return (
@@ -540,7 +569,7 @@ function EditorPanel({
         <section className="rounded-lg border p-4 mb-4">
           <div className="mb-2 text-sm font-medium">Prompt content</div>
           <div
-            ref={dropBlockContainer} // This outer drop target is for dropping into an empty area or implicitly at the end
+            ref={dropBlockContainer}
             className={`flex flex-wrap gap-2 min-h-[300px] border rounded p-3 ${isOverBlockContainer ? 'bg-indigo-50 border-indigo-300' : 'bg-gray-50'}`}
           >
             {blocks.map((b, i) => (
@@ -548,7 +577,6 @@ function EditorPanel({
                 key={b.id}
                 block={b}
                 index={i}
-                // Pass blocks array to BlockRenderer for Backspace logic
                 allBlocks={blocks}
                 updateTextBlock={updateTextBlock}
                 removeBlock={removeBlock}
@@ -557,7 +585,6 @@ function EditorPanel({
                 insertTextAt={insertTextAt}
               />
             ))}
-            {/* Display guidance for empty state */}
             {blocks.length === 0 && (
                 <div className="flex-1 text-center py-12 text-gray-400">
                     Drag variables or click "+ Add text" to start building your prompt.
@@ -597,7 +624,7 @@ function EditorPanel({
 function BlockRenderer({
   block,
   index,
-  allBlocks, // Added prop
+  allBlocks,
   updateTextBlock,
   removeBlock,
   moveBlock,
@@ -606,8 +633,8 @@ function BlockRenderer({
 }: {
   block: Block
   index: number
-  allBlocks: Block[]; // Added type
-  updateTextBlock: (id: string, value: string, variables?: any[]) => void
+  allBlocks: Block[];
+  updateTextBlock: (id: string, value: string) => void
   removeBlock: (index: number) => void
   moveBlock: (from: number, to: number) => void
   insertVariableAt: (index: number, variable: { placeholder: string; id?: string; name?: string }) => void
@@ -617,22 +644,18 @@ function BlockRenderer({
 
   const [{ isDragging }, drag] = useDrag(() => ({
     type: ItemTypes.BLOCK,
-    item: { id: block.id, index }, // item includes id for identification and index for position
+    item: { id: block.id, index },
     collect: (m) => ({ isDragging: m.isDragging() }),
   }), [block.id, index])
 
-  // Local state for more controlled hover visual feedback
   const [localIsOver, setLocalIsOver] = useState(false);
   const [localDropTargetPosition, setDropTargetPosition] = useState<'before' | 'after' | null>(null);
 
-  // useDrop for handling:
-  // 1. Dropping a new VARIABLE from the sidebar onto this block.
-  // 2. Dropping an existing BLOCK (for reordering) onto this block.
-  const [{ isOver: monitorIsOver }, drop] = useDrop(() => ({ // Destructure isOver from monitor
+  const [{ isOver: monitorIsOver }, drop] = useDrop(() => ({
     accept: [ItemTypes.VARIABLE, ItemTypes.BLOCK],
     hover(item: { id?: string; index?: number; placeholder?: string }, monitor) {
       if (!ref.current) return;
-      if (!monitor.isOver({ shallow: true })) { // Only care about direct hover
+      if (!monitor.isOver({ shallow: true })) {
         setLocalIsOver(false);
         setDropTargetPosition(null);
         return;
@@ -642,7 +665,6 @@ function BlockRenderer({
       const dragItemIndex = (item as { index: number }).index;
       const hoverIndex = index;
 
-      // Don't visually indicate a move if dragging a block over itself
       if (dragItemType === ItemTypes.BLOCK && dragItemIndex === hoverIndex) {
         setLocalIsOver(false);
         setDropTargetPosition(null);
@@ -656,12 +678,11 @@ function BlockRenderer({
 
       let newDropPosition: 'before' | 'after';
       if (hoverClientY < hoverMiddleY) {
-        newDropPosition = 'before'; // Hovering over the top half
+        newDropPosition = 'before';
       } else {
-        newDropPosition = 'after';  // Hovering over the bottom half
+        newDropPosition = 'after';
       }
 
-      // Update local state for visual feedback only if it's changing
       if (!localIsOver || localDropTargetPosition !== newDropPosition) {
         setLocalIsOver(true);
         setDropTargetPosition(newDropPosition);
@@ -671,7 +692,6 @@ function BlockRenderer({
       const dragItemType = monitor.getItemType();
       const targetIndex = localDropTargetPosition === 'after' ? index + 1 : index;
 
-      // Reset local hover state immediately on drop (important before state updates)
       setLocalIsOver(false);
       setDropTargetPosition(null);
 
@@ -681,10 +701,9 @@ function BlockRenderer({
       } else if (dragItemType === ItemTypes.BLOCK) {
         const dragIndex = item.index;
 
-        // Prevent moving if dropping into an effectively identical position
-        const isNoRealMove = (dragIndex === targetIndex) || // Dropped on self, 'before'
-                             (dragIndex + 1 === targetIndex && dragIndex < index && localDropTargetPosition === 'after') || // Moving down one, dropped 'after' original
-                             (dragIndex - 1 === targetIndex && dragIndex > index && localDropTargetPosition === 'before'); // Moving up one, dropped 'before' original
+        const isNoRealMove = (dragIndex === targetIndex) ||
+                             (dragIndex + 1 === targetIndex && dragIndex < index && localDropTargetPosition === 'after') ||
+                             (dragIndex - 1 === targetIndex && dragIndex > index && localDropTargetPosition === 'before');
 
         if (isNoRealMove) {
           console.log(`[Prompt Lab] BlockRenderer useDrop (BLOCK): Dragged block #${dragIndex} dropped at target index ${targetIndex}. No actual move needed (same or adjacent spot).`);
@@ -693,16 +712,14 @@ function BlockRenderer({
 
         console.log(`[Prompt Lab] BlockRenderer useDrop (BLOCK): Moving block from index ${dragIndex} to ${targetIndex}.`);
         moveBlock(dragIndex, targetIndex);
-        item.index = targetIndex; // Update the index of the dragged item for subsequent moves
+        item.index = targetIndex;
       }
     },
     collect: (monitor) => ({
-      isOver: monitor.isOver(), // We keep this for the useEffect cleanup
+      isOver: monitor.isOver(),
     }),
-  }), [index, insertVariableAt, moveBlock, localDropTargetPosition, localIsOver]); // dependencies, `localDropTargetPosition` and `localIsOver` are from component state, so this should not cause infinite loop with useCallback, just ensures latest values are used in drop/hover.
+  }), [index, insertVariableAt, moveBlock, localDropTargetPosition, localIsOver]);
 
-  // Effect to clean up local hover state when DND monitor is no longer over this component
-  // Use `monitorIsOver` which comes from the `collect` function
   useEffect(() => {
     if (!monitorIsOver) {
       setLocalIsOver(false);
@@ -712,10 +729,9 @@ function BlockRenderer({
 
   const combinedRef = mergeRefs(ref, drag, drop);
 
-  const baseClass = "p-2 rounded-md border shadow-sm flex-shrink-0 w-full relative"; // Added relative for positioning indicators
+  const baseClass = "p-2 rounded-md border shadow-sm flex-shrink-0 w-full relative";
   const droppableAreaClass = `relative w-full h-full rounded-md border`;
 
-  // Visual indicators for drop position
   const isHoveringAbove = localIsOver && localDropTargetPosition === 'before';
   const isHoveringBelow = localIsOver && localDropTargetPosition === 'after';
 
@@ -741,27 +757,17 @@ function BlockRenderer({
     )
   } else { // type === 'text'
     const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-      if (e.key === 'Enter') {
-        // REMOVED: e.preventDefault()
-        // REMOVED: insertTextAt logic
-        // This allows the default contenteditable behavior to create a new line (div or <br>)
-        // The onBlur event will capture the full content, including new lines.
-        console.log('[Prompt Lab] BlockRenderer: Enter key pressed in text block. Allowing default new line behavior.');
-      } else if (e.key === 'Backspace') {
-        // Enhanced Backspace logic for empty text blocks
+      if (e.key === 'Backspace') {
         const currentText = ref.current?.innerText || '';
         if (currentText === '') {
-            e.preventDefault(); // Prevent default browser back navigation
+            e.preventDefault();
             if (allBlocks.length === 1 && allBlocks[0].id === block.id) {
-                // If this is the ONLY block and it's empty, update its value to empty string.
-                // parseContentToBlocks will then ensure an empty text block is always present.
                 console.log(`[Prompt Lab] BlockRenderer: Backspace on the ONLY empty text block. Clearing content.`);
                 updateTextBlock(block.id, '');
-            } else if (index > 0) { // If not the first block, just remove it
+            } else if (index > 0) {
                 console.log(`[Prompt Lab] BlockRenderer: Backspace on empty text block. Removing block at index ${index}.`);
                 removeBlock(index);
             } else if (index === 0 && allBlocks.length > 1) {
-                // First block, but more blocks exist. Remove this empty first block.
                 console.log(`[Prompt Lab] BlockRenderer: Backspace on empty first text block. Removing block at index ${index}.`);
                 removeBlock(index);
             }
@@ -784,9 +790,8 @@ function BlockRenderer({
         <div
           className={`${droppableAreaClass} bg-white border-gray-300`}
         >
-          {/* Editable Text Area */}
           <div
-            ref={ref} // Ensure ref is correctly applied here
+            ref={ref}
             contentEditable
             suppressContentEditableWarning
             onKeyDown={onKeyDown}
@@ -796,29 +801,6 @@ function BlockRenderer({
           >
             {block.value}
           </div>
-
-          {/* Variables Grid (Leaving as is, but still noting it's inconsistent with current parsing logic) */}
-          <div className="mt-2 flex flex-wrap gap-2">
-            {block.variables?.map((v, i) => (
-              <div
-                key={v.id || i}
-                className="flex-1 basis-[30%] min-w-[90px] p-2 bg-blue-50 rounded border border-blue-200 text-sm flex items-center justify-between"
-              >
-                <span>{v.name || v.placeholder}</span>
-                <button
-                  onClick={() => {
-                    const newVars = [...(block.variables || [])]
-                    newVars.splice(i, 1)
-                    console.log(`[Prompt Lab] BlockRenderer: Removing variable "${v.placeholder}" from text block ID "${block.id}".`);
-                    updateTextBlock(block.id, block.value, newVars)
-                  }}
-                  className="text-xs px-1 py-0.5 rounded bg-transparent border"
-                >
-                  ×
-                </button>
-              </div>
-            ))}
-          </div>
         </div>
         {isHoveringBelow && <div className="absolute -bottom-1 left-0 right-0 h-1 bg-blue-500 rounded-sm z-10" />}
       </div>
@@ -826,17 +808,7 @@ function BlockRenderer({
   }
 }
 
-
-
-
-
-
-
-
-
-
-
-/* ---------- VersionsPanel, DiffDialog, VariableCreationDialog (unchanged logic) ---------- */
+/* ---------- VersionsPanel, DiffDialog, VariableCreationDialog ---------- */
 
 /* Versions */
 function VersionsPanel({
@@ -905,7 +877,7 @@ function DiffDialog({
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-5xl">
+      <DialogContent className="max-w-5xl bg-background">
         <DialogHeader>
           <DialogTitle>Compare to current</DialogTitle>
         </DialogHeader>
@@ -929,94 +901,6 @@ function DiffDialog({
         )}
         <DialogFooter>
           <Button onClick={() => onOpenChange(false)}>Close</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
-/* Variable Creation Dialog */
-function VariableCreationDialog({
-  open,
-  onOpenChange,
-  onCreate,
-}: {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  onCreate: (variable: Omit<PromptVariable, 'id'>) => void
-}) {
-  const [name, setName] = useState('')
-  const [placeholder, setPlaceholder] = useState('')
-  const [defaultValue, setDefaultValue] = useState('')
-  const [description, setDescription] = useState('')
-
-  const handleSubmit = () => {
-    if (name && placeholder) {
-      console.log('[Prompt Lab] VariableCreationDialog: Creating new variable:', { name, placeholder, defaultValue, description });
-      onCreate({ name, placeholder, defaultValue, description })
-      setName('')
-      setPlaceholder('')
-      setDefaultValue('')
-      setDescription('')
-    } else {
-      console.warn('[Prompt Lab] VariableCreationDialog: Name and Placeholder are required.');
-    }
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Create New Variable</DialogTitle>
-          <DialogDescription>
-            Define a new variable to use in your prompt content and context.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="grid gap-4 py-4">
-          <div className="grid grid-cols-4 items-center gap-4">
-            <label htmlFor="name" className="text-right">Name</label>
-            <Input
-              id="name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="col-span-3"
-              placeholder="e.g., Topic"
-            />
-          </div>
-          <div className="grid grid-cols-4 items-center gap-4">
-            <label htmlFor="placeholder" className="text-right">Placeholder</label>
-            <Input
-              id="placeholder"
-              value={placeholder}
-              onChange={(e) => setPlaceholder(e.target.value)}
-              className="col-span-3"
-              placeholder="e.g., {{topic}}"
-            />
-          </div>
-          <div className="grid grid-cols-4 items-center gap-4">
-            <label htmlFor="defaultValue" className="text-right">Default Value</label>
-            <Input
-              id="defaultValue"
-              value={defaultValue}
-              onChange={(e) => setDefaultValue(e.target.value)}
-              className="col-span-3"
-              placeholder="Optional: A default value for preview"
-            />
-          </div>
-          <div className="grid grid-cols-4 items-center gap-4">
-            <label htmlFor="description" className="text-right">Description</label>
-            <Textarea
-              id="description"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              className="col-span-3"
-              placeholder="Optional: Explain what this variable represents"
-            />
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button onClick={handleSubmit}>Create Variable</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

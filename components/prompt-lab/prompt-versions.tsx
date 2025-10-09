@@ -52,7 +52,7 @@ export function PromptVersions({
                     <p className="text-xs font-medium text-slate-500">
                       {formatDistanceToNow(new Date(v.createdAt), { addSuffix: true })}
                     </p>
-                    <p className="text-sm text-slate-700 line-clamp-2 leading-snug">{v.content}</p>
+                    <p className="text-sm text-slate-700 line-clamp-2 leading-snug">{v.notes || "(No notes)"}</p> {/* Use notes here */}
                   </div>
                 </div>
                 <div className="opacity-0 group-hover:opacity-100 transition-opacity">

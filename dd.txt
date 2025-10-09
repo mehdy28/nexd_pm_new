@@ -1,0 +1,525 @@
+// ---------------- Generator & Datasource ----------------
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------- Enums ----------------
+enum UserRole {
+  ADMIN
+  MEMBER
+}
+
+enum WorkspaceRole {
+  OWNER
+  ADMIN
+  MEMBER
+  GUEST
+}
+
+enum ProjectRole {
+  OWNER
+  ADMIN
+  MEMBER
+  VIEWER
+}
+
+
+enum ProjectStatus {
+  PLANNING
+  ACTIVE
+  ON_HOLD
+  COMPLETED
+  ARCHIVED
+  CANCELLED
+}
+
+enum TaskStatus {
+  TODO
+  DONE
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum SprintStatus {
+  PLANNING
+  ACTIVE
+  COMPLETED
+}
+
+enum DependencyType {
+  FINISH_TO_START
+  START_TO_START
+  FINISH_TO_FINISH
+  START_TO_FINISH
+}
+
+enum Plan {
+  FREE
+  PRO
+  ENTERPRISE
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  CANCELLED
+  PAST_DUE
+  UNPAID
+}
+
+enum ActivityType {
+  TASK_CREATED
+  TASK_UPDATED
+  TASK_COMPLETED
+  TASK_ASSIGNED
+  PROJECT_CREATED
+  PROJECT_UPDATED
+  DOCUMENT_CREATED
+  DOCUMENT_UPDATED
+  WIREFRAME_CREATED
+  WIREFRAME_UPDATED
+  COMMENT_ADDED
+  MEMBER_ADDED
+  MEMBER_REMOVED
+}
+
+// ---------------- Core Models ----------------
+
+model User {
+  id          String   @id @default(cuid())
+  email       String   @unique
+  password    String?
+  firstName   String?
+  lastName    String?
+  avatar      String?
+  firebaseUid String?  @unique
+  role        UserRole @default(MEMBER)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspaceMembers WorkspaceMember[]
+  ownedWorkspaces  Workspace[]       @relation("WorkspaceOwner")
+
+  projectMembers ProjectMember[]
+  assignedTasks  Task[]          @relation("TaskAssignee")
+  createdTasks   Task[]          @relation("TaskCreator")
+
+  personalTasks      Task[]      @relation("UserPersonalTasks")
+  personalDocuments  Document[]  @relation("UserPersonalDocuments")
+  personalWireframes Wireframe[] @relation("UserPersonalWireframes")
+  personalPrompts    Prompt[]    @relation("UserPersonalPrompts")
+  personalSections   PersonalSection[]
+
+  activities Activity[]
+  comments   Comment[]
+  mentions   Mention[]
+
+  @@map("users")
+}
+
+model Workspace {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  description String?
+  avatar      String?
+  plan        Plan     @default(FREE)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  ownerId     String
+  owner       User     @relation("WorkspaceOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  industry    String?
+  teamSize    String?
+  workFields  String[]
+
+  members     WorkspaceMember[]
+  projects    Project[]
+  subscription Subscription?
+  settings     WorkspaceSettings?
+  personalTasks Task[] @relation("WorkspacePersonalTasks")
+
+  @@map("workspaces")
+}
+
+model WorkspaceMember {
+  id          String        @id @default(cuid())
+  role        WorkspaceRole @default(MEMBER)
+  joinedAt    DateTime      @default(now())
+  workspaceId String
+  userId      String
+  workspace   Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId])
+  @@map("workspace_members")
+}
+
+model WorkspaceSettings {
+  id                    String    @id @default(cuid())
+  allowGuestAccess      Boolean   @default(false)
+  timeZone              String    @default("UTC")
+  workspaceId           String    @unique
+  workspace             Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@map("workspace_settings")
+}
+
+model Project {
+  id          String        @id @default(cuid())
+  name        String
+  description String?
+  color       String        @default("#4ECDC4")
+  status      ProjectStatus @default(PLANNING)
+  startDate   DateTime?
+  endDate     DateTime?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  workspaceId String
+  workspace   Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  members   ProjectMember[]
+  tasks     Task[]      @relation("ProjectTasks")
+  documents Document[]  @relation("ProjectDocuments")
+  wireframes Wireframe[] @relation("ProjectWireframes")
+  prompts    Prompt[]   @relation("ProjectPrompts")
+  activities Activity[]
+  sprints   Sprint[]
+  sections  Section[]
+
+  @@map("projects")
+}
+
+model ProjectMember {
+  id        String      @id @default(cuid())
+  role      ProjectRole @default(MEMBER)
+  joinedAt  DateTime    @default(now())
+  projectId String
+  userId    String
+  project   Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId])
+  @@map("project_members")
+}
+
+model Sprint {
+  id          String     @id @default(cuid())
+  name        String
+  description String?
+  startDate   DateTime
+  endDate     DateTime
+  isCompleted Boolean    @default(false)
+  status      SprintStatus @default(PLANNING)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  projectId   String
+  project     Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  tasks Task[]
+  milestones Milestone[]
+
+  @@map("sprints")
+}
+
+model Milestone {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  dueDate     DateTime
+  isCompleted Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  sprintId    String
+  sprint      Sprint   @relation(fields: [sprintId], references: [id], onDelete: Cascade)
+
+  @@map("milestones")
+}
+
+model Section {
+  id          String   @id @default(cuid())
+  name        String
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  tasks Task[]
+
+  @@map("sections")
+}
+
+model PersonalSection {
+  id        String   @id @default(cuid())
+  name      String
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  tasks Task[]
+
+  @@unique([userId, name])
+  @@map("personal_sections")
+}
+
+model Task {
+  id                   String           @id @default(cuid())
+  title                String
+  description          String?
+  status               TaskStatus       @default(TODO)
+  priority             Priority         @default(MEDIUM)
+  dueDate              DateTime?
+  startDate            DateTime?
+  endDate              DateTime?
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+  completed            Boolean         @default(false)
+
+  points               Int?
+  completionPercentage Float?
+
+  projectId            String?
+  sprintId             String?
+  sectionId            String?
+  project              Project?         @relation("ProjectTasks", fields: [projectId], references: [id], onDelete: Cascade)
+  sprint               Sprint?          @relation(fields: [sprintId], references: [id], onDelete: SetNull)
+  section              Section?         @relation(fields: [sectionId], references: [id], onDelete: SetNull)
+
+  personalUserId       String?
+  personalWorkspaceId  String?
+  personalSectionId    String?
+  personalUser         User?            @relation("UserPersonalTasks", fields: [personalUserId], references: [id], onDelete: Cascade)
+  personalWorkspace    Workspace?       @relation("WorkspacePersonalTasks", fields: [personalWorkspaceId], references: [id], onDelete: SetNull)
+  personalSection      PersonalSection? @relation(fields: [personalSectionId], references: [id], onDelete: SetNull)
+
+  assigneeId           String?
+  creatorId            String
+  assignee             User?            @relation("TaskAssignee", fields: [assigneeId], references: [id])
+  creator              User             @relation("TaskCreator", fields: [creatorId], references: [id])
+
+  parentId             String?
+  parent               Task?            @relation("TaskSubtasks", fields: [parentId], references: [id])
+  subtasks             Task[]           @relation("TaskSubtasks")
+
+  dependencies         TaskDependency[] @relation("DependentTask")
+  dependents           TaskDependency[] @relation("PrecedingTask")
+
+  comments             Comment[]
+  activities           Activity[]
+  labels               TaskLabel[]
+
+  @@map("tasks")
+}
+
+model Label {
+  id          String      @id @default(cuid())
+  name        String
+  color       String
+  workspaceId String
+  tasks       TaskLabel[]
+
+  @@unique([name, workspaceId])
+  @@map("labels")
+}
+
+model TaskLabel {
+  taskId  String
+  labelId String
+  task    Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  label   Label  @relation(fields: [labelId], references: [id], onDelete: Cascade)
+
+  @@id([taskId, labelId])
+  @@map("task_labels")
+}
+
+model Document {
+  id        String       @id @default(cuid())
+  title     String
+  content     Json?
+  dataUrl     String?
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  projectId String?
+  userId    String?
+
+  project      Project? @relation("ProjectDocuments", fields: [projectId], references: [id], onDelete: Cascade)
+  personalUser User?    @relation("UserPersonalDocuments", fields: [userId], references: [id], onDelete: Cascade)
+
+  comments   Comment[]
+  activities Activity[]
+
+  @@map("documents")
+}
+
+model Wireframe {
+  id        String   @id @default(cuid())
+  title     String
+  data      Json
+  thumbnail String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  projectId String?
+  userId    String?
+
+  project      Project? @relation("ProjectWireframes", fields: [projectId], references: [id], onDelete: Cascade)
+  personalUser User?    @relation("UserPersonalWireframes", fields: [userId], references: [id], onDelete: Cascade)
+
+  comments   Comment[]
+  activities Activity[]
+
+  @@map("wireframes")
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  taskId      String?
+  documentId  String?
+  wireframeId String?
+  promptId    String?
+  task        Task?      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  document    Document?  @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  wireframe   Wireframe? @relation(fields: [wireframeId], references: [id], onDelete: Cascade)
+  prompt      Prompt?    @relation(fields: [promptId], references: [id], onDelete: Cascade)
+
+  mentions Mention[]
+
+  @@map("comments")
+}
+
+model Mention {
+  id        String  @id @default(cuid())
+  commentId String
+  userId    String
+  comment   Comment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([commentId, userId])
+  @@map("mentions")
+}
+
+model Activity {
+  id        String       @id @default(cuid())
+  type      ActivityType
+  data      Json
+  createdAt DateTime     @default(now())
+  userId    String
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  projectId   String?
+  taskId      String?
+  documentId  String?
+  wireframeId String?
+  promptId    String?
+  project     Project?   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  task        Task?      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  document    Document?  @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  wireframe   Wireframe? @relation(fields: [wireframeId], references: [id], onDelete: Cascade)
+  prompt      Prompt?    @relation(fields: [promptId], references: [id], onDelete: Cascade)
+
+  @@map("activities")
+}
+
+model Subscription {
+  id                   String             @id @default(cuid())
+  plan                 Plan
+  status               SubscriptionStatus
+  currentPeriodEnd     DateTime
+  cancelAtPeriodEnd    Boolean            @default(false)
+  stripeCustomerId     String?
+  stripeSubscriptionId String?
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+  workspaceId          String             @unique
+  workspace            Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@map("subscriptions")
+}
+
+model Prompt {
+  id          String   @id @default(cuid())
+  title       String // Renamed from 'name' for consistency
+  content     String
+  description String?
+  category    String?
+  tags        String[]
+  isPublic    Boolean  @default(false)
+  model       String   @default("gpt-4o") // New: Model used for the prompt
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  projectId String?
+  userId    String?
+  project   Project? @relation("ProjectPrompts", fields: [projectId], references: [id], onDelete: Cascade)
+  user      User?    @relation("UserPersonalPrompts", fields: [userId], references: [id], onDelete: Cascade)
+
+  comments   Comment[]
+  activities Activity[]
+  versions   Version[] // Versions of the prompt
+  variables  PromptVariable[] // Variables for the prompt
+
+  @@map("prompts")
+}
+
+model Version {
+  id        String   @id @default(cuid())
+  content   String
+  context   String?
+  notes     String?
+  createdAt DateTime @default(now())
+  promptId  String
+  prompt    Prompt   @relation(fields: [promptId], references: [id], onDelete: Cascade)
+
+  @@map("prompt_versions")
+}
+
+model PromptVariable {
+  id           String   @id @default(cuid())
+  name         String
+  placeholder  String   // e.g., {{project.name}}, {{task_titles_in_sprint}}, {{user.email}}
+  defaultValue String?
+  description  String?
+  type         String   // e.g., "STRING", "NUMBER", "DATE", "LIST_OF_STRINGS", "RICH_TEXT"
+  source       Json?    // NEW: Stores the definition of how this variable is derived from project data.
+                        // Examples:
+                        // { type: "PROJECT_FIELD", field: "name" }
+                        // { type: "TASKS_AGGREGATION", filter: {status: "DONE"}, output: "titles_list" }
+                        // { type: "CURRENT_USER_FIELD", field: "firstName" }
+  promptId     String
+  prompt       Prompt   @relation(fields: [promptId], references: [id], onDelete: Cascade)
+
+  @@unique([promptId, placeholder])
+  @@map("prompt_variables")
+}
+
+model TaskDependency {
+  id              String         @id @default(cuid())
+  precedingTaskId String
+  dependentTaskId String
+  type            DependencyType @default(FINISH_TO_START)
+  lag             Int            @default(0)
+
+  precedingTask Task @relation("PrecedingTask", fields: [precedingTaskId], references: [id], onDelete: Cascade)
+  dependentTask Task @relation("DependentTask", fields: [dependentTaskId], references: [id], onDelete: Cascade)
+
+  @@unique([precedingTaskId, dependentTaskId])
+  @@map("task_dependencies")
+}

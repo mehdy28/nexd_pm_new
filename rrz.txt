@@ -1,0 +1,838 @@
+# ----------------------------------
+# Enums
+# ----------------------------------
+
+enum UserRole {
+  ADMIN
+  MEMBER
+}
+
+enum WorkspaceRole {
+  OWNER
+  ADMIN
+  MEMBER
+  GUEST
+}
+
+enum ProjectRole {
+  OWNER
+  ADMIN
+  MEMBER
+  VIEWER
+}
+
+enum ProjectStatus {
+  PLANNING
+  ACTIVE
+  ON_HOLD
+  COMPLETED
+  ARCHIVED
+  CANCELLED
+}
+
+enum TaskStatus {
+  TODO
+  DONE
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum SprintStatus {
+  PLANNING
+  ACTIVE
+  COMPLETED
+}
+
+enum DependencyType {
+  FINISH_TO_START
+  START_TO_START
+  FINISH_TO_FINISH
+  START_TO_FINISH
+}
+
+enum Plan {
+  FREE
+  PRO
+  ENTERPRISE
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  CANCELLED
+  PAST_DUE
+  UNPAID
+}
+
+enum ActivityType {
+  TASK_CREATED
+  TASK_UPDATED
+  TASK_COMPLETED
+  TASK_ASSIGNED
+  PROJECT_CREATED
+  PROJECT_UPDATED
+  DOCUMENT_CREATED
+  DOCUMENT_UPDATED
+  WIREFRAME_CREATED
+  WIREFRAME_UPDATED
+  COMMENT_ADDED
+  MEMBER_ADDED
+  MEMBER_REMOVED
+}
+
+enum PromptVariableType { # NEW: Enum for variable types
+  STRING
+  NUMBER
+  DATE
+  LIST_OF_STRINGS
+  RICH_TEXT # For document content, etc.
+  BOOLEAN
+}
+
+# ----------------------------------
+# Models
+# ----------------------------------
+
+
+type User {
+  id: ID!
+  email: String!
+  firstName: String
+  lastName: String
+  avatar: String
+  firebaseUid: String
+  role: UserRole!
+  createdAt: String!
+  updatedAt: String!
+
+  workspaceMembers: [WorkspaceMember]
+  ownedWorkspaces: [Workspace]
+  projectMembers: [ProjectMember]
+  assignedTasks: [Task]
+  createdTasks: [Task]
+  personalTasks: [Task]
+  personalDocuments: [Document]
+  personalWireframes: [Wireframe]
+  personalPrompts: [Prompt]
+  personalSections: [PersonalSection]
+  activities: [Activity]
+  comments: [Comment]
+  mentions: [Mention]
+}
+
+type Workspace {
+  id: ID!
+  name: String!
+  slug: String!
+  description: String
+  avatar: String
+  plan: Plan!
+  createdAt: String!
+  updatedAt: String!
+  owner: User!
+  industry: String
+  teamSize: String
+  workFields: [String!]
+
+  members: [WorkspaceMember!]!
+  projects: [Project!]!
+  subscription: Subscription
+  settings: WorkspaceSettings
+  personalTasks: [Task]
+}
+
+type WorkspaceMember {
+  id: ID!
+  role: WorkspaceRole!
+  joinedAt: String!
+  workspace: Workspace!
+  user: User!
+}
+
+type WorkspaceSettings {
+  id: ID!
+  allowGuestAccess: Boolean!
+  timeZone: String!
+  workspace: Workspace!
+}
+
+type Project {
+  id: ID!
+  name: String!
+  description: String
+  color: String!
+  status: ProjectStatus!
+  startDate: String
+  endDate: String
+  createdAt: String!
+  updatedAt: String!
+  workspace: Workspace!
+
+  members: [ProjectMember!]!
+  tasks: [Task!]!
+  documents: [Document!]!
+  wireframes: [Wireframe!]!
+  prompts: [Prompt!]!
+  activities: [Activity!]!
+  sprints: [Sprint!]!
+  sections: [Section!]!
+
+  projectMemberCount: Int!
+  totalTaskCount: Int!
+  completedTaskCount: Int!
+}
+
+type ProjectMember {
+  id: ID!
+  role: ProjectRole!
+  joinedAt: String!
+  project: Project!
+  user: User!
+}
+
+type Sprint {
+  id: ID!
+  name: String!
+  description: String
+  startDate: String!
+  endDate: String!
+  isCompleted: Boolean!
+  createdAt: String!
+  updatedAt: String!
+  project: Project!
+  tasks: [Task!]!
+  milestones: [Milestone!]!
+  status: SprintStatus!
+}
+
+type Milestone {
+  id: ID!
+  name: String!
+  description: String
+  dueDate: String!
+  isCompleted: Boolean!
+  createdAt: String!
+  updatedAt: String!
+  sprint: Sprint!
+}
+
+type Section {
+  id: ID!
+  name: String!
+  order: Int!
+  createdAt: String!
+  updatedAt: String!
+  project: Project!
+
+  tasks: [Task!]!
+}
+
+type PersonalSection {
+  id: ID!
+  name: String!
+  order: Int!
+  createdAt: String!
+  updatedAt: String!
+  user: User!
+  tasks: [Task!]!
+}
+
+type Task {
+  id: ID!
+  title: String!
+  description: String
+  status: TaskStatus!
+  priority: Priority!
+  dueDate: String
+  startDate: String
+  endDate: String
+  createdAt: String!
+  updatedAt: String!
+  completed: Boolean!
+
+  points: Int
+  completionPercentage: Float
+
+  project: Project
+  sprint: Sprint
+  section: Section
+
+  personalUser: User
+  personalWorkspace: Workspace
+  personalSection: PersonalSection
+
+  assignee: User
+  creator: User!
+
+  parent: Task
+  subtasks: [Task!]!
+
+  dependencies: [TaskDependency!]!
+  dependents: [TaskDependency!]!
+
+  comments: [Comment!]!
+  activities: [Activity!]!
+  labels: [TaskLabel!]!
+}
+
+type Label {
+  id: ID!
+  name: String!
+  color: String!
+  workspace: Workspace!
+  tasks: [TaskLabel!]!
+}
+
+type TaskLabel {
+  taskId: String!
+  labelId: String!
+  task: Task!
+  label: Label!
+}
+
+type Document {
+  id: ID!
+  title: String!
+  content: JSON
+  dataUrl: String
+  createdAt: String!
+  updatedAt: String!
+  type: String!
+  projectId: ID
+  project: Project
+  personalUser: User
+}
+
+type Wireframe {
+  id: ID!
+  title: String!
+  data: JSON!
+  thumbnail: String
+  createdAt: String!
+  updatedAt: String!
+
+  project: Project
+  personalUser: User
+
+  comments: [Comment!]!
+  activities: [Activity!]!
+}
+
+type WireframeListItem {
+  id: ID!
+  title: String!
+  updatedAt: String!
+  thumbnail: String
+  projectId: ID
+}
+
+input CreateWireframeInput {
+  projectId: ID!
+  title: String!
+  data: JSON!
+  thumbnail: String
+}
+
+input UpdateWireframeInput {
+  id: ID!
+  title: String
+  data: JSON
+  thumbnail: String
+}
+
+
+type Comment {
+  id: ID!
+  content: String!
+  createdAt: String!
+  updatedAt: String!
+  author: User!
+
+  task: Task
+  document: Document
+  wireframe: Wireframe
+  prompt: Prompt
+
+  mentions: [Mention!]!
+}
+
+type Mention {
+  id: ID!
+  comment: Comment!
+  user: User!
+}
+
+type Activity {
+  id: ID!
+  type: ActivityType!
+  data: JSON!
+  createdAt: String!
+  user: User!
+
+  project: Project
+  task: Task
+  document: Document
+  wireframe: Wireframe
+  prompt: Prompt
+}
+
+type Subscription {
+  id: ID!
+  plan: Plan!
+  status: SubscriptionStatus!
+  currentPeriodEnd: String!
+  cancelAtPeriodEnd: Boolean!
+  stripeCustomerId: String
+  stripeSubscriptionId: String
+  createdAt: String!
+  updatedAt: String!
+  workspace: Workspace!
+}
+
+type Prompt {
+  id: ID!
+  title: String!
+  content: String!
+  description: String
+  category: String
+  tags: [String!]!
+  isPublic: Boolean!
+  model: String! # NEW: Model used for the prompt
+  createdAt: String!
+  updatedAt: String!
+
+  project: Project
+  user: User
+
+  comments: [Comment!]!
+  activities: [Activity!]!
+  versions: [Version!]! # Versions of the prompt
+  variables: [PromptVariable!]! # Variables for the prompt
+}
+
+type Version { # NEW: Version type for Prompt history
+  id: ID!
+  content: String!
+  context: String # Can be null
+  notes: String # Can be null
+  createdAt: String!
+  prompt: Prompt!
+}
+
+type PromptVariable { # NEW: PromptVariable type
+  id: ID!
+  name: String!
+  placeholder: String!
+  defaultValue: String
+  description: String
+  type: PromptVariableType! # Type of the variable's value
+  source: JSON # Defines how this variable is derived from project data (if applicable)
+}
+
+type TaskDependency {
+  id: ID!
+  type: DependencyType!
+  lag: Int!
+
+  precedingTask: Task!
+  dependentTask: Task!
+}
+
+type WorkspaceData {
+  id: ID!
+  name: String!
+  description: String
+  industry: String
+  teamSize: String
+  workFields: [String!]
+  members: [WorkspaceMemberData!]!
+  projects: [ProjectData!]!
+}
+
+type WorkspaceMemberData {
+  id: ID!
+  role: WorkspaceRole!
+  user: UserPartial!
+}
+
+type UserPartial {
+  id: ID!
+  email: String!
+  firstName: String
+  lastName: String
+}
+
+type ProjectData {
+  id: ID!
+  name: String!
+  description: String
+  status: ProjectStatus!
+  projectMemberCount: Int!
+  totalTaskCount: Int!
+  completedTaskCount: Int!
+}
+
+type ProjectMemberDetails {
+  id: ID!
+  role: ProjectRole!
+  user: UserFullDetails!
+}
+
+type GanttTaskData {
+  id: ID!
+  name: String!
+  start: String!
+  end: String!
+  progress: Int!
+  type: String!
+  sprint: ID
+  hideChildren: Boolean
+  displayOrder: Int
+  description: String
+  assignee: UserAvatarPartial
+}
+
+type GanttDataResponse {
+  sprints: [SprintNameId!]!
+  tasks: [GanttTaskData!]!
+}
+
+type SprintDetails {
+  id: ID!
+  name: String!
+  description: String
+  startDate: String!
+  endDate: String!
+  isCompleted: Boolean!
+  status: SprintStatus!
+  tasks: [TaskListView!]!
+  milestones: [Milestone!]!
+}
+
+type ProjectDetails {
+  id: ID!
+  name: String!
+  description: String
+  status: ProjectStatus!
+  color: String!
+  createdAt: String!
+
+  totalTasks: Int!
+  completedTasks: Int!
+  inProgressTasks: Int!
+  overdueTasks: Int!
+  upcomingDeadlines: Int!
+  displayStatus: String!
+
+  members: [ProjectMemberDetails!]!
+  sprints: [SprintDetails!]!
+}
+
+type UserFullDetails {
+  id: ID!
+  email: String!
+  firstName: String
+  lastName: String
+  avatar: String
+}
+
+type UserAvatarPartial {
+  id: ID!
+  firstName: String
+  lastName: String
+  avatar: String
+}
+
+type SprintNameId {
+  id: ID!
+  name: String!
+}
+
+type TaskListView {
+  id: ID!
+  title: String!
+  description: String
+  status: TaskStatus!
+  priority: Priority!
+  dueDate: String
+  points: Int
+  completionPercentage: Float
+  assignee: UserAvatarPartial
+  completed: Boolean!
+  sprintId: ID
+  sectionId: ID
+}
+
+type SectionWithTasks {
+  id: ID!
+  name: String!
+  order: Int!
+  tasks: [TaskListView!]!
+}
+
+type PersonalSectionWithTasks {
+  id: ID!
+  name: String!
+  tasks: [TaskListView!]!
+}
+
+
+input DeleteSectionOptions {
+  deleteTasks: Boolean!
+  reassignToSectionId: ID
+}
+
+type ProjectTasksAndSectionsData {
+  sprints: [SprintNameId!]!
+  sections: [SectionWithTasks!]!
+  personalSections: [PersonalSectionWithTasks!]!
+  projectMembers: [ProjectMemberFullDetails!]!
+}
+
+input CreateProjectTaskInput {
+  projectId: ID!
+  sectionId: ID!
+  title: String!
+  description: String
+  status: TaskStatus
+  priority: Priority
+  dueDate: String
+  startDate: String
+  endDate: String
+  assigneeId: ID
+  sprintId: ID
+  points: Int
+  parentId: ID
+}
+
+input UpdateProjectTaskInput {
+  id: ID!
+  title: String
+  description: String
+  status: TaskStatus
+  priority: Priority
+  dueDate: String
+  startDate: String
+  endDate: String
+  assigneeId: ID
+  sprintId: ID
+  points: Int
+  parentId: ID
+  isCompleted: Boolean
+  sectionId: ID
+}
+
+input CreateSprintInput {
+  projectId: ID!
+  name: String!
+  description: String
+  startDate: String!
+  endDate: String!
+  status: SprintStatus
+}
+
+input UpdateSprintInput { # Defined once
+  id: ID!
+  name: String
+  description: String
+  startDate: String
+  endDate: String
+  isCompleted: Boolean
+  status: SprintStatus
+}
+
+
+type ProjectMemberFullDetails {
+  id: ID!
+  role: ProjectRole!
+  user: UserFullDetails!
+}
+
+input CreateGanttTaskInput {
+  projectId: ID!
+  sprintId: ID!
+  name: String!
+  description: String
+  startDate: String!
+  endDate: String!
+  assigneeId: ID
+  progress: Int
+  type: String!
+}
+
+input UpdateGanttTaskInput {
+  id: ID!
+  type: String!
+  name: String
+  description: String
+  startDate: String
+  endDate: String
+  assigneeId: ID
+  progress: Int
+}
+
+
+type DocumentListItem {
+  id: ID!
+  title: String!
+  updatedAt: String!
+  type: String!
+  projectId: ID
+}
+
+input CreateDocumentInput {
+  projectId: ID!
+  title: String!
+  content: JSON
+  dataUrl: String
+}
+
+input UpdateDocumentInput {
+  id: ID!
+  title: String
+  content: JSON
+  dataUrl: String
+}
+
+# NEW INPUTS for Prompt/PromptVariable
+input CreatePromptInput {
+  projectId: ID
+  userId: ID # For personal prompts
+  title: String!
+  description: String
+  category: String
+  tags: [String!]
+  isPublic: Boolean
+  model: String
+  content: String
+  context: String
+}
+
+input UpdatePromptInput {
+  id: ID!
+  title: String
+  description: String
+  category: String
+  tags: [String!]
+  isPublic: Boolean
+  model: String
+  content: String
+  context: String
+}
+
+input CreatePromptVariableInput {
+  promptId: ID!
+  name: String!
+  placeholder: String!
+  defaultValue: String
+  description: String
+  type: PromptVariableType!
+  source: JSON # Optional: For project data variables
+}
+
+input UpdatePromptVariableInput {
+  id: ID!
+  name: String
+  placeholder: String
+  defaultValue: String
+  description: String
+  type: PromptVariableType
+  source: JSON
+}
+
+# ----------------------------------
+# Root Queries
+# ----------------------------------
+type Query {
+
+  getGanttData(projectId: ID!, sprintId: ID): GanttDataResponse
+
+  getProjectTasksAndSections(projectId: ID!, sprintId: ID): ProjectTasksAndSectionsData
+
+  getProjectDetails(projectId: ID!): ProjectDetails
+
+  getWorkspaceData: WorkspaceData
+  me: User
+
+  getProjectDocuments(projectId: ID!): [DocumentListItem!]!
+  getDocumentDetails(id: ID!): Document
+
+  getProjectWireframes(projectId: ID!): [WireframeListItem!]!
+  getWireframeDetails(id: ID!): Wireframe
+
+  getPromptDetails(id: ID!): Prompt # NEW: Get full prompt details including variables and versions
+  getProjectPrompts(projectId: ID!): [Prompt!]! # NEW: Get list of prompts for a project
+  # NEW: Query to resolve a variable's value from the backend
+  resolvePromptVariable(projectId: ID, variableSource: JSON!, promptVariableId: ID): String # projectId optional if it's a user-level variable
+}
+
+
+
+# ----------------------------------
+# Root Mutations (CRUD-style)
+# ----------------------------------
+type Mutation {
+  createProjectTask(input: CreateProjectTaskInput!): TaskListView!
+  updateProjectTask(input: UpdateProjectTaskInput!): TaskListView!
+
+  deleteProjectSection(id: ID!, options: DeleteSectionOptions): Section!
+
+  createProjectSection(projectId: ID!, name: String!, order: Int): Section!
+  updateProjectSection(id: ID!, name: String, order: Int): Section!
+
+  createUser(email: String!, password: String, firstName: String, lastName: String, role: UserRole): User!
+
+  setupWorkspace(
+    userId: ID!
+    workspaceName: String!
+    workspaceDescription: String
+    projectName: String!
+    projectDescription: String
+    industry: String
+    teamSize: String
+    workFields: [String!]
+  ): Workspace!
+
+  createProject(
+    workspaceId: ID!
+    name: String!
+    description: String
+  ): Project!
+
+  deleteProjectTask(id: ID!): TaskListView!
+
+  createSprint(input: CreateSprintInput!): SprintDetails!
+  updateSprint(input: UpdateSprintInput!): SprintDetails!
+  deleteSprint(id: ID!): SprintDetails!
+
+  createGanttTask(input: CreateGanttTaskInput!): GanttTaskData!
+  updateGanttTask(input: UpdateGanttTaskInput!): GanttTaskData!
+
+  createDocument(input: CreateDocumentInput!): DocumentListItem!
+  updateDocument(input: UpdateDocumentInput!): DocumentListItem!
+  deleteDocument(id: ID!): DocumentListItem!
+
+  createWireframe(input: CreateWireframeInput!): WireframeListItem!
+  updateWireframe(input: UpdateWireframeInput!): WireframeListItem!
+  deleteWireframe(id: ID!): WireframeListItem!
+
+  # NEW PROMPT/VARIABLE MUTATIONS
+  createPrompt(input: CreatePromptInput!): Prompt! # Create a new prompt
+  updatePrompt(input: UpdatePromptInput!): Prompt! # Update existing prompt
+  deletePrompt(id: ID!): Prompt! # Delete a prompt
+
+  createPromptVariable(input: CreatePromptVariableInput!): PromptVariable! # Create a new variable
+  updatePromptVariable(input: UpdatePromptVariableInput!): PromptVariable! # Update a variable
+  deletePromptVariable(id: ID!): PromptVariable! # Delete a variable
+
+  createPromptVersion(promptId: ID!, content: String!, context: String, notes: String): Version! # Create new version (snapshot)
+  restorePromptVersion(promptId: ID!, versionId: ID!): Prompt! # Restore a version
+}
+
+# ----------------------------------
+# Scalars
+# ----------------------------------
+scalar JSON

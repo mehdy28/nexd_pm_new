@@ -30,7 +30,7 @@ export function PromptLabContainer({ projectId }: { projectId?: string }) {
 
   if (selectedPromptId && selectedPrompt) {
     return <PromptLab promptId={selectedPromptId} onBack={handleBack} projectId={projectId} />
-  } else if (selectedPromptId && !selectedPrompt && selectedPromptId !== "new") { // Added condition to exclude "new"
+  } else if (selectedPromptId && !selectedPrompt && selectedPromptId !== "new") {
       return (
         <div className="grid h-full place-items-center p-6 text-sm text-slate-500">
           The selected prompt could not be found.
