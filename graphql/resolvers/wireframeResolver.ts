@@ -2,7 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { GraphQLError } from "graphql";
-import type { Prisma } from "@prisma/client"; // Import Prisma types for full type safety
+import type { Prisma } from "@prisma/client";
 
 // Extend Prisma's Wireframe type to include relations we often fetch
 type PrismaWireframeWithRelations = Prisma.WireframeGetPayload<{
@@ -22,7 +22,7 @@ interface GraphQLContext {
   user?: { id: string; email: string; role: string };
 }
 
-// Input Types based on your Schema (for internal use, matching schema definitions)
+// Input Types based on your Schema
 interface CreateWireframeInput {
   projectId: string;
   title: string;
@@ -37,14 +37,14 @@ interface UpdateWireframeInput {
   thumbnail?: string | null;
 }
 
-// Return Types based on your Schema (for internal use)
-interface WireframeListItem {
+// Return Type for WireframeListItem - ensure projectId matches schema nullability
+interface WireframeListItemOutput {
   id: string;
   title: string;
   updatedAt: string; // ISO date string
   thumbnail: string | null;
-  projectId: string;
-  __typename: "WireframeListItem"; // Explicitly match type name
+  projectId: string | null; // Adjusted to be nullable based on typical Wireframe model
+  __typename: "WireframeListItem";
 }
 
 // Helper for consistent logging
@@ -62,7 +62,7 @@ const wireframeResolvers = {
       _parent: any,
       { projectId }: { projectId: string },
       context: GraphQLContext,
-    ): Promise<WireframeListItem[]> => {
+    ): Promise<WireframeListItemOutput[]> => { // Use WireframeListItemOutput
       const operation = "getProjectWireframes";
       log("info", `${operation} called.`, { projectId });
 
@@ -76,9 +76,10 @@ const wireframeResolvers = {
       log("info", `${operation}: User ${user.id} authenticated.`, { userId: user.id, projectId });
 
       try {
-        const wireframes = await context.prisma.wireframe.findMany({
+        const wireframes = await prisma.wireframe.findMany({
           where: {
             projectId: projectId,
+            // Ensure only project-linked wireframes are returned, which should have projectId not null
           },
           orderBy: {
             updatedAt: "desc",
@@ -88,19 +89,35 @@ const wireframeResolvers = {
             title: true,
             updatedAt: true,
             thumbnail: true,
-            projectId: true,
+            projectId: true, // This will be a string (or null if DB schema allows it for this field)
           },
         });
 
+        log("info", `${operation}: Raw Prisma wireframes data:`, { wireframes: JSON.stringify(wireframes.slice(0, Math.min(wireframes.length, 5))) });
+
+
         log("info", `${operation}: Found ${wireframes.length} wireframes.`, { projectId, wireframeCount: wireframes.length });
 
-        // Map to WireframeListItem and add __typename
-        return wireframes.map((wf) => ({
-          ...wf,
-          updatedAt: wf.updatedAt.toISOString(), // Ensure ISO string format
-          thumbnail: wf.thumbnail, // thumbnail can be null from DB
-          __typename: "WireframeListItem", // Explicitly define __typename as per schema
-        }));
+        // Explicitly map to WireframeListItemOutput and add __typename
+        const mappedWireframes = wireframes.map((wf) => {
+          // Defensive check against null/undefined results from Prisma (though unlikely for findMany)
+          if (!wf) {
+            log("warn", `${operation}: Encountered null/undefined wireframe in Prisma result. Skipping.`, { projectId });
+            return null;
+          }
+          return {
+            id: wf.id,
+            title: wf.title,
+            updatedAt: wf.updatedAt.toISOString(),
+            thumbnail: wf.thumbnail,
+            projectId: wf.projectId, // This will be a string since filtered by projectId, but for robustness
+            __typename: "WireframeListItem",
+          };
+        }).filter(Boolean) as WireframeListItemOutput[]; // Filter out any nulls
+
+        log("info", `${operation}: Successfully mapped ${mappedWireframes.length} wireframes.`, { projectId });
+        return mappedWireframes;
+
       } catch (error: any) {
         log("error", `${operation}: Failed to fetch wireframes.`, {
           projectId,
@@ -133,7 +150,7 @@ const wireframeResolvers = {
 
       let wireframe: PrismaWireframeWithRelations | null = null;
       try {
-        wireframe = await context.prisma.wireframe.findUnique({
+        wireframe = await prisma.wireframe.findUnique({
           where: { id },
           include: {
             project: {
@@ -158,7 +175,7 @@ const wireframeResolvers = {
 
       if (!wireframe) {
         log("warn", `${operation}: Wireframe ${id} not found.`, { wireframeId: id });
-        return null; // Return null if not found as per schema
+        return null;
       }
       log("info", `${operation}: Wireframe ${id} found.`, {
         wireframeId: id,
@@ -175,10 +192,10 @@ const wireframeResolvers = {
           throw new GraphQLError("Project data inconsistency for this wireframe.", { extensions: { code: "INTERNAL_SERVER_ERROR" } });
         }
 
-        const isProjectMember = await context.prisma.projectMember.findFirst({
+        const isProjectMember = await prisma.projectMember.findFirst({
           where: { projectId: wireframe.project.id, userId: user.id },
         });
-        const isWorkspaceMember = await context.prisma.workspaceMember.findFirst({
+        const isWorkspaceMember = await prisma.workspaceMember.findFirst({
           where: { workspaceId: wireframe.project.workspaceId, userId: user.id },
         });
 
@@ -204,18 +221,16 @@ const wireframeResolvers = {
         });
       }
 
-      // Add __typename to the top-level wireframe object and nested relations
       const result = {
         ...wireframe,
         createdAt: wireframe.createdAt.toISOString(),
         updatedAt: wireframe.updatedAt.toISOString(),
-        __typename: 'Wireframe', // As per schema Type Wireframe
+        __typename: 'Wireframe',
         project: wireframe.project ? { ...wireframe.project, __typename: 'Project' } : null,
         personalUser: wireframe.personalUser ? { ...wireframe.personalUser, __typename: 'User' } : null,
-        // Assuming comments and activities are handled by other resolvers or are always empty arrays here
-        comments: [], // Placeholder, if not fetched
-        activities: [], // Placeholder, if not fetched
-      } as PrismaWireframeWithRelations & { __typename: 'Wireframe' }; // Type assertion to include __typename
+        comments: [],
+        activities: [],
+      } as PrismaWireframeWithRelations & { __typename: 'Wireframe'; comments: any[]; activities: any[] };
 
       log("info", `${operation}: Successfully retrieved details for ${id}.`, { wireframeId: id });
       return result;
@@ -227,7 +242,7 @@ const wireframeResolvers = {
       _parent: any,
       { input }: { input: CreateWireframeInput },
       context: GraphQLContext,
-    ): Promise<WireframeListItem> => {
+    ): Promise<WireframeListItemOutput> => { // Use WireframeListItemOutput
       const operation = "createWireframe";
       log("info", `${operation} called.`, { input: { ...input, data: "[REDACTED]" } });
 
@@ -242,16 +257,14 @@ const wireframeResolvers = {
 
       const { projectId, title, data, thumbnail } = input;
 
-      // Validate input for projectId
       if (!projectId) {
         log("warn", `${operation}: Validation Error: Project ID is required.`, { input });
         throw new GraphQLError("Project ID is required to create a wireframe.", { extensions: { code: "BAD_USER_INPUT" } });
       }
 
-      // Authorization: Check if user is a member of the project's workspace or the project itself
       let projectContext;
       try {
-        projectContext = await context.prisma.project.findUnique({
+        projectContext = await prisma.project.findUnique({
           where: { id: projectId },
           select: {
             id: true,
@@ -281,13 +294,13 @@ const wireframeResolvers = {
 
       let newWireframe;
       try {
-        newWireframe = await context.prisma.wireframe.create({
+        newWireframe = await prisma.wireframe.create({
           data: {
             title,
             data,
             thumbnail,
             projectId,
-            userId: user.id, // Associate creator for activity/tracking
+            userId: user.id,
           },
           select: {
             id: true,
@@ -299,9 +312,8 @@ const wireframeResolvers = {
         });
         log("info", `${operation}: Wireframe ${newWireframe.id} created.`, { wireframeId: newWireframe.id, title: newWireframe.title });
 
-        // Create activity log (non-critical, warn on failure)
         try {
-          await context.prisma.activity.create({
+          await prisma.activity.create({
             data: {
               type: "WIREFRAME_CREATED",
               data: { wireframeTitle: newWireframe.title },
@@ -316,9 +328,11 @@ const wireframeResolvers = {
         }
 
         return {
-          ...newWireframe,
+          id: newWireframe.id,
+          title: newWireframe.title,
           updatedAt: newWireframe.updatedAt.toISOString(),
           thumbnail: newWireframe.thumbnail,
+          projectId: newWireframe.projectId,
           __typename: "WireframeListItem",
         };
       } catch (error: any) {
@@ -331,7 +345,7 @@ const wireframeResolvers = {
       _parent: any,
       { input }: { input: UpdateWireframeInput },
       context: GraphQLContext,
-    ): Promise<WireframeListItem> => {
+    ): Promise<WireframeListItemOutput> => { // Use WireframeListItemOutput
       const operation = "updateWireframe";
       log("info", `${operation} called.`, { input: { ...input, data: "[REDACTED]" } });
 
@@ -346,10 +360,10 @@ const wireframeResolvers = {
 
       let existingWireframe;
       try {
-        existingWireframe = await context.prisma.wireframe.findUnique({
+        existingWireframe = await prisma.wireframe.findUnique({
           where: { id },
           select: {
-            id: true, projectId: true, userId: true, title: true, // Need title for activity log
+            id: true, projectId: true, userId: true, title: true, updatedAt: true, thumbnail: true,
             project: { select: { workspaceId: true, members: { where: { userId: user.id } } } },
             personalUser: { select: { id: true } }
           },
@@ -365,7 +379,6 @@ const wireframeResolvers = {
       }
       log("info", `${operation}: Found existing wireframe for update.`, { wireframeId: id, projectId: existingWireframe.projectId, ownerUserId: existingWireframe.userId });
 
-      // Authorization checks
       let isAuthorized = false;
       if (existingWireframe.projectId) {
         if (!existingWireframe.project) {
@@ -373,7 +386,7 @@ const wireframeResolvers = {
           throw new GraphQLError("Project data inconsistency for this wireframe.", { extensions: { code: "INTERNAL_SERVER_ERROR" } });
         }
         const isProjectMember = existingWireframe.project.members.length > 0;
-        const isWorkspaceMember = await context.prisma.workspaceMember.findFirst({
+        const isWorkspaceMember = await prisma.workspaceMember.findFirst({
           where: { workspaceId: existingWireframe.project.workspaceId, userId: user.id },
         });
         isAuthorized = isProjectMember || !!isWorkspaceMember;
@@ -392,7 +405,7 @@ const wireframeResolvers = {
 
       let updatedWireframe;
       try {
-        updatedWireframe = await context.prisma.wireframe.update({
+        updatedWireframe = await prisma.wireframe.update({
           where: { id },
           data: {
             title: title ?? undefined,
@@ -409,9 +422,8 @@ const wireframeResolvers = {
         });
         log("info", `${operation}: Wireframe ${updatedWireframe.id} updated.`, { wireframeId: updatedWireframe.id, newTitle: updatedWireframe.title });
 
-        // Create activity log (non-critical, warn on failure)
         try {
-          await context.prisma.activity.create({
+          await prisma.activity.create({
             data: {
               type: "WIREFRAME_UPDATED",
               data: { wireframeTitle: updatedWireframe.title },
@@ -426,9 +438,11 @@ const wireframeResolvers = {
         }
 
         return {
-          ...updatedWireframe,
+          id: updatedWireframe.id,
+          title: updatedWireframe.title,
           updatedAt: updatedWireframe.updatedAt.toISOString(),
           thumbnail: updatedWireframe.thumbnail,
+          projectId: updatedWireframe.projectId,
           __typename: "WireframeListItem",
         };
       } catch (error: any) {
@@ -441,7 +455,7 @@ const wireframeResolvers = {
       _parent: any,
       { id }: { id: string },
       context: GraphQLContext,
-    ): Promise<WireframeListItem> => {
+    ): Promise<WireframeListItemOutput> => { // Use WireframeListItemOutput
       const operation = "deleteWireframe";
       log("info", `${operation} called.`, { wireframeId: id });
 
@@ -454,10 +468,10 @@ const wireframeResolvers = {
 
       let existingWireframe;
       try {
-        existingWireframe = await context.prisma.wireframe.findUnique({
+        existingWireframe = await prisma.wireframe.findUnique({
           where: { id },
           select: {
-            id: true, title: true, projectId: true, userId: true, updatedAt: true, thumbnail: true, // Select all fields needed for WireframeListItem return
+            id: true, title: true, projectId: true, userId: true, updatedAt: true, thumbnail: true,
             project: { select: { workspaceId: true, members: { where: { userId: user.id } } } },
           },
         });
@@ -472,7 +486,6 @@ const wireframeResolvers = {
       }
       log("info", `${operation}: Found existing wireframe for deletion.`, { wireframeId: id, projectId: existingWireframe.projectId, ownerUserId: existingWireframe.userId });
 
-      // Authorization checks
       let isAuthorized = false;
       if (existingWireframe.projectId) {
         if (!existingWireframe.project) {
@@ -480,10 +493,10 @@ const wireframeResolvers = {
           throw new GraphQLError("Project data inconsistency for this wireframe.", { extensions: { code: "INTERNAL_SERVER_ERROR" } });
         }
         const isProjectMember = existingWireframe.project.members.length > 0;
-        const isWorkspaceMember = await context.prisma.workspaceMember.findFirst({
+        const isWorkspaceMember = await prisma.workspaceMember.findFirst({
           where: { workspaceId: existingWireframe.project.workspaceId, userId: user.id },
         });
-        isAuthorized = isProjectMember || !!isWorkspaceMember; // Adjust logic if deletion requires higher role
+        isAuthorized = isProjectMember || !!isWorkspaceMember;
       } else if (existingWireframe.userId) {
         isAuthorized = existingWireframe.userId === user.id;
       } else {
@@ -497,26 +510,23 @@ const wireframeResolvers = {
       }
       log("info", `${operation}: User ${user.id} authorized to delete wireframe ${id}.`, { wireframeId: id, userId: user.id });
 
-
-      // Store info for return value before deletion
       const deletedWireframeInfo = {
         id: existingWireframe.id,
         title: existingWireframe.title,
         updatedAt: existingWireframe.updatedAt.toISOString(),
         thumbnail: existingWireframe.thumbnail,
-        projectId: existingWireframe.projectId!, // projectId is nullable in DB, but if it exists here, it's safe to assert
+        projectId: existingWireframe.projectId,
         __typename: "WireframeListItem",
       };
 
       try {
-        await context.prisma.wireframe.delete({
+        await prisma.wireframe.delete({
           where: { id },
         });
         log("info", `${operation}: Wireframe ${id} deleted.`, { wireframeId: id, title: existingWireframe.title });
 
-        // Create activity log (non-critical, warn on failure)
         try {
-          await context.prisma.activity.create({
+          await prisma.activity.create({
             data: {
               type: "WIREFRAME_DELETED",
               data: { wireframeTitle: existingWireframe.title },
@@ -538,80 +548,74 @@ const wireframeResolvers = {
     },
   },
 
-  // Type resolvers for Wireframe fields not always eager-loaded by root queries
   Wireframe: {
     project: async (parent: PrismaWireframeWithRelations, _args: any, context: GraphQLContext) => {
       const operation = "Wireframe.project Type Resolver";
-      // This resolver should only run if 'project' is requested by the client
-      // AND it wasn't already eager-loaded by the parent resolver (e.g., getWireframeDetails).
+      log("info", `${operation} called for wireframe ${parent.id}.`, { wireframeId: parent.id, parentProjectId: parent.projectId });
 
-      // If project data is already on the parent (eager-loaded), return it.
       if (parent.project) {
-        log("info", `${operation}: Project already present on parent for wireframe ${parent.id}.`, { wireframeId: parent.id, projectId: parent.project.id });
+        log("info", `${operation}: Project already present on parent.`, { wireframeId: parent.id, projectId: parent.project.id });
         return { ...parent.project, __typename: 'Project' };
       }
 
-      // If not eager-loaded, but projectId exists, fetch it.
       if (parent.projectId) {
-        log("info", `${operation}: Lazily fetching project for wireframe ${parent.id} (projectId: ${parent.projectId}).`, { wireframeId: parent.id, projectId: parent.projectId });
+        log("info", `${operation}: Lazily fetching project.`, { wireframeId: parent.id, projectId: parent.projectId });
         try {
-          const project = await context.prisma.project.findUnique({
+          const project = await prisma.project.findUnique({
             where: { id: parent.projectId },
             select: { id: true, name: true, workspaceId: true },
           });
           if (!project) {
-             log("warn", `${operation}: Project ${parent.projectId} not found for wireframe ${parent.id}. Returning null.`, { wireframeId: parent.id, projectId: parent.projectId });
+             log("warn", `${operation}: Project ${parent.projectId} not found. Returning null.`, { wireframeId: parent.id, projectId: parent.projectId });
              return null;
           }
-          log("info", `${operation}: Project ${project.id} fetched for wireframe ${parent.id}.`, { wireframeId: parent.id, projectId: project.id });
+          log("info", `${operation}: Project ${project.id} fetched.`, { wireframeId: parent.id, projectId: project.id });
           return { ...project, __typename: 'Project' };
         } catch (error: any) {
-          log("error", `${operation}: Database error fetching project ${parent.projectId} for wireframe ${parent.id}.`, {
+          log("error", `${operation}: Database error fetching project.`, {
             wireframeId: parent.id, projectId: parent.projectId, errorName: error.name, errorMessage: error.message, stack: error.stack,
           });
           throw new GraphQLError(`Failed to resolve project for wireframe ${parent.id}: ${error.message}`, { extensions: { code: "DATABASE_ERROR" } });
         }
       }
 
-      log("info", `${operation}: No project found for wireframe ${parent.id} (no projectId present on parent). Returning null.`, { wireframeId: parent.id });
+      log("info", `${operation}: No project or projectId found. Returning null.`, { wireframeId: parent.id });
       return null;
     },
 
     personalUser: async (parent: PrismaWireframeWithRelations, _args: any, context: GraphQLContext) => {
       const operation = "Wireframe.personalUser Type Resolver";
+      log("info", `${operation} called for wireframe ${parent.id}.`, { wireframeId: parent.id, parentUserId: parent.userId });
 
-      // If personalUser data is already on the parent (eager-loaded), return it.
       if (parent.personalUser) {
-        log("info", `${operation}: Personal user already present on parent for wireframe ${parent.id}.`, { wireframeId: parent.id, userId: parent.personalUser.id });
+        log("info", `${operation}: Personal user already present on parent.`, { wireframeId: parent.id, userId: parent.personalUser.id });
         return { ...parent.personalUser, __typename: 'User' };
       }
 
-      // If not eager-loaded, but userId exists, fetch it.
-      if (parent.userId) { // Assuming 'userId' is the field on Wireframe that links to the personal User
-        log("info", `${operation}: Lazily fetching personal user for wireframe ${parent.id} (userId: ${parent.userId}).`, { wireframeId: parent.id, userId: parent.userId });
+      if (parent.userId) {
+        log("info", `${operation}: Lazily fetching personal user.`, { wireframeId: parent.id, userId: parent.userId });
         try {
-          const user = await context.prisma.user.findUnique({
+          const user = await prisma.user.findUnique({
             where: { id: parent.userId },
             select: { id: true, firstName: true, lastName: true },
           });
           if (!user) {
-             log("warn", `${operation}: User ${parent.userId} not found for wireframe ${parent.id}. Returning null.`, { wireframeId: parent.id, userId: parent.userId });
+             log("warn", `${operation}: User ${parent.userId} not found. Returning null.`, { wireframeId: parent.id, userId: parent.userId });
              return null;
           }
-          log("info", `${operation}: User ${user.id} fetched for wireframe ${parent.id}.`, { wireframeId: parent.id, userId: user.id });
+          log("info", `${operation}: User ${user.id} fetched.`, { wireframeId: parent.id, userId: user.id });
           return { ...user, __typename: 'User' };
         } catch (error: any) {
-          log("error", `${operation}: Database error fetching user ${parent.userId} for wireframe ${parent.id}.`, {
+          log("error", `${operation}: Database error fetching user.`, {
             wireframeId: parent.id, userId: parent.userId, errorName: error.name, errorMessage: error.message, stack: error.stack,
           });
           throw new GraphQLError(`Failed to resolve personal user for wireframe ${parent.id}: ${error.message}`, { extensions: { code: "DATABASE_ERROR" } });
         }
       }
 
-      log("info", `${operation}: No personal user found for wireframe ${parent.id} (no userId present on parent). Returning null.`, { wireframeId: parent.id });
+      log("info", `${operation}: No personal user or userId found. Returning null.`, { wireframeId: parent.id });
       return null;
     },
-    // Assuming comments and activities are handled by other resolvers or are always empty arrays here
     comments: async (parent: PrismaWireframeWithRelations, _args: any, context: GraphQLContext) => {
         // Implement logic to fetch comments for the wireframe
         // For now, return an empty array if not implemented
