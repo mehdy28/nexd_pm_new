@@ -25,7 +25,7 @@ import { Check, ChevronsUpDown, ArrowLeft, Lightbulb, Keyboard, Database, ListCh
 import { cn } from '@/lib/utils';
 import { PromptVariable, PromptVariableType, PromptVariableSource } from './store'; // Adjust path as needed
 // Assuming you have a GraphQL client hook or similar
-// import { useGraphQLClient } from '@/hooks/use-graphql-client';
+//  import { useGraphQLClient } from '@/hooks/use-graphql-client';
 // import { gql } from 'graphql-request';
 import { useDebounce } from 'use-debounce'; // For live preview debouncing
 import { toast } from 'sonner'; // For better user feedback than alert()
