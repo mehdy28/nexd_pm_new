@@ -521,7 +521,7 @@ export function VariableDiscoveryBuilder({
       default:
         return null;
     }
-  } // Removed the problematic semicolon here
+  }
 
 
   return (
