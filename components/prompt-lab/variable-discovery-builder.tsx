@@ -368,176 +368,167 @@ export function VariableDiscoveryBuilder({
   }, [tempVariableName, tempVariablePlaceholder, tempVariableType]);
 
 
-  const renderLeftPanelContent = () => {
-    if (!projectId && currentStep !== 'manual_config') {
-      return (
-        <div className="text-center py-12 text-gray-500">
-          <p className="text-lg font-semibold mb-2">No Project Selected</p>
-          <p className="mb-4">Dynamic Project Data Variables require an active project context.</p>
-          <Button onClick={() => { setCurrentStep('manual_config'); setTempVariableSource(null); setTempVariableType(PromptVariableType.STRING); }}>Create Manual Variable Instead</Button>
-        </div>
-      );
-    }
-
-    switch (currentStep) {
-      case 'choose_type':
-        return (
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4">What kind of variable do you want?</h3>
-            <div className="grid grid-cols-1 gap-4">
-              <SelectionCard
-                icon={Database}
-                title="Dynamic Project Data"
-                description="Automatically pull live data from your projects, tasks, sprints, and more."
-                onClick={() => setCurrentStep('explore_data')}
-                disabled={!projectId}
-              />
-              <SelectionCard
-                icon={Keyboard}
-                title="Manual Input Variable"
-                description="Define a variable whose value you will manually enter or update."
-                onClick={() => { setCurrentStep('manual_config'); setTempVariableSource(null); setTempVariableType(PromptVariableType.STRING); }}
-              />
-            </div>
-          </div>
-        );
-      case 'explore_data':
-        return (
-          <div className="flex flex-col h-full">
-            <Button variant="ghost" onClick={() => {
-              setCurrentStep('choose_type');
-              setSelectedCategoryInExplorer(null);
-              setSelectedFieldInExplorer(null);
-              setSearchTerm(''); // Clear search when going back
-            }} className="self-start -ml-2 mb-4">
-              <ArrowLeft className="h-4 w-4 mr-2" /> Back to Types
-            </Button>
-            <h3 className="text-lg font-semibold text-gray-800 mb-4">Select Data from Your Project</h3>
-            <Input
-              placeholder="Search project data, e.g., 'task title', 'project manager', 'latest doc'..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="mb-4"
-            />
-            <Command className="rounded-lg border shadow-sm flex-1">
-              <CommandList className="flex-1 overflow-y-auto">
-                <CommandEmpty>No results found for "{searchTerm}".</CommandEmpty>
-                {/* Suggestions Group */}
-                {filteredSuggestions.length > 0 && searchTerm !== '' && (
-                  <CommandGroup heading="Search Results">
-                    {filteredSuggestions.map((s, i) => (
-                      <CommandItem
-                        key={`search-sugg-${s.placeholder + i}`} // More robust key
-                        onSelect={() => {
-                          setTempVariableName(s.name);
-                          setTempVariablePlaceholder(s.placeholder);
-                          setTempVariableType(s.type);
-                          setTempVariableSource(s.source || null);
-                          setTempVariableDescription(s.description || '');
-                          setTempVariableDefaultValue(s.defaultValue || ''); // Set default if suggestion has one
-                          // Keep currentStep as explore_data, but update explorer selections
-                          // to reflect the chosen suggestion
-                          const categoryValue = s.source?.type?.toLowerCase().replace('_field', '').replace('_aggregation', '').replace('_list', '') || null;
-                          setSelectedCategoryInExplorer(categoryValue);
-                          setSelectedFieldInExplorer(s.source?.field || null);
-                          setSearchTerm(''); // Clear search after selection
-                        }}
-                        className="cursor-pointer flex justify-between items-center"
-                      >
-                        <div>
-                          <div className="font-medium">{s.name}</div>
-                          <div className="text-xs text-muted-foreground">{s.description}</div>
-                        </div>
-                        <Badge variant="secondary" className="ml-2">Data</Badge>
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
-                )}
-
-                {/* Browse by Category & Fields (only if no search term) */}
-                {searchTerm === '' && (
-                  <>
-                    <CommandGroup heading="Browse by Category">
-                      {dataCategories.map((cat) => {
-                        const Icon = cat.icon;
-                        return (
-                          <CommandItem
-                            key={cat.value}
-                            onSelect={() => {
-                              setSelectedCategoryInExplorer(cat.value);
-                              setSelectedFieldInExplorer(null); // Clear field when category changes
-                              // We don't change `currentStep` here, as the explorer view is already active
-                            }}
-                            className={cn(
-                              "cursor-pointer flex items-center",
-                              selectedCategoryInExplorer === cat.value && "bg-accent text-accent-foreground"
-                            )}
-                          >
-                            <Icon className="mr-2 h-4 w-4" />
-                            {cat.label}
-                          </CommandItem>
-                        );
-                      })}
-                    </CommandGroup>
-
-                    {selectedCategoryInExplorer && (
-                      <CommandGroup heading={`${dataCategories.find(c => c.value === selectedCategoryInExplorer)?.label} Fields`}>
-                        {getFieldsForCategory(selectedCategoryInExplorer).map((fieldOption) => (
-                          <CommandItem
-                            key={fieldOption.value}
-                            onSelect={() => {
-                              setSelectedFieldInExplorer(fieldOption.value);
-                              // This will trigger the effect to update temp variable details
-                            }}
-                            className={cn(
-                              "cursor-pointer",
-                              selectedFieldInExplorer === fieldOption.value && "bg-accent text-accent-foreground"
-                            )}
-                          >
-                            <Check className={cn("mr-2 h-4 w-4", selectedFieldInExplorer === fieldOption.value ? "opacity-100" : "opacity-0")} />
-                            {fieldOption.label}
-                            <span className="text-xs text-muted-foreground ml-auto">{fieldOption.type.replace(/_/g, ' ')}</span>
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    )}
-                  </>
-                )}
-              </CommandList>
-            </Command>
-          </div>
-        );
-      case 'manual_config':
-        return (
-          <div className="space-y-4">
-            <Button variant="ghost" onClick={() => setCurrentStep('choose_type')} className="self-start -ml-2 mb-4">
-              <ArrowLeft className="h-4 w-4 mr-2" /> Back to Types
-            </Button>
-            <h3 className="text-lg font-semibold text-gray-800 mb-4">Configure Manual Variable</h3>
-            <p className="text-sm text-muted-foreground mb-4">This variable's value will be set manually, or you can provide a default value.</p>
-            {/* The actual input fields for name, type, etc., are now consistently in the right panel */}
-          </div>
-        );
-      default:
-        return null;
-    }
-  }
-
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl h-[90vh] flex flex-col bg-background">
-        <DialogHeader className="p-4 border-b">
+      <DialogContent className="max-w-4xl h-[90vh] flex flex-col bg-white">
+        <DialogHeader className="p-0 border-b">
           <DialogTitle className="text-2xl">Variable Discovery & Builder</DialogTitle>
           <DialogDescription>
             Craft powerful prompts by leveraging project data or defining custom inputs.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex-1 overflow-hidden p-4 grid grid-cols-2 gap-6">
+        <div className="flex-1 overflow-hidden p-2 grid grid-cols-2 gap-6">
           {/* Left Column: Discovery & Selection */}
           <div className="flex flex-col space-y-4 border-r pr-6">
-            {renderLeftPanelContent()}
+            {/* Re-introducing the content that was in renderLeftPanelContent */}
+            {!projectId && currentStep !== 'manual_config' ? (
+              <div className="text-center py-12 text-gray-500">
+                <p className="text-lg font-semibold mb-2">No Project Selected</p>
+                <p className="mb-4">Dynamic Project Data Variables require an active project context.</p>
+                <Button onClick={() => { setCurrentStep('manual_config'); setTempVariableSource(null); setTempVariableType(PromptVariableType.STRING); }}>Create Manual Variable Instead</Button>
+              </div>
+            ) : (
+              <> {/* Use a React Fragment to group multiple top-level elements */}
+                {currentStep === 'choose_type' && (
+                  <div className="space-y-4">
+                    <h3 className="text-lg font-semibold text-gray-800 mb-4">What kind of variable do you want?</h3>
+                    <div className="grid grid-cols-1 gap-4">
+                      <SelectionCard
+                        icon={Database}
+                        title="Dynamic Project Data"
+                        description="Automatically pull live data from your projects, tasks, sprints, and more."
+                        onClick={() => setCurrentStep('explore_data')}
+                        disabled={!projectId}
+                      />
+                      <SelectionCard
+                        icon={Keyboard}
+                        title="Manual Input Variable"
+                        description="Define a variable whose value you will manually enter or update."
+                        onClick={() => { setCurrentStep('manual_config'); setTempVariableSource(null); setTempVariableType(PromptVariableType.STRING); }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {currentStep === 'explore_data' && (
+                  <div className="flex flex-col h-full">
+                    <Button variant="ghost" onClick={() => {
+                      setCurrentStep('choose_type');
+                      setSelectedCategoryInExplorer(null);
+                      setSelectedFieldInExplorer(null);
+                      setSearchTerm(''); // Clear search when going back
+                    }} className="self-start -ml-2 mb-4">
+                      <ArrowLeft className="h-4 w-4 mr-2" /> Back to Types
+                    </Button>
+                    <h3 className="text-lg font-semibold text-gray-800 mb-4">Select Data from Your Project</h3>
+                    <Input
+                      placeholder="Search project data, e.g., 'task title', 'project manager', 'latest doc'..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="mb-4"
+                    />
+                    <Command className="rounded-lg border shadow-sm flex-1">
+                      <CommandList className="flex-1 overflow-y-auto">
+                        <CommandEmpty>No results found for "{searchTerm}".</CommandEmpty>
+                        {/* Suggestions Group */}
+                        {filteredSuggestions.length > 0 && searchTerm !== '' && (
+                          <CommandGroup heading="Search Results">
+                            {filteredSuggestions.map((s, i) => (
+                              <CommandItem
+                                key={`search-sugg-${s.placeholder + i}`} // More robust key
+                                onSelect={() => {
+                                  setTempVariableName(s.name);
+                                  setTempVariablePlaceholder(s.placeholder);
+                                  setTempVariableType(s.type);
+                                  setTempVariableSource(s.source || null);
+                                  setTempVariableDescription(s.description || '');
+                                  setTempVariableDefaultValue(s.defaultValue || ''); // Set default if suggestion has one
+                                  // Keep currentStep as explore_data, but update explorer selections
+                                  // to reflect the chosen suggestion
+                                  const categoryValue = s.source?.type?.toLowerCase().replace('_field', '').replace('_aggregation', '').replace('_list', '') || null;
+                                  setSelectedCategoryInExplorer(categoryValue);
+                                  setSelectedFieldInExplorer(s.source?.field || null);
+                                  setSearchTerm(''); // Clear search after selection
+                                }}
+                                className="cursor-pointer flex justify-between items-center"
+                              >
+                                <div>
+                                  <div className="font-medium">{s.name}</div>
+                                  <div className="text-xs text-muted-foreground">{s.description}</div>
+                                </div>
+                                <Badge variant="secondary" className="ml-2">Data</Badge>
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        )}
+
+                        {/* Browse by Category & Fields (only if no search term) */}
+                        {searchTerm === '' && (
+                          <>
+                            <CommandGroup heading="Browse by Category">
+                              {dataCategories.map((cat) => {
+                                const Icon = cat.icon;
+                                return (
+                                  <CommandItem
+                                    key={cat.value}
+                                    onSelect={() => {
+                                      setSelectedCategoryInExplorer(cat.value);
+                                      setSelectedFieldInExplorer(null); // Clear field when category changes
+                                      // We don't change `currentStep` here, as the explorer view is already active
+                                    }}
+                                    className={cn(
+                                      "cursor-pointer flex items-center",
+                                      selectedCategoryInExplorer === cat.value && "bg-accent text-accent-foreground"
+                                    )}
+                                  >
+                                    <Icon className="mr-2 h-4 w-4" />
+                                    {cat.label}
+                                  </CommandItem>
+                                );
+                              })}
+                            </CommandGroup>
+
+                            {selectedCategoryInExplorer && (
+                              <CommandGroup heading={`${dataCategories.find(c => c.value === selectedCategoryInExplorer)?.label} Fields`}>
+                                {getFieldsForCategory(selectedCategoryInExplorer).map((fieldOption) => (
+                                  <CommandItem
+                                    key={fieldOption.value}
+                                    onSelect={() => {
+                                      setSelectedFieldInExplorer(fieldOption.value);
+                                      // This will trigger the effect to update temp variable details
+                                    }}
+                                    className={cn(
+                                      "cursor-pointer",
+                                      selectedFieldInExplorer === fieldOption.value && "bg-accent text-accent-foreground"
+                                    )}
+                                  >
+                                    <Check className={cn("mr-2 h-4 w-4", selectedFieldInExplorer === fieldOption.value ? "opacity-100" : "opacity-0")} />
+                                    {fieldOption.label}
+                                    <span className="text-xs text-muted-foreground ml-auto">{fieldOption.type.replace(/_/g, ' ')}</span>
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            )}
+                          </>
+                        )}
+                      </CommandList>
+                    </Command>
+                  </div>
+                )}
+
+                {currentStep === 'manual_config' && (
+                  <div className="space-y-4">
+                    <Button variant="ghost" onClick={() => setCurrentStep('choose_type')} className="self-start -ml-2 mb-4">
+                      <ArrowLeft className="h-4 w-4 mr-2" /> Back to Types
+                    </Button>
+                    <h3 className="text-lg font-semibold text-gray-800 mb-4">Configure Manual Variable</h3>
+                    <p className="text-sm text-muted-foreground mb-4">This variable's value will be set manually, or you can provide a default value.</p>
+                    {/* The actual input fields for name, type, etc., are now consistently in the right panel */}
+                  </div>
+                )}
+              </>
+            )}
           </div>
 
           {/* Right Column: Configuration & Preview */}
@@ -560,15 +551,15 @@ export function VariableDiscoveryBuilder({
                 )}
               </div>
 
+              {/* Placeholder field block */}
               <div className="grid gap-2">
                 <label className="block text-sm font-medium">Placeholder <span className="text-red-500">*</span></label>
                 <Input
                   value={tempVariablePlaceholder}
-                  // Placeholder is generally read-only for project data, auto-generated for manual (but editable if user wants)
-                  readOnly={!!tempVariableSource || currentStep !== 'manual_config'} // Manual only allows editing. Data-driven is readOnly.
+                  readOnly={!!tempVariableSource || currentStep !== 'manual_config'}
                   className="font-mono text-sm"
                   placeholder="e.g., {{project_name}}"
-                  onChange={(e) => { // Allow manual editing for manual variables
+                  onChange={(e) => {
                     if (currentStep === 'manual_config') {
                       setTempVariablePlaceholder(e.target.value);
                     }
@@ -578,7 +569,7 @@ export function VariableDiscoveryBuilder({
                   <p className="text-xs text-muted-foreground mt-1">Placeholder is generated automatically from data source.</p>
                 )}
                  {currentStep === 'manual_config' && (
-                  <p className="text-xs text-muted-foreground mt-1">Placeholder is generated from name, but can be customized. (e.g. `{{${generatePlaceholder(tempVariableName).slice(2, -2)}}}`)</p>
+                  <p className="text-xs text-muted-foreground mt-1">Placeholder is generated from name, but can be customized. (e.g. {'{{' + generatePlaceholder(tempVariableName).slice(2, -2) + '}}'})</p>
                 )}
               </div>
 
@@ -644,7 +635,7 @@ export function VariableDiscoveryBuilder({
           </div>
         </div>
 
-        <DialogFooter className="p-4 border-t">
+        <DialogFooter className="p-2 border-t">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
