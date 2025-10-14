@@ -684,7 +684,7 @@ function EditorPanel({
               </React.Fragment>
             ))}
             {blocks.length > 0 && !isDraggingSomething && (
-              // Corrected: Use 'blocks' state variable. Show "Add text block" if the very last block
+              // Use 'blocks' state variable. Show "Add text block" if the very last block
               // is a variable OR if it's the only block and it's non-empty text.
               (blocks[blocks.length - 1].type === 'variable' || (blocks.length === 1 && blocks[0].type === 'text' && blocks[0].value !== '')) ? (
                   <div className="flex justify-center mt-2">
@@ -850,23 +850,13 @@ function BlockRenderer({
     }
   }, [block.type, block.value]);
 
-  const combinedDropRef = mergeRefs(wrapperRef, dropRef);
-
-  const textBlockDragHandleRef = useRef<HTMLDivElement>(null);
+  // REVISED: Directly merge dragRef into the primary ref chain
+  const blockRef = mergeRefs(wrapperRef, dropRef, dragRef); 
 
   useEffect(() => {
+    // Hide the default browser drag image and use our CustomDragLayer
     preview(getEmptyImage(), { captureDraggingState: true });
-
-    if (block.type === 'variable') {
-      if (combinedDropRef.current) {
-        dragRef(combinedDropRef.current);
-      }
-    } else { // Text block
-      if (textBlockDragHandleRef.current) {
-        dragRef(textBlockDragHandleRef.current);
-      }
-    }
-  }, [block.type, dragRef, preview, combinedDropRef, textBlockDragHandleRef]);
+  }, [preview]); // Only needs to run once or when `preview` changes
 
   const showPlaceholderAbove = isOver && canDrop && localDropTargetPosition === 'before' && isDraggingSomething;
   const showPlaceholderBelow = isOver && canDrop && localDropTargetPosition === 'after' && isDraggingSomething;
@@ -876,8 +866,8 @@ function BlockRenderer({
   if (block.type === 'variable') {
     return (
       <div
-        ref={combinedDropRef}
-        className={`${commonClasses} ${isDragging ? 'pointer-events-none' : ''}`}
+        ref={blockRef} // Use the combined ref including dragRef
+        className={`${commonClasses} ${isDragging ? 'opacity-50' : ''}`} // Use opacity-50 for original block while dragging
       >
         {showPlaceholderAbove && <div className="absolute -top-1.5 left-0 right-0 h-1 bg-blue-500 rounded-sm z-10" />}
         <div
@@ -931,15 +921,15 @@ function BlockRenderer({
 
     return (
       <div
-        ref={combinedDropRef}
-        className={`${commonClasses} ${isDragging ? 'pointer-events-none' : ''}`}
+        ref={blockRef} // Use the combined ref including dragRef
+        className={`${commonClasses} ${isDragging ? 'opacity-50' : ''}`} // Use opacity-50 for original block while dragging
       >
         {showPlaceholderAbove && <div className="absolute -top-1.5 left-0 right-0 h-1 bg-blue-500 rounded-sm z-10" />}
         <div
           className={`relative p-2 bg-white border border-gray-300 rounded-md flex items-center group`}
         >
             <div
-              ref={textBlockDragHandleRef}
+              // The grip icon is now just a visual handle, but the entire block is draggable.
               className="cursor-grab text-gray-400 hover:text-gray-600 mr-2 opacity-0 group-hover:opacity-100 transition-opacity"
               style={{ position: 'absolute', left: '-20px', top: '50%', transform: 'translateY(-50%)', padding: '4px' }}
             >
