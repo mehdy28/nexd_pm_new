@@ -1,14 +1,14 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState, useCallback } from "react"
+import React, { useEffect, useMemo, useRef, useState, useCallback } from "react"
 import { usePromptLab, type Prompt, type Version, type PromptVariable, PromptVariableType, type PromptVariableSource } from "./store" // Added PromptVariableType, PromptVariableSource
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
-import { Copy, RotateCcw, Plus, GitCommit } from "lucide-react"
-import { DndProvider, useDrag, useDrop } from 'react-dnd'
+import { Copy, RotateCcw, Plus, GitCommit, Text, Trash2, GripVertical } from "lucide-react" // Added Trash2, GripVertical
+import { DndProvider, useDrag, useDrop, useDragLayer } from 'react-dnd' // Added useDragLayer
 import { HTML5Backend } from 'react-dnd-html5-backend'
 import { Tab } from "@headlessui/react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select" // Added for variable type selection
@@ -58,9 +58,11 @@ async function renderPrompt(
       console.warn(`[renderPrompt] Project data variable '${variable.name}' ({{${variable.placeholder}}}) needs backend resolution. Using default value.`);
     }
 
+    // NEW: Wrap substituted values for highlighting in the plain text preview
+    const highlightedValue = `[[${valueToSubstitute}]]`; 
     const regex = new RegExp(variable.placeholder.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&'), 'g');
-    renderedContent = renderedContent.replace(regex, valueToSubstitute);
-    renderedContext = renderedContext.replace(regex, valueToSubstitute);
+    renderedContent = renderedContent.replace(regex, highlightedValue);
+    renderedContext = renderedContext.replace(regex, highlightedValue);
   }
 
   const lines = [
@@ -82,7 +84,7 @@ export function PromptLab({ promptId, onBack, projectId }: { promptId: string; o
   const [selectedVersionId, setSelectedVersionId] = useState<string | null>(null)
   const [compare, setCompare] = useState<{ open: boolean; version?: Version }>({ open: false })
   const [rightTab, setRightTab] = useState<"editor" | "version-details" | "preview">("editor")
-  const [leftTab, setLeftTab] = useState<"versions" | "variables">("versions")
+  const [leftTab, setLeftTab] = useState<"versions" | "variables">("variables") // Changed initial tab for demo
   // Replaced two variable dialog states with one for the new builder
   const [showVariableBuilder, setShowVariableBuilder] = useState(false);
   const [previewVariableValues, setPreviewVariableValues] = useState<Record<string, string>>({})
@@ -250,16 +252,15 @@ export function PromptLab({ promptId, onBack, projectId }: { promptId: string; o
                         />
                     </TabsContent>
 
+                    {/* CORRECTED: Version Details Panel - Only requested elements kept */}
                     <TabsContent value="version-details" className="m-0 outline-none p-4 flex-1 overflow-y-auto">
                       <VersionsPanel
                         versions={selectedPrompt.versions || []}
-                        onRestore={(verId) => restore(selectedPrompt.id, verId)}
-                        onCompare={(v) => setCompare({ open: true, version: v })}
-                        onSnapshot={(notes) => snapshot(selectedPrompt.id, notes)}
                         selectedVersionId={selectedVersionId}
                       />
                     </TabsContent>
 
+                    {/* CORRECTED: Preview Section - Only requested elements kept */}
                     <TabsContent value="preview" className="m-0 outline-none p-4 flex-1 overflow-y-auto">
                       <div className="mb-2 flex items-center justify-between">
                         <div className="text-sm font-medium">Preview</div>
@@ -268,27 +269,16 @@ export function PromptLab({ promptId, onBack, projectId }: { promptId: string; o
                           Copy
                         </Button>
                       </div>
-                      <div className="space-y-4 mb-4">
-                        {selectedPrompt.variables.map(v => (
-                          // Only show input field for manual variables, others are resolved
-                          !v.source && (
-                            <div key={v.id}>
-                              <label htmlFor={`preview-${v.id}`} className="text-sm font-medium">{v.name} ({v.placeholder})</label>
-                              <Input
-                                id={`preview-${v.id}`}
-                                value={previewVariableValues[v.placeholder] || ''}
-                                onChange={(e) => setPreviewVariableValues(prev => ({
-                                  ...prev,
-                                  [v.placeholder]: e.target.value,
-                                }))}
-                                placeholder={v.defaultValue || `Enter value for ${v.name}`}
-                                className="mt-1"
-                              />
-                            </div>
-                          )
-                        ))}
-                      </div>
-                      <Textarea readOnly value={renderedPreview} className="min-h-[300px] font-mono overflow-y-auto" />
+                      <Textarea
+                        readOnly
+                        value={renderedPreview}
+                        className="min-h-[300px] font-mono overflow-y-auto"
+                        // Add inline style to make the highlighting (e.g., [[value]]) stand out
+                        style={{ background: '#f8f8f8', color: '#333', borderColor: '#e0e0e0', lineHeight: '1.5' }}
+                      />
+                      <p className="text-xs text-muted-foreground mt-2">
+                        Note: Text wrapped in `[[...]]` indicates a substituted variable.
+                      </p>
                     </TabsContent>
                   </div>
                 </Tabs>
@@ -297,12 +287,15 @@ export function PromptLab({ promptId, onBack, projectId }: { promptId: string; o
           </div>
         </div>
 
+        {/* DiffDialog removed as it was not requested */}
+        {/*
         <DiffDialog
           open={compare.open}
           onOpenChange={(o) => setCompare((prev) => ({ ...prev, open: o }))}
           version={compare.version}
           current={selectedPrompt?.content || ""}
         />
+        */}
 
         {/* NEW: Variable Discovery Builder */}
         <VariableDiscoveryBuilder
@@ -312,6 +305,7 @@ export function PromptLab({ promptId, onBack, projectId }: { promptId: string; o
           projectId={projectId}
         />
       </div>
+      <CustomDragLayer /> {/* Add the custom drag layer here */}
     </DndProvider>
   )
 }
@@ -319,19 +313,26 @@ export function PromptLab({ promptId, onBack, projectId }: { promptId: string; o
 /* ---------- Variable Item (Sidebar) ---------- */
 
 function VariableItem({ variable }: { variable: PromptVariable }) {
-  const [{ isDragging }, drag] = useDrag(() => ({
+  const [{ isDragging }, drag, preview] = useDrag(() => ({ // Added preview to useDrag
     type: ItemTypes.VARIABLE,
-    item: variable, // entire variable object
+    item: { id: variable.id, placeholder: variable.placeholder, name: variable.name }, // Pass minimal data for drag layer
     collect: (monitor) => ({
       isDragging: monitor.isDragging(),
     }),
   }), [variable])
 
+  // Connect the drag source to the DOM node and explicitly hide the default HTML5 drag preview
+  useEffect(() => {
+    drag(document.getElementById(variable.id + '-drag-source')); // Connect drag source
+    preview(getEmptyImage(), { captureDraggingState: true }); // Hide default browser preview
+  }, [drag, preview, variable.id]);
+
   return (
+    // Apply a unique ID for drag source capture. Make the original item invisible when dragging
     <div
-      ref={drag}
-      className={`cursor-move rounded px-2 py-1 mb-2 border ${
-        isDragging ? 'opacity-50' : 'bg-gray-100'
+      id={variable.id + '-drag-source'} // Unique ID for drag source (for dragRef)
+      className={`cursor-grab rounded px-2 py-1 mb-2 border ${
+        isDragging ? 'opacity-0' : 'bg-gray-100' // Make the original item invisible when dragging
       }`}
     >
       <span className="font-semibold">{variable.name}</span>
@@ -358,65 +359,86 @@ function uid(prefix = '') {
 function parseContentToBlocks(content: string, variables: PromptVariable[]): Block[] {
   console.log('[Prompt Lab] parseContentToBlocks: START. Content:', content, 'Variables:', variables.map(v => v.placeholder));
 
-  if (!content) {
-    console.log('[Prompt Lab] parseContentToBlocks: Content is empty, returning initial empty text block.');
-    return [{ type: 'text', id: uid('t-'), value: '' }]
-  }
-  if (!variables || variables.length === 0) {
-    console.log('[Prompt Lab] parseContentToBlocks: No variables, returning content as single text block.');
-    return [{ type: 'text', id: uid('t-'), value: content }]
+  if (!content && variables.length === 0) {
+    // Completely empty: start with a single empty text block
+    return [{ type: 'text', id: uid('t-'), value: '' }];
   }
 
-  // Sort placeholders longest-first to avoid partial matches
-  const placeholders = variables.map(v => v.placeholder).sort((a, b) => b.length - a.length)
-  const escaped = placeholders.map(p => p.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')).join('|')
-  const re = new RegExp(`(${escaped})`, 'g')
-  console.log('[Prompt Lab] parseContentToBlocks: Regex for splitting:', re);
+  // Sort placeholders longest-first to avoid partial matches (e.g., {{name}} before {{name_full}})
+  const sortedVariables = variables.sort((a, b) => b.placeholder.length - a.placeholder.length);
+  const placeholders = sortedVariables.map(v => v.placeholder);
+  const escaped = placeholders.map(p => p.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')).join('|');
+  const re = new RegExp(`(${escaped})`, 'g');
 
   const parts = content.split(re);
-  console.log('[Prompt Lab] parseContentToBlocks: Raw split parts:', parts);
+  
+  let tempBlocks: Block[] = [];
+  let currentText = '';
 
-  const blocks: Block[] = []
   parts.forEach(part => {
-    const matched = variables.find(v => v.placeholder === part)
-    if (matched) {
-      console.log(`[Prompt Lab] parseContentToBlocks: Found variable part "${part}".`);
-      blocks.push({ type: 'variable', id: uid('v-'), varId: matched.id, placeholder: matched.placeholder, name: matched.name })
-    } else {
-      if (part === '' && blocks.length > 0 && blocks[blocks.length - 1].type === 'variable') {
-        console.log(`[Prompt Lab] parseContentToBlocks: Skipping empty part after a variable block.`);
-        return;
+    const matchedVar = sortedVariables.find(v => v.placeholder === part);
+    if (matchedVar) {
+      if (currentText !== '') {
+        tempBlocks.push({ type: 'text', id: uid('t-'), value: currentText });
+        currentText = '';
       }
+      tempBlocks.push({ type: 'variable', id: uid('v-'), varId: matchedVar.id, placeholder: matchedVar.placeholder, name: matchedVar.name });
+    } else {
+      currentText += part;
+    }
+  });
 
-      console.log(`[Prompt Lab] parseContentToBlocks: Found text part "${part}".`);
-      if (blocks.length === 0 || blocks[blocks.length - 1].type !== 'text') {
-        blocks.push({ type: 'text', id: uid('t-'), value: part })
+  if (currentText !== '') {
+    tempBlocks.push({ type: 'text', id: uid('t-'), value: currentText });
+  }
+
+  // Post-processing to ensure structural integrity for editing:
+  const finalBlocks: Block[] = [];
+
+  // 1. Ensure a leading empty text block if the first block is a variable
+  if (tempBlocks.length > 0 && tempBlocks[0].type === 'variable') {
+    finalBlocks.push({ type: 'text', id: uid('t-leading'), value: '' });
+  }
+
+  tempBlocks.forEach((block, idx) => {
+    if (block.type === 'text') {
+      // Merge with previous text block if adjacent
+      if (finalBlocks.length > 0 && finalBlocks[finalBlocks.length - 1].type === 'text') {
+        (finalBlocks[finalBlocks.length - 1] as Block & { value: string }).value += block.value;
       } else {
-        const last = blocks[blocks.length - 1] as Block & { value: string };
-        last.value = last.value + part
-        console.log(`[Prompt Lab] parseContentToBlocks: Merged text part "${part}" into previous block. New value: "${last.value}"`);
+        finalBlocks.push(block);
+      }
+    } else { // Variable block
+      finalBlocks.push(block);
+      // Ensure there's a text block after a variable if it's not the last and is followed by another variable
+      if (idx < tempBlocks.length - 1 && tempBlocks[idx + 1].type === 'variable') {
+        finalBlocks.push({ type: 'text', id: uid('t-after-var-mid'), value: '' });
       }
     }
-  })
+  });
 
-  if (blocks.length === 0) {
-    console.log('[Prompt Lab] parseContentToBlocks: No blocks generated, adding initial empty text block.');
-    blocks.push({ type: 'text', id: uid('t-'), value: '' })
+  // 2. Ensure a trailing empty text block if the last block is a variable
+  if (finalBlocks.length > 0 && finalBlocks[finalBlocks.length - 1].type === 'variable') {
+    finalBlocks.push({ type: 'text', id: uid('t-trailing'), value: '' });
   }
-  console.log('[Prompt Lab] parseContentToBlocks: END. Resulting blocks:', blocks);
-  return blocks
+
+  // 3. If after all parsing, no blocks were produced, or only a single text block with content and then it's removed, ensure at least one empty text block.
+  if (finalBlocks.length === 0) {
+      finalBlocks.push({ type: 'text', id: uid('t-fallback'), value: '' });
+  }
+
+  console.log('[Prompt Lab] parseContentToBlocks: END. Resulting blocks:', finalBlocks);
+  return finalBlocks;
 }
 
 /* Serialize blocks back into string using variable.placeholder values */
 function serializeBlocks(blocks: Block[]): string {
-  const serialized = blocks.map(b => b.type === 'text' ? b.value : b.placeholder).join('')
+  // Filter out truly empty text blocks that aren't necessary for content representation
+  const contentBlocks = blocks.filter(b => b.type === 'variable' || (b.type === 'text' && b.value !== ''));
+  const serialized = contentBlocks.map(b => b.type === 'text' ? b.value : b.placeholder).join('')
   console.log('[Prompt Lab] serializeBlocks: Input blocks:', blocks, 'Output content:', serialized);
   return serialized
 }
-
-
-
-
 
 
 /* ---------- EditorPanel: Enhanced Prompt Creation ---------- */
@@ -436,6 +458,7 @@ function EditorPanel({
     return initialBlocks;
   });
 
+  // This ensures the blocks are re-parsed when the actual prompt content or variables change
   useEffect(() => {
     console.log('[Prompt Lab] EditorPanel useEffect [prompt.content, prompt.variables]: Re-parsing blocks...');
     const newBlocks = parseContentToBlocks(prompt.content || '', prompt.variables || []);
@@ -443,6 +466,7 @@ function EditorPanel({
     console.log('[Prompt Lab] EditorPanel useEffect [prompt.content, prompt.variables]: Blocks updated to:', newBlocks);
   }, [prompt.content, prompt.variables]);
 
+  // This effect serializes blocks back to prompt.content when blocks state changes
   useEffect(() => {
     console.log('[Prompt Lab] EditorPanel useEffect [blocks]: Blocks state changed. Serializing...');
     const serialized = serializeBlocks(blocks);
@@ -456,20 +480,54 @@ function EditorPanel({
 
   const insertVariableAt = useCallback((index: number, variable: { placeholder: string; id?: string; name?: string }) => {
     console.log(`[Prompt Lab] insertVariableAt: Attempting to insert variable "${variable.placeholder}" at index ${index}.`);
-    const newBlock: Block = { type: 'variable', id: uid('v-'), varId: variable.id, placeholder: variable.placeholder, name: variable.name }
     setBlocks(prev => {
-      const copy = [...prev]
-      copy.splice(index, 0, newBlock)
+      let copy = [...prev];
+      const newVarBlock: Block = { type: 'variable', id: uid('v-'), varId: variable.id, placeholder: variable.placeholder, name: variable.name };
+      
+      // Before inserting the variable, clean up any adjacent empty text blocks that it might replace.
+      // If the target index is an empty text block, remove it.
+      if (index < copy.length && copy[index]?.type === 'text' && (copy[index] as Block & {value:string}).value === '') {
+          copy.splice(index, 1);
+      }
+      // If the previous block is an empty text block, remove it.
+      if (index > 0 && copy[index - 1]?.type === 'text' && (copy[index - 1] as Block & {value:string}).value === '') {
+          copy.splice(index - 1, 1);
+          index--; // Adjust index as a block was removed
+      }
+
+      copy.splice(index, 0, newVarBlock);
+
+      // Ensure text blocks are around the new variable for editing context
+      // If it's at the start or preceded by another variable, add an empty text block before it
+      if (index === 0 || copy[index - 1]?.type === 'variable') {
+          copy.splice(index, 0, { type: 'text', id: uid('t-pre-var'), value: '' });
+          index++; // Adjust index for the variable itself
+      }
+      // If it's at the end or followed by another variable, add an empty text block after it
+      if (index + 1 === copy.length || copy[index + 1]?.type === 'variable') {
+          copy.splice(index + 1, 0, { type: 'text', id: uid('t-post-var'), value: '' });
+      }
+
       console.log('[Prompt Lab] insertVariableAt: Blocks state WILL BE updated to:', copy);
-      return copy
-    })
+      return copy;
+    });
   }, []);
 
   const insertTextAt = useCallback((index: number, text = '') => {
     console.log(`[Prompt Lab] insertTextAt: Attempting to insert text "${text}" at index ${index}.`);
-    const newBlock: Block = { type: 'text', id: uid('t-'), value: text }
     setBlocks(prev => {
-      const copy = [...prev]
+      let copy = [...prev];
+
+      // If inserting at an index where there's already an empty text block, don't create a new one
+      if (index < copy.length && copy[index]?.type === 'text' && (copy[index] as Block & {value:string}).value === '') {
+        return prev; 
+      }
+      // If inserting after an empty text block, also no new block
+      if (index > 0 && copy[index - 1]?.type === 'text' && (copy[index - 1] as Block & {value:string}).value === '') {
+        return prev; 
+      }
+      
+      const newBlock: Block = { type: 'text', id: uid('t-'), value: text }
       copy.splice(index, 0, newBlock)
       console.log('[Prompt Lab] insertTextAt: Blocks state WILL BE updated to:', copy);
       return copy
@@ -477,10 +535,8 @@ function EditorPanel({
   }, []);
 
   const updateTextBlock = useCallback((id: string, value: string) => {
-    console.log(`[Prompt Lab] updateTextBlock: Updating block ID "${id}" with value: "${value}".`);
     setBlocks(prev => {
         const updated = prev.map(b => b.type === 'text' && b.id === id ? { ...b, value } : b);
-        console.log('[Prompt Lab] updateTextBlock: Blocks state WILL BE updated to:', updated);
         return updated;
     });
   }, []);
@@ -488,8 +544,40 @@ function EditorPanel({
   const removeBlock = useCallback((index: number) => {
     console.log(`[Prompt Lab] removeBlock: Removing block at index ${index}.`);
     setBlocks(prev => {
-      const copy = [...prev]
-      copy.splice(index, 1)
+      let copy = [...prev];
+      if (index < 0 || index >= copy.length) return prev; // Guard against invalid index
+
+      const removedBlock = copy[index];
+      copy.splice(index, 1);
+      
+      // If two text blocks become adjacent after removal, merge them.
+      if (index > 0 && index <= copy.length && copy[index - 1]?.type === 'text' && copy[index]?.type === 'text') {
+        const prevText = copy[index - 1] as Block & { value: string };
+        const nextText = copy[index] as Block & { value: string };
+        prevText.value += nextText.value; // Merge content
+        copy.splice(index, 1); // Remove the now-merged next text block
+      }
+      
+      // Ensure there's always at least one text block if the list becomes empty after removal
+      if (copy.length === 0) {
+        copy.push({ type: 'text', id: uid('t-initial'), value: '' });
+      } else if (removedBlock.type === 'variable') {
+        // If a variable was removed, ensure it leaves behind proper text blocks.
+        // If the variable was surrounded by two variables, it means we now have adjacent variables.
+        // So, insert an empty text block.
+        if (index > 0 && copy[index-1]?.type === 'variable' && copy[index]?.type === 'variable') {
+          copy.splice(index, 0, { type: 'text', id: uid('t-after-removed-var'), value: '' });
+        }
+        // Ensure leading/trailing text blocks if needed after variable removal,
+        // especially if it was at the very start or end.
+        if (index === 0 && copy[0]?.type === 'variable') {
+          copy.unshift({ type: 'text', id: uid('t-removed-start'), value: '' });
+        }
+        if (index === copy.length && copy[copy.length-1]?.type === 'variable') {
+          copy.push({ type: 'text', id: uid('t-removed-end'), value: '' });
+        }
+      }
+
       console.log('[Prompt Lab] removeBlock: Blocks state WILL BE updated to:', copy);
       return copy
     })
@@ -498,35 +586,80 @@ function EditorPanel({
   const moveBlock = useCallback((from: number, to: number) => {
     console.log(`[Prompt Lab] moveBlock: Moving block from index ${from} to ${to}.`);
     setBlocks(prev => {
-      const copy = [...prev]
+      let copy = [...prev]
+      if (from < 0 || from >= copy.length || to < 0 || to > copy.length) return prev; // Guard
+
       const [item] = copy.splice(from, 1)
       copy.splice(to, 0, item)
-      console.log('[Prompt Lab] moveBlock: Blocks state WILL BE updated to:', copy);
-      return copy
+
+      // Post-move cleanup for adjacent text blocks and variable spacing
+      let cleanedBlocks: Block[] = [];
+      copy.forEach((block, idx) => {
+          if (block.type === 'text') {
+              if (cleanedBlocks.length > 0 && cleanedBlocks[cleanedBlocks.length - 1].type === 'text') {
+                  (cleanedBlocks[cleanedBlocks.length - 1] as Block & { value: string }).value += block.value;
+              } else {
+                  cleanedBlocks.push(block);
+              }
+          } else { // Variable block
+              cleanedBlocks.push(block);
+              // If current block is variable and next block is variable (or end of list), insert empty text
+              if (idx < copy.length - 1 && copy[idx + 1]?.type === 'variable') {
+                  cleanedBlocks.push({ type: 'text', id: uid('t-moved-between-vars'), value: '' });
+              }
+          }
+      });
+
+      // Ensure leading/trailing text blocks after move
+      if (cleanedBlocks.length === 0) {
+          cleanedBlocks.push({ type: 'text', id: uid('t-empty-after-move'), value: '' });
+      } else {
+          if (cleanedBlocks[0].type === 'variable') {
+              cleanedBlocks.unshift({ type: 'text', id: uid('t-leading-after-move'), value: '' });
+          }
+          if (cleanedBlocks[cleanedBlocks.length - 1].type === 'variable') {
+              cleanedBlocks.push({ type: 'text', id: uid('t-trailing-after-move'), value: '' });
+          }
+      }
+
+      console.log('[Prompt Lab] moveBlock: Blocks state WILL BE updated to:', cleanedBlocks);
+      return cleanedBlocks;
     })
   }, []);
 
+  // Use useDragLayer to determine if anything is being dragged
+  const { isDragging: isDraggingSomething } = useDragLayer((monitor) => ({
+    isDragging: monitor.isDragging(),
+  }));
 
-  const [{ isOverBlockContainer }, dropBlockContainer] = useDrop(() => ({
-    accept: ItemTypes.VARIABLE,
-    drop: (item: { id: string; placeholder: string; name?: string }, monitor) => {
+  const [{ isOverBlockContainer }, dropBlockContainer] = useDrop(() => ({ // Removed draggingItemType from collect
+    accept: [ItemTypes.VARIABLE, ItemTypes.BLOCK],
+    drop: (item: any, monitor) => { // item can be {id, placeholder, name} for VARIABLE or {id, index} for BLOCK
       if (monitor.didDrop()) {
         console.log('[Prompt Lab] EditorPanel useDrop: Drop already handled by a child component. Exiting.');
         return;
       }
-
-      if (blocks.length === 0) {
-        console.log('[Prompt Lab] EditorPanel useDrop (empty container): Variable dropped:', item.placeholder);
-        insertVariableAt(0, item);
-      } else {
-        console.log('[Prompt Lab] EditorPanel useDrop (fallback to end): Variable dropped (no specific block target hit, or outside a block). Adding to end.');
+      
+      // This drop target handles drops when the container is empty, or
+      // if a block/variable is dropped outside of specific BlockRenderer targets.
+      // If dropping on the general container, add to the end
+      if (monitor.getItemType() === ItemTypes.VARIABLE) {
+        console.log('[Prompt Lab] EditorPanel useDrop (fallback to end): Variable dropped. Adding to end.');
         insertVariableAt(blocks.length, item);
+      } else if (monitor.getItemType() === ItemTypes.BLOCK) {
+        // If a block is dropped on the container itself (not on a specific block), move it to the end
+        console.log('[Prompt Lab] EditorPanel useDrop (fallback to end): Block dropped. Moving to end.');
+        // Ensure index is within bounds for moveBlock, especially if blocks is empty
+        const targetIndex = blocks.length === 0 ? 0 : blocks.length -1;
+        moveBlock(item.index, targetIndex); 
       }
     },
     collect: (monitor) => ({
-      isOverBlockContainer: monitor.isOver({ shallow: true }) && monitor.canDrop() && !monitor.didDrop(),
+      // isOverBlockContainer: monitor.isOver({ shallow: true }) && monitor.canDrop() && !monitor.didDrop(),
+      // Simplified: Just check if over the container and something is dragging
+      isOverBlockContainer: monitor.isOver({ shallow: true }) && monitor.canDrop(),
     }),
-  }), [blocks.length, insertVariableAt]);
+  }), [blocks.length, insertVariableAt, moveBlock]);
 
 
   return (
@@ -570,33 +703,57 @@ function EditorPanel({
           <div className="mb-2 text-sm font-medium">Prompt content</div>
           <div
             ref={dropBlockContainer}
-            className={`flex flex-wrap gap-2 min-h-[300px] border rounded p-3 ${isOverBlockContainer ? 'bg-indigo-50 border-indigo-300' : 'bg-gray-50'}`}
+            className={`flex flex-col gap-2 min-h-[300px] border rounded p-3 
+                        ${isOverBlockContainer && isDraggingSomething ? 'bg-indigo-50 border-indigo-300' : 'bg-gray-50'}`}
           >
-            {blocks.map((b, i) => (
-              <BlockRenderer
-                key={b.id}
-                block={b}
-                index={i}
-                allBlocks={blocks}
-                updateTextBlock={updateTextBlock}
-                removeBlock={removeBlock}
-                moveBlock={moveBlock}
-                insertVariableAt={insertVariableAt}
-                insertTextAt={insertTextAt}
-              />
-            ))}
-            {blocks.length === 0 && (
+            {blocks.length === 0 && !isDraggingSomething && ( // Only show empty state message if no blocks and nothing is being dragged
                 <div className="flex-1 text-center py-12 text-gray-400">
                     Drag variables or click "+ Add text" to start building your prompt.
+                    <button
+                      onClick={() => insertTextAt(0, '')}
+                      className="mt-4 px-3 py-1 border rounded-md text-sm text-gray-700 bg-white hover:bg-gray-100 flex items-center justify-center mx-auto"
+                    >
+                      <Text className="mr-1 h-4 w-4" /> Add text
+                    </button>
                 </div>
             )}
-
-            <button
-              onClick={() => insertTextAt(blocks.length, '')}
-              className="px-2 py-1 border rounded text-sm text-gray-500 hover:bg-gray-100"
-            >
-              + Add text
-            </button>
+            {/* Render BlockRenderer and the "Add Text" buttons between them */}
+            {blocks.map((b, i) => (
+              <React.Fragment key={b.id}>
+                {/* InsertTextBlockButton appears between blocks */}
+                <InsertTextBlockButton
+                  index={i}
+                  insertTextAt={insertTextAt}
+                  allBlocks={blocks}
+                  isDraggingSomething={isDraggingSomething}
+                />
+                <BlockRenderer
+                  block={b}
+                  index={i}
+                  allBlocks={blocks}
+                  updateTextBlock={updateTextBlock}
+                  removeBlock={removeBlock}
+                  moveBlock={moveBlock}
+                  insertVariableAt={insertVariableAt}
+                  isDraggingSomething={isDraggingSomething}
+                />
+              </React.Fragment>
+            ))}
+            {/* Always show an Add Text button at the very end if there are blocks */}
+            {blocks.length > 0 && (
+              <InsertTextBlockButton
+                index={blocks.length}
+                insertTextAt={insertTextAt}
+                allBlocks={blocks}
+                isDraggingSomething={isDraggingSomething}
+              />
+            )}
+             {/* If blocks are 0 and dragging is active, show a drop target indicator for the empty area */}
+             {blocks.length === 0 && isOverBlockContainer && isDraggingSomething && (
+                <div className="flex-1 flex items-center justify-center border-2 border-dashed border-indigo-400 rounded-md bg-indigo-50 text-indigo-700 h-24">
+                    Drop item here
+                </div>
+            )}
           </div>
         </section>
 
@@ -629,7 +786,7 @@ function BlockRenderer({
   removeBlock,
   moveBlock,
   insertVariableAt,
-  insertTextAt,
+  isDraggingSomething, // Renamed from isDraggingSomething to avoid confusion with internal useDrag isDragging
 }: {
   block: Block
   index: number
@@ -638,62 +795,59 @@ function BlockRenderer({
   removeBlock: (index: number) => void
   moveBlock: (from: number, to: number) => void
   insertVariableAt: (index: number, variable: { placeholder: string; id?: string; name?: string }) => void
-  insertTextAt: (index: number, text?: string) => void
+  isDraggingSomething: boolean; // Renamed to avoid name collision
 }) {
-  const ref = useRef<HTMLDivElement | null>(null);
+  const contentEditableRef = useRef<HTMLDivElement | null>(null); // Ref specifically for contentEditable
+  const wrapperRef = useRef<HTMLDivElement | null>(null); // Ref for the outer wrapper (drop target)
 
-  const [{ isDragging }, drag] = useDrag(() => ({
+  // Drag source for the block itself
+  const [{ isDragging }, dragRef, preview] = useDrag(() => ({ // Added preview to the useDrag hook
     type: ItemTypes.BLOCK,
-    item: { id: block.id, index },
+    item: { id: block.id, index, type: block.type, value: block.type === 'text' ? block.value : block.placeholder, name: block.type === 'variable' ? block.name : undefined },
     collect: (m) => ({ isDragging: m.isDragging() }),
-  }), [block.id, index])
+  }), [block.id, index, block.type, block.value, block.placeholder, block.name]);
 
-  const [localIsOver, setLocalIsOver] = useState(false);
-  const [localDropTargetPosition, setDropTargetPosition] = useState<'before' | 'after' | null>(null);
-
-  const [{ isOver: monitorIsOver }, drop] = useDrop(() => ({
+  // Drop target logic for reordering and inserting variables
+  const [localDropTargetPosition, setLocalDropTargetPosition] = useState<'before' | 'after' | null>(null);
+  const [{ isOver }, dropRef] = useDrop(() => ({
     accept: [ItemTypes.VARIABLE, ItemTypes.BLOCK],
     hover(item: { id?: string; index?: number; placeholder?: string }, monitor) {
-      if (!ref.current) return;
-      if (!monitor.isOver({ shallow: true })) {
-        setLocalIsOver(false);
-        setDropTargetPosition(null);
+      if (!wrapperRef.current) return;
+      if (!monitor.isOver({ shallow: true })) { // Ensure actual hover over this specific component
+        setLocalDropTargetPosition(null);
         return;
       }
 
-      const dragItemType = monitor.getItemType();
-      const dragItemIndex = (item as { index: number }).index;
-      const hoverIndex = index;
-
-      if (dragItemType === ItemTypes.BLOCK && dragItemIndex === hoverIndex) {
-        setLocalIsOver(false);
-        setDropTargetPosition(null);
-        return;
-      }
-
-      const hoverBoundingRect = ref.current?.getBoundingClientRect();
+      const hoverBoundingRect = wrapperRef.current?.getBoundingClientRect();
       const hoverMiddleY = (hoverBoundingRect.bottom - hoverBoundingRect.top) / 2;
       const clientOffset = monitor.getClientOffset();
       const hoverClientY = clientOffset!.y - hoverBoundingRect.top;
 
-      let newDropPosition: 'before' | 'after';
-      if (hoverClientY < hoverMiddleY) {
-        newDropPosition = 'before';
-      } else {
-        newDropPosition = 'after';
+      let newDropPosition: 'before' | 'after' | null = null;
+      const draggingItemType = monitor.getItemType();
+
+      // Avoid showing drop indicator if dragging self
+      if (draggingItemType === ItemTypes.BLOCK && (item as { index: number }).index === index) {
+        setLocalDropTargetPosition(null);
+        return;
+      }
+      
+      // Determine drop position only if dragging a BLOCK or VARIABLE
+      if (draggingItemType === ItemTypes.BLOCK || draggingItemType === ItemTypes.VARIABLE) {
+        newDropPosition = hoverClientY < hoverMiddleY ? 'before' : 'after';
       }
 
-      if (!localIsOver || localDropTargetPosition !== newDropPosition) {
-        setLocalIsOver(true);
-        setDropTargetPosition(newDropPosition);
+      if (localDropTargetPosition !== newDropPosition) {
+        setLocalDropTargetPosition(newDropPosition);
       }
     },
     drop(item: any, monitor) {
       const dragItemType = monitor.getItemType();
       const targetIndex = localDropTargetPosition === 'after' ? index + 1 : index;
 
-      setLocalIsOver(false);
-      setDropTargetPosition(null);
+      setLocalDropTargetPosition(null); // Clear hover state on drop
+
+      if (monitor.didDrop()) return; // Item already handled by a nested drop target
 
       if (dragItemType === ItemTypes.VARIABLE) {
         console.log(`[Prompt Lab] BlockRenderer useDrop (VARIABLE): Dropped "${item.placeholder}" at target index ${targetIndex}.`);
@@ -701,6 +855,7 @@ function BlockRenderer({
       } else if (dragItemType === ItemTypes.BLOCK) {
         const dragIndex = item.index;
 
+        // Prevent moving block to its current position or immediately adjacent, which is a no-op
         const isNoRealMove = (dragIndex === targetIndex) ||
                              (dragIndex + 1 === targetIndex && dragIndex < index && localDropTargetPosition === 'after') ||
                              (dragIndex - 1 === targetIndex && dragIndex > index && localDropTargetPosition === 'before');
@@ -712,119 +867,308 @@ function BlockRenderer({
 
         console.log(`[Prompt Lab] BlockRenderer useDrop (BLOCK): Moving block from index ${dragIndex} to ${targetIndex}.`);
         moveBlock(dragIndex, targetIndex);
-        item.index = targetIndex;
+        item.index = targetIndex; // Update the index of the dragged item
       }
     },
     collect: (monitor) => ({
-      isOver: monitor.isOver(),
+      isOver: monitor.isOver({ shallow: true }), // Only collect if shallowly over this element
+      canDrop: monitor.canDrop(),
     }),
-  }), [index, insertVariableAt, moveBlock, localDropTargetPosition, localIsOver]);
+  }), [index, insertVariableAt, moveBlock, localDropTargetPosition]);
 
+
+  // Effect to synchronize contentEditable div's innerText with React state
+  // Only update if the DOM content differs from the state to avoid cursor jumps
   useEffect(() => {
-    if (!monitorIsOver) {
-      setLocalIsOver(false);
-      setDropTargetPosition(null);
+    if (block.type === 'text' && contentEditableRef.current && contentEditableRef.current.innerText !== block.value) {
+        // Only update if the contentEditable is not currently focused (to prevent cursor jumps)
+        if (document.activeElement !== contentEditableRef.current) {
+            contentEditableRef.current.innerText = block.value;
+        }
     }
-  }, [monitorIsOver]);
+  }, [block.type, block.value]); // Depend on block.value
 
-  const combinedRef = mergeRefs(ref, drag, drop);
+  // Combine refs: dropRef for the whole wrapper, dragRef for handle
+  const combinedDropRef = mergeRefs(wrapperRef, dropRef); // dropRef is attached to the wrapper
 
-  const baseClass = "p-2 rounded-md border shadow-sm flex-shrink-0 w-full relative";
-  const droppableAreaClass = `relative w-full h-full rounded-md border`;
+  // Use a separate ref for the drag handle for text blocks
+  const textBlockDragHandleRef = useRef<HTMLDivElement>(null);
 
-  const isHoveringAbove = localIsOver && localDropTargetPosition === 'before';
-  const isHoveringBelow = localIsOver && localDropTargetPosition === 'after';
+  // Connect the drag source to the appropriate DOM node and explicitly hide the default HTML5 drag preview
+  useEffect(() => {
+    if (block.type === 'variable') {
+      dragRef(combinedDropRef.current); // Make the entire variable block draggable
+      preview(getEmptyImage(), { captureDraggingState: true }); // Hide default browser preview
+    } else { // text block
+      dragRef(textBlockDragHandleRef.current); // Make only the GripVertical icon draggable
+      preview(getEmptyImage(), { captureDraggingState: true }); // Hide default browser preview
+    }
+  }, [block.type, dragRef, preview, combinedDropRef, textBlockDragHandleRef]);
+
+
+  // Only show placeholder line if actively dragging something AND it's over this block
+  const showPlaceholderAbove = isOver && localDropTargetPosition === 'before' && isDraggingSomething;
+  const showPlaceholderBelow = isOver && localDropTargetPosition === 'after' && isDraggingSomething;
+
+  const commonClasses = `relative w-full rounded-md shadow-sm transition-all duration-100 ease-in-out`;
 
   if (block.type === 'variable') {
     return (
       <div
-        ref={combinedRef}
-        className={`${baseClass} bg-transparent border-transparent ${isDragging ? 'opacity-50' : 'opacity-100'}`}
+        ref={combinedDropRef} // The entire div is a drop target and drag source for variable blocks
+        className={`${commonClasses} ${isDragging ? 'opacity-0' : 'opacity-100'}`} // Make the original item invisible when dragging
       >
-        {isHoveringAbove && <div className="absolute -top-1 left-0 right-0 h-1 bg-blue-500 rounded-sm z-10" />}
+        {showPlaceholderAbove && <div className="absolute -top-1.5 left-0 right-0 h-1 bg-blue-500 rounded-sm z-10" />}
         <div
-          className={`${droppableAreaClass} bg-blue-50 border-blue-200`}
+          className={`cursor-grab flex items-center justify-between p-2 bg-blue-50 border border-blue-200 rounded-md `}
         >
-          <div className="flex items-center justify-between">
-            <div className="text-sm font-medium">{block.name || block.placeholder}</div>
-            <button onClick={() => removeBlock(index)} className="text-xs px-2 py-1 rounded bg-transparent border">
-              Remove
-            </button>
-          </div>
+          <div className="text-sm font-medium">{block.name || block.placeholder}</div>
+          <button
+            onClick={() => removeBlock(index)}
+            className="text-xs p-1 rounded-full text-blue-400 hover:bg-blue-100 hover:text-red-600 transition-colors"
+            aria-label={`Remove variable ${block.name}`}
+          >
+            <Trash2 className="h-3 w-3" />
+          </button>
         </div>
-        {isHoveringBelow && <div className="absolute -bottom-1 left-0 right-0 h-1 bg-blue-500 rounded-sm z-10" />}
+        {showPlaceholderBelow && <div className="absolute -bottom-1.5 left-0 right-0 h-1 bg-blue-500 rounded-sm z-10" />}
       </div>
     )
   } else { // type === 'text'
     const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-      if (e.key === 'Backspace') {
-        const currentText = ref.current?.innerText || '';
-        if (currentText === '') {
-            e.preventDefault();
-            if (allBlocks.length === 1 && allBlocks[0].id === block.id) {
-                console.log(`[Prompt Lab] BlockRenderer: Backspace on the ONLY empty text block. Clearing content.`);
-                updateTextBlock(block.id, '');
-            } else if (index > 0) {
-                console.log(`[Prompt Lab] BlockRenderer: Backspace on empty text block. Removing block at index ${index}.`);
-                removeBlock(index);
-            } else if (index === 0 && allBlocks.length > 1) {
-                console.log(`[Prompt Lab] BlockRenderer: Backspace on empty first text block. Removing block at index ${index}.`);
-                removeBlock(index);
-            }
-        }
+      // Prevent new line on Enter, use Shift+Enter for new line
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        // Insert a new text block below
+        // This will insert a new empty text block and usually the browser
+        // will automatically put the cursor there.
+        insertTextAt(index + 1, '');
+        return; // Prevent default Enter key action
+      }
+      // If pressing backspace at the very beginning of an empty text block, remove it.
+      if (e.key === 'Backspace' && contentEditableRef.current?.innerText === '' && window.getSelection()?.anchorOffset === 0) {
+          e.preventDefault();
+          // If it's the only block, just clear its content instead of removing it
+          if (allBlocks.length === 1 && allBlocks[0].id === block.id) {
+              updateTextBlock(block.id, '');
+          } else {
+              removeBlock(index);
+              // TODO: Optionally focus the previous block if one exists
+          }
       }
     }
 
-    const onBlur = () => {
-      const text = ref.current?.innerText ?? ''
-      console.log(`[Prompt Lab] BlockRenderer: Text block ID "${block.id}" blurred. Updating text to: "${text}".`);
-      updateTextBlock(block.id, text)
+    const onInput = (e: React.FormEvent<HTMLDivElement>) => {
+      // Update state immediately on input for contentEditable
+      updateTextBlock(block.id, e.currentTarget.innerText);
     }
 
+    const onBlur = () => {
+      const text = contentEditableRef.current?.innerText ?? ''
+      // If text block becomes empty on blur and it's not the only block, remove it
+      if (text === '' && allBlocks.length > 1) {
+        removeBlock(index);
+      } else {
+        // Ensure final state is saved on blur, even if it wasn't empty
+        updateTextBlock(block.id, text); 
+      }
+    }
+    
     return (
       <div
-        ref={combinedRef}
-        className={`${baseClass} bg-transparent border-transparent ${isDragging ? 'opacity-50' : 'opacity-100'}`}
+        ref={combinedDropRef} // The entire div is a drop target
+        className={`${commonClasses} ${isDragging ? 'opacity-0' : 'opacity-100'}`} // Make the original item invisible when dragging
       >
-        {isHoveringAbove && <div className="absolute -top-1 left-0 right-0 h-1 bg-blue-500 rounded-sm z-10" />}
+        {showPlaceholderAbove && <div className="absolute -top-1.5 left-0 right-0 h-1 bg-blue-500 rounded-sm z-10" />}
         <div
-          className={`${droppableAreaClass} bg-white border-gray-300`}
+          className={`relative p-2 bg-white border border-gray-300 rounded-md flex items-center group`}
         >
-          <div
-            ref={ref}
-            contentEditable
-            suppressContentEditableWarning
-            onKeyDown={onKeyDown}
-            onBlur={onBlur}
-            className="min-h-[40px] text-sm outline-none w-full"
-            style={{ whiteSpace: 'pre-wrap' }}
-          >
-            {block.value}
-          </div>
+            <div
+              ref={textBlockDragHandleRef} // Drag handle for text blocks
+              className="cursor-grab text-gray-400 hover:text-gray-600 mr-2 opacity-0 group-hover:opacity-100 transition-opacity"
+              style={{ position: 'absolute', left: '-20px', top: '50%', transform: 'translateY(-50%)', padding: '4px' }}
+            >
+              <GripVertical className="h-4 w-4" />
+            </div>
+            <div
+                contentEditable
+                suppressContentEditableWarning
+                onKeyDown={onKeyDown}
+                onInput={onInput} // Use onInput for real-time updates
+                onBlur={onBlur}
+                className="flex-1 min-h-[40px] text-sm outline-none w-full whitespace-pre-wrap"
+                ref={contentEditableRef} // Direct ref to contentEditable div
+            >
+                {/* Initial content comes from state, then managed by onInput */}
+            </div>
+            {/* Show delete button for text blocks when hovering or if empty and not the only block */}
+            {(block.value === '' && allBlocks.length > 1) || (block.value !== '' && true) ? ( // Always show delete for non-empty or non-singular empty blocks
+                <button
+                    onClick={() => removeBlock(index)}
+                    className="ml-2 p-1 rounded-full text-gray-400 hover:bg-gray-200 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                    aria-label="Remove text block"
+                >
+                    <Trash2 className="h-4 w-4" />
+                </button>
+            ) : null}
         </div>
-        {isHoveringBelow && <div className="absolute -bottom-1 left-0 right-0 h-1 bg-blue-500 rounded-sm z-10" />}
+        {showPlaceholderBelow && <div className="absolute -bottom-1.5 left-0 right-0 h-1 bg-blue-500 rounded-sm z-10" />}
       </div>
     )
   }
 }
+
+// Function to get an empty image for drag preview (to hide the default browser drag image)
+// This is used to ensure only the CustomDragLayer provides visual feedback during drag.
+const getEmptyImage = () => {
+    if (typeof window === 'undefined') return new Image(); // For SSR
+    const img = new Image();
+    // This is a 1x1 transparent GIF. It effectively hides the default browser drag image.
+    img.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+    return img;
+};
+
+
+/* NEW COMPONENT: Insert Text Block Button */
+function InsertTextBlockButton({
+  index,
+  insertTextAt,
+  allBlocks,
+  isDraggingSomething,
+}: {
+  index: number;
+  insertTextAt: (index: number, text?: string) => void;
+  allBlocks: Block[];
+  isDraggingSomething: boolean;
+}) {
+  const [showButton, setShowButton] = useState(false);
+  
+  const handleMouseLeave = useCallback(() => {
+    setShowButton(false);
+  }, []);
+
+  // Determine if this button should be explicitly hidden (e.g., between two text blocks)
+  const shouldHideExplicitly = useMemo(() => {
+    // Hide if it's the very first gap and the first block is a non-empty text block
+    if (index === 0 && allBlocks.length > 0 && allBlocks[0].type === 'text' && allBlocks[0].value !== '') return true;
+    // Hide if it's between two non-empty text blocks (user can just type/edit the existing ones)
+    if (index > 0 && index < allBlocks.length) {
+      const prevBlock = allBlocks[index - 1];
+      const nextBlock = allBlocks[index];
+      if (prevBlock.type === 'text' && prevBlock.value !== '' && nextBlock.type === 'text' && nextBlock.value !== '') {
+        return true;
+      }
+    }
+    return false;
+  }, [index, allBlocks]);
+
+
+  return (
+    <div
+      className={`relative h-6 w-full flex justify-center items-center py-1 transition-all duration-100 ease-in-out group 
+                  ${shouldHideExplicitly || isDraggingSomething ? 'hidden' : ''}`} // Hide completely if shouldHideExplicitly or something is being dragged
+      onMouseEnter={() => setShowButton(true)} 
+      onMouseLeave={handleMouseLeave} 
+    >
+      {/* Visual hover area - only visible when `showButton` is true */}
+      <div className={`absolute top-0 w-full h-full bg-transparent transition-all duration-100 ease-in-out 
+                      ${showButton ? 'bg-blue-100/50' : 'bg-transparent'}`}></div>
+      
+      {showButton && ( // Only show button if mouse is over this element and nothing is being dragged
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={(e) => {
+            e.stopPropagation(); 
+            insertTextAt(index);
+            setShowButton(false); 
+          }}
+          className="relative z-10 h-6 px-2 py-1 text-xs bg-blue-500 text-white hover:bg-blue-600 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all duration-100 ease-in-out transform scale-90 group-hover:scale-100"
+        >
+          <Text className="mr-1 h-3 w-3" /> Add text
+        </Button>
+      )}
+    </div>
+  );
+}
+
+
+/* ---------- Custom Drag Layer for Visual Feedback ---------- */
+// This component renders a custom preview for the item being dragged,
+// which helps avoid the "ghost" default browser drag image and provides better feedback.
+function CustomDragLayer() {
+  const {
+    itemType,
+    isDragging,
+    item,
+    currentOffset,
+  } = useDragLayer((monitor) => ({
+    item: monitor.getItem(),
+    itemType: monitor.getItemType(),
+    currentOffset: monitor.getClientOffset(),
+    isDragging: monitor.isDragging(),
+  }));
+
+  if (!isDragging || !currentOffset || !item) {
+    return null;
+  }
+
+  // Styles to position the dragged item at the cursor
+  const layerStyles: React.CSSProperties = {
+    position: 'fixed',
+    pointerEvents: 'none',
+    zIndex: 100,
+    left: 0,
+    top: 0,
+    // Add offset to make the cursor appear roughly in the middle of the dragged item
+    transform: `translate(${currentOffset.x}px, ${currentOffset.y}px)`,
+  };
+
+  const renderItem = () => {
+    switch (itemType) {
+      case ItemTypes.VARIABLE:
+        const variableItem = item as { id: string; placeholder: string; name?: string };
+        return (
+          <div className="bg-blue-200 border border-blue-400 rounded-md px-3 py-1 shadow-md opacity-90">
+            <span className="font-semibold">{variableItem.name || variableItem.placeholder}</span>
+            <span className="text-xs text-blue-700 ml-2">(Drag Variable)</span>
+          </div>
+        );
+      case ItemTypes.BLOCK:
+        // When dragging a block, the item has more detailed info passed from its drag source
+        const blockItem = item as Block & { index: number; type: string; value: string; name?: string };
+        return (
+          <div className="bg-white border border-gray-400 rounded-md px-3 py-1 shadow-md opacity-90">
+            <span className="text-sm">
+                {blockItem.type === 'text' ? blockItem.value.substring(0, 30) + (blockItem.value.length > 30 ? '...' : '') : blockItem.name || blockItem.placeholder}
+            </span>
+            <span className="text-xs text-gray-700 ml-2">(Drag Block)</span>
+          </div>
+        );
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <div style={layerStyles}>
+      {renderItem()}
+    </div>
+  );
+}
+
 
 /* ---------- VersionsPanel, DiffDialog, VariableCreationDialog ---------- */
 
 /* Versions */
 function VersionsPanel({
   versions,
-  onRestore,
-  onCompare,
-  onSnapshot,
   selectedVersionId
 }: {
   versions: Version[]
-  onRestore: (versionId: string) => void
-  onCompare: (v: Version) => void
-  onSnapshot: (notes?: string) => void,
   selectedVersionId: string | null
 }) {
-    const selectedVersion = versions.find(v => v.id === selectedVersionId);
+  const selectedVersion = versions.find(v => v.id === selectedVersionId);
   if (!selectedVersion) {
     return (
       <div className="grid h-full place-items-center text-sm text-slate-500">
@@ -834,36 +1178,28 @@ function VersionsPanel({
   }
   return (
     <div className="flex h-full min-h-0 flex-col p-4">
-        <h3 className="font-semibold text-lg mb-4">{selectedVersion.notes}</h3>
-        <p className="text-sm text-gray-500 mb-4">{new Date(selectedVersion.createdAt).toLocaleString()}</p>
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            <div>
-                <div className="mb-1 text-xs font-medium">Content</div>
-                <pre className="rounded-md border bg-slate-50 p-3 text-xs overflow-auto max-h-[60vh] whitespace-pre-wrap">
-                    {selectedVersion.content}
-                </pre>
-            </div>
-            <div>
-                <div className="mb-1 text-xs font-medium">Context</div>
-                <pre className="rounded-md border bg-slate-50 p-3 text-xs overflow-auto max-h-[60vh] whitespace-pre-wrap">
-                    {selectedVersion.context}
-                </pre>
-            </div>
+        {/* Version Name / Title */}
+        <h3 className="font-semibold text-lg mb-2">{selectedVersion.notes}</h3>
+        {/* Last Edited Date */}
+        <p className="text-sm text-gray-500 mb-4">Last Edited: {new Date(selectedVersion.createdAt).toLocaleString()}</p>
+        
+        {/* Version Details Textarea */}
+        <div className="mb-4">
+            <label className="block text-sm font-medium mb-1">Version Details / Notes</label>
+            <Textarea
+                readOnly
+                value={selectedVersion.notes} // Assuming 'notes' field can serve as details
+                rows={4}
+                className="overflow-y-auto"
+                placeholder="No details available for this version."
+            />
         </div>
-      <div className="flex items-center gap-2 mt-4">
-          <Button size="sm" variant="outline" className="h-8 bg-transparent" onClick={() => onRestore(selectedVersion.id)}>
-              <RotateCcw className="mr-1 h-4 w-4" />
-              Restore
-          </Button>
-          <Button size="sm" variant="ghost" className="h-8" onClick={() => onCompare(selectedVersion)}>
-              Compare to Current
-          </Button>
-      </div>
     </div>
   )
 }
 
-/* Minimal diff dialog (side-by-side) */
+/* DiffDialog removed as it was not requested */
+/*
 function DiffDialog({
   open,
   onOpenChange,
@@ -906,3 +1242,4 @@ function DiffDialog({
     </Dialog>
   )
 }
+*/

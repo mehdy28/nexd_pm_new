@@ -373,14 +373,14 @@ export function VariableDiscoveryBuilder({
       <DialogContent className="max-w-4xl h-[90vh] flex flex-col bg-white">
         <DialogHeader className="p-0 border-b">
           <DialogTitle className="text-2xl">Variable Discovery & Builder</DialogTitle>
-          <DialogDescription>
+          {/* <DialogDescription>
             Craft powerful prompts by leveraging project data or defining custom inputs.
-          </DialogDescription>
+          </DialogDescription> */}
         </DialogHeader>
 
         <div className="flex-1 overflow-hidden p-2 grid grid-cols-2 gap-6">
           {/* Left Column: Discovery & Selection */}
-          <div className="flex flex-col space-y-4 border-r pr-6">
+          <div className="flex flex-col space-y-4 border-r pr-6 overflow-y-auto">
             {/* Re-introducing the content that was in renderLeftPanelContent */}
             {!projectId && currentStep !== 'manual_config' ? (
               <div className="text-center py-12 text-gray-500">
@@ -392,7 +392,7 @@ export function VariableDiscoveryBuilder({
               <> {/* Use a React Fragment to group multiple top-level elements */}
                 {currentStep === 'choose_type' && (
                   <div className="space-y-4">
-                    <h3 className="text-lg font-semibold text-gray-800 mb-4">What kind of variable do you want?</h3>
+                    <h3 className="text-lg font-semibold text-gray-800 mb-1">What kind of variable do you want?</h3>
                     <div className="grid grid-cols-1 gap-4">
                       <SelectionCard
                         icon={Database}
@@ -532,11 +532,11 @@ export function VariableDiscoveryBuilder({
           </div>
 
           {/* Right Column: Configuration & Preview */}
-          <div className="flex flex-col space-y-4">
+          <div className="flex flex-col space-y-4 overflow-y-auto">
             <h3 className="text-xl font-semibold mb-2">Configure Your Variable</h3>
             <p className="text-sm text-muted-foreground">Finalize the details of your selected variable.</p>
 
-            <div className="grid gap-4 flex-1 overflow-y-auto pr-2">
+            <div className="grid gap-4 flex-1 pr-2">
               <div className="grid gap-2">
                 <label className="block text-sm font-medium">Variable Name <span className="text-red-500">*</span></label>
                 <Input
