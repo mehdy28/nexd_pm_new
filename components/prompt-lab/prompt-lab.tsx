@@ -581,14 +581,29 @@ function EditorPanel({
         return;
       }
 
-      const targetIndex = blocks.length;
+      let targetIndex = blocks.length;
+      // If the container is directly dropped on, and there are no blocks, it should go to index 0.
+      if (blocks.length === 0) {
+        targetIndex = 0;
+      }
+
 
       if (monitor.getItemType() === ItemTypes.VARIABLE) {
         console.log('[Prompt Lab] [EditorPanel] useDrop (container, fallback to end): Variable dropped. Adding to end. Item:', item);
         insertVariableAt(targetIndex, item);
       } else if (monitor.getItemType() === ItemTypes.BLOCK) {
-        console.log('[Prompt Lab] [EditorPanel] useDrop (container, fallback to end): Block dropped. Moving to end. Item:', item);
-        moveBlock(item.index, targetIndex);
+        const dragIndex = item.index;
+        // If dropping a block into an empty container, it should go to index 0
+        if (blocks.length === 0) {
+            console.log('[Prompt Lab] [EditorPanel] useDrop (container, empty): Block dropped. Moving to index 0. Item:', item);
+            moveBlock(dragIndex, 0);
+        } else {
+            console.log('[Prompt Lab] [EditorPanel] useDrop (container, fallback to end): Block dropped. Moving to end. Item:', item);
+            // Adjust targetIndex if moving from earlier to avoid issues with array shifting
+            // If dragging from before the targetIndex, the actual index will be `targetIndex - 1` when the original item is removed
+            // No, the moveBlock handles this. Just pass the logical targetIndex.
+            moveBlock(dragIndex, targetIndex);
+        }
       }
     },
     collect: (monitor) => {
@@ -663,6 +678,14 @@ function EditorPanel({
             ) : (
                 blocks.map((b, i) => (
                     <React.Fragment key={`block-fragment-${b.id}`}> {/* Key for Fragment needed when Fragment is directly mapped */}
+                        {/* Render the initial HoverAddTextBlock if it's the very first element */}
+                        {i === 0 && (
+                          <HoverAddTextBlock
+                              key={`hover-insert-before-first`}
+                              index={0}
+                              insertTextAt={insertTextAt}
+                          />
+                        )}
                         <BlockRenderer
                             key={`block-${b.id}`} // Unique key for the BlockRenderer component
                             block={b}
@@ -675,12 +698,11 @@ function EditorPanel({
                             isDraggingSomething={isDraggingSomething}
                             insertTextAt={insertTextAt}
                         />
-                        {/* Always render HoverAddTextBlock after each block */}
+                        {/* Always render HoverAddTextBlock after each block (except perhaps after the very last one, which is covered by container drop) */}
                         <HoverAddTextBlock
-                            key={`hover-insert-${b.id}-${i}`} // Unique key for HoverAddTextBlock
+                            key={`hover-insert-after-${b.id}-${i}`} // Unique key for HoverAddTextBlock
                             index={i + 1}
                             insertTextAt={insertTextAt}
-                            isDraggingSomething={isDraggingSomething} // Pass isDraggingSomething
                         />
                     </React.Fragment>
                 ))
@@ -809,6 +831,10 @@ function BlockRenderer({
       if (!wrapperRef.current) {
         return;
       }
+      // If we are dragging over a child component of the current drop target,
+      // it means a more specific drop target (like a nested droppable area) is handling it.
+      // In this case, this parent drop target should not show its own hover state to avoid conflicts.
+      // monitor.isOver({ shallow: true }) ensures we only react if the immediate component is being hovered.
       if (!monitor.isOver({ shallow: true })) {
         if (localDropTargetPosition !== null) {
             setLocalDropTargetPosition(null);
@@ -845,15 +871,18 @@ function BlockRenderer({
     },
     drop(item: any, monitor) {
       const dragItemType = monitor.getItemType();
-      let targetIndex = localDropTargetPosition === 'after' ? index + 1 : index;
-
+      
       setLocalDropTargetPosition(null); // Clear hover state on drop
-      console.log(`[BlockRenderer ${block.id}] drop: Item type ${String(dragItemType)}, item ID: ${item.id}, localDropTargetPosition: ${localDropTargetPosition}, targetIndex: ${targetIndex}.`);
 
       if (monitor.didDrop()) {
         console.log(`[BlockRenderer ${block.id}] drop: Drop already handled by a child or earlier component. Exiting.`);
         return;
       }
+
+      let targetIndex = localDropTargetPosition === 'after' ? index + 1 : index;
+
+      console.log(`[BlockRenderer ${block.id}] drop: Item type ${String(dragItemType)}, item ID: ${item.id}, localDropTargetPosition: ${localDropTargetPosition}, targetIndex: ${targetIndex}.`);
+
 
       if (dragItemType === ItemTypes.VARIABLE) {
           console.log(`[BlockRenderer ${block.id}] drop: Variable ${item.placeholder} dropped. Calling insertVariableAt(${targetIndex}, ...)`);
@@ -862,9 +891,10 @@ function BlockRenderer({
         const dragIndex = item.index;
 
         // Determine if this is a "no-op" move (dropping onto self or immediately adjacent position)
-        const isNoRealMove = (dragIndex === targetIndex) ||
-                             (dragIndex + 1 === targetIndex && localDropTargetPosition === 'before') || // Dragging from N to N+1
-                             (dragIndex === targetIndex + 1 && localDropTargetPosition === 'after'); // Dragging from N+1 to N (after N)
+        // This logic needs to be robust for both 'before' and 'after' drops.
+        const isNoRealMove = (dragIndex === targetIndex) || // Dropping back exactly where it was
+                             (dragIndex + 1 === targetIndex && localDropTargetPosition === 'before') || // Dragging N to after N-1, resulting in no change
+                             (dragIndex === targetIndex + 1 && localDropTargetPosition === 'after'); // Dragging N to before N+1, resulting in no change
         
         console.log(`[BlockRenderer ${block.id}] drop: Block dropped. Drag index: ${dragIndex}, Target index: ${targetIndex}, localDropTargetPosition: ${localDropTargetPosition}, isNoRealMove: ${isNoRealMove}`);
 
@@ -1035,18 +1065,16 @@ const getEmptyImage = () => {
 function HoverAddTextBlock({
   index,
   insertTextAt,
-  isDraggingSomething,
+  // Removed isDraggingSomething prop, it will always render
 }: {
   index: number;
   insertTextAt: (index: number, text?: string) => void;
-  isDraggingSomething: boolean;
+  // isDraggingSomething: boolean; // REMOVED
 }) {
   const [isHovering, setIsHovering] = useState(false);
 
   // Conditional rendering: if something is being dragged, don't show the add button
-  if (isDraggingSomething) {
-    return null; 
-  }
+  // REMOVED: if (isDraggingSomething) { return null; }
 
   return (
     <div
