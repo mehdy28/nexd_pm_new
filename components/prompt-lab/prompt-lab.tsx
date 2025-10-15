@@ -305,21 +305,19 @@ function VariableItem({ variable }: { variable: PromptVariable }) {
     item: { id: variable.id, placeholder: variable.placeholder, name: variable.name },
     collect: (monitor) => {
       const dragging = monitor.isDragging();
+      console.log(`[VariableItem ${variable.name}] collect: isDragging = ${dragging}, canDrag = ${monitor.canDrag()}`);
       return { isDragging: dragging };
     },
   }), [variable]);
 
   useEffect(() => {
-    // For sidebar variables, we still want the original to disappear from the list.
-    // The CustomDragLayer will then draw the actual representation.
-    if (preview) { // Ensure preview is available
-        // Use an empty image for the default drag preview to prevent browser's default drag image
+    if (preview) {
         preview(getEmptyImage(), { captureDraggingState: true });
     }
-    // Connect the drag source to the entire div.
     const dragSourceElement = document.getElementById(variable.id + '-drag-source');
     if (dragSourceElement) {
         drag(dragSourceElement);
+        console.log(`[VariableItem ${variable.name}] useEffect: Connected drag source to ID: ${variable.id}-drag-source`);
     } else {
         console.warn(`[Prompt Lab] [VariableItem ${variable.name}] useEffect: Drag source element not found for ID: ${variable.id}-drag-source`);
     }
@@ -386,21 +384,14 @@ function parseContentToBlocks(content: string, variables: PromptVariable[]): Blo
     tempBlocks.push({ type: 'text', id: uid('t-'), value: currentText });
   }
 
-  // --- REVISED Normalization pass: Only ensure an initial empty text block if content is truly empty. ---
-  // No automatic insertion of empty text blocks between existing content (variables or non-empty text).
-  // The HoverAddTextBlock and explicit "Add text block" buttons will handle user-desired insertions.
-
   let finalBlocks: Block[] = [];
   tempBlocks.forEach(block => {
     if (block.type === 'text' && block.value === '' && finalBlocks.length > 0 && finalBlocks[finalBlocks.length - 1].type === 'text' && finalBlocks[finalBlocks.length - 1].value === '') {
-        // Skip adding consecutive empty text blocks, effectively merging them
         return;
     }
     finalBlocks.push(block);
   });
 
-  // Remove leading/trailing empty text blocks that are purely structural and not intended for initial input.
-  // This is crucial to prevent an unwanted empty text block at the start/end if content is not empty.
   while (finalBlocks.length > 1 && finalBlocks[0].type === 'text' && finalBlocks[0].value === '') {
     finalBlocks.shift();
   }
@@ -409,7 +400,6 @@ function parseContentToBlocks(content: string, variables: PromptVariable[]): Blo
   }
 
 
-  // If, after all this, the content is truly empty, provide one editable empty text block.
   if (finalBlocks.length === 0) {
       return [{ type: 'text', id: uid('t-initial-empty-fallback'), value: '' }];
   }
@@ -421,13 +411,11 @@ function parseContentToBlocks(content: string, variables: PromptVariable[]): Blo
 
 
 function serializeBlocks(blocks: Block[]): string {
-  // When serializing, filter out empty text blocks. The empty text blocks are for UI structure only.
   const serialized = blocks
     .filter(b => !(b.type === 'text' && b.value === ''))
     .map(b => b.type === 'text' ? b.value : b.placeholder)
     .join('');
   
-  // If all blocks are filtered out (meaning only empty text blocks existed), return empty string.
   if (serialized.trim() === '') return '';
 
   console.log('[Prompt Lab] [serializeBlocks] Input blocks:', blocks.map(b => `${b.type}: ${b.type === 'text' ? `"${b.value.substring(0, Math.min(b.value.length, 15))}..."` : b.placeholder}`), 'Output content:', serialized.substring(0, Math.min(serialized.length, 50)) + "...");
@@ -568,7 +556,6 @@ function EditorPanel({
   const { isDragging: isDraggingSomething } = useDragLayer((monitor) => ({
     isDragging: monitor.isDragging(),
   }));
-  // console.log(`[Prompt Lab] [EditorPanel] isDraggingSomething (from useDragLayer): ${isDraggingSomething}`); // Too chatty
 
   const [{ isOverBlockContainer, canDropBlockContainer }, dropBlockContainer] = useDrop(() => ({
     accept: [ItemTypes.VARIABLE, ItemTypes.BLOCK],
@@ -578,7 +565,6 @@ function EditorPanel({
         return;
       }
 
-      // Default target index is the end of the current blocks list
       const targetIndex = blocks.length;
 
       if (monitor.getItemType() === ItemTypes.VARIABLE) {
@@ -592,16 +578,16 @@ function EditorPanel({
     collect: (monitor) => {
         const isOver = monitor.isOver({ shallow: true });
         const canDrop = monitor.canDrop();
-        // Log only if dragging is active AND over the container to reduce spam
-        if (isOver && canDrop && isDraggingSomething) {
-             console.log(`[Prompt Lab] [EditorPanel] useDrop (container) COLLECT: isOver = ${isOver}, canDrop = ${canDrop}. ItemType: ${String(monitor.getItemType())}`);
+        // Use the isDraggingSomething prop (from useDragLayer) for conditional logging
+        if (isDraggingSomething) { 
+             console.log(`[EditorPanel] DropContainer: isOver = ${isOver}, canDrop = ${canDrop}. ItemType: ${String(monitor.getItemType())}`);
         }
         return {
             isOverBlockContainer: isOver,
             canDropBlockContainer: canDrop,
         };
     },
-  }), [blocks.length, insertVariableAt, moveBlock, isDraggingSomething]);
+  }), [blocks.length, insertVariableAt, moveBlock, isDraggingSomething]); // isDraggingSomething is a dependency here for logging purposes
 
 
   return (
@@ -660,44 +646,32 @@ function EditorPanel({
                 </div>
             )}
             {blocks.map((b, i) => (
-              <React.Fragment key={b.id}>
-                <BlockRenderer
-                  block={b}
-                  index={i}
-                  allBlocks={blocks}
-                  updateTextBlock={updateTextBlock}
-                  removeBlock={removeBlock}
-                  moveBlock={moveBlock}
-                  insertVariableAt={insertVariableAt}
-                  isDraggingSomething={isDraggingSomething}
-                  insertTextAt={insertTextAt}
-                />
-                {/* Render HoverAddTextBlock after each block, except the last one.
-                    The final 'Add text block' button at the bottom handles appending to the end. */}
-                {i < blocks.length - 1 && (
-                    <HoverAddTextBlock
-                        index={i + 1}
-                        insertTextAt={insertTextAt}
-                        isDraggingSomething={isDraggingSomething}
-                    />
-                )}
-              </React.Fragment>
+              // Removed React.Fragment here. The key goes to the BlockRenderer component itself.
+              <BlockRenderer
+                key={b.id} // Key on the component, not a Fragment.
+                block={b}
+                index={i}
+                allBlocks={blocks}
+                updateTextBlock={updateTextBlock}
+                removeBlock={removeBlock}
+                moveBlock={moveBlock}
+                insertVariableAt={insertVariableAt}
+                isDraggingSomething={isDraggingSomething}
+                insertTextAt={insertTextAt}
+              />
             ))}
+            {/* The conditional "Add text block" is now correctly placed to only appear once at the very end */}
             {blocks.length > 0 && !isDraggingSomething && (
-              // Use 'blocks' state variable. Show "Add text block" if the very last block
-              // is a variable OR if it's the only block and it's non-empty text.
-              (blocks[blocks.length - 1].type === 'variable' || (blocks.length === 1 && blocks[0].type === 'text' && blocks[0].value !== '')) ? (
-                  <div className="flex justify-center mt-2">
-                      <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => insertTextAt(blocks.length)}
-                          className="h-6 px-2 py-1 text-xs text-gray-700 bg-white hover:bg-gray-100 border border-gray-300"
-                      >
-                          <Plus className="mr-1 h-3 w-3" /> Add text block
-                      </Button>
-                  </div>
-              ) : null
+              <div className="flex justify-center mt-2">
+                  <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => insertTextAt(blocks.length)}
+                      className="h-6 px-2 py-1 text-xs text-gray-700 bg-white hover:bg-gray-100 border border-gray-300"
+                  >
+                      <Plus className="mr-1 h-3 w-3" /> Add text block
+                  </Button>
+              </div>
             )}
             {blocks.length === 0 && isOverBlockContainer && canDropBlockContainer && isDraggingSomething && (
                 <div className="flex-1 flex items-center justify-center border-2 border-dashed border-indigo-400 rounded-md bg-indigo-50 text-indigo-700 h-24">
@@ -750,9 +724,11 @@ function BlockRenderer({
   insertTextAt: (index: number, text?: string) => void;
 }) {
   const contentEditableRef = useRef<HTMLDivElement | null>(null);
-  const wrapperRef = useRef<HTMLDivElement | null>(null);
+  const wrapperRef = useRef<HTMLDivElement | null>(null); // This is the main outermost wrapper
+  const gripRef = useRef<HTMLDivElement | null>(null); // Dedicated ref for the grip handle of text blocks
 
-  const [{ isDragging }, dragRef, preview] = useDrag(() => ({
+  // Set up drag for the block
+  const [{ isDragging, canDrag }, dragRef, preview] = useDrag(() => ({
     type: ItemTypes.BLOCK,
     item: {
       id: block.id,
@@ -762,17 +738,45 @@ function BlockRenderer({
       name: block.type === 'variable' ? block.name : undefined,
       originalBlock: block,
     },
+    canDrag: (monitor) => {
+      const result = true;
+      // console.log(`[BlockRenderer ${block.type}:${block.id} (index ${index})] canDrag callback called. Returning: ${result}. monitor.getItem():`, monitor.getItem()?.id);
+      return result;
+    },
     collect: (m) => {
         const dragging = m.isDragging();
-        return { isDragging: dragging };
+        const currentCanDrag = m.canDrag();
+        console.log(`[BlockRenderer ${block.type}:${block.id} (index ${index})] Drag Collect: isDragging = ${dragging}, canDrag = ${currentCanDrag}`);
+        return { isDragging: dragging, canDrag: currentCanDrag };
     },
-  }), [block, index]);
+  }), [block.id, index, block.type, block.value, block.placeholder, block.name]); // Explicit dependencies for stability
+
+  // Use a stable useCallback for the ref functions
+  const connectDragSource = useCallback((node: HTMLElement | null) => {
+    // console.log(`[BlockRenderer ${block.type}:${block.id} (index ${index})] connectDragSource called. Node:`, node);
+    dragRef(node); // Connects the node to react-dnd's drag source
+    if (node) {
+        // console.log(`[BlockRenderer ${block.type}:${block.id} (index ${index})] connectDragSource: dragRef connected to node (TAG: ${node.tagName}).`);
+    } else {
+        // console.log(`[BlockRenderer ${block.type}:${block.id} (index ${index})] connectDragSource: dragRef disconnected (node is null).`);
+    }
+  }, [dragRef, block.type, block.id, index]); // Dependencies for useCallback itself to ensure stability
+
+  // Effect to hide browser drag image
+  useEffect(() => {
+    preview(getEmptyImage(), { captureDraggingState: true });
+  }, [preview]);
+
 
   const [localDropTargetPosition, setLocalDropTargetPosition] = useState<'before' | 'after' | null>(null);
+
+  // Set up drop for the block
   const [{ isOver, canDrop }, dropRef] = useDrop(() => ({
     accept: [ItemTypes.VARIABLE, ItemTypes.BLOCK],
     hover(item: { id?: string; index?: number; placeholder?: string }, monitor) {
-      if (!wrapperRef.current) return;
+      if (!wrapperRef.current) {
+        return;
+      }
       if (!monitor.isOver({ shallow: true })) {
         if (localDropTargetPosition !== null) {
             setLocalDropTargetPosition(null);
@@ -783,7 +787,9 @@ function BlockRenderer({
       const hoverBoundingRect = wrapperRef.current.getBoundingClientRect();
       const hoverMiddleY = (hoverBoundingRect.bottom - hoverBoundingRect.top) / 2;
       const clientOffset = monitor.getClientOffset();
-      if (!clientOffset) return;
+      if (!clientOffset) {
+        return;
+      }
       const hoverClientY = clientOffset.y - hoverBoundingRect.top;
 
       let newDropPosition: 'before' | 'after' | null = null;
@@ -810,37 +816,49 @@ function BlockRenderer({
       let targetIndex = localDropTargetPosition === 'after' ? index + 1 : index;
 
       setLocalDropTargetPosition(null); // Clear hover state on drop
+      console.log(`[BlockRenderer ${block.id}] drop: Item type ${String(dragItemType)}, item ID: ${item.id}, localDropTargetPosition: ${localDropTargetPosition}, targetIndex: ${targetIndex}.`);
 
       if (monitor.didDrop()) {
+        console.log(`[BlockRenderer ${block.id}] drop: Drop already handled by a child or earlier component. Exiting.`);
         return;
       }
 
       if (dragItemType === ItemTypes.VARIABLE) {
+          console.log(`[BlockRenderer ${block.id}] drop: Variable ${item.placeholder} dropped. Calling insertVariableAt(${targetIndex}, ...)`);
           insertVariableAt(targetIndex, item);
       } else if (dragItemType === ItemTypes.BLOCK) {
         const dragIndex = item.index;
 
+        // Determine if this is a "no-op" move (dropping onto self or immediately adjacent position)
         const isNoRealMove = (dragIndex === targetIndex) ||
-                             (dragIndex + 1 === targetIndex && localDropTargetPosition === 'after') ||
-                             (dragIndex - 1 === targetIndex && localDropTargetPosition === 'before');
+                             (dragIndex + 1 === targetIndex && localDropTargetPosition === 'before') || // Dragging from N to N+1
+                             (dragIndex === targetIndex + 1 && localDropTargetPosition === 'after'); // Dragging from N+1 to N (after N)
+        
+        console.log(`[BlockRenderer ${block.id}] drop: Block dropped. Drag index: ${dragIndex}, Target index: ${targetIndex}, localDropTargetPosition: ${localDropTargetPosition}, isNoRealMove: ${isNoRealMove}`);
+
 
         if (isNoRealMove) {
+          console.log(`[BlockRenderer ${block.id}] drop: No real move detected for block ${item.id}. Exiting.`);
           return;
         }
 
+        console.log(`[BlockRenderer ${block.id}] drop: Moving block from ${dragIndex} to ${targetIndex}.`);
         moveBlock(dragIndex, targetIndex);
-        item.index = targetIndex; // Update the index of the dragged item
+        item.index = targetIndex; // Update the index of the dragged item for subsequent drops
       }
     },
     collect: (monitor) => {
         const isOverVal = monitor.isOver({ shallow: true });
         const canDropVal = monitor.canDrop();
+        if (monitor.getItem()) { // Check if an item is currently being dragged
+            console.log(`[BlockRenderer ${block.type}:${block.id} (index ${index})] Drop Collect: isOver = ${isOverVal}, canDrop = ${canDropVal}, itemType: ${String(monitor.getItemType())}`);
+        }
         return {
             isOver: isOverVal,
             canDrop: canDropVal,
         };
     },
-  }), [index, insertVariableAt, moveBlock, localDropTargetPosition, block.id]);
+  }), [index, insertVariableAt, moveBlock, localDropTargetPosition, block.id, allBlocks.length]); // Added allBlocks.length to dependencies
 
   useEffect(() => {
     if (block.type === 'text' && contentEditableRef.current && contentEditableRef.current.innerText !== block.value) {
@@ -850,13 +868,8 @@ function BlockRenderer({
     }
   }, [block.type, block.value]);
 
-  // REVISED: Directly merge dragRef into the primary ref chain
-  const blockRef = mergeRefs(wrapperRef, dropRef, dragRef); 
-
-  useEffect(() => {
-    // Hide the default browser drag image and use our CustomDragLayer
-    preview(getEmptyImage(), { captureDraggingState: true });
-  }, [preview]); // Only needs to run once or when `preview` changes
+  // Merge wrapperRef and dropRef for the main block container
+  const blockRootRef = mergeRefs(wrapperRef, dropRef); 
 
   const showPlaceholderAbove = isOver && canDrop && localDropTargetPosition === 'before' && isDraggingSomething;
   const showPlaceholderBelow = isOver && canDrop && localDropTargetPosition === 'after' && isDraggingSomething;
@@ -866,11 +879,13 @@ function BlockRenderer({
   if (block.type === 'variable') {
     return (
       <div
-        ref={blockRef} // Use the combined ref including dragRef
-        className={`${commonClasses} ${isDragging ? 'opacity-50' : ''}`} // Use opacity-50 for original block while dragging
+        key={`block-root-${block.id}`} // Explicit key for this root div to aid reconciliation
+        ref={blockRootRef} // This is the drop target
+        className={`${commonClasses} ${isDragging ? 'opacity-50' : ''}`}
       >
         {showPlaceholderAbove && <div className="absolute -top-1.5 left-0 right-0 h-1 bg-blue-500 rounded-sm z-10" />}
         <div
+          ref={connectDragSource} // This inner div is the drag source for variables
           className={`cursor-grab flex items-center justify-between p-2 bg-blue-50 border border-blue-200 rounded-md `}
         >
           <div className="text-sm font-medium">{block.name || block.placeholder}</div>
@@ -895,10 +910,8 @@ function BlockRenderer({
       }
       if (e.key === 'Backspace' && contentEditableRef.current?.innerText === '' && window.getSelection()?.anchorOffset === 0) {
           e.preventDefault();
-          // If this is the *only* block and it's empty, prevent removal.
-          // parseContentToBlocks ensures an empty text block always exists if content is empty.
           if (allBlocks.length === 1 && allBlocks[0].id === block.id) {
-              updateTextBlock(block.id, ''); // Just ensure value is empty, don't remove.
+              updateTextBlock(block.id, ''); 
           } else {
               removeBlock(index);
           }
@@ -911,7 +924,6 @@ function BlockRenderer({
 
     const onBlur = () => {
       const text = contentEditableRef.current?.innerText ?? ''
-      // If a text block becomes empty on blur and it's not the ONLY block remaining, remove it.
       if (text === '' && allBlocks.length > 1) {
           removeBlock(index);
       } else {
@@ -921,15 +933,16 @@ function BlockRenderer({
 
     return (
       <div
-        ref={blockRef} // Use the combined ref including dragRef
-        className={`${commonClasses} ${isDragging ? 'opacity-50' : ''}`} // Use opacity-50 for original block while dragging
+        key={`block-root-${block.id}`} // Explicit key for this root div to aid reconciliation
+        ref={blockRootRef} // This is the drop target
+        className={`${commonClasses} ${isDragging ? 'opacity-50' : ''}`}
       >
         {showPlaceholderAbove && <div className="absolute -top-1.5 left-0 right-0 h-1 bg-blue-500 rounded-sm z-10" />}
         <div
           className={`relative p-2 bg-white border border-gray-300 rounded-md flex items-center group`}
         >
             <div
-              // The grip icon is now just a visual handle, but the entire block is draggable.
+              ref={connectDragSource} // This is the drag handle for text blocks
               className="cursor-grab text-gray-400 hover:text-gray-600 mr-2 opacity-0 group-hover:opacity-100 transition-opacity"
               style={{ position: 'absolute', left: '-20px', top: '50%', transform: 'translateY(-50%)', padding: '4px' }}
             >
@@ -946,7 +959,6 @@ function BlockRenderer({
             >
                 {/* Initial content comes from state, then managed by onInput */}
             </div>
-            {/* The remove button should always be available for a text block, unless it's the absolute last, empty block */}
             {(allBlocks.length > 1) || (block.type === 'text' && block.value !== '') ? (
                 <button
                     onClick={() => {
@@ -991,6 +1003,7 @@ function HoverAddTextBlock({
 
   return (
     <div
+      key={`hover-add-text-${index}`} // Explicit key for consistency if this also gets mapped
       className="relative h-6 w-full flex justify-center items-center py-1 transition-all duration-100 ease-in-out group"
       onMouseEnter={() => setIsHovering(true)}
       onMouseLeave={() => setIsHovering(false)}
