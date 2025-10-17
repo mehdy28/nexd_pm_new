@@ -7,6 +7,7 @@ import taskResolver from "./taskResolver"
 import { sprintResolvers } from "./sprintResolver"
 import documentResolvers from "./documentResolver"
 import wireframeResolvers from "./wireframeResolver"
+import promptResolvers from "./promptResolver"
 
 
 
@@ -17,6 +18,7 @@ export const resolvers = {
     ...projectResolver.Query,
     ...documentResolvers.Query, // NEW
     ...wireframeResolvers.Query,
+    ...promptResolvers.Query,
 
 
 
@@ -30,6 +32,8 @@ export const resolvers = {
     ...sprintResolvers.Mutation,
     ...documentResolvers.Mutation, // NEW
     ...wireframeResolvers.Mutation,
+    ...promptResolvers.Mutation,
+
 
 
   },

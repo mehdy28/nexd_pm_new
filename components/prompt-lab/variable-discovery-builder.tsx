@@ -1,3 +1,4 @@
+// components/prompt-lab/variable-discovery-builder.tsx
 'use client'
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -21,21 +22,12 @@ import {
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Command, CommandInput, CommandItem, CommandList, CommandEmpty, CommandGroup } from "@/components/ui/command";
-import { Check, ChevronsUpDown, ArrowLeft, Lightbulb, Keyboard, Database, ListChecks, Calendar, FileText, Users, Briefcase } from 'lucide-react';
+import { Check, ChevronsUpDown, ArrowLeft, Lightbulb, Keyboard, Database, ListChecks, Calendar, FileText, Users, Briefcase, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { PromptVariable, PromptVariableType, PromptVariableSource } from './store'; // Adjust path as needed
-// Assuming you have a GraphQL client hook or similar
-//  import { useGraphQLClient } from '@/hooks/use-graphql-client';
-// import { gql } from 'graphql-request';
 import { useDebounce } from 'use-debounce'; // For live preview debouncing
-import { toast } from 'sonner'; // For better user feedback than alert()
+import { toast } from 'sonner';
 
-// GraphQL query stub for resolving variable value
-const RESOLVE_PROMPT_VARIABLE_QUERY = `
-  query ResolvePromptVariable($projectId: ID, $variableSource: JSON!, $promptVariableId: ID) {
-    resolvePromptVariable(projectId: $projectId, variableSource: $variableSource, promptVariableId: $promptVariableId)
-  }
-`;
 
 // Utility to generate a clean placeholder from a name
 function generatePlaceholder(name: string): string {
@@ -49,6 +41,14 @@ interface VariableDiscoveryBuilderProps {
   onOpenChange: (open: boolean) => void;
   onCreate: (variable: Omit<PromptVariable, 'id'>) => void;
   projectId?: string;
+  resolveVariablePreview: (
+    variableSource: PromptVariableSource,
+    promptVariableId?: string
+  ) => {
+    data: string | undefined;
+    loading: boolean;
+    error: any;
+  };
 }
 
 // Helper component for visually distinct cards
@@ -63,7 +63,7 @@ const SelectionCard: React.FC<{
     onClick={onClick}
     disabled={disabled}
     className={cn(
-      "flex flex-col items-center justify-center p-6 rounded-lg border-2 border-dashed transition-all text-center h-40", // Added h-40 for consistent height
+      "flex flex-col items-center justify-center p-6 rounded-lg border-2 border-dashed transition-all text-center h-40",
       "hover:border-primary hover:bg-muted/50 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2",
       disabled ? "opacity-50 cursor-not-allowed bg-gray-100" : "bg-card"
     )}
@@ -80,6 +80,7 @@ export function VariableDiscoveryBuilder({
   onOpenChange,
   onCreate,
   projectId,
+  resolveVariablePreview, // NEW: Receive resolver function
 }: VariableDiscoveryBuilderProps) {
   const [currentStep, setCurrentStep] = useState<'choose_type' | 'explore_data' | 'manual_config'>(
     'choose_type'
@@ -96,15 +97,23 @@ export function VariableDiscoveryBuilder({
   const [tempVariableSource, setTempVariableSource] = useState<PromptVariableSource | null>(null);
 
   // State for the Data Explorer
-  const [selectedCategoryInExplorer, setSelectedCategoryInExplorer] = useState<string | null>(null); // e.g., 'project', 'tasks'
-  const [selectedFieldInExplorer, setSelectedFieldInExplorer] = useState<string | null>(null); // e.g., 'name', 'titles_list'
+  const [selectedCategoryInExplorer, setSelectedCategoryInExplorer] = useState<string | null>(null);
+  const [selectedFieldInExplorer, setSelectedFieldInExplorer] = useState<string | null>(null);
 
-  // Live preview state
-  const [livePreviewValue, setLivePreviewValue] = useState<string>('N/A');
-  const [isLoadingPreview, setIsLoadingPreview] = useState(false);
-  const [previewError, setPreviewError] = useState<string | null>(null);
+  // NEW: Use the passed resolveVariablePreview function
+  const [debouncedTempVariableSource] = useDebounce(tempVariableSource, 500);
+  const {
+    data: livePreviewValue,
+    loading: isLoadingPreview,
+    error: previewErrorObj
+  } = resolveVariablePreview(
+    debouncedTempVariableSource as PromptVariableSource, // Cast needed because source can be null
+    undefined // promptVariableId is not needed for builder preview
+  );
+  const previewError = previewErrorObj ? previewErrorObj.message : null;
 
-  // --- Mock Data for Suggestions & Explorer (replace with backend calls) ---
+
+  // --- Data for Suggestions & Explorer ---
   const dataCategories = useMemo(() => [
     { value: 'project', label: 'Project', icon: Briefcase },
     { value: 'tasks', label: 'Tasks', icon: ListChecks },
@@ -112,7 +121,7 @@ export function VariableDiscoveryBuilder({
     { value: 'documents', label: 'Documents', icon: FileText },
     { value: 'members', label: 'Members', icon: Users },
     { value: 'workspace', label: 'Workspace', icon: Database },
-    { value: 'user', label: 'Me (Current User)', icon: Users }, // Assuming User icon is appropriate for 'Me'
+    { value: 'user', label: 'Me (Current User)', icon: Users },
   ], []);
 
   const getFieldsForCategory = useCallback((category: string | null) => {
@@ -129,7 +138,7 @@ export function VariableDiscoveryBuilder({
         { value: 'all_titles_list', label: 'All Tasks Titles List', type: PromptVariableType.LIST_OF_STRINGS, description: 'A bulleted list of all task titles in the project.', source: { type: 'TASKS_AGGREGATION', aggregation: 'LIST_TITLES', format: 'BULLET_POINTS' } },
         { value: 'my_tasks_titles_list', label: 'My Tasks Titles List', type: PromptVariableType.LIST_OF_STRINGS, description: 'A bulleted list of task titles assigned to the current user.', source: { type: 'TASKS_AGGREGATION', filter: { assigneeId: 'current_user' }, aggregation: 'LIST_TITLES', format: 'BULLET_POINTS' } },
         { value: 'completed_count', label: 'Completed Tasks Count', type: PromptVariableType.NUMBER, description: 'The total count of completed tasks in the project.', source: { type: 'TASKS_AGGREGATION', filter: { status: 'DONE' }, aggregation: 'COUNT' } },
-        { value: 'task_title_by_id', label: 'Specific Task: Title (by ID)', type: PromptVariableType.STRING, description: 'The title of a specific task (requires a task ID to be provided in the filter).', source: { type: 'SINGLE_TASK_FIELD', field: 'title', entityId: 'prompt_for_task_id' } }, // 'prompt_for_task_id' means we'd prompt user for it
+        { value: 'task_title_by_id', label: 'Specific Task: Title (by ID)', type: PromptVariableType.STRING, description: 'The title of a specific task (requires a task ID to be provided in the filter).', source: { type: 'SINGLE_TASK_FIELD', field: 'title', entityId: 'prompt_for_task_id' } },
       ];
       case 'sprints': return [
         { value: 'current_name', label: 'Current Sprint Name', type: PromptVariableType.STRING, description: 'The name of the currently active sprint.', source: { type: 'SPRINT_FIELD', entityId: 'current_sprint', field: 'name' } },
@@ -153,6 +162,9 @@ export function VariableDiscoveryBuilder({
         { value: 'firstName', label: 'My First Name', type: PromptVariableType.STRING, description: 'The first name of the current user.', source: { type: 'USER_FIELD', field: 'firstName' } },
         { value: 'email', label: 'My Email', type: PromptVariableType.STRING, description: 'The email address of the current user.', source: { type: 'USER_FIELD', field: 'email' } },
       ];
+      case 'date_function': return [
+        { value: 'today', label: 'Today\'s Date', type: PromptVariableType.DATE, description: 'The current date.', source: { type: 'DATE_FUNCTION', field: 'today' }, defaultValue: new Date().toISOString().split('T')[0] },
+      ];
       default: return [];
     }
   }, []);
@@ -170,26 +182,32 @@ export function VariableDiscoveryBuilder({
     if (!debouncedSearchTerm) return generalSuggestions;
     const lowerSearch = debouncedSearchTerm.toLowerCase();
 
-    // Combine all potential suggestions for searching
     const allSearchable = [
       ...generalSuggestions,
       ...dataCategories.flatMap(cat =>
         getFieldsForCategory(cat.value).map(field => ({
           name: `${cat.label}: ${field.label}`,
-          placeholder: generatePlaceholder(`${cat.value}_${field.label}`),
+          placeholder: generatePlaceholder(`${cat.value}_${field.value}`),
           type: field.type,
           description: field.description,
           source: field.source,
-          defaultValue: field.defaultValue, // Include defaultValue for suggestions
+          defaultValue: field.defaultValue,
         }))
-      )
+      ),
+      ...getFieldsForCategory('date_function').map(field => ({
+          name: `Date: ${field.label}`,
+          placeholder: generatePlaceholder(`Date_${field.label}`),
+          type: field.type,
+          description: field.description,
+          source: field.source,
+          defaultValue: field.defaultValue,
+      })),
     ];
 
-    // Ensure unique suggestions by placeholder (or a more robust key)
     const uniqueSuggestionsMap = new Map<string, typeof allSearchable[0]>();
     allSearchable.forEach(s => {
-        // Use a more robust key if placeholder can be non-unique (e.g., combine type + source)
-        const key = JSON.stringify({ type: s.type, source: s.source });
+        const sourceKey = s.source ? `${s.source.type}-${s.source.field || ''}-${s.source.aggregation || ''}` : 'manual';
+        const key = `${s.type}-${sourceKey}`;
         if (!uniqueSuggestionsMap.has(key)) {
             uniqueSuggestionsMap.set(key, s);
         }
@@ -206,7 +224,6 @@ export function VariableDiscoveryBuilder({
   // --- Reset state when dialog opens or closes ---
   useEffect(() => {
     if (!open) {
-      // Reset all states when dialog closes
       setCurrentStep('choose_type');
       setSearchTerm('');
       setTempVariableName('');
@@ -217,20 +234,19 @@ export function VariableDiscoveryBuilder({
       setTempVariableSource(null);
       setSelectedCategoryInExplorer(null);
       setSelectedFieldInExplorer(null);
-      setLivePreviewValue('N/A');
-      setIsLoadingPreview(false);
-      setPreviewError(null);
     } else {
-      // Optional: Initialize based on initial projectId if needed, or just ensure default starting step
-      if (!projectId && currentStep === 'explore_data') {
-        setCurrentStep('choose_type'); // Or redirect to manual if no project
+      if (!projectId) {
+        setCurrentStep('manual_config');
+        setTempVariableSource(null);
+        setTempVariableType(PromptVariableType.STRING);
+      } else {
+        setCurrentStep('choose_type');
       }
     }
-  }, [open, projectId, currentStep]);
+  }, [open, projectId]);
 
   // --- Update tempVariablePlaceholder when tempVariableName changes (for manual) ---
   useEffect(() => {
-    // Only update placeholder automatically if it's a manual variable and not explicitly set
     if (currentStep === 'manual_config' && tempVariableName && !tempVariableSource) {
       setTempVariablePlaceholder(generatePlaceholder(tempVariableName));
     }
@@ -245,23 +261,20 @@ export function VariableDiscoveryBuilder({
 
       if (matchedField) {
         setTempVariableName(matchedField.label);
-        setTempVariablePlaceholder(generatePlaceholder(`${selectedCategoryInExplorer}_${matchedField.label}`));
+        setTempVariablePlaceholder(generatePlaceholder(`${selectedCategoryInExplorer}_${matchedField.value}`));
         setTempVariableType(matchedField.type);
-        setTempVariableSource(matchedField.source || { type: selectedCategoryInExplorer.toUpperCase() + '_FIELD', field: matchedField.value });
+        setTempVariableSource(matchedField.source || null);
         setTempVariableDescription(matchedField.description || '');
-        setTempVariableDefaultValue(matchedField.defaultValue || ''); // Use default if provided
+        setTempVariableDefaultValue(matchedField.defaultValue || '');
       } else {
-        // Fallback for custom fields or when direct match isn't found for source config
-        // This case might mean the field isn't in our mock, but could exist via API
         setTempVariableName(`Custom ${selectedCategoryInExplorer} Field: ${selectedFieldInExplorer}`);
         setTempVariablePlaceholder(generatePlaceholder(`${selectedCategoryInExplorer}_${selectedFieldInExplorer}`));
-        setTempVariableType(PromptVariableType.STRING); // Default to string for unknown types
+        setTempVariableType(PromptVariableType.STRING);
         setTempVariableSource({ type: selectedCategoryInExplorer.toUpperCase() + '_FIELD', field: selectedFieldInExplorer });
         setTempVariableDescription('');
         setTempVariableDefaultValue('');
       }
     } else if (currentStep === 'explore_data' && !selectedFieldInExplorer) {
-      // If category is selected but no field, clear variable details
       setTempVariableName('');
       setTempVariablePlaceholder('');
       setTempVariableType(null);
@@ -270,78 +283,6 @@ export function VariableDiscoveryBuilder({
       setTempVariableDefaultValue('');
     }
   }, [selectedCategoryInExplorer, selectedFieldInExplorer, getFieldsForCategory, currentStep]);
-
-
-  // --- Live Preview of Variable Value (calls backend) ---
-  const fetchLivePreview = useCallback(async () => {
-    if (!tempVariableSource || !projectId) {
-      setLivePreviewValue('N/A (manual variable or no project context)');
-      setIsLoadingPreview(false);
-      return;
-    }
-
-    setIsLoadingPreview(true);
-    setPreviewError(null);
-    setLivePreviewValue('Loading...');
-
-    try {
-      // TODO: Replace with your actual GraphQL client call
-      // Example with a hypothetical `useGraphQLClient` hook:
-      // const { client } = useGraphQLClient();
-      // const response = await client.request(
-      //   RESOLVE_PROMPT_VARIABLE_QUERY,
-      //   {
-      //     projectId: projectId,
-      //     variableSource: tempVariableSource,
-      //     promptVariableId: 'temp-id', // Use a temp ID for preview
-      //   }
-      // );
-      // setLivePreviewValue(response.resolvePromptVariable || 'No data found');
-
-      // Mocking a backend response for now
-      await new Promise(resolve => setTimeout(resolve, 500)); // Simulate network delay
-      let mockValue = `[MOCK] Value for '${tempVariableName || 'selected data'}'`;
-      if (tempVariableSource.type === 'PROJECT_FIELD' && tempVariableSource.field === 'name') mockValue = `Acme Corp Rebranding Project`;
-      else if (tempVariableSource.type === 'USER_FIELD' && tempVariableSource.field === 'email') mockValue = `john.doe@example.com`;
-      else if (tempVariableSource.type === 'TASKS_AGGREGATION' && tempVariableSource.aggregation === 'LIST_TITLES') mockValue = `• Design landing page\n• Develop API endpoints\n• Write marketing copy`;
-      else if (tempVariableSource.type === 'TASKS_AGGREGATION' && tempVariableSource.aggregation === 'COUNT') mockValue = `12`;
-      else if (tempVariableSource.type === 'DATE_FUNCTION') mockValue = new Date().toISOString().split('T')[0];
-      else if (tempVariableDefaultValue) mockValue = tempVariableDefaultValue; // Use default value if present for preview
-
-
-      setLivePreviewValue(mockValue);
-
-    } catch (err: any) {
-      console.error("Error fetching variable preview:", err);
-      setPreviewError(`Failed to fetch preview: ${err.message || err.toString()}`);
-      setLivePreviewValue('Error');
-    } finally {
-      setIsLoadingPreview(false);
-    }
-  }, [projectId, tempVariableSource, tempVariableName, tempVariableDefaultValue]);
-
-  // Debounce the live preview fetch
-  const [debouncedTempVariableSource] = useDebounce(tempVariableSource, 500);
-  useEffect(() => {
-    // Only fetch preview if dialog is open, a project is selected, and a dynamic source exists
-    if (open && debouncedTempVariableSource && projectId) {
-      fetchLivePreview();
-    } else if (open && projectId && !debouncedTempVariableSource) {
-      // If no source is selected in explorer or it's a manual variable with no specific source
-      if (currentStep === 'explore_data') {
-        setLivePreviewValue('Select a data point to see a live preview.');
-      } else { // manual_config
-        setLivePreviewValue('N/A (manual variable, value set by default/user)');
-      }
-      setPreviewError(null);
-      setIsLoadingPreview(false);
-    } else if (open && !projectId && debouncedTempVariableSource) {
-      // Scenario where a source is selected but no project context (should be caught earlier, but good for robustness)
-      setLivePreviewValue('Cannot show live preview without a project ID.');
-      setPreviewError('Missing project context.');
-      setIsLoadingPreview(false);
-    }
-  }, [debouncedTempVariableSource, projectId, open, fetchLivePreview, currentStep]);
 
 
   const handleCreateVariable = () => {
@@ -373,15 +314,11 @@ export function VariableDiscoveryBuilder({
       <DialogContent className="max-w-4xl h-[90vh] flex flex-col bg-white">
         <DialogHeader className="p-0 border-b">
           <DialogTitle className="text-2xl">Variable Discovery & Builder</DialogTitle>
-          {/* <DialogDescription>
-            Craft powerful prompts by leveraging project data or defining custom inputs.
-          </DialogDescription> */}
         </DialogHeader>
 
         <div className="flex-1 overflow-hidden p-2 grid grid-cols-2 gap-6">
           {/* Left Column: Discovery & Selection */}
           <div className="flex flex-col space-y-4 border-r pr-6 overflow-y-auto">
-            {/* Re-introducing the content that was in renderLeftPanelContent */}
             {!projectId && currentStep !== 'manual_config' ? (
               <div className="text-center py-12 text-gray-500">
                 <p className="text-lg font-semibold mb-2">No Project Selected</p>
@@ -389,7 +326,7 @@ export function VariableDiscoveryBuilder({
                 <Button onClick={() => { setCurrentStep('manual_config'); setTempVariableSource(null); setTempVariableType(PromptVariableType.STRING); }}>Create Manual Variable Instead</Button>
               </div>
             ) : (
-              <> {/* Use a React Fragment to group multiple top-level elements */}
+              <>
                 {currentStep === 'choose_type' && (
                   <div className="space-y-4">
                     <h3 className="text-lg font-semibold text-gray-800 mb-1">What kind of variable do you want?</h3>
@@ -417,7 +354,8 @@ export function VariableDiscoveryBuilder({
                       setCurrentStep('choose_type');
                       setSelectedCategoryInExplorer(null);
                       setSelectedFieldInExplorer(null);
-                      setSearchTerm(''); // Clear search when going back
+                      setSearchTerm('');
+                      setTempVariableSource(null);
                     }} className="self-start -ml-2 mb-4">
                       <ArrowLeft className="h-4 w-4 mr-2" /> Back to Types
                     </Button>
@@ -436,20 +374,18 @@ export function VariableDiscoveryBuilder({
                           <CommandGroup heading="Search Results">
                             {filteredSuggestions.map((s, i) => (
                               <CommandItem
-                                key={`search-sugg-${s.placeholder + i}`} // More robust key
+                                key={`search-sugg-${s.placeholder + i}`}
                                 onSelect={() => {
                                   setTempVariableName(s.name);
                                   setTempVariablePlaceholder(s.placeholder);
                                   setTempVariableType(s.type);
                                   setTempVariableSource(s.source || null);
                                   setTempVariableDescription(s.description || '');
-                                  setTempVariableDefaultValue(s.defaultValue || ''); // Set default if suggestion has one
-                                  // Keep currentStep as explore_data, but update explorer selections
-                                  // to reflect the chosen suggestion
-                                  const categoryValue = s.source?.type?.toLowerCase().replace('_field', '').replace('_aggregation', '').replace('_list', '') || null;
+                                  setTempVariableDefaultValue(s.defaultValue || '');
+                                  const categoryValue = s.source?.type?.toLowerCase().replace('_field', '').replace('_aggregation', '').replace('_list', '').replace('_function', '') || null;
                                   setSelectedCategoryInExplorer(categoryValue);
                                   setSelectedFieldInExplorer(s.source?.field || null);
-                                  setSearchTerm(''); // Clear search after selection
+                                  setSearchTerm('');
                                 }}
                                 className="cursor-pointer flex justify-between items-center"
                               >
@@ -474,8 +410,7 @@ export function VariableDiscoveryBuilder({
                                     key={cat.value}
                                     onSelect={() => {
                                       setSelectedCategoryInExplorer(cat.value);
-                                      setSelectedFieldInExplorer(null); // Clear field when category changes
-                                      // We don't change `currentStep` here, as the explorer view is already active
+                                      setSelectedFieldInExplorer(null);
                                     }}
                                     className={cn(
                                       "cursor-pointer flex items-center",
@@ -487,16 +422,29 @@ export function VariableDiscoveryBuilder({
                                   </CommandItem>
                                 );
                               })}
+                                <CommandItem
+                                    key="date_function"
+                                    onSelect={() => {
+                                      setSelectedCategoryInExplorer('date_function');
+                                      setSelectedFieldInExplorer(null);
+                                    }}
+                                    className={cn(
+                                      "cursor-pointer flex items-center",
+                                      selectedCategoryInExplorer === 'date_function' && "bg-accent text-accent-foreground"
+                                    )}
+                                  >
+                                    <Calendar className="mr-2 h-4 w-4" />
+                                    Date Functions
+                                </CommandItem>
                             </CommandGroup>
 
                             {selectedCategoryInExplorer && (
-                              <CommandGroup heading={`${dataCategories.find(c => c.value === selectedCategoryInExplorer)?.label} Fields`}>
+                              <CommandGroup heading={`${dataCategories.find(c => c.value === selectedCategoryInExplorer)?.label || 'Selected'} Fields`}>
                                 {getFieldsForCategory(selectedCategoryInExplorer).map((fieldOption) => (
                                   <CommandItem
                                     key={fieldOption.value}
                                     onSelect={() => {
                                       setSelectedFieldInExplorer(fieldOption.value);
-                                      // This will trigger the effect to update temp variable details
                                     }}
                                     className={cn(
                                       "cursor-pointer",
@@ -524,7 +472,6 @@ export function VariableDiscoveryBuilder({
                     </Button>
                     <h3 className="text-lg font-semibold text-gray-800 mb-4">Configure Manual Variable</h3>
                     <p className="text-sm text-muted-foreground mb-4">This variable's value will be set manually, or you can provide a default value.</p>
-                    {/* The actual input fields for name, type, etc., are now consistently in the right panel */}
                   </div>
                 )}
               </>
@@ -543,7 +490,6 @@ export function VariableDiscoveryBuilder({
                   value={tempVariableName}
                   onChange={(e) => setTempVariableName(e.target.value)}
                   placeholder="A descriptive name for your variable"
-                  // Editable only if manual, or if it's a project data variable that allows custom naming
                   disabled={!!tempVariableSource && currentStep === 'explore_data'}
                 />
                 {tempVariableSource && currentStep === 'explore_data' && (
@@ -551,7 +497,6 @@ export function VariableDiscoveryBuilder({
                 )}
               </div>
 
-              {/* Placeholder field block */}
               <div className="grid gap-2">
                 <label className="block text-sm font-medium">Placeholder <span className="text-red-500">*</span></label>
                 <Input
@@ -613,15 +558,15 @@ export function VariableDiscoveryBuilder({
               </div>
 
               {/* Live Preview Section */}
-              <div className="mt-4 p-3 border rounded-md bg-gray-50 dark:bg-gray-800"> {/* Added dark mode support */}
+              <div className="mt-4 p-3 border rounded-md bg-gray-50 dark:bg-gray-800">
                 <h4 className="font-semibold text-sm mb-2">Live Preview {tempVariableSource ? '(Project Data)' : ''}</h4>
                 {isLoadingPreview ? (
-                  <p className="text-sm text-gray-500">Fetching live data...</p>
+                  <p className="text-sm text-gray-500 flex items-center"><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Fetching live data...</p>
                 ) : previewError ? (
                   <p className="text-sm text-red-500">{previewError}</p>
                 ) : (
                   <pre className="text-sm font-mono whitespace-pre-wrap max-h-[100px] overflow-y-auto bg-white dark:bg-gray-900 p-2 rounded border border-gray-200 dark:border-gray-700">
-                    {livePreviewValue}
+                    {livePreviewValue || tempVariableDefaultValue || 'N/A (No value or default provided)'}
                   </pre>
                 )}
                 {tempVariableSource && !projectId && (

@@ -487,12 +487,16 @@ model Prompt {
   id          String   @id @default(cuid())
   title       String
   content     String
+  context     String   @default("") // Added context field
   description String?
   category    String?
   tags        String[]
   isPublic    Boolean  @default(false)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  model       String?  @default("gpt-4o") // Added model field, assuming it's a string with a default
+  variables   Json     @default("[]") // Added variables field as Json
+  versions    Json     @default("[]") // Added versions field as Json
 
   projectId String?
   userId    String?

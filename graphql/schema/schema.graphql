@@ -1,876 +1,997 @@
 # ----------------------------------
-# Enums
-# ----------------------------------
-
-enum TaskStatusGQL { # Your TaskStatus enum from Prisma
-  TODO
-  DONE
-}
-
-enum PriorityGQL { # Your Priority enum from Prisma
-  LOW
-  MEDIUM
-  HIGH
-}
-
-enum SprintStatus { # New enum for Sprint status
-  PLANNING
-  ACTIVE
-  COMPLETED
-}
-
-enum UserRole {
-  ADMIN
-  MEMBER
-}
-
-enum WorkspaceRole {
-  OWNER
-  ADMIN
-  MEMBER
-  GUEST
-}
-
-enum ProjectRole {
-  OWNER
-  ADMIN
-  MEMBER
-  VIEWER
-}
-
-enum ProjectStatus {
-  PLANNING
-  ACTIVE
-  ON_HOLD
-  COMPLETED
-  ARCHIVED
-  CANCELLED
-}
-
-# Consolidated TaskStatus (removing TaskStatusGQL in favor of this one)
-enum TaskStatus {
-  TODO
-  DONE
-}
-
-# Consolidated Priority (removing PriorityGQL in favor of this one)
-enum Priority {
-  LOW
-  MEDIUM
-  HIGH
-}
-
-enum DependencyType {
-  FINISH_TO_START
-  START_TO_START
-  FINISH_TO_FINISH
-  START_TO_FINISH
-}
-
-enum Plan {
-  FREE
-  PRO
-  ENTERPRISE
-}
-
-enum SubscriptionStatus {
-  ACTIVE
-  CANCELLED
-  PAST_DUE
-  UNPAID
-}
-
-enum ActivityType {
-  TASK_CREATED
-  TASK_UPDATED
-  TASK_COMPLETED
-  TASK_ASSIGNED
-  PROJECT_CREATED
-  PROJECT_UPDATED
-  DOCUMENT_CREATED
-  DOCUMENT_UPDATED
-  WIREFRAME_CREATED
-  WIREFRAME_UPDATED
-  COMMENT_ADDED
-  MEMBER_ADDED
-  MEMBER_REMOVED
-}
-
-# ----------------------------------
-# Models
-# ----------------------------------
-
-
-type User {
-  id: ID!
-  email: String!
-  firstName: String
-  lastName: String
-  avatar: String
-  firebaseUid: String
-  # password: String # Not typically exposed in GraphQL output types
-  role: UserRole!
-  createdAt: String!
-  updatedAt: String!
-
-  workspaceMembers: [WorkspaceMember]
-  ownedWorkspaces: [Workspace]
-  projectMembers: [ProjectMember]
-  assignedTasks: [Task]
-  createdTasks: [Task]
-  personalTasks: [Task]
-  personalDocuments: [Document]
-  personalWireframes: [Wireframe]
-  personalPrompts: [Prompt]
-  personalSections: [PersonalSection] # New: For personal sections
-  activities: [Activity]
-  comments: [Comment]
-  mentions: [Mention]
-}
-
-type Workspace {
-  id: ID!
-  name: String!
-  slug: String!
-  description: String
-  avatar: String
-  plan: Plan!
-  createdAt: String!
-  updatedAt: String!
-  owner: User!
-  # New fields for Workspace
-  industry: String
-  teamSize: String
-  workFields: [String!] # List of strings for work fields
-
-  members: [WorkspaceMember!]!
-  projects: [Project!]!
-  subscription: Subscription
-  settings: WorkspaceSettings
-  personalTasks: [Task] # New: Personal tasks can also be associated with a workspace
-}
-
-type WorkspaceMember {
-  id: ID!
-  role: WorkspaceRole!
-  joinedAt: String!
-  workspace: Workspace!
-  user: User!
-}
-
-type WorkspaceSettings {
-  id: ID!
-  allowGuestAccess: Boolean!
-  timeZone: String!
-  workspace: Workspace!
-}
-
-type Project {
-  id: ID!
-  name: String!
-  description: String
-  color: String!
-  status: ProjectStatus!
-  startDate: String
-  endDate: String
-  createdAt: String!
-  updatedAt: String!
-  workspace: Workspace!
-
-  members: [ProjectMember!]!
-  tasks: [Task!]!
-  documents: [Document!]!
-  wireframes: [Wireframe!]!
-  prompts: [Prompt!]!
-  activities: [Activity!]!
-  sprints: [Sprint!]!    # New: Sprints for the project
-  sections: [Section!]!  # New: Sections for the project
-
-  projectMemberCount: Int!
-  totalTaskCount: Int!
-  completedTaskCount: Int!
-}
-
-type ProjectMember {
-  id: ID!
-  role: ProjectRole!
-  joinedAt: String!
-  project: Project!
-  user: User!
-}
-
-# New model: Sprint for a project
-type Sprint {
-  id: ID!
-  name: String!
-  description: String
-  startDate: String!
-  endDate: String!
-  isCompleted: Boolean!
-  createdAt: String!
-  updatedAt: String!
-  project: Project!
-  tasks: [Task!]! # Tasks belonging to this sprint
-  milestones: [Milestone!]!
-  status: SprintStatus! # NEW: Add status to Sprint
-}
-
-type Milestone {
-  id: ID!
-  name: String!
-  description: String
-  dueDate: String! # ISO Date string
-  isCompleted: Boolean!
-  createdAt: String!
-  updatedAt: String!
-  sprint: Sprint! # Corrected: Reference Sprint directly, not SprintDetails
-}
-
-
-
-# New model: Section for a project
-type Section {
-  id: ID!
-  name: String!
-  order: Int! # To define the order of sections (e.g., TODO, IN_PROGRESS)
-  createdAt: String!
-  updatedAt: String!
-  project: Project!
-
-  tasks: [Task!]! # Tasks belonging to this section
-}
-
-# New model: PersonalSection for a user's personal tasks
-type PersonalSection {
-  id: ID!
-  name: String!
-  order: Int!
-  createdAt: String!
-  updatedAt: String!
-  user: User!
-  tasks: [Task!]! # Personal tasks belonging to this personal section
-}
-
-type Task {
-  id: ID!
-  title: String!
-  description: String
-  status: TaskStatus! # Using consolidated TaskStatus
-  priority: Priority! # Using consolidated Priority
-  dueDate: String
-  startDate: String
-  endDate: String
-  createdAt: String!
-  updatedAt: String!
-  completed: Boolean!
-
-  # New fields for points and completion percentage
-  points: Int
-  completionPercentage: Float
-
-  # Relationships for project tasks
-  project: Project
-  sprint: Sprint # New: for project tasks
-  section: Section # New: for project tasks
-
-  # Relationships for personal tasks
-  personalUser: User # Original userId renamed for clarity for personal tasks
-  personalWorkspace: Workspace # New: Workspace for personal tasks
-  personalSection: PersonalSection # New: for personal tasks
-
-  # Common relationships (assignee, creator, subtasks, dependencies)
-  assignee: User
-  creator: User!
-
-  parent: Task
-  subtasks: [Task!]!
-
-  dependencies: [TaskDependency!]!
-  dependents: [TaskDependency!]!
-
-  comments: [Comment!]!
-  activities: [Activity!]!
-  labels: [TaskLabel!]!
-}
-
-type Label {
-  id: ID!
-  name: String!
-  color: String!
-  # workspaceId: String! # Typically exposed via the workspace object itself
-  workspace: Workspace! # Relation to Workspace
-  tasks: [TaskLabel!]!
-}
-
-type TaskLabel {
-  taskId: String!
-  labelId: String!
-  task: Task!
-  label: Label!
-}
-
-type Document {
-  id: ID!
-  title: String!
-  content: JSON # The BlockNote content is JSON
-  dataUrl: String # For PDF content
-  createdAt: String!
-  updatedAt: String!
-  type: String! # "doc" or "pdf"
-  projectId: ID
-  project: Project
-  personalUser: User
-  # ... other fields
-}
-
-
-type Wireframe {
-  id: ID!
-  title: String!
-  data: JSON!
-  thumbnail: String
-  createdAt: String!
-  updatedAt: String!
-
-  project: Project
-  personalUser: User
-
-  comments: [Comment!]!
-  activities: [Activity!]!
-}
-
-# --- NEW TYPES FOR WIREFRAMES ---
-type WireframeListItem {
-  id: ID!
-  title: String!
-  updatedAt: String!
-  thumbnail: String # Renamed from previewDataUrl
-  projectId: ID # To filter by project
-}
-
-input CreateWireframeInput {
-  projectId: ID!
-  title: String!
-  data: JSON! # Initial data for the wireframe
-  thumbnail: String # Optional thumbnail base64 string
-}
-
-input UpdateWireframeInput {
-  id: ID!
-  title: String
-  data: JSON # Optional, expects JSON data
-  thumbnail: String # Optional thumbnail base64 string
-}
-
-
-type Comment {
-  id: ID!
-  content: String!
-  createdAt: String!
-  updatedAt: String!
-  author: User!
-
-  task: Task
-  document: Document
-  wireframe: Wireframe
-  prompt: Prompt
-
-  mentions: [Mention!]!
-}
-
-type Mention {
-  id: ID!
-  comment: Comment!
-  user: User!
-}
-
-type Activity {
-  id: ID!
-  type: ActivityType!
-  data: JSON!
-  createdAt: String!
-  user: User!
-
-  project: Project
-  task: Task
-  document: Document
-  wireframe: Wireframe
-  prompt: Prompt
-}
-
-type Subscription {
-  id: ID!
-  plan: Plan!
-  status: SubscriptionStatus!
-  currentPeriodEnd: String!
-  cancelAtPeriodEnd: Boolean!
-  stripeCustomerId: String
-  stripeSubscriptionId: String
-  createdAt: String!
-  updatedAt: String!
-  workspace: Workspace!
-}
-
-type Prompt {
-  id: ID!
-  title: String!
-  content: String!
-  description: String
-  category: String
-  tags: [String!]!
-  isPublic: Boolean!
-  createdAt: String!
-  updatedAt: String!
-
-  project: Project
-  user: User
-
-  comments: [Comment!]!
-  activities: [Activity!]!
-}
-
-type TaskDependency {
-  id: ID!
-  type: DependencyType!
-  lag: Int!
-
-  precedingTask: Task!
-  dependentTask: Task!
-}
-
-type WorkspaceData {
-  id: ID!
-  name: String!
-  description: String
-  industry: String
-  teamSize: String
-  workFields: [String!]
-  members: [WorkspaceMemberData!]!
-  projects: [ProjectData!]!
-}
-
-type WorkspaceMemberData {
-  id: ID! # This is the WorkspaceMember ID
-  role: WorkspaceRole!
-  user: UserPartial! # Partial user data
-}
-
-type UserPartial {
-  id: ID!
-  email: String!
-  firstName: String
-  lastName: String
-}
-
-type ProjectData {
-  id: ID!
-  name: String!
-  description: String
-  status: ProjectStatus!
-  projectMemberCount: Int!
-  totalTaskCount: Int!
-  completedTaskCount: Int!
-}
-
-type ProjectMemberDetails { # For ProjectDetails, more detailed than WorkspaceMemberData
-  id: ID! # ProjectMember ID
-  role: ProjectRole!
-  user: UserFullDetails! # More user info needed here
-}
-
-# --- NEW TYPES FOR GANTT VIEW QUERY ---
-type GanttTaskData { # Custom type to match Gantt library's Task structure
-  id: ID!
-  name: String!
-  start: String! # ISO Date string
-  end: String!   # ISO Date string
-  progress: Int!
-  type: String!  # "task", "milestone", "project" (for sprint parents)
-  sprint: ID     # The ID of the parent sprint (if type is task/milestone)
-  hideChildren: Boolean
-  displayOrder: Int
-  # Add other relevant fields if you have them in Task/Milestone (e.g., description, assignee)
-  description: String
-  assignee: UserAvatarPartial
-}
-
-type GanttDataResponse {
-  sprints: [SprintNameId!]! # List of sprints for filter dropdown
-  tasks: [GanttTaskData!]! # Flattened list of tasks/milestones for Gantt chart
-}
-
-type SprintDetails { # Update SprintDetails type
-  id: ID!
-  name: String!
-  description: String
-  startDate: String!
-  endDate: String!
-  isCompleted: Boolean!
-  status: SprintStatus! # Using the new SprintStatus enum
-  tasks: [TaskListView!]! # Tasks directly under this sprint
-  milestones: [Milestone!]! # NEW: Milestones directly under this sprint
-}
-
-# You might also consider an ActivityDetails type if you uncomment it
-# type ActivityDetails {
-#   id: ID!
-#   type: ActivityType!
-#   data: JSON!
-#   createdAt: String!
-#   user: UserFullDetails!
-# }
-
-type ProjectDetails { # New type to represent the comprehensive data for a single project page
-  id: ID!
-  name: String!
-  description: String
-  status: ProjectStatus!
-  color: String!
-  createdAt: String!
-
-  # Computed stats
-  totalTasks: Int!
-  completedTasks: Int!
-  inProgressTasks: Int!
-  overdueTasks: Int!
-  upcomingDeadlines: Int!
-  displayStatus: String! # Added for UI convenience, can be derived from status
-
-  members: [ProjectMemberDetails!]!
-  sprints: [SprintDetails!]!
-  # activities: [ActivityDetails!]! # Uncomment if needed
-}
-
-type UserFullDetails {
-  id: ID!
-  email: String!
-  firstName: String
-  lastName: String
-  avatar: String # Added avatar
-}
-
-type UserAvatarPartial { # For assignee in tasks, similar to UserFullDetails but named for context
-  id: ID!
-  firstName: String
-  lastName: String
-  avatar: String
-}
-
-type SprintNameId { # For the dropdown filter
-  id: ID!
-  name: String!
-}
-
-type TaskListView { # Simplified Task type for list view
-  id: ID!
-  title: String!
-  description: String
-  status: TaskStatus! # Mapped from Prisma TaskStatus, using consolidated enum
-  priority: Priority! # Mapped from Prisma Priority, using consolidated enum
-  dueDate: String # YYYY-MM-DD
-  points: Int       # Added points field
-  completionPercentage: Float # Added completionPercentage field
-  assignee: UserAvatarPartial # Assignee details
-  completed: Boolean! # Derived field for UI
-  sprintId: ID # <--- ADD THIS IF NOT ALREADY PRESENT (CRITICAL for previous fixes)
-  sectionId: ID # <--- ADD THIS SO UI KNOWS THE TASK'S SECTION
-}
-
-type SectionWithTasks { # For project sections
-  id: ID!
-  name: String!
-  order: Int! # <--- ADD THIS FOR SECTION REORDERING
-  tasks: [TaskListView!]!
-}
-
-type PersonalSectionWithTasks { # For personal sections
-  id: ID!
-  name: String!
-  tasks: [TaskListView!]!
-}
-
-
-input DeleteSectionOptions {
-  deleteTasks: Boolean! # True to delete tasks, false to reassign
-  reassignToSectionId: ID # Required if deleteTasks is false
-}
-
-
-
-type ProjectTasksAndSectionsData {
-  sprints: [SprintNameId!]!
-  sections: [SectionWithTasks!]!
-  personalSections: [PersonalSectionWithTasks!]!
-  projectMembers: [ProjectMemberFullDetails!]!
-  # defaultSelectedSprintId: ID # REMOVED: Managed on client
-}
-
-
-
-
-
-
-# Input type for creating a task
-input CreateProjectTaskInput {
-  projectId: ID!
-  sectionId: ID!
-  title: String!
-  description: String
-  status: TaskStatus # Using consolidated TaskStatus
-  priority: Priority # Using consolidated Priority
-  dueDate: String
-  startDate: String
-  endDate: String
-  assigneeId: ID
-  sprintId: ID
-  points: Int
-  parentId: ID # For subtasks, if you implement this in ListView
-}
-
-# Input type for updating a task
-input UpdateProjectTaskInput {
-  id: ID!
-  title: String # Changed from String! to String (optional, not nullable)
-  description: String
-  status: TaskStatus # Using consolidated TaskStatus
-  priority: Priority # Using consolidated Priority
-  dueDate: String # Changed to String (optional)
-  startDate: String
-  endDate: String
-  assigneeId: ID # Changed to ID (optional)
-  sprintId: ID # Changed to ID (optional)
-  points: Int # Changed to Int (optional)
-  parentId: ID
-  isCompleted: Boolean # NEW: For updating sprint completion status
-  sectionId: ID # <--- ADD THIS FOR MOVING TASKS BETWEEN SECTIONS
-}
-
-# Input type for creating a sprint
-input CreateSprintInput {
-  projectId: ID!
-  name: String!
-  description: String
-  startDate: String! # ISO Date string
-  endDate: String!   # ISO Date string
-  status: SprintStatus # NEW: Allow setting initial status
-}
-
-# Input type for updating a sprint
-input UpdateSprintInput {
-  id: ID!
-  name: String
-  description: String
-  startDate: String # ISO Date string
-  endDate: String   # ISO Date string
-  isCompleted: Boolean
-  status: SprintStatus # NEW: Allow updating status
-}
-
-
-type ProjectMemberFullDetails { # NEW: For project members list
-  id: ID! # This is the ProjectMember ID
-  role: ProjectRole!
-  user: UserFullDetails!
-}
-
-
-
-
-
-
-
-
-
-
-
-
-# NEW TYPES FOR GANTT VIEW QUERY (from your provided schema, ensure they are complete)
-type GanttTaskData {
-  id: ID!
-  name: String!
-  start: String! # ISO Date string (startDate)
-  end: String!   # ISO Date string (endDate or dueDate)
-  progress: Int!
-  type: String!  # "task", "milestone", "project" (for sprint groups)
-  sprint: ID     # The ID of the parent sprint (if type is task/milestone)
-  hideChildren: Boolean
-  displayOrder: Int
-  description: String
-  assignee: UserAvatarPartial
-  # Add other relevant fields if you have them in Task/Milestone
-  # For task updates, we need the original task ID, type, and sprint ID for context
-  originalTaskId: ID # To link back to Task.id or Milestone.id
-  originalType: String # "TASK" or "MILESTONE"
-}
-
-type GanttDataResponse {
-  sprints: [SprintNameId!]! # List of sprints for filter dropdown
-  tasks: [GanttTaskData!]! # Flattened list of tasks/milestones for Gantt chart
-}
-
-type SprintDetails { # Update SprintDetails type (used in getProjectDetails)
-  id: ID!
-  name: String!
-  description: String
-  startDate: String!
-  endDate: String!   # ISO Date string
-  isCompleted: Boolean!
-  status: SprintStatus!
-  tasks: [TaskListView!]! # Tasks directly under this sprint
-  milestones: [Milestone!]!
-}
-
-# Input for creating a new task from Gantt (simplified)
-input CreateGanttTaskInput {
-  projectId: ID!
-  sprintId: ID! # Tasks always belong to a sprint in Gantt context
-  name: String!
-  description: String
-  startDate: String!
-  endDate: String! # Use endDate here for Gantt's `end`
-  assigneeId: ID
-  progress: Int # For initial progress
-  type: String! # "task" or "milestone"
-}
-
-# Input for updating a Gantt task/milestone
-input UpdateGanttTaskInput {
-  id: ID! # ID of the original Task or Milestone
-  type: String! # "TASK" or "MILESTONE" - tells resolver which model to update
-  name: String
-  description: String
-  startDate: String
-  endDate: String # For task (maps to Task.endDate) or milestone (maps to Milestone.dueDate)
-  assigneeId: ID # For task only
-  progress: Int # For task only
-}
-
-# Input for updating a sprint's dates (and other fields)
-input UpdateSprintInput {
-  id: ID!
-  name: String
-  description: String
-  startDate: String # ISO Date string
-  endDate: String   # ISO Date string
-  isCompleted: Boolean
-  status: SprintStatus
-}
-
-
-# --- NEW TYPES FOR DOCUMENTS ---
-
-# Minimal Document type for list view
-type DocumentListItem {
-  id: ID!
-  title: String!
-  updatedAt: String! # For sorting/display
-  type: String! # "doc" or "pdf" (derived, if content is null assume PDF, else doc)
-  projectId: ID # To filter by project
-}
-
-input CreateDocumentInput {
-  projectId: ID!
-  title: String!
-  content: JSON # Expects Block[] as JSON
-  dataUrl: String # Optional for PDF
-}
-
-
-input UpdateDocumentInput {
-  id: ID!
-  title: String
-  content: JSON # Optional, expects Block[] as JSON
-  dataUrl: String # Optional for PDF
-}
-
-# ----------------------------------
-# Root Queries
-# ----------------------------------
-type Query {
-
-  getGanttData(projectId: ID!, sprintId: ID): GanttDataResponse # NEW Query
-
-
-  getProjectTasksAndSections(projectId: ID!, sprintId: ID): ProjectTasksAndSectionsData
-
-  getProjectDetails(projectId: ID!): ProjectDetails
-
-  getWorkspaceData: WorkspaceData # New query
-  me: User
-
-  # --- NEW DOCUMENT QUERIES ---
-  getProjectDocuments(projectId: ID!): [DocumentListItem!]! # Get list of documents for a project
-  getDocumentDetails(id: ID!): Document # Get full details of a single document
-
-  # --- NEW WIREFRAME QUERIES ---
-  getProjectWireframes(projectId: ID!): [WireframeListItem!]! # Get list of wireframes for a project
-  getWireframeDetails(id: ID!): Wireframe # Get full details of a single wireframe
-}
-
-
-
-# ----------------------------------
-# Root Mutations (CRUD-style)
-# ----------------------------------
-type Mutation {
-  createProjectTask(input: CreateProjectTaskInput!): TaskListView! # New mutation
-  updateProjectTask(input: UpdateProjectTaskInput!): TaskListView! # New mutation
-
-  deleteProjectSection(id: ID!, options: DeleteSectionOptions): Section! # Updated mutation
-
-  createProjectSection(projectId: ID!, name: String!, order: Int): Section! # New mutation
-  updateProjectSection(id: ID!, name: String, order: Int): Section! # New mutation
-
-  createUser(email: String!, password: String, firstName: String, lastName: String, role: UserRole): User! # Added password to creation
-
-  setupWorkspace(
-    userId: ID!
-    workspaceName: String!
-    workspaceDescription: String
-    projectName: String!
-    projectDescription: String
-    industry: String
-    teamSize: String
-    workFields: [String!]
-  ): Workspace! # Returns the created Workspace
-
-  createProject(
-    workspaceId: ID!
-    name: String!
-    description: String
-  ): Project! # Returns the created Project
-
-  deleteProjectTask(id: ID!): TaskListView! # NEW: Mutation to delete a task
-
-  # Sprint Mutations
-  createSprint(input: CreateSprintInput!): SprintDetails! # Returns the created sprint
-  updateSprint(input: UpdateSprintInput!): SprintDetails! # Returns the updated sprint
-  deleteSprint(id: ID!): SprintDetails! # Returns the deleted sprint
-
-
-
-
-  createGanttTask(input: CreateGanttTaskInput!): GanttTaskData! # NEW: Create a task/milestone for Gantt
-  updateGanttTask(input: UpdateGanttTaskInput!): GanttTaskData! # NEW: Update a task/milestone for Gantt
-
-  # --- NEW DOCUMENT MUTATIONS ---
-  createDocument(input: CreateDocumentInput!): DocumentListItem! # Returns the created document item
-  updateDocument(input: UpdateDocumentInput!): DocumentListItem! # Returns the updated document item
-  deleteDocument(id: ID!): DocumentListItem! # Returns the deleted document item
-
-  # --- NEW WIREFRAME MUTATIONS ---
-  createWireframe(input: CreateWireframeInput!): WireframeListItem! # Returns the created wireframe item
-  updateWireframe(input: UpdateWireframeInput!): WireframeListItem! # Returns the updated wireframe item
-  deleteWireframe(id: ID!): WireframeListItem! # Returns the deleted wireframe item
-}
-
-
-
-
-
-
-
-# ----------------------------------
-# Scalars
-# ----------------------------------
-scalar JSON
+ # Enums
+ # ----------------------------------
+ 
+ enum TaskStatusGQL { # Your TaskStatus enum from Prisma
+   TODO
+   DONE
+ }
+ 
+ enum PriorityGQL { # Your Priority enum from Prisma
+   LOW
+   MEDIUM
+   HIGH
+ }
+ 
+ enum SprintStatus { # New enum for Sprint status
+   PLANNING
+   ACTIVE
+   COMPLETED
+ }
+ 
+ enum UserRole {
+   ADMIN
+   MEMBER
+ }
+ 
+ enum WorkspaceRole {
+   OWNER
+   ADMIN
+   MEMBER
+   GUEST
+ }
+ 
+ enum ProjectRole {
+   OWNER
+   ADMIN
+   MEMBER
+   VIEWER
+ }
+ 
+ enum ProjectStatus {
+   PLANNING
+   ACTIVE
+   ON_HOLD
+   COMPLETED
+   ARCHIVED
+   CANCELLED
+ }
+ 
+ # Consolidated TaskStatus (removing TaskStatusGQL in favor of this one)
+ enum TaskStatus {
+   TODO
+   DONE
+ }
+ 
+ # Consolidated Priority (removing PriorityGQL in favor of this one)
+ enum Priority {
+   LOW
+   MEDIUM
+   HIGH
+ }
+ 
+ enum DependencyType {
+   FINISH_TO_START
+   START_TO_START
+   FINISH_TO_FINISH
+   START_TO_FINISH
+ }
+ 
+ enum Plan {
+   FREE
+   PRO
+   ENTERPRISE
+ }
+ 
+ enum SubscriptionStatus {
+   ACTIVE
+   CANCELLED
+   PAST_DUE
+   UNPAID
+ }
+ 
+ enum ActivityType {
+   TASK_CREATED
+   TASK_UPDATED
+   TASK_COMPLETED
+   TASK_ASSIGNED
+   PROJECT_CREATED
+   PROJECT_UPDATED
+   DOCUMENT_CREATED
+   DOCUMENT_UPDATED
+   WIREFRAME_CREATED
+   WIREFRAME_UPDATED
+   COMMENT_ADDED
+   MEMBER_ADDED
+   MEMBER_REMOVED
+ }
+ 
+ # NEW: Prompt specific enums
+ enum PromptVariableType {
+   STRING
+   NUMBER
+   BOOLEAN
+   DATE
+   RICH_TEXT # For BlockNote content
+   LIST_OF_STRINGS
+ }
+ 
+ # ----------------------------------
+ # Models
+ # ----------------------------------
+ 
+ 
+ type User {
+   id: ID!
+   email: String!
+   firstName: String
+   lastName: String
+   avatar: String
+   firebaseUid: String
+   # password: String # Not typically exposed in GraphQL output types
+   role: UserRole!
+   createdAt: String!
+   updatedAt: String!
+ 
+   workspaceMembers: [WorkspaceMember]
+   ownedWorkspaces: [Workspace]
+   projectMembers: [ProjectMember]
+   assignedTasks: [Task]
+   createdTasks: [Task]
+   personalTasks: [Task]
+   personalDocuments: [Document]
+   personalWireframes: [Wireframe]
+   personalPrompts: [Prompt] # Added
+   personalSections: [PersonalSection] # New: For personal sections
+   activities: [Activity]
+   comments: [Comment]
+   mentions: [Mention]
+ }
+ 
+ type Workspace {
+   id: ID!
+   name: String!
+   slug: String!
+   description: String
+   avatar: String
+   plan: Plan!
+   createdAt: String!
+   updatedAt: String!
+   owner: User!
+   # New fields for Workspace
+   industry: String
+   teamSize: String
+   workFields: [String!] # List of strings for work fields
+ 
+   members: [WorkspaceMember!]!
+   projects: [Project!]!
+   subscription: Subscription
+   settings: WorkspaceSettings
+   personalTasks: [Task] # New: Personal tasks can also be associated with a workspace
+ }
+ 
+ type WorkspaceMember {
+   id: ID!
+   role: WorkspaceRole!
+   joinedAt: String!
+   workspace: Workspace!
+   user: User!
+ }
+ 
+ type WorkspaceSettings {
+   id: ID!
+   allowGuestAccess: Boolean!
+   timeZone: String!
+   workspace: Workspace!
+ }
+ 
+ type Project {
+   id: ID!
+   name: String!
+   description: String
+   color: String!
+   status: ProjectStatus!
+   startDate: String
+   endDate: String
+   createdAt: String!
+   updatedAt: String!
+   workspace: Workspace!
+ 
+   members: [ProjectMember!]!
+   tasks: [Task!]!
+   documents: [Document!]!
+   wireframes: [Wireframe!]!
+   prompts: [Prompt!]!    # Added
+   activities: [Activity!]!
+   sprints: [Sprint!]!    # New: Sprints for the project
+   sections: [Section!]!  # New: Sections for the project
+ 
+   projectMemberCount: Int!
+   totalTaskCount: Int!
+   completedTaskCount: Int!
+ }
+ 
+ type ProjectMember {
+   id: ID!
+   role: ProjectRole!
+   joinedAt: String!
+   project: Project!
+   user: User!
+ }
+ 
+ # New model: Sprint for a project
+ type Sprint {
+   id: ID!
+   name: String!
+   description: String
+   startDate: String!
+   endDate: String!
+   isCompleted: Boolean!
+   createdAt: String!
+   updatedAt: String!
+   project: Project!
+   tasks: [Task!]! # Tasks belonging to this sprint
+   milestones: [Milestone!]!
+   status: SprintStatus! # NEW: Add status to Sprint
+ }
+ 
+ type Milestone {
+   id: ID!
+   name: String!
+   description: String
+   dueDate: String! # ISO Date string
+   isCompleted: Boolean!
+   createdAt: String!
+   updatedAt: String!
+   sprint: Sprint! # Corrected: Reference Sprint directly, not SprintDetails
+ }
+ 
+ 
+ 
+ # New model: Section for a project
+ type Section {
+   id: ID!
+   name: String!
+   order: Int! # To define the order of sections (e.g., TODO, IN_PROGRESS)
+   createdAt: String!
+   updatedAt: String!
+   project: Project!
+ 
+   tasks: [Task!]! # Tasks belonging to this section
+ }
+ 
+ # New model: PersonalSection for a user's personal tasks
+ type PersonalSection {
+   id: ID!
+   name: String!
+   order: Int!
+   createdAt: String!
+   updatedAt: String!
+   user: User!
+   tasks: [Task!]! # Personal tasks belonging to this personal section
+ }
+ 
+ type Task {
+   id: ID!
+   title: String!
+   description: String
+   status: TaskStatus! # Using consolidated TaskStatus
+   priority: Priority! # Using consolidated Priority
+   dueDate: String
+   startDate: String
+   endDate: String
+   createdAt: String!
+   updatedAt: String!
+   completed: Boolean!
+ 
+   # New fields for points and completion percentage
+   points: Int
+   completionPercentage: Float
+ 
+   # Relationships for project tasks
+   project: Project
+   sprint: Sprint # New: for project tasks
+   section: Section # New: for project tasks
+ 
+   # Relationships for personal tasks
+   personalUser: User # Original userId renamed for clarity for personal tasks
+   personalWorkspace: Workspace # New: Workspace for personal tasks
+   personalSection: PersonalSection # New: for personal tasks
+ 
+   # Common relationships (assignee, creator, subtasks, dependencies)
+   assignee: User
+   creator: User!
+ 
+   parent: Task
+   subtasks: [Task!]!
+ 
+   dependencies: [TaskDependency!]!
+   dependents: [TaskDependency!]!
+ 
+   comments: [Comment!]!
+   activities: [Activity!]!
+   labels: [TaskLabel!]!
+ }
+ 
+ type Label {
+   id: ID!
+   name: String!
+   color: String!
+   # workspaceId: String! # Typically exposed via the workspace object itself
+   workspace: Workspace! # Relation to Workspace
+   tasks: [TaskLabel!]!
+ }
+ 
+ type TaskLabel {
+   taskId: String!
+   labelId: String!
+   task: Task!
+   label: Label!
+ }
+ 
+ type Document {
+   id: ID!
+   title: String!
+   content: JSON # The BlockNote content is JSON
+   dataUrl: String # For PDF content
+   createdAt: String!
+   updatedAt: String!
+   type: String! # "doc" or "pdf"
+   projectId: ID
+   project: Project
+   personalUser: User
+   # ... other fields
+ }
+ 
+ 
+ type Wireframe {
+   id: ID!
+   title: String!
+   data: JSON!
+   thumbnail: String
+   createdAt: String!
+   updatedAt: String!
+ 
+   project: Project
+   personalUser: User
+ 
+   comments: [Comment!]!
+   activities: [Activity!]!
+ }
+ 
+ # --- NEW TYPES FOR WIREFRAMES ---
+ type WireframeListItem {
+   id: ID!
+   title: String!
+   updatedAt: String!
+   thumbnail: String # Renamed from previewDataUrl
+   projectId: ID # To filter by project
+ }
+ 
+ input CreateWireframeInput {
+   projectId: ID!
+   title: String!
+   data: JSON! # Initial data for the wireframe
+   thumbnail: String # Optional thumbnail base64 string
+ }
+ 
+ input UpdateWireframeInput {
+   id: ID!
+   title: String
+   data: JSON # Optional, expects JSON data
+   thumbnail: String # Optional thumbnail base64 string
+ }
+ 
+ 
+ type Comment {
+   id: ID!
+   content: String!
+   createdAt: String!
+   updatedAt: String!
+   author: User!
+ 
+   task: Task
+   document: Document
+   wireframe: Wireframe
+   prompt: Prompt
+   mentions: [Mention!]!
+ }
+ 
+ type Mention {
+   id: ID!
+   comment: Comment!
+   user: User!
+ }
+ 
+ type Activity {
+   id: ID!
+   type: ActivityType!
+   data: JSON!
+   createdAt: String!
+   user: User!
+ 
+   project: Project
+   task: Task
+   document: Document
+   wireframe: Wireframe
+   prompt: Prompt
+ }
+ 
+ type Subscription {
+   id: ID!
+   plan: Plan!
+   status: SubscriptionStatus!
+   currentPeriodEnd: String!
+   cancelAtPeriodEnd: Boolean!
+   stripeCustomerId: String
+   stripeSubscriptionId: String
+   createdAt: String!
+   updatedAt: String!
+   workspace: Workspace!
+ }
+ 
+ # NEW: Prompt related types
+ type PromptVariable {
+   id: ID!
+   name: String!
+   placeholder: String!
+   description: String
+   type: PromptVariableType!
+   defaultValue: String
+   source: JSON # This is the complex JSON structure defining how to resolve the variable
+ }
+ 
+ type Version {
+   id: ID!
+   content: String!
+   context: String!
+   variables: [PromptVariable!]!
+   createdAt: String!
+   notes: String
+ }
+ 
+ type Prompt {
+   id: ID!
+   title: String!
+   content: String!
+   context: String! # Added
+   description: String
+   category: String
+   tags: [String!]!
+   isPublic: Boolean!
+   createdAt: String!
+   updatedAt: String!
+   model: String # Added for model selection
+ 
+   projectId: ID # NEW: Added scalar projectId field
+   project: Project
+   user: User
+ 
+   comments: [Comment!]!
+   activities: [Activity!]!
+   variables: [PromptVariable!]! # Array of embedded variables
+   versions: [Version!]! # Array of embedded versions
+ }
+ 
+ type TaskDependency {
+   id: ID!
+   type: DependencyType!
+   lag: Int!
+ 
+   precedingTask: Task!
+   dependentTask: Task!
+ }
+ 
+ type WorkspaceData {
+   id: ID!
+   name: String!
+   description: String
+   industry: String
+   teamSize: String
+   workFields: [String!]
+   members: [WorkspaceMemberData!]!
+   projects: [ProjectData!]!
+ }
+ 
+ type WorkspaceMemberData {
+   id: ID! # This is the WorkspaceMember ID
+   role: WorkspaceRole!
+   user: UserPartial! # Partial user data
+ }
+ 
+ type UserPartial {
+   id: ID!
+   email: String!
+   firstName: String
+   lastName: String
+ }
+ 
+ type ProjectData {
+   id: ID!
+   name: String!
+   description: String
+   status: ProjectStatus!
+   projectMemberCount: Int!
+   totalTaskCount: Int!
+   completedTaskCount: Int!
+ }
+ 
+ type ProjectMemberDetails { # For ProjectDetails, more detailed than WorkspaceMemberData
+   id: ID! # ProjectMember ID
+   role: ProjectRole!
+   user: UserFullDetails! # More user info needed here
+ }
+ 
+ # --- NEW TYPES FOR GANTT VIEW QUERY ---
+ type GanttTaskData { # Custom type to match Gantt library's Task structure
+   id: ID!
+   name: String!
+   start: String! # ISO Date string
+   end: String!   # ISO Date string
+   progress: Int!
+   type: String!  # "task", "milestone", "project" (for sprint parents)
+   sprint: ID     # The ID of the parent sprint (if type is task/milestone)
+   hideChildren: Boolean
+   displayOrder: Int
+   # Add other relevant fields if you have them in Task/Milestone (e.g., description, assignee)
+   description: String
+   assignee: UserAvatarPartial
+   originalTaskId: ID # To link back to Task.id or Milestone.id
+   originalType: String # "TASK" or "MILESTONE"
+ }
+ 
+ type GanttDataResponse {
+   sprints: [SprintNameId!]! # List of sprints for filter dropdown
+   tasks: [GanttTaskData!]! # Flattened list of tasks/milestones for Gantt chart
+ }
+ 
+ type SprintDetails { # Update SprintDetails type
+   id: ID!
+   name: String!
+   description: String
+   startDate: String!
+   endDate: String!
+   isCompleted: Boolean!
+   status: SprintStatus! # Using the new SprintStatus enum
+   tasks: [TaskListView!]! # Tasks directly under this sprint
+   milestones: [Milestone!]! # NEW: Milestones directly under this sprint
+ }
+ 
+ # You might also consider an ActivityDetails type if you uncomment it
+ # type ActivityDetails {
+ #   id: ID!
+ #   type: ActivityType!
+ #   data: JSON!
+ #   createdAt: String!
+ #   user: UserFullDetails!
+ # }
+ 
+ type ProjectDetails { # New type to represent the comprehensive data for a single project page
+   id: ID!
+   name: String!
+   description: String
+   status: ProjectStatus!
+   color: String!
+   createdAt: String!
+ 
+   # Computed stats
+   totalTasks: Int!
+   completedTasks: Int!
+   inProgressTasks: Int!
+   overdueTasks: Int!
+   upcomingDeadlines: Int!
+   displayStatus: String! # Added for UI convenience, can be derived from status
+ 
+   members: [ProjectMemberDetails!]!
+   sprints: [SprintDetails!]!
+   # activities: [ActivityDetails!]! # Uncomment if needed
+ }
+ 
+ type UserFullDetails {
+   id: ID!
+   email: String!
+   firstName: String
+   lastName: String
+   avatar: String # Added avatar
+ }
+ 
+ type UserAvatarPartial { # For assignee in tasks, similar to UserFullDetails but named for context
+   id: ID!
+   firstName: String
+   lastName: String
+   avatar: String
+ }
+ 
+ type SprintNameId { # For the dropdown filter
+   id: ID!
+   name: String!
+ }
+ 
+ type TaskListView { # Simplified Task type for list view
+   id: ID!
+   title: String!
+   description: String
+   status: TaskStatus! # Mapped from Prisma TaskStatus, using consolidated enum
+   priority: Priority! # Mapped from Prisma Priority, using consolidated enum
+   dueDate: String # YYYY-MM-DD
+   points: Int       # Added points field
+   completionPercentage: Float # Added completionPercentage field
+   assignee: UserAvatarPartial # Assignee details
+   completed: Boolean! # Derived field for UI
+   sprintId: ID # <--- ADD THIS IF NOT ALREADY PRESENT (CRITICAL for previous fixes)
+   sectionId: ID # <--- ADD THIS SO UI KNOWS THE TASK'S SECTION
+ }
+ 
+ type SectionWithTasks { # For project sections
+   id: ID!
+   name: String!
+   order: Int! # <--- ADD THIS FOR SECTION REORDERING
+   tasks: [TaskListView!]!
+ }
+ 
+ type PersonalSectionWithTasks { # For personal sections
+   id: ID!
+   name: String!
+   tasks: [TaskListView!]!
+ }
+ 
+ 
+ input DeleteSectionOptions {
+   deleteTasks: Boolean! # True to delete tasks, false to reassign
+   reassignToSectionId: ID # Required if deleteTasks is false
+ }
+ 
+ 
+ 
+ type ProjectTasksAndSectionsData {
+   sprints: [SprintNameId!]!
+   sections: [SectionWithTasks!]!
+   personalSections: [PersonalSectionWithTasks!]!
+   projectMembers: [ProjectMemberFullDetails!]!
+   # defaultSelectedSprintId: ID # REMOVED: Managed on client
+ }
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ # Input type for creating a task
+ input CreateProjectTaskInput {
+   projectId: ID!
+   sectionId: ID!
+   title: String!
+   description: String
+   status: TaskStatus # Using consolidated TaskStatus
+   priority: Priority # Using consolidated Priority
+   dueDate: String
+   startDate: String
+   endDate: String
+   assigneeId: ID
+   sprintId: ID
+   points: Int
+   parentId: ID # For subtasks, if you implement this in ListView
+ }
+ 
+ # Input type for updating a task
+ input UpdateProjectTaskInput {
+   id: ID!
+   title: String # Changed from String! to String (optional, not nullable)
+   description: String
+   status: TaskStatus # Using consolidated TaskStatus
+   priority: Priority # Using consolidated Priority
+   dueDate: String # Changed to String (optional)
+   startDate: String
+   endDate: String
+   assigneeId: ID # Changed to ID (optional)
+   sprintId: ID # Changed to ID (optional)
+   points: Int # Changed to Int (optional)
+   parentId: ID
+   isCompleted: Boolean # NEW: For updating sprint completion status
+   sectionId: ID # <--- ADD THIS FOR MOVING TASKS BETWEEN SECTIONS
+ }
+ 
+ # Input type for creating a sprint
+ input CreateSprintInput {
+   projectId: ID!
+   name: String!
+   description: String
+   startDate: String! # ISO Date string
+   endDate: String!   # ISO Date string
+   status: SprintStatus # NEW: Allow setting initial status
+ }
+ 
+ # Input type for updating a sprint
+ input UpdateSprintInput {
+   id: ID!
+   name: String
+   description: String
+   startDate: String # ISO Date string
+   endDate: String   # ISO Date string
+   isCompleted: Boolean
+   status: SprintStatus # NEW: Allow updating status
+ }
+ 
+ 
+ type ProjectMemberFullDetails { # NEW: For project members list
+   id: ID! # This is the ProjectMember ID
+   role: ProjectRole!
+   user: UserFullDetails!
+ }
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ # NEW TYPES FOR GANTT VIEW QUERY (from your provided schema, ensure they are complete)
+ type GanttTaskData {
+   id: ID!
+   name: String!
+   start: String! # ISO Date string (startDate)
+   end: String!   # ISO Date string (endDate or dueDate)
+   progress: Int!
+   type: String!  # "task", "milestone", "project" (for sprint groups)
+   sprint: ID     # The ID of the parent sprint (if type is task/milestone)
+   hideChildren: Boolean
+   displayOrder: Int
+   description: String
+   assignee: UserAvatarPartial
+   # Add other relevant fields if you have them in Task/Milestone
+   # For task updates, we need the original task ID, type, and sprint ID for context
+   originalTaskId: ID # To link back to Task.id or Milestone.id
+   originalType: String # "TASK" or "MILESTONE"
+ }
+ 
+ type GanttDataResponse {
+   sprints: [SprintNameId!]! # List of sprints for filter dropdown
+   tasks: [GanttTaskData!]! # Flattened list of tasks/milestones for Gantt chart
+ }
+ 
+ type SprintDetails { # Update SprintDetails type (used in getProjectDetails)
+   id: ID!
+   name: String!
+   description: String
+   startDate: String!
+   endDate: String!   # ISO Date string
+   isCompleted: Boolean!
+   status: SprintStatus!
+   tasks: [TaskListView!]! # Tasks directly under this sprint
+   milestones: [Milestone!]!
+ }
+ 
+ # Input for creating a new task from Gantt (simplified)
+ input CreateGanttTaskInput {
+   projectId: ID!
+   sprintId: ID! # Tasks always belong to a sprint in Gantt context
+   name: String!
+   description: String
+   startDate: String!
+   endDate: String! # Use endDate here for Gantt's `end`
+   assigneeId: ID
+   progress: Int # For initial progress
+   type: String! # "task" or "milestone"
+ }
+ 
+ # Input for updating a Gantt task/milestone
+ input UpdateGanttTaskInput {
+   id: ID! # ID of the original Task or Milestone
+   type: String! # "TASK" or "MILESTONE" - tells resolver which model to update
+   name: String
+   description: String
+   startDate: String
+   endDate: String # For task (maps to Task.endDate) or milestone (maps to Milestone.dueDate)
+   assigneeId: ID # For task only
+   progress: Int # For task only
+ }
+ 
+ # Input for updating a sprint's dates (and other fields)
+ input UpdateSprintInput {
+   id: ID!
+   name: String
+   description: String
+   startDate: String # ISO Date string
+   endDate: String   # ISO Date string
+   isCompleted: Boolean
+   status: SprintStatus
+ }
+ 
+ 
+ # --- NEW TYPES FOR DOCUMENTS ---
+ 
+ # Minimal Document type for list view
+ type DocumentListItem {
+   id: ID!
+   title: String!
+   updatedAt: String! # For sorting/display
+   type: String! # "doc" or "pdf" (derived, if content is null assume PDF, else doc)
+   projectId: ID # To filter by project
+ }
+ 
+ input CreateDocumentInput {
+   projectId: ID!
+   title: String!
+   content: JSON # Expects Block[] as JSON
+   dataUrl: String # Optional for PDF
+ }
+ 
+ 
+ input UpdateDocumentInput {
+   id: ID!
+   title: String
+   content: JSON # Optional, expects Block[] as JSON
+   dataUrl: String # Optional for PDF
+ }
+ 
+ # ----------------------------------
+ # NEW: PROMPT LAB INPUTS
+ # ----------------------------------
+ 
+ input CreatePromptVariableInput {
+   id: ID # Client-generated ID is fine for embedded JSON
+   name: String!
+   placeholder: String!
+   description: String
+   type: PromptVariableType!
+   defaultValue: String
+   source: JSON
+ }
+ 
+ input UpdatePromptVariableInput {
+   id: ID!
+   name: String
+   placeholder: String
+   description: String
+   type: PromptVariableType
+   defaultValue: String
+   source: JSON
+ }
+ 
+ input CreatePromptInput {
+   projectId: ID
+   # userId: ID # Will be derived from context
+   title: String!
+   content: String
+   context: String
+   description: String
+   category: String
+   tags: [String!]
+   isPublic: Boolean
+   model: String
+   variables: [CreatePromptVariableInput!]
+   versions: [CreateVersionInput!]
+ }
+ 
+ input UpdatePromptInput {
+   id: ID!
+   title: String
+   content: String
+   context: String
+   description: String
+   category: String
+   tags: [String!]
+   isPublic: Boolean
+   model: String
+   variables: [UpdatePromptVariableInput!] # For updating the *entire* variables array
+ }
+ 
+ input CreateVersionInput { # For initial versions on prompt creation
+   id: ID
+   content: String!
+   context: String!
+   variables: [CreatePromptVariableInput!]!
+   createdAt: String # Will be Date.toISOString()
+   notes: String
+ }
+ 
+ input SnapshotPromptInput {
+   promptId: ID!
+   notes: String
+ }
+ 
+ input RestorePromptVersionInput {
+   promptId: ID!
+   versionId: ID!
+ }
+ 
+ # ----------------------------------
+ # Root Queries
+ # ----------------------------------
+ type Query {
+ 
+   getGanttData(projectId: ID!, sprintId: ID): GanttDataResponse # NEW Query
+ 
+ 
+   getProjectTasksAndSections(projectId: ID!, sprintId: ID): ProjectTasksAndSectionsData
+ 
+   getProjectDetails(projectId: ID!): ProjectDetails
+ 
+   getWorkspaceData: WorkspaceData # New query
+   me: User
+ 
+   # --- NEW DOCUMENT QUERIES ---
+   getProjectDocuments(projectId: ID!): [DocumentListItem!]! # Get list of documents for a project
+   getDocumentDetails(id: ID!): Document # Get full details of a single document
+ 
+   # --- NEW WIREFRAME QUERIES ---
+   getProjectWireframes(projectId: ID!): [WireframeListItem!]! # Get list of wireframes for a project
+   getWireframeDetails(id: ID!): Wireframe # Get full details of a single wireframe
+ 
+   # --- NEW PROMPT QUERIES ---
+   getProjectPrompts(projectId: ID): [Prompt!]! # Added `projectId` as optional for personal prompts
+   getPromptDetails(id: ID!): Prompt
+   resolvePromptVariable(projectId: ID, variableSource: JSON!, promptVariableId: ID): String
+ }
+ 
+ 
+ 
+ # ----------------------------------
+ # Root Mutations (CRUD-style)
+ # ----------------------------------
+ type Mutation {
+   createProjectTask(input: CreateProjectTaskInput!): TaskListView! # New mutation
+   updateProjectTask(input: UpdateProjectTaskInput!): TaskListView! # New mutation
+ 
+   deleteProjectSection(id: ID!, options: DeleteSectionOptions): Section! # Updated mutation
+ 
+   createProjectSection(projectId: ID!, name: String!, order: Int): Section! # New mutation
+   updateProjectSection(id: ID!, name: String, order: Int): Section! # New mutation
+ 
+   createUser(email: String!, password: String, firstName: String, lastName: String, role: UserRole): User! # Added password to creation
+ 
+   setupWorkspace(
+     userId: ID!
+     workspaceName: String!
+     workspaceDescription: String
+     projectName: String!
+     projectDescription: String
+     industry: String
+     teamSize: String
+     workFields: [String!]
+   ): Workspace! # Returns the created Workspace
+ 
+   createProject(
+     workspaceId: ID!
+     name: String!
+     description: String
+   ): Project! # Returns the created Project
+ 
+   deleteProjectTask(id: ID!): TaskListView! # NEW: Mutation to delete a task
+ 
+   # Sprint Mutations
+   createSprint(input: CreateSprintInput!): SprintDetails! # Returns the created sprint
+   updateSprint(input: UpdateSprintInput!): SprintDetails! # Returns the updated sprint
+   deleteSprint(id: ID!): SprintDetails! # Returns the deleted sprint
+ 
+ 
+ 
+ 
+   createGanttTask(input: CreateGanttTaskInput!): GanttTaskData! # NEW: Create a task/milestone for Gantt
+   updateGanttTask(input: UpdateGanttTaskInput!): GanttTaskData! # NEW: Update a task/milestone for Gantt
+ 
+   # --- NEW DOCUMENT MUTATIONS ---
+   createDocument(input: CreateDocumentInput!): DocumentListItem! # Returns the created document item
+   updateDocument(input: UpdateDocumentInput!): DocumentListItem! # Returns the updated document item
+   deleteDocument(id: ID!): DocumentListItem! # Returns the deleted document item
+ 
+   # --- NEW WIREFRAME MUTATIONS ---
+   createWireframe(input: CreateWireframeInput!): WireframeListItem! # Returns the created wireframe item
+   updateWireframe(input: UpdateWireframeInput!): WireframeListItem! # Returns the updated wireframe item
+   deleteWireframe(id: ID!): WireframeListItem! # Returns the deleted wireframe item
+ 
+   # --- NEW PROMPT MUTATIONS ---
+   createPrompt(input: CreatePromptInput!): Prompt!
+   updatePrompt(input: UpdatePromptInput!): Prompt!
+   deletePrompt(id: ID!): Prompt!
+   snapshotPrompt(input: SnapshotPromptInput!): Prompt!
+   restorePromptVersion(input: RestorePromptVersionInput!): Prompt!
+ }
+ 
+ 
+ 
+ 
+ 
+ # ----------------------------------
+ # Scalars
+ # ----------------------------------
+ scalar JSON
