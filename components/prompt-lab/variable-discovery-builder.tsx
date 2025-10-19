@@ -24,9 +24,12 @@ import { Badge } from '@/components/ui/badge';
 import { Command, CommandInput, CommandItem, CommandList, CommandEmpty, CommandGroup } from "@/components/ui/command";
 import { Check, ChevronsUpDown, ArrowLeft, Lightbulb, Keyboard, Database, ListChecks, Calendar, FileText, Users, Briefcase, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { PromptVariable, PromptVariableType, PromptVariableSource } from './store'; // Adjust path as needed
-import { useDebounce } from 'use-debounce'; // For live preview debouncing
+import { PromptVariable, PromptVariableType, PromptVariableSource } from './store';
+import { useDebounce } from 'use-debounce';
 import { toast } from 'sonner';
+// Import Apollo Client hooks and queries
+import { useLazyQuery } from '@apollo/client';
+import { RESOLVE_PROMPT_VARIABLE_QUERY } from '@/graphql/queries/promptRelatedQueries';
 
 
 // Utility to generate a clean placeholder from a name
@@ -40,15 +43,7 @@ interface VariableDiscoveryBuilderProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onCreate: (variable: Omit<PromptVariable, 'id'>) => void;
-  projectId?: string;
-  resolveVariablePreview: (
-    variableSource: PromptVariableSource,
-    promptVariableId?: string
-  ) => {
-    data: string | undefined;
-    loading: boolean;
-    error: any;
-  };
+  projectId?: string; // Keep projectId for context
 }
 
 // Helper component for visually distinct cards
@@ -80,7 +75,6 @@ export function VariableDiscoveryBuilder({
   onOpenChange,
   onCreate,
   projectId,
-  resolveVariablePreview, // NEW: Receive resolver function
 }: VariableDiscoveryBuilderProps) {
   const [currentStep, setCurrentStep] = useState<'choose_type' | 'explore_data' | 'manual_config'>(
     'choose_type'
@@ -100,17 +94,25 @@ export function VariableDiscoveryBuilder({
   const [selectedCategoryInExplorer, setSelectedCategoryInExplorer] = useState<string | null>(null);
   const [selectedFieldInExplorer, setSelectedFieldInExplorer] = useState<string | null>(null);
 
-  // NEW: Use the passed resolveVariablePreview function
+  // NEW: Use useLazyQuery directly in VariableDiscoveryBuilder
+  const [fetchPreview, { data: previewData, loading: isLoadingPreview, error: previewErrorObj }] = useLazyQuery(RESOLVE_PROMPT_VARIABLE_QUERY);
   const [debouncedTempVariableSource] = useDebounce(tempVariableSource, 500);
-  const {
-    data: livePreviewValue,
-    loading: isLoadingPreview,
-    error: previewErrorObj
-  } = resolveVariablePreview(
-    debouncedTempVariableSource as PromptVariableSource, // Cast needed because source can be null
-    undefined // promptVariableId is not needed for builder preview
-  );
+  
+  const livePreviewValue = previewData?.resolvePromptVariable;
   const previewError = previewErrorObj ? previewErrorObj.message : null;
+
+  // Effect to trigger the preview fetch when debounced source changes
+  useEffect(() => {
+    if (debouncedTempVariableSource && projectId) {
+      fetchPreview({
+        variables: {
+          projectId,
+          variableSource: debouncedTempVariableSource,
+          promptVariableId: undefined, // Not applicable for builder preview
+        },
+      });
+    }
+  }, [debouncedTempVariableSource, projectId, fetchPreview]);
 
 
   // --- Data for Suggestions & Explorer ---
@@ -270,7 +272,7 @@ export function VariableDiscoveryBuilder({
         setTempVariableName(`Custom ${selectedCategoryInExplorer} Field: ${selectedFieldInExplorer}`);
         setTempVariablePlaceholder(generatePlaceholder(`${selectedCategoryInExplorer}_${selectedFieldInExplorer}`));
         setTempVariableType(PromptVariableType.STRING);
-        setTempVariableSource({ type: selectedCategoryInExplorer.toUpperCase() + '_FIELD', field: selectedFieldInExplorer });
+        setTempVariableSource({ type: (selectedCategoryInExplorer.toUpperCase() + '_FIELD') as PromptVariableSource['type'], field: selectedFieldInExplorer });
         setTempVariableDescription('');
         setTempVariableDefaultValue('');
       }
@@ -505,7 +507,7 @@ export function VariableDiscoveryBuilder({
                   className="font-mono text-sm"
                   placeholder="e.g., {{project_name}}"
                   onChange={(e) => {
-                    if (currentStep === 'manual_config') {
+                    if (currentStep === 'manual_config' && !tempVariableSource) {
                       setTempVariablePlaceholder(e.target.value);
                     }
                   }}
@@ -564,16 +566,20 @@ export function VariableDiscoveryBuilder({
                   <p className="text-sm text-gray-500 flex items-center"><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Fetching live data...</p>
                 ) : previewError ? (
                   <p className="text-sm text-red-500">{previewError}</p>
-                ) : (
+                ) : (tempVariableSource && projectId) ? (
                   <pre className="text-sm font-mono whitespace-pre-wrap max-h-[100px] overflow-y-auto bg-white dark:bg-gray-900 p-2 rounded border border-gray-200 dark:border-gray-700">
                     {livePreviewValue || tempVariableDefaultValue || 'N/A (No value or default provided)'}
                   </pre>
-                )}
-                {tempVariableSource && !projectId && (
-                  <p className="text-red-500 text-xs mt-2">Cannot show live preview without a project ID. Select a project context.</p>
-                )}
-                {!tempVariableSource && (
-                  <p className="text-sm text-muted-foreground mt-2">No dynamic data source selected. Preview not applicable for manual variables (value comes from default/user input).</p>
+                ) : !tempVariableSource && tempVariableDefaultValue ? (
+                     <pre className="text-sm font-mono whitespace-pre-wrap max-h-[100px] overflow-y-auto bg-white dark:bg-gray-900 p-2 rounded border border-gray-200 dark:border-gray-700">
+                        {tempVariableDefaultValue}
+                    </pre>
+                ) : (
+                  <p className="text-sm text-muted-foreground mt-2">
+                    { !tempVariableSource && "No dynamic data source selected. Preview not applicable for manual variables (value comes from default/user input)." }
+                    { tempVariableSource && !projectId && "Cannot show live preview without a project ID." }
+                    { !tempVariableSource && !tempVariableDefaultValue && "No dynamic data or default value to preview."}
+                  </p>
                 )}
               </div>
             </div>

@@ -4,7 +4,6 @@
 import PromptCard from './prompt-card';
 import { Button } from "@/components/ui/button"
 import { Plus, Loader2 } from "lucide-react"
-import { usePromptLab } from "@/hooks/usePrompts";
 import { Prompt } from '@/components/prompt-lab/store'; // Import Prompt type
 
 
