@@ -3,39 +3,30 @@
 
 import PromptCard from './prompt-card';
 import { Button } from "@/components/ui/button"
-import { Plus, Loader2 } from "lucide-react"
-import { Prompt } from '@/components/prompt-lab/store'; // Import Prompt type
+import { Plus } from "lucide-react" // Removed Loader2 as parent handles it
+import { Prompt } from '@/components/prompt-lab/store';
+import { useEffect } from 'react';
 
 
 interface PromptListProps {
   prompts: Prompt[];
   onSelectPrompt: (id: string) => void;
-  onCreatePrompt: () => Promise<any>; // Changed return type to Promise<any> as it's async
-  isLoading: boolean;
-  isError: boolean;
+  onCreatePrompt: () => Promise<any>;
+  isLoading: boolean; // Keep this prop for clarity, though it will likely be `false` when this component renders
+  isError: boolean; // Keep this prop for clarity, though it will likely be `false` when this component renders
 }
 
 export function PromptList({ prompts, onSelectPrompt, onCreatePrompt, isLoading, isError }: PromptListProps) {
-  // `usePromptLab` is called in container, so here we receive props directly
-  // The onCreatePrompt prop is now an async function from the container.
 
-  if (isLoading) {
-    return (
-      <div className="page-scroller p-6 flex flex-col items-center justify-center h-full">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <p className="mt-4 text-slate-500">Loading prompts...</p>
-      </div>
-    );
-  }
+  useEffect(() => {
+    console.log('[PromptList] Rendered with props. Prompts count:', prompts.length, 'isLoading:', isLoading, 'isError:', isError);
+    prompts.forEach(p => console.log(`  - Received Prompt ID: ${p.id}, Title: ${p.title.substring(0,20)}...`));
+  }, [prompts, isLoading, isError]);
 
-  if (isError) {
-    return (
-      <div className="page-scroller p-6 flex flex-col items-center justify-center h-full text-red-500">
-        <p>Error loading prompts. Please try again.</p>
-        <Button onClick={() => window.location.reload()} className="mt-4">Reload Page</Button>
-      </div>
-    );
-  }
+  // The parent (PromptLabContainer) is now responsible for showing loaders and error messages
+  // before rendering PromptList.
+  // This means if PromptList is rendered, we can assume loading is complete and no error occurred.
+  // The `isLoading` and `isError` props will effectively be `false` here due to the parent's logic.
 
   return (
     <div className="page-scroller p-6">
@@ -48,6 +39,8 @@ export function PromptList({ prompts, onSelectPrompt, onCreatePrompt, isLoading,
       </div>
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         {prompts.length === 0 ? (
+          // This message is now correctly displayed *after* loading is confirmed complete
+          // and no prompts were returned by the database.
           <p className="col-span-full text-center text-slate-500">No prompts found. Click "New Prompt" to create one.</p>
         ) : (
           prompts.map((prompt) => (

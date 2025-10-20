@@ -112,9 +112,7 @@ async function renderPrompt(
 }
 
 /* ---------- MAIN COMPONENT ---------- */
-export function PromptLab({ prompt, onBack, projectId }: { prompt: Prompt; onBack: () => void; projectId?: string }) {
-  // `usePromptLab` is not needed directly here in PromptLab for `currentSelectedPrompt` and `promptsLoading`
-  // as the `prompt` prop is already guaranteed by PromptLabContainer.
+export function PromptLab({ prompt, onBack, projectId, loadingDetails }: { prompt: Prompt; onBack: () => void; projectId?: string; loadingDetails: boolean; }) { // <--- NEW: loadingDetails prop
   const { updatePrompt, snapshotPrompt, restorePromptVersion } = usePromptLab(projectId); 
 
   const [selectedVersionId, setSelectedVersionId] = useState<string | null>(null)
@@ -131,6 +129,11 @@ export function PromptLab({ prompt, onBack, projectId }: { prompt: Prompt; onBac
 
   useEffect(() => {
     console.log('[PromptLab] Root useEffect: prompt prop changed. Prompt ID:', prompt.id, 'Title:', prompt.title, 'Content length:', prompt.content.length);
+    if (loadingDetails) {
+      console.log('[PromptLab] Root useEffect: loadingDetails is true, skipping state updates for prompt data until details are loaded.');
+      return; // Skip updating local states if details are still loading
+    }
+
     if (prompt) {
       if (prompt.versions.length > 0) {
         if (!selectedVersionId || !prompt.versions.some((v) => v.id === selectedVersionId)) {
@@ -153,10 +156,15 @@ export function PromptLab({ prompt, onBack, projectId }: { prompt: Prompt; onBac
       console.log('[PromptLab] Updating previewVariableValues based on prompt.variables:', prompt.variables.length, 'variables found.');
       setPreviewVariableValues(initialPreviewValues);
     }
-  }, [prompt, selectedVersionId]);
+  }, [prompt, selectedVersionId, loadingDetails]); // Add loadingDetails to dependencies
 
 
   useEffect(() => {
+    if (loadingDetails) {
+      console.log('[PromptLab] Root useEffect (preview): loadingDetails is true, skipping preview generation.');
+      setRenderedPreview("Loading preview..."); // Optional: show a loading message for preview
+      return;
+    }
     if (prompt) {
       console.log('[PromptLab] Root useEffect: Generating preview based on prompt and previewVariableValues.');
       const generatePreview = async () => {
@@ -165,7 +173,7 @@ export function PromptLab({ prompt, onBack, projectId }: { prompt: Prompt; onBac
       };
       generatePreview();
     }
-  }, [prompt, previewVariableValues, projectId]);
+  }, [prompt, previewVariableValues, projectId, loadingDetails]); // Add loadingDetails to dependencies
 
 
   const selectedVersion = useMemo(() => prompt?.versions.find((v) => v.id === selectedVersionId) || null, [prompt, selectedVersionId])
@@ -234,10 +242,6 @@ export function PromptLab({ prompt, onBack, projectId }: { prompt: Prompt; onBac
   }, [prompt.variables, handleUpdatePrompt]);
 
 
-  // Removed the internal loading and "Please select a prompt" checks.
-  // PromptLabContainer ensures `prompt` prop is valid before rendering this component.
-  // If `prompt` is passed, it's considered selected and either partially or fully loaded.
-
   return (
     <DndProvider backend={HTML5Backend}>
       <div className="page-scroller pt-0 p-1 pb-0 h-full min-h-0">
@@ -265,61 +269,79 @@ export function PromptLab({ prompt, onBack, projectId }: { prompt: Prompt; onBac
                 <Tab.Panels className="flex-1 min-h-0 flex flex-col overflow-y-auto">
                   {/* Versions tab */}
                   <Tab.Panel className="flex-1 min-h-0 flex flex-col overflow-y-auto">
-                    <div className="flex items-center gap-2 border-b p-3"
-                     style={{ borderColor: "var(--border)", background: "var(--muted-bg)" }}
-                     >
-                      <h3 className="font-semibold">Versions</h3>
-                      <Button className="ml-auto h-9 btn-primary" onClick={() => handleSnapshot(pendingNotes || 'New version')} disabled={isSnapshotting}>
-                        {isSnapshotting ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Plus className="mr-1 h-4 w-4" />} New
-                      </Button>
-                    </div>
-                    <div className="flex-1 min-h-0 overflow-y-auto p-3">
-                      {prompt.versions.length === 0 ? (
-                        <div className="text-sm text-slate-500">No versions yet. Make changes and save a snapshot to create one.</div>
-                      ) : (
-                        <ul className="space-y-2">
-                          {prompt.versions.map((v) => (
-                            <li key={v.id} className="rounded-lg border p-3 hover:bg-slate-50 transition">
-                              <div className="flex items-start gap-2">
-                                <button className="flex-1 text-left" onClick={() => setSelectedVersionId(v.id)} title={v.notes}>
-                                  <div className={`line-clamp-1 text-sm font-medium ${selectedVersionId === v.id ? 'font-bold' : ''}`}>{v.notes}</div>
-                                  <div className="mt-1 text-xs text-slate-500">{new Date(v.createdAt).toLocaleString()}</div>
-                                </button>
-                                {selectedVersionId !== v.id && (
-                                  <Button variant="ghost" size="sm" onClick={() => handleRestoreVersion(v.id)} className="h-7 px-2" disabled={isRestoring}>
-                                     {isRestoring ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : 'Restore'}
-                                  </Button>
-                                )}
-                              </div>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
+                    {loadingDetails ? ( // <--- Conditional rendering for loading
+                        <div className="grid h-full place-items-center p-6 text-sm text-slate-500">
+                          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                          <p className="mt-2">Loading versions...</p>
+                        </div>
+                    ) : (
+                      <>
+                        <div className="flex items-center gap-2 border-b p-3"
+                         style={{ borderColor: "var(--border)", background: "var(--muted-bg)" }}
+                         >
+                          <h3 className="font-semibold">Versions</h3>
+                          <Button className="ml-auto h-9 btn-primary" onClick={() => handleSnapshot(pendingNotes || 'New version')} disabled={isSnapshotting}>
+                            {isSnapshotting ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Plus className="mr-1 h-4 w-4" />} New
+                          </Button>
+                        </div>
+                        <div className="flex-1 min-h-0 overflow-y-auto p-3">
+                          {prompt.versions.length === 0 ? (
+                            <div className="text-sm text-slate-500">No versions yet. Make changes and save a snapshot to create one.</div>
+                          ) : (
+                            <ul className="space-y-2">
+                              {prompt.versions.map((v) => (
+                                <li key={v.id} className="rounded-lg border p-3 hover:bg-slate-50 transition">
+                                  <div className="flex items-start gap-2">
+                                    <button className="flex-1 text-left" onClick={() => setSelectedVersionId(v.id)} title={v.notes}>
+                                      <div className={`line-clamp-1 text-sm font-medium ${selectedVersionId === v.id ? 'font-bold' : ''}`}>{v.notes}</div>
+                                      <div className="mt-1 text-xs text-slate-500">{new Date(v.createdAt).toLocaleString()}</div>
+                                    </button>
+                                    {selectedVersionId !== v.id && (
+                                      <Button variant="ghost" size="sm" onClick={() => handleRestoreVersion(v.id)} className="h-7 px-2" disabled={isRestoring}>
+                                         {isRestoring ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : 'Restore'}
+                                      </Button>
+                                    )}
+                                  </div>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                      </>
+                    )}
                   </Tab.Panel>
 
                   {/* Variables tab */}
                   <Tab.Panel className="flex-1 min-h-0 flex flex-col overflow-y-auto">
-                    <div className="flex flex-col gap-2 border-b p-3" style={{ borderColor: "var(--border)", background: "var(--muted-bg)" }}>
-                      <h3 className="font-semibold">Variables</h3>
-                      <Button className="w-full h-9 btn-primary" onClick={() => {
-                        console.log('[PromptLab] Variables tab: Create New Variable button clicked.');
-                        setShowVariableBuilder(true);
-                      }}>
-                        <Plus className="mr-1 h-4 w-4" /> Create New Variable
-                      </Button>
-                    </div>
-                    <div className="flex-1 min-h-0 overflow-y-auto p-3">
-                      {prompt.variables.length === 0 ? (
-                        <div className="text-sm text-slate-500">No variables yet. Click "Create New Variable" to get started.</div>
-                      ) : (
-                        <ul className="space-y-2">
-                          {prompt.variables.map((v) => (
-                            <VariableItem key={v.id} variable={v} onRemove={handleRemoveVariable} />
-                          ))}
-                        </ul>
-                      )}
-                    </div>
+                    {loadingDetails ? ( // <--- Conditional rendering for loading
+                        <div className="grid h-full place-items-center p-6 text-sm text-slate-500">
+                          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                          <p className="mt-2">Loading variables...</p>
+                        </div>
+                    ) : (
+                      <>
+                        <div className="flex flex-col gap-2 border-b p-3" style={{ borderColor: "var(--border)", background: "var(--muted-bg)" }}>
+                          <h3 className="font-semibold">Variables</h3>
+                          <Button className="w-full h-9 btn-primary" onClick={() => {
+                            console.log('[PromptLab] Variables tab: Create New Variable button clicked.');
+                            setShowVariableBuilder(true);
+                          }}>
+                            <Plus className="mr-1 h-4 w-4" /> Create New Variable
+                          </Button>
+                        </div>
+                        <div className="flex-1 min-h-0 overflow-y-auto p-3">
+                          {prompt.variables.length === 0 ? (
+                            <div className="text-sm text-slate-500">No variables yet. Click "Create New Variable" to get started.</div>
+                          ) : (
+                            <ul className="space-y-2">
+                              {prompt.variables.map((v) => (
+                                <VariableItem key={v.id} variable={v} onRemove={handleRemoveVariable} />
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                      </>
+                    )}
                   </Tab.Panel>
                 </Tab.Panels>
               </Tab.Group>
@@ -341,47 +363,57 @@ export function PromptLab({ prompt, onBack, projectId }: { prompt: Prompt; onBac
                   </div>
 
                   <div className="min-h-0 flex-1 overflow-y-auto">
-                    <TabsContent value="editor" className="m-0 outline-none flex-1 overflow-y-auto">
-                      <EditorPanel
-                          prompt={prompt} // Pass the fully detailed prompt from usePromptLab
-                          onUpdate={handleUpdatePrompt}
-                          onSnapshot={handleSnapshot}
-                          pendingNotes={pendingNotes}
-                          setPendingNotes={setPendingNotes}
-                          isSnapshotting={isSnapshotting}
-                        />
-                    </TabsContent>
+                    {loadingDetails ? ( // <--- Conditional rendering for loading
+                        <div className="grid h-full place-items-center p-6 text-sm text-slate-500">
+                          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                          <p className="mt-2">Loading prompt content...</p>
+                        </div>
+                    ) : (
+                      <>
+                        <TabsContent value="editor" className="m-0 outline-none flex-1 overflow-y-auto">
+                          <EditorPanel
+                              prompt={prompt} // Pass the fully detailed prompt from usePromptLab
+                              onUpdate={handleUpdatePrompt}
+                              onSnapshot={handleSnapshot}
+                              pendingNotes={pendingNotes}
+                              setPendingNotes={setPendingNotes}
+                              isSnapshotting={isSnapshotting}
+                              loadingDetails={loadingDetails} // Pass loadingDetails to EditorPanel
+                            />
+                        </TabsContent>
 
-                    {/* Version Details Panel */}
-                    <TabsContent value="version-details" className="m-0 outline-none p-4 flex-1 overflow-y-auto">
-                      <VersionsPanel
-                        versions={prompt.versions || []}
-                        selectedVersionId={selectedVersionId}
-                        onSelectVersion={setSelectedVersionId}
-                        onRestoreVersion={handleRestoreVersion}
-                        isRestoring={isRestoring}
-                      />
-                    </TabsContent>
+                        {/* Version Details Panel */}
+                        <TabsContent value="version-details" className="m-0 outline-none p-4 flex-1 overflow-y-auto">
+                          <VersionsPanel
+                            versions={prompt.versions || []}
+                            selectedVersionId={selectedVersionId}
+                            onSelectVersion={setSelectedVersionId}
+                            onRestoreVersion={handleRestoreVersion}
+                            isRestoring={isRestoring}
+                          />
+                        </TabsContent>
 
-                    {/* Preview Section */}
-                    <TabsContent value="preview" className="m-0 outline-none p-4 flex-1 overflow-y-auto">
-                      <div className="mb-2 flex items-center justify-between">
-                        <div className="text-sm font-medium">Preview</div>
-                        <Button size="sm" onClick={() => copy(renderedPreview)} className="h-8 btn-primary">
-                          <Copy className="mr-1 h-4 w-4" />
-                          Copy
-                        </Button>
-                      </div>
-                      <Textarea
-                        readOnly
-                        value={renderedPreview}
-                        className="min-h-[300px] font-mono overflow-y-auto"
-                        style={{ background: '#f8f8f8', color: '#333', borderColor: '#e0e0e0', lineHeight: '1.5' }}
-                      />
-                      <p className="text-xs text-muted-foreground mt-2">
-                        Note: Text wrapped in `[[...]]` indicates a substituted variable.
-                      </p>
-                    </TabsContent>
+                        {/* Preview Section */}
+                        <TabsContent value="preview" className="m-0 outline-none p-4 flex-1 overflow-y-auto">
+                          <div className="mb-2 flex items-center justify-between">
+                            <div className="text-sm font-medium">Preview</div>
+                            <Button size="sm" onClick={() => copy(renderedPreview)} className="h-8 btn-primary">
+                              <Copy className="mr-1 h-4 w-4" />
+                              Copy
+                            </Button>
+                          </div>
+                          <Textarea
+                            readOnly
+                            value={renderedPreview}
+                            className="min-h-[300px] font-mono overflow-y-auto"
+                            style={{ background: '#f8f8f8', color: '#333', borderColor: '#e0e0e0', lineHeight: '1.5' }}
+                          />
+                          <p className="text-xs text-muted-foreground mt-2">
+                            Note: Text wrapped in `[[...]]` indicates a substituted variable.
+                          </p>
+                        </TabsContent>
+                      </>
+                    )}
                   </div>
                 </Tabs>
               </div>
@@ -461,7 +493,6 @@ function parseContentToBlocks(content: string, variables: PromptVariable[], prev
   const placeholders = sortedVariables.map(v => v.placeholder);
 
   let tempBlocks: Block[] = [];
-  let currentText = '';
   let prevBlockMap = new Map<string, Block>();
 
   prevBlocks.forEach(block => {
@@ -477,6 +508,7 @@ function parseContentToBlocks(content: string, variables: PromptVariable[], prev
     const escaped = placeholders.map(p => p.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')).join('|');
     const re = new RegExp(`(${escaped})`, 'g');
     const parts = content.split(re);
+    let currentText = '';
 
     parts.forEach((part) => {
       const matchedVar = sortedVariables.find(v => v.placeholder === part);
@@ -494,57 +526,68 @@ function parseContentToBlocks(content: string, variables: PromptVariable[], prev
         currentText += part;
       }
     });
+    if (currentText !== '') { // Add any remaining text
+      const textBlockKey = `text-${currentText}`;
+      const existingTextBlock = prevBlockMap.get(textBlockKey);
+      tempBlocks.push({ type: 'text', id: existingTextBlock?.id || cuid('t-'), value: currentText });
+    }
   } else {
-    currentText = content;
+    // No variables, treat content as a single text block
+    if (content !== '') {
+      const textBlockKey = `text-${content}`;
+      const existingTextBlock = prevBlockMap.get(textBlockKey);
+      tempBlocks.push({ type: 'text', id: existingTextBlock?.id || cuid('t-'), value: content });
+    }
   }
 
-  if (currentText !== '') {
-    const textBlockKey = `text-${currentText}`;
-    const existingTextBlock = prevBlockMap.get(textBlockKey);
-    tempBlocks.push({ type: 'text', id: existingTextBlock?.id || cuid('t-'), value: currentText });
-  }
-
+  // --- Post-processing for empty/redundant blocks ---
   let finalBlocks: Block[] = [];
   tempBlocks.forEach((block, idx) => {
+    // Only remove genuinely empty text blocks if they are not the sole block
+    // or if they are not at the very beginning/end of a multi-block sequence
     if (block.type === 'text' && block.value === '') {
-      if (
-        (idx > 0 && tempBlocks[idx - 1].type === 'text' && tempBlocks[idx - 1].value === '') ||
-        (idx < tempBlocks.length - 1 && tempBlocks[idx + 1].type === 'text' && tempBlocks[idx + 1].value === '')
-      ) {
-        if (!((idx === 0 || idx === tempBlocks.length - 1) && tempBlocks.length === 1)) {
-            return;
-        }
+      // If it's the only block, keep it to allow typing
+      if (tempBlocks.length === 1) {
+        finalBlocks.push(block);
+        return;
       }
+      // If it's between two non-empty blocks, or if it's at the start/end and there are other blocks, remove it
+      // This logic is tricky. A simpler approach: only keep truly necessary empty blocks.
+      // Let's ensure at least one empty text block if all else is removed.
+      return; // Filter out empty text blocks initially, then handle fallback later.
     }
     finalBlocks.push(block);
   });
   
-  if (finalBlocks.length === 0 || (finalBlocks.length === 1 && finalBlocks[0].type === 'variable' && finalBlocks[0].placeholder === '')) {
+  // If after filtering, no blocks or only variables remain, ensure there's at least one editable text block
+  if (finalBlocks.length === 0 || (finalBlocks.every(b => b.type === 'variable'))) {
     console.log('[parseContentToBlocks] Fallback: Adding initial empty text block.');
     finalBlocks.push({ type: 'text', id: cuid('t-initial-empty-fallback'), value: '' });
   }
   
-  if (finalBlocks.length > 1 && finalBlocks[0].type === 'text' && finalBlocks[0].value === '') {
-    console.log('[parseContentToBlocks] Removing leading empty text block.');
-    finalBlocks.shift();
-  }
-  if (finalBlocks.length > 1 && finalBlocks[finalBlocks.length - 1].type === 'text' && finalBlocks[finalBlocks.length - 1].value === '') {
-    console.log('[parseContentToBlocks] Removing trailing empty text block.');
-    finalBlocks.pop();
+  // Consolidate adjacent text blocks (optional but good for cleanup)
+  const consolidatedBlocks: Block[] = [];
+  if (finalBlocks.length > 0) {
+      consolidatedBlocks.push(finalBlocks[0]);
+      for (let i = 1; i < finalBlocks.length; i++) {
+          const current = finalBlocks[i];
+          const previous = consolidatedBlocks[consolidatedBlocks.length - 1];
+          if (current.type === 'text' && previous.type === 'text') {
+              (previous as { value: string }).value += current.value;
+          } else {
+              consolidatedBlocks.push(current);
+          }
+      }
   }
 
-  if (finalBlocks.length === 0) {
-    console.log('[parseContentToBlocks] Final fallback: Returning single empty text block.');
-    return [{ type: 'text', id: cuid('t-final-empty-fallback'), value: '' }];
-  }
-  console.log('[parseContentToBlocks] Parse finished. Final blocks count:', finalBlocks.length, 'Example ID:', finalBlocks[0]?.id);
-  return finalBlocks;
+  console.log('[parseContentToBlocks] Parse finished. Final blocks count:', consolidatedBlocks.length, 'Example ID:', consolidatedBlocks[0]?.id);
+  return consolidatedBlocks;
 }
 
 
 function serializeBlocks(blocks: Block[]): string {
   const serialized = blocks
-    .filter(b => !(b.type === 'text' && b.value === ''))
+    .filter(b => !(b.type === 'text' && b.value === '')) // Do not serialize empty text blocks
     .map(b => b.type === 'text' ? b.value : b.placeholder)
     .join('');
   
@@ -560,6 +603,7 @@ function EditorPanel({
   pendingNotes,
   setPendingNotes,
   isSnapshotting,
+  loadingDetails, // NEW: Receive loadingDetails prop
 }: {
   prompt: Prompt
   onUpdate: (patch: Partial<Prompt>) => void
@@ -567,48 +611,119 @@ function EditorPanel({
   pendingNotes: string;
   setPendingNotes: (notes: string) => void;
   isSnapshotting: boolean;
+  loadingDetails: boolean; // NEW: Prop
 }) {
   console.log(`[EditorPanel ${prompt.id}] Rendered with prompt ID: ${prompt.id}, Title: "${prompt.title}", Content length: ${prompt.content.length}`);
 
+  // Use separate local states for each editable field in the EditorPanel
+  const [localTitle, setLocalTitle] = useState(prompt.title);
+  const [localContext, setLocalContext] = useState(prompt.context);
+  const [localModel, setLocalModel] = useState(prompt.model);
   const [blocks, setBlocks] = useState<Block[]>([]);
-  const [localTitle, setLocalTitle] = useState('');
-  const [localContext, setLocalContext] = useState('');
-  const [localModel, setLocalModel] = useState('');
 
-  // Primary useEffect to initialize/re-initialize all local states when prompt.id changes
-  // or when the prompt object itself changes (e.g., from initial minimal to full details)
+  // Refs to track if a field is actively being edited, to prevent external updates overwriting user input
+  const isTitleEditing = useRef(false);
+  const isContextEditing = useRef(false);
+  // No need for content editing ref, as blocks are managed differently
+
+  // Initialize all local states when prompt.id changes
+  // This ensures a clean reset when switching prompts
   useEffect(() => {
     console.log(`[EditorPanel ${prompt.id}] useEffect (prompt.id change): Initializing/Resetting all local states.`);
-    // Initialize block state
-    setBlocks(parseContentToBlocks(prompt.content || '', prompt.variables || []));
-    // Initialize other local states
-    setLocalTitle(prompt.title);
-    setLocalContext(prompt.context);
-    setLocalModel(prompt.model);
-    setPendingNotes(''); // Reset pending notes for a new prompt
-  }, [prompt.id]); // Only re-run when the prompt ID changes
-
-
-  // Secondary useEffect for blocks state, specifically when content/variables change for the *current* prompt
-  // This handles internal updates (e.g., after an optimistic update to variables, or fresh data from GET_PROMPT_DETAILS_QUERY)
-  useEffect(() => {
-    // Only proceed if prompt is fully loaded (content/variables are present) AND
-    // the blocks state has already been initialized for this prompt.id
-    if (!prompt.content && prompt.variables.length === 0 && blocks.length === 0) {
-        console.log(`[EditorPanel ${prompt.id}] useEffect (content/variables change): Prompt is still minimal/loading, skipping blocks update.`);
-        return;
-    }
-
-    console.log(`[EditorPanel ${prompt.id}] useEffect (content/variables change): Re-parsing blocks if content/variables differ.`);
-    const newBlocks = parseContentToBlocks(prompt.content || '', prompt.variables || [], blocks);
-    
-    if (!deepCompareBlocks(blocks, newBlocks)) {
-      console.log(`[EditorPanel ${prompt.id}] useEffect (content/variables change): Blocks are NOT semantically identical. Updating blocks state.`);
-      setBlocks(newBlocks);
+    // NEW: Only initialize if details are not loading
+    if (!loadingDetails) {
+      setLocalTitle(prompt.title);
+      setLocalContext(prompt.context);
+      setLocalModel(prompt.model);
+      setBlocks(parseContentToBlocks(prompt.content || '', prompt.variables || []));
+      setPendingNotes('');
     } else {
-      console.log(`[EditorPanel ${prompt.id}] useEffect (content/variables change): Blocks are semantically identical. No state update needed.`);
+      console.log(`[EditorPanel ${prompt.id}] useEffect (prompt.id change): loadingDetails is true, skipping initialization.`);
     }
-  }, [prompt.content, prompt.variables, prompt.id]);
+  }, [prompt.id, loadingDetails]); // Add loadingDetails to dependencies
+
+  // Sync local states with prompt prop when prompt prop changes, but ONLY if not actively editing
+  useEffect(() => {
+    console.log(`[EditorPanel ${prompt.id}] useEffect (prompt prop change): Syncing local states with prop if not editing.`);
+    // NEW: Skip syncing if details are loading
+    if (loadingDetails) {
+      console.log(`[EditorPanel ${prompt.id}] useEffect (prompt prop change): loadingDetails is true, skipping prop sync.`);
+      return;
+    }
+
+    // Compare against prop, not `localTitle` in the dependency array
+    if (!isTitleEditing.current && localTitle !== prompt.title) {
+      console.log(`[EditorPanel ${prompt.id}] Syncing localTitle: "${localTitle}" -> "${prompt.title}"`);
+      setLocalTitle(prompt.title);
+    }
+    if (!isContextEditing.current && localContext !== prompt.context) {
+      console.log(`[EditorPanel ${prompt.id}] Syncing localContext: "${localContext}" -> "${prompt.context}"`);
+      setLocalContext(prompt.context);
+    }
+    // Model select doesn't have an active editing state, always sync if different
+    if (localModel !== prompt.model) {
+      console.log(`[EditorPanel ${prompt.id}] Syncing localModel: "${localModel}" -> "${prompt.model}"`);
+      setLocalModel(prompt.model);
+    }
+
+    // A more direct fix: only re-parse if `prompt.content` is different from the blocks' *current* representation
+    // AND the debounced patch has been sent (implying local user input should be mirrored in `prompt.content`).
+    // This is problematic. The simplest approach (and often most stable) is:
+    // `blocks` is derived *only* from `prompt.content` and `prompt.variables` on `prompt.id` change.
+    // Any user input directly updates `blocks`.
+    // Then, `serializedContent` derived from `blocks` is sent via `onUpdate`.
+    // When `onUpdate` is successful, `prompt.content` will update, and the *next time* this effect runs
+    // (if it runs for content/variable changes), it should see the updated `prompt.content`.
+
+    // The current problem is `prompt.content` is remaining empty.
+    // The previous fix to `usePrompts.ts` (preserving content in updatePromptMutation.onCompleted)
+    // should ideally ensure `prompt.content` is NOT empty after a successful update.
+    // If it *is* empty, then the backend is sending empty `content` in its mutation response.
+
+    // Let's try to make this `useEffect` react ONLY to changes in `prompt.content` or `prompt.variables`
+    // that are *not* yet reflected in the local `blocks` state, without relying on `prompt.id` directly.
+    
+    // Instead of deepCompareBlocks, compare serialized forms to avoid re-parsing overhead if same.
+    const newContentFromProps = prompt.content || '';
+    const currentBlocksSerialized = serializeBlocks(blocks);
+
+    if (newContentFromProps !== currentBlocksSerialized || !deepCompareVariables(prompt.variables, blocks)) {
+      console.log(`[EditorPanel ${prompt.id}] useEffect (content/variables change): Mismatch or update detected. Re-parsing blocks.`);
+      const newBlocks = parseContentToBlocks(newContentFromProps, prompt.variables || [], blocks);
+      if (!deepCompareBlocks(blocks, newBlocks)) {
+         setBlocks(newBlocks);
+      }
+    } else {
+      console.log(`[EditorPanel ${prompt.id}] useEffect (content/variables change): Blocks are in sync with props. No state update needed.`);
+    }
+  }, [
+      prompt.content, prompt.variables, prompt.id, // Primary triggers for re-sync
+      blocks, // Required for `serializeBlocks` and `deepCompareBlocks`
+      loadingDetails, // NEW: Add loadingDetails to dependencies
+      // removed localTitle, localContext, localModel as they are handled in their own if-conditions
+  ]);
+
+  // Helper for deep comparison of variables in blocks
+  const deepCompareVariables = useCallback((propVars: PromptVariable[], currentBlocks: Block[]): boolean => {
+      const currentBlockVars = currentBlocks
+          .filter((b): b is Extract<Block, { type: 'variable' }> => b.type === 'variable')
+          .map(b => ({ id: b.varId, placeholder: b.placeholder, name: b.name }));
+      
+      if (propVars.length !== currentBlockVars.length) return false;
+
+      // Simplistic comparison: check if all propVars exist in currentBlockVars
+      // and vice-versa, by their unique identifiers (varId/placeholder).
+      // A more robust check might involve mapping to varIds and sorting.
+      const propVarMap = new Map(propVars.map(v => [v.id, v.placeholder]));
+      const currentBlockVarMap = new Map(currentBlockVars.map(v => [v.id, v.placeholder]));
+
+      if (propVarMap.size !== currentBlockVarMap.size) return false;
+
+      for (const [id, placeholder] of propVarMap.entries()) {
+          if (currentBlockVarMap.get(id) !== placeholder) return false;
+      }
+      return true;
+  }, []);
 
   const logBlocks = useCallback((message: string, currentBlocks: Block[]) => {
     const formattedBlocks = currentBlocks.map(b =>
@@ -619,43 +734,48 @@ function EditorPanel({
 
   // Debounce the content update to the backend
   const serializedContent = useMemo(() => serializeBlocks(blocks), [blocks]);
-  const [debouncedSerializedContent] = useDebounce(serializedContent, 500);
+  // Removed separate debouncedSerializedContent, using combined debouncedPatch
 
+  // Combine all local states that need to be sent in a single patch
+  const currentLocalStateForPatch = useMemo(() => ({
+    title: localTitle,
+    context: localContext,
+    model: localModel,
+    content: serializedContent, // Use the directly serialized content
+    // Note: variables are handled by direct calls to handleUpdatePrompt from PromptLab component
+    // If EditorPanel were to edit variables, they would need to be included here too.
+  }), [localTitle, localContext, localModel, serializedContent]);
+
+  // Debounce all updates together
+  const [debouncedPatch] = useDebounce(currentLocalStateForPatch, 500);
+
+  // Effect to send the debounced comprehensive patch
   useEffect(() => {
-    console.log(`[EditorPanel ${prompt.id}] useEffect: debouncedSerializedContent changed.`);
-    if (debouncedSerializedContent !== prompt.content) {
-      console.log(`[EditorPanel ${prompt.id}] useEffect: Debounced serialized content differs from prop content. Calling onUpdate.`);
-      onUpdate({ content: debouncedSerializedContent });
+    console.log(`[EditorPanel ${prompt.id}] useEffect: debouncedPatch changed.`);
+    // Compare each field to `prompt` prop to avoid unnecessary updates
+    const hasChanges = (debouncedPatch.title !== prompt.title) ||
+                       (debouncedPatch.context !== prompt.context) ||
+                       (debouncedPatch.model !== prompt.model) ||
+                       (debouncedPatch.content !== prompt.content);
+
+    // NEW: Do not send updates if loadingDetails is true, as prompt prop is not yet fully loaded
+    if (loadingDetails) {
+      console.log(`[EditorPanel ${prompt.id}] useEffect: loadingDetails is true, skipping debounced patch send.`);
+      return;
+    }
+
+    if (hasChanges) {
+      console.log(`[EditorPanel ${prompt.id}] useEffect: Debounced patch differs from prop. Calling onUpdate with full patch:`, debouncedPatch);
+      // Ensure we don't send null/empty title if it's the default "Untitled Prompt"
+      const patchToSend = {
+          ...debouncedPatch,
+          title: debouncedPatch.title || "Untitled Prompt" // Ensure title is never sent as null
+      };
+      onUpdate(patchToSend);
     } else {
-      console.log(`[EditorPanel ${prompt.id}] useEffect: Debounced serialized content matches prop content.`);
+      console.log(`[EditorPanel ${prompt.id}] useEffect: Debounced patch matches prop. No onUpdate needed.`);
     }
-  }, [debouncedSerializedContent, onUpdate, prompt.content, prompt.id]);
-
-  // Debounce for title, context, model updates
-  const [debouncedLocalTitle] = useDebounce(localTitle, 300);
-  const [debouncedLocalContext] = useDebounce(localContext, 300);
-  const [debouncedLocalModel] = useDebounce(localModel, 300);
-
-  useEffect(() => {
-    if (debouncedLocalTitle !== prompt.title) {
-      console.log(`[EditorPanel ${prompt.id}] useEffect: Debounced title "${debouncedLocalTitle}" differs from prop title "${prompt.title}". Calling onUpdate.`);
-      onUpdate({ title: debouncedLocalTitle || "Untitled Prompt" });
-    }
-  }, [debouncedLocalTitle, prompt.title, onUpdate, prompt.id]);
-
-  useEffect(() => {
-    if (debouncedLocalContext !== prompt.context) {
-      console.log(`[EditorPanel ${prompt.id}] useEffect: Debounced context "${debouncedLocalContext.substring(0, 50)}..." differs from prop context. Calling onUpdate.`);
-      onUpdate({ context: debouncedLocalContext });
-    }
-  }, [debouncedLocalContext, prompt.context, onUpdate, prompt.id]);
-
-  useEffect(() => {
-    if (debouncedLocalModel !== prompt.model) {
-      console.log(`[EditorPanel ${prompt.id}] useEffect: Debounced model "${debouncedLocalModel}" differs from prop model "${prompt.model}". Calling onUpdate.`);
-      onUpdate({ model: debouncedLocalModel });
-    }
-  }, [debouncedLocalModel, prompt.model, onUpdate, prompt.id]);
+  }, [debouncedPatch, onUpdate, prompt.title, prompt.context, prompt.model, prompt.content, prompt.id, loadingDetails]); // All relevant dependencies, including loadingDetails
 
 
   const insertVariableAt = useCallback((index: number, variable: { placeholder: string; id: string; name: string }) => {
@@ -802,6 +922,8 @@ function EditorPanel({
               console.log(`[EditorPanel ${prompt.id}] Title input changed (local state):`, e.target.value);
               setLocalTitle(e.target.value);
             }}
+            onFocus={() => { isTitleEditing.current = true; console.log('[EditorPanel] isTitleEditing: true'); }}
+            onBlur={() => { isTitleEditing.current = false; console.log('[EditorPanel] isTitleEditing: false'); }}
             className="h-10 text-sm font-medium"
             placeholder="Prompt title"
           />
@@ -832,6 +954,8 @@ function EditorPanel({
               console.log(`[EditorPanel ${prompt.id}] Context textarea changed (local state):`, e.target.value.substring(0, 50) + '...');
               setLocalContext(e.target.value);
             }}
+            onFocus={() => { isContextEditing.current = true; console.log('[EditorPanel] isContextEditing: true'); }}
+            onBlur={() => { isContextEditing.current = false; console.log('[EditorPanel] isContextEditing: false'); }}
             rows={6}
             className="overflow-y-auto"
             placeholder="Add domain, audience, constraints, style guides, and examples. Use {{variables}} if needed."
@@ -922,6 +1046,9 @@ function EditorPanel({
 }
 
 
+
+
+
 /* ---------- Block Renderer: Puzzle-style variable/text blocks ---------- */
 function BlockRenderer({
   block,
@@ -944,7 +1071,7 @@ function BlockRenderer({
   isDraggingSomething: boolean;
   insertTextAt: (index: number, text?: string) => void;
 }) {
-  const contentEditableRef = useRef<HTMLDivElement | null>(null);
+  const contentEditableRef = useRef<HTMLDivElement | null>(contentEditableRef);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
 
   console.log(`[BlockRenderer ${block.id}] Rendered with block.value: "${block.type === 'text' ? block.value : 'N/A'}"`);
