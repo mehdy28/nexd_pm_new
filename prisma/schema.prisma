@@ -486,7 +486,7 @@ model Subscription {
 model Prompt {
   id          String   @id @default(cuid())
   title       String
-  content     String
+  content     Json     @default("[]") // CHANGED: From String to Json, default to empty array JSON
   context     String   @default("") // Added context field
   description String?
   category    String?

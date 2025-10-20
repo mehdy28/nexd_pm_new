@@ -233,6 +233,8 @@
    isCompleted: Boolean!
    createdAt: String!
    updatedAt: String!
+ 
+   sprintId: String!
    sprint: Sprint! # Corrected: Reference Sprint directly, not SprintDetails
  }
  
@@ -433,7 +435,7 @@
  
  type Version {
    id: ID!
-   content: String!
+   content: JSON! # CHANGED: From String to JSON for version content
    context: String!
    variables: [PromptVariable!]!
    createdAt: String!
@@ -443,7 +445,7 @@
  type Prompt {
    id: ID!
    title: String!
-   content: String!
+   content: JSON! # CHANGED: From String to JSON
    context: String! # Added
    description: String
    category: String
@@ -776,7 +778,7 @@
  # Input for updating a Gantt task/milestone
  input UpdateGanttTaskInput {
    id: ID! # ID of the original Task or Milestone
-   type: String! # "TASK" or "MILESTONE" - tells resolver which model to update
+   type: String! # "TASK" or "MILIESTONE" - tells resolver which model to update
    name: String
    description: String
    startDate: String
@@ -851,7 +853,7 @@
    projectId: ID
    # userId: ID # Will be derived from context
    title: String!
-   content: String
+   content: JSON # CHANGED: From String to JSON
    context: String
    description: String
    category: String
@@ -865,7 +867,7 @@
  input UpdatePromptInput {
    id: ID!
    title: String
-   content: String
+   content: JSON # CHANGED: From String to JSON
    context: String
    description: String
    category: String
@@ -877,7 +879,7 @@
  
  input CreateVersionInput { # For initial versions on prompt creation
    id: ID
-   content: String!
+   content: JSON! # CHANGED: From String to JSON
    context: String!
    variables: [CreatePromptVariableInput!]!
    createdAt: String # Will be Date.toISOString()

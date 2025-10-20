@@ -1,6 +1,4 @@
-// lib/graphql/queries.ts
- 
-import { gql } from 'graphql-tag'; // Or your equivalent for GQL queries
+ import { gql } from 'graphql-tag'; // Or your equivalent for GQL queries
  
 // --- Prompt Queries ---
 

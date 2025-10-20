@@ -1071,7 +1071,8 @@ function BlockRenderer({
   isDraggingSomething: boolean;
   insertTextAt: (index: number, text?: string) => void;
 }) {
-  const contentEditableRef = useRef<HTMLDivElement | null>(contentEditableRef);
+  // CORRECTED: Initialize useRef with null
+  const contentEditableRef = useRef<HTMLDivElement | null>(null);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
 
   console.log(`[BlockRenderer ${block.id}] Rendered with block.value: "${block.type === 'text' ? block.value : 'N/A'}"`);
