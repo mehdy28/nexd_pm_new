@@ -7,7 +7,14 @@ export const CREATE_PROMPT_MUTATION = gql`
     createPrompt(input: $input) {
       id
       title
-      content
+      content { # CHANGED: Querying fields of ContentBlock
+        id
+        type
+        value
+        varId
+        placeholder
+        name
+      }
       context
       description
       tags
@@ -26,6 +33,14 @@ export const CREATE_PROMPT_MUTATION = gql`
       }
       versions {
         id
+        content { # CHANGED: Querying fields of ContentBlock for versions
+          id
+          type
+          value
+          varId
+          placeholder
+          name
+        }
         createdAt
         notes
       }
@@ -38,7 +53,14 @@ export const UPDATE_PROMPT_MUTATION = gql`
     updatePrompt(input: $input) {
       id
       title
-      content
+      content { # CHANGED: Querying fields of ContentBlock
+        id
+        type
+        value
+        varId
+        placeholder
+        name
+      }
       context
       description
       tags
@@ -71,7 +93,14 @@ export const SNAPSHOT_PROMPT_MUTATION = gql`
       id
       versions { # Return all versions to update UI
         id
-        content
+        content { # CHANGED: Querying fields of ContentBlock for versions
+          id
+          type
+          value
+          varId
+          placeholder
+          name
+        }
         context
         variables {
           id
@@ -92,7 +121,14 @@ export const RESTORE_PROMPT_VERSION_MUTATION = gql`
   mutation RestorePromptVersion($input: RestorePromptVersionInput!) {
     restorePromptVersion(input: $input) {
       id
-      content
+      content { # CHANGED: Querying fields of ContentBlock
+        id
+        type
+        value
+        varId
+        placeholder
+        name
+      }
       context
       variables { # Return updated content and variables
         id

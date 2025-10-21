@@ -1,10 +1,16 @@
 import { GraphQLResolveInfo } from 'graphql';
 import { prisma } from "@/lib/prisma";
-import { type Prompt, type PromptVariable, type Version, PromptVariableType } from '@/components/prompt-lab/types';
+import { type Prompt, type PromptVariable, type Version, PromptVariableType, type ContentBlock } from '@/components/prompt-lab/types'; // Added ContentBlock to import
 
 interface GraphQLContext {
   prisma: typeof prisma;
   user?: { id: string; email: string; role: string }; // User might still be provided, but not checked
+}
+
+// Extend the Prompt interface for resolvers to properly type the JSON content
+interface PromptWithContentBlocks extends Prompt {
+  content: ContentBlock[];
+  versions: Array<Omit<Version, 'content'> & { content: ContentBlock[] }>;
 }
 
 // Utility to generate a unique ID, mimicking client-side cuid for consistency
@@ -37,7 +43,6 @@ const promptResolvers = {
               // projectId: null, // Only fetch prompts without a project
               // Assuming you still want personal prompts if no projectId, this will fetch all `projectId: null`
               // If you want all prompts if no projectId (even project ones), remove projectId: null
-              // For full "no checks", we'd simply return ALL prompts if projectId is not provided.
               // Let's go with "all prompts matching projectId, or all personal prompts for the user if no projectId".
               // This is closest to original intent without specific auth.
               AND: [
@@ -71,7 +76,7 @@ const promptResolvers = {
       _parent: any,
       { id }: { id: string },
       context: GraphQLContext
-    ): Promise<Prompt> => {
+    ): Promise<PromptWithContentBlocks> => { // Changed return type to PromptWithContentBlocks
       // All user and project access checks removed.
 
       const prompt = await prisma.prompt.findUnique({
@@ -86,11 +91,23 @@ const promptResolvers = {
         },
       });
 
-      // No prompt existence check. If not found, it will return null.
-      // GraphQL's non-nullable types might cause an error if `Prompt` is non-nullable.
-      // Assuming 'Prompt' is nullable in schema for now.
-      // If it's non-nullable, `if (!prompt) throw new Error("Prompt not found.");` would be needed.
-      return prompt as unknown as Prompt;
+      if (!prompt) {
+        throw new Error("Prompt not found.");
+      }
+      
+      // Ensure content and versions content are arrays of ContentBlock or default to empty array
+      const parsedPrompt: PromptWithContentBlocks = {
+        ...prompt,
+        content: (prompt.content as ContentBlock[] || []),
+        variables: (prompt.variables as PromptVariable[] || []).map(v => ({ ...v, id: v.id || generateUniqueId() })),
+        versions: (prompt.versions as Array<Omit<Version, 'content'> & { content: ContentBlock[] }> || []).map(v => ({ 
+            ...v, 
+            id: v.id || generateUniqueId(),
+            content: (v.content as ContentBlock[] || []) 
+        })),
+      };
+
+      return parsedPrompt;
     },
 
     resolvePromptVariable: async (
@@ -280,7 +297,7 @@ const promptResolvers = {
       { input }: { input: {
         projectId?: string;
         title: string;
-        content?: string;
+        content?: ContentBlock[]; // Changed to ContentBlock[]
         context?: string;
         description?: string;
         category?: string;
@@ -291,7 +308,7 @@ const promptResolvers = {
         versions?: Version[];
       }},
       context: GraphQLContext
-    ): Promise<Prompt> => {
+    ): Promise<PromptWithContentBlocks> => { // Changed return type
       // All user and project access checks removed.
 
       // Basic input validation remains for data integrity
@@ -301,7 +318,7 @@ const promptResolvers = {
 
       const newPromptData = {
         title: input.title,
-        content: input.content || '',
+        content: (input.content as any || []), // Cast to any to store as Json
         context: input.context || '',
         description: input.description,
         category: input.category,
@@ -311,14 +328,25 @@ const promptResolvers = {
         userId: context.user?.id || 'anonymous', // Assign to current user if available, otherwise 'anonymous' (or handle as desired)
         projectId: input.projectId,
         variables: (input.variables || []).map(v => ({...v, id: v.id || generateUniqueId()})),
-        versions: (input.versions || []).map(v => ({...v, id: v.id || generateUniqueId()})),
+        versions: (input.versions || []).map(v => ({...v, id: v.id || generateUniqueId(), content: (v.content as any || [])})), // Handle content in versions
       };
 
       const newPrompt = await prisma.prompt.create({
         data: newPromptData,
       });
 
-      return newPrompt as unknown as Prompt;
+      const parsedPrompt: PromptWithContentBlocks = { // Parse content for return
+        ...newPrompt,
+        content: (newPrompt.content as ContentBlock[] || []),
+        variables: (newPrompt.variables as PromptVariable[] || []).map(v => ({ ...v, id: v.id || generateUniqueId() })),
+        versions: (newPrompt.versions as Array<Omit<Version, 'content'> & { content: ContentBlock[] }> || []).map(v => ({ 
+            ...v, 
+            id: v.id || generateUniqueId(),
+            content: (v.content as ContentBlock[] || []) 
+        })),
+      };
+
+      return parsedPrompt;
     },
 
     updatePrompt: async (
@@ -326,7 +354,7 @@ const promptResolvers = {
       { input }: { input: {
         id: string;
         title?: string;
-        content?: string;
+        content?: ContentBlock[]; // Changed to ContentBlock[]
         context?: string;
         description?: string;
         category?: string;
@@ -336,7 +364,7 @@ const promptResolvers = {
         variables?: PromptVariable[];
       }},
       context: GraphQLContext
-    ): Promise<Prompt> => {
+    ): Promise<PromptWithContentBlocks> => { // Changed return type
       // All user and project access checks removed.
 
       const existingPrompt = await prisma.prompt.findUnique({
@@ -349,7 +377,7 @@ const promptResolvers = {
 
       const updateData: any = { updatedAt: new Date() };
       if (input.title !== undefined) updateData.title = input.title;
-      if (input.content !== undefined) updateData.content = input.content;
+      if (input.content !== undefined) updateData.content = (input.content as any); // Cast to any to store as Json
       if (input.context !== undefined) updateData.context = input.context;
       if (input.description !== undefined) updateData.description = input.description;
       if (input.category !== undefined) updateData.category = input.category;
@@ -365,7 +393,18 @@ const promptResolvers = {
         data: updateData,
       });
 
-      return updatedPrompt as unknown as Prompt;
+      const parsedPrompt: PromptWithContentBlocks = { // Parse content for return
+        ...updatedPrompt,
+        content: (updatedPrompt.content as ContentBlock[] || []),
+        variables: (updatedPrompt.variables as PromptVariable[] || []).map(v => ({ ...v, id: v.id || generateUniqueId() })),
+        versions: (updatedPrompt.versions as Array<Omit<Version, 'content'> & { content: ContentBlock[] }> || []).map(v => ({ 
+            ...v, 
+            id: v.id || generateUniqueId(),
+            content: (v.content as ContentBlock[] || []) 
+        })),
+      };
+
+      return parsedPrompt;
     },
 
     deletePrompt: async (
@@ -394,7 +433,7 @@ const promptResolvers = {
       _parent: any,
       { input }: { input: { promptId: string; notes?: string } },
       context: GraphQLContext
-    ): Promise<Prompt> => {
+    ): Promise<PromptWithContentBlocks> => { // Changed return type
       // All user and project access checks removed.
 
       const prompt = await prisma.prompt.findUnique({
@@ -405,11 +444,11 @@ const promptResolvers = {
         throw new Error("Prompt not found."); // Keep for data integrity.
       }
 
-      const currentContent = prompt.content as string || '';
+      const currentContent = (prompt.content as ContentBlock[] || []); // Content is now array of ContentBlock
       const currentContext = prompt.context as string || '';
       const currentVariables = (prompt.variables as PromptVariable[]) || [];
 
-      const newVersion: Version = {
+      const newVersion: Omit<Version, 'content'> & { content: ContentBlock[] } = { // Explicitly type newVersion content
         id: generateUniqueId(),
         content: currentContent,
         context: currentContext,
@@ -418,24 +457,35 @@ const promptResolvers = {
         notes: input.notes || `Version saved on ${new Date().toLocaleString()}`,
       };
 
-      const updatedVersions = [newVersion, ...(prompt.versions as Version[] || [])];
+      const updatedVersions = [newVersion, ...(prompt.versions as Array<Omit<Version, 'content'> & { content: ContentBlock[] }> || [])];
 
       const updatedPrompt = await prisma.prompt.update({
         where: { id: input.promptId },
         data: {
-          versions: updatedVersions,
+          versions: updatedVersions as any, // Cast to any to store as Json
           updatedAt: new Date(),
         },
       });
 
-      return updatedPrompt as unknown as Prompt;
+      const parsedPrompt: PromptWithContentBlocks = { // Parse content for return
+        ...updatedPrompt,
+        content: (updatedPrompt.content as ContentBlock[] || []),
+        variables: (updatedPrompt.variables as PromptVariable[] || []).map(v => ({ ...v, id: v.id || generateUniqueId() })),
+        versions: (updatedPrompt.versions as Array<Omit<Version, 'content'> & { content: ContentBlock[] }> || []).map(v => ({ 
+            ...v, 
+            id: v.id || generateUniqueId(),
+            content: (v.content as ContentBlock[] || []) 
+        })),
+      };
+
+      return parsedPrompt;
     },
 
     restorePromptVersion: async (
       _parent: any,
       { input }: { input: { promptId: string; versionId: string } },
       context: GraphQLContext
-    ): Promise<Prompt> => {
+    ): Promise<PromptWithContentBlocks> => { // Changed return type
       // All user and project access checks removed.
 
       const prompt = await prisma.prompt.findUnique({
@@ -446,7 +496,7 @@ const promptResolvers = {
         throw new Error("Prompt not found."); // Keep for data integrity.
       }
 
-      const versions = (prompt.versions as Version[]) || [];
+      const versions = (prompt.versions as Array<Omit<Version, 'content'> & { content: ContentBlock[] }> || []);
       const versionToRestore = versions.find((v) => v.id === input.versionId);
 
       if (!versionToRestore) {
@@ -456,14 +506,25 @@ const promptResolvers = {
       const updatedPrompt = await prisma.prompt.update({
         where: { id: input.promptId },
         data: {
-          content: versionToRestore.content,
+          content: (versionToRestore.content as any), // Cast to any to store as Json
           context: versionToRestore.context,
           variables: versionToRestore.variables.map(v => ({ ...v, id: v.id || generateUniqueId() })),
           updatedAt: new Date(),
         },
       });
 
-      return updatedPrompt as unknown as Prompt;
+      const parsedPrompt: PromptWithContentBlocks = { // Parse content for return
+        ...updatedPrompt,
+        content: (updatedPrompt.content as ContentBlock[] || []),
+        variables: (updatedPrompt.variables as PromptVariable[] || []).map(v => ({ ...v, id: v.id || generateUniqueId() })),
+        versions: (updatedPrompt.versions as Array<Omit<Version, 'content'> & { content: ContentBlock[] }> || []).map(v => ({ 
+            ...v, 
+            id: v.id || generateUniqueId(),
+            content: (v.content as ContentBlock[] || []) 
+        })),
+      };
+
+      return parsedPrompt;
     },
   },
 };

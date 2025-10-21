@@ -3,7 +3,7 @@
 
 import PromptCard from './prompt-card';
 import { Button } from "@/components/ui/button"
-import { Plus } from "lucide-react" // Removed Loader2 as parent handles it
+import { Plus, Loader2 } from "lucide-react" // Re-added Loader2 for internal handling if props dictate
 import { Prompt } from '@/components/prompt-lab/store';
 import { useEffect } from 'react';
 
@@ -19,15 +19,39 @@ interface PromptListProps {
 export function PromptList({ prompts, onSelectPrompt, onCreatePrompt, isLoading, isError }: PromptListProps) {
 
   useEffect(() => {
-    console.log('[PromptList] Rendered with props. Prompts count:', prompts.length, 'isLoading:', isLoading, 'isError:', isError);
-    prompts.forEach(p => console.log(`  - Received Prompt ID: ${p.id}, Title: ${p.title.substring(0,20)}...`));
+    console.log(`[data loading sequence] [PromptList] Rendered with props. Prompts count: ${prompts.length}, isLoading: ${isLoading}, isError: ${isError}`);
+    prompts.forEach(p => console.log(`[data loading sequence] [PromptList]   - Received Prompt ID: ${p.id}, Title: ${p.title.substring(0,20)}...`));
   }, [prompts, isLoading, isError]);
 
-  // The parent (PromptLabContainer) is now responsible for showing loaders and error messages
-  // before rendering PromptList.
-  // This means if PromptList is rendered, we can assume loading is complete and no error occurred.
-  // The `isLoading` and `isError` props will effectively be `false` here due to the parent's logic.
 
+  // IMPORTANT:
+  // With the global loader strategy in PromptLabContainer, these `isLoading` and `isError`
+  // checks *should* ideally never be true when PromptList actually renders.
+  // The PromptLabContainer will intercept and display the global loader or error message first.
+  // However, by including them here, PromptList is self-contained and robust
+  // to changes in its parent's rendering logic.
+
+  if (isLoading) {
+    console.log('[data loading sequence] [PromptList] Rendering internal loading state.');
+    return (
+      <div className="page-scroller p-6 flex flex-col items-center justify-center min-h-[calc(100vh-100px)]">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <p className="mt-2 text-sm text-slate-500">Loading prompt list...</p>
+      </div>
+    );
+  }
+
+  if (isError) {
+    console.log('[data loading sequence] [PromptList] Rendering internal error state.');
+    return (
+      <div className="page-scroller p-6 flex flex-col items-center justify-center min-h-[calc(100vh-100px)] text-red-500">
+        <p className="text-lg">Failed to load prompts.</p>
+        <p className="text-sm mt-2">Please try refreshing the page.</p>
+      </div>
+    );
+  }
+
+  console.log('[data loading sequence] [PromptList] Rendering main content (prompts or "no prompts found" message).');
   return (
     <div className="page-scroller p-6">
       <div className="flex items-center justify-between mb-6">
@@ -39,8 +63,6 @@ export function PromptList({ prompts, onSelectPrompt, onCreatePrompt, isLoading,
       </div>
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         {prompts.length === 0 ? (
-          // This message is now correctly displayed *after* loading is confirmed complete
-          // and no prompts were returned by the database.
           <p className="col-span-full text-center text-slate-500">No prompts found. Click "New Prompt" to create one.</p>
         ) : (
           prompts.map((prompt) => (

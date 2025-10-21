@@ -14,7 +14,7 @@ export enum PromptVariableType {
 // NEW: Type for the 'source' field in PromptVariable
 // This will become more complex as more data sources and transformations are added
 export type PromptVariableSource = {
-  type: 'PROJECT_FIELD' | 'WORKSPACE_FIELD' | 'USER_FIELD' | 'TASKS_AGGREGATION' | 'SPRINT_FIELD' | 'DOCUMENT_CONTENT' | 'MEMBER_LIST' | 'DATE_FUNCTION'; // Added DATE_FUNCTION for 'Today\'s Date' example
+  type: 'PROJECT_FIELD' | 'WORKSPACE_FIELD' | 'USER_FIELD' | 'TASKS_AGGREGATION' | 'SPRINT_FIELD' | 'DOCUMENT_FIELD' | 'SINGLE_TASK_FIELD' | 'MEMBER_LIST' | 'DATE_FUNCTION'; // Added DATE_FUNCTION for 'Today\'s Date' example, DOCUMENT_FIELD, SINGLE_TASK_FIELD
   entityId?: string; // e.g., if specific task or document. Can be 'current_sprint', 'latest' etc.
   field?: string; // e.g., 'name', 'description', 'dueDate'
   filter?: Record<string, any>; // e.g., { status: 'DONE', assigneeId: 'userId' }
@@ -25,7 +25,7 @@ export type PromptVariableSource = {
 
 
 export type PromptVariable = {
-  id: string;
+  id: string; // Client-side generated ID for embedded objects (or from DB)
   name: string;
   placeholder: string; // e.g., {{project_name}}
   defaultValue?: string;
@@ -34,12 +34,23 @@ export type PromptVariable = {
   source?: PromptVariableSource | null; // NEW: How this variable's value is derived from project data
 };
 
+// NEW: ContentBlock type to match the new content structure
+export interface ContentBlock {
+  id: string; // Unique ID for the block (client-generated for editor, or from DB)
+  type: 'text' | 'variable';
+  value: string; // Content for 'text' blocks
+  varId?: string; // ID of the variable from Prompt.variables for 'variable' blocks
+  placeholder?: string; // Placeholder string like {{my_var}} for 'variable' blocks
+  name?: string; // Display name of the variable for 'variable' blocks
+}
+
 export type Version = {
   id: string;
-  content: string;
+  content: ContentBlock[]; // CHANGED: From string to ContentBlock[]
   context: string;
   notes?: string;
-  createdAt: number;
+  createdAt: string; // CHANGED: From number to string (ISO date string)
+  variables: PromptVariable[]; // Added variables to version as well
 };
 
 export type Prompt = {
@@ -50,18 +61,28 @@ export type Prompt = {
   tags: string[];
   isPublic: boolean;
   model: string; // e.g., gpt-4o
-  content: string;
+  content: ContentBlock[]; // CHANGED: From string to ContentBlock[]
   context: string;
-  createdAt: number;
-  updatedAt: number;
+  createdAt: string; // CHANGED: From number to string (ISO date string)
+  updatedAt: string; // CHANGED: From number to string (ISO date string)
   versions: Version[];
   variables: PromptVariable[];
 };
 
+// Helper to generate a client-side CUID for embedded JSON objects (variables, versions)
+function cuid(prefix: string = ''): string {
+  const chars = '0123456789abcdefghijklmnopqrstuvwxyz';
+  let result = prefix + 'c';
+  for (let i = 0; i < 24; i++) {
+    result += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return result;
+}
+
 interface PromptLabState {
   prompts: Prompt[];
   projectId?: string; // Add projectId to state for context
-  create: () => Prompt;
+  create: (projectId?: string) => Prompt; // Adjusted to accept projectId
   update: (id: string, patch: Partial<Prompt>) => void;
   remove: (id: string) => void;
   duplicate: (id: string) => Prompt;
@@ -76,21 +97,23 @@ const usePromptLabStore = create<PromptLabState>()(
       prompts: [],
       projectId: undefined,
 
-      create: () => {
+      create: (projectId?: string) => { // Adjusted to accept projectId
+        const now = new Date().toISOString(); // Use ISO date string
         const newPrompt: Prompt = {
-          id: Math.random().toString(36).slice(2),
+          id: cuid('p-'), // Use cuid
           title: 'Untitled Prompt',
           description: '',
           category: '',
           tags: [],
           isPublic: false,
           model: 'gpt-4o',
-          content: '',
+          content: [], // CHANGED: Default to empty array
           context: '',
-          createdAt: Date.now(),
-          updatedAt: Date.now(),
+          createdAt: now,
+          updatedAt: now,
           versions: [],
           variables: [],
+          // projectId: projectId // No longer storing projectId here, handled by usePrompts hook/GraphQL
         };
         set((state) => ({ prompts: [...state.prompts, newPrompt] }));
         return newPrompt;
@@ -99,7 +122,7 @@ const usePromptLabStore = create<PromptLabState>()(
       update: (id, patch) => {
         set((state) => ({
           prompts: state.prompts.map((p) =>
-            p.id === id ? { ...p, ...patch, updatedAt: Date.now() } : p
+            p.id === id ? { ...p, ...patch, updatedAt: new Date().toISOString() } : p // Use ISO date string
           ),
         }));
       },
@@ -113,14 +136,15 @@ const usePromptLabStore = create<PromptLabState>()(
       duplicate: (id) => {
         const original = get().prompts.find((p) => p.id === id);
         if (!original) throw new Error('Prompt not found');
+        const now = new Date().toISOString(); // Use ISO date string
         const duplicated: Prompt = {
           ...original,
-          id: Math.random().toString(36).slice(2),
+          id: cuid('p-dup-'), // Use cuid for duplicate
           title: `${original.title} (Copy)`,
-          createdAt: Date.now(),
-          updatedAt: Date.now(),
-          versions: original.versions.map(v => ({...v, id: Math.random().toString(36).slice(2)})), // Duplicate versions with new IDs
-          variables: original.variables.map(v => ({...v, id: Math.random().toString(36).slice(2)})), // Duplicate variables with new IDs
+          createdAt: now,
+          updatedAt: now,
+          versions: original.versions.map(v => ({...v, id: cuid('v-dup-'), createdAt: now})), // Duplicate versions with new IDs and updated createdAt
+          variables: original.variables.map(v => ({...v, id: cuid('var-dup-')})), // Duplicate variables with new IDs
         };
         set((state) => ({ prompts: [...state.prompts, duplicated] }));
         return duplicated;
@@ -130,17 +154,19 @@ const usePromptLabStore = create<PromptLabState>()(
         set((state) => ({
           prompts: state.prompts.map((p) => {
             if (p.id === id) {
+              const now = new Date().toISOString(); // Use ISO date string
               const newVersion: Version = {
-                id: Math.random().toString(36).slice(2),
-                content: p.content,
+                id: cuid('v-'), // Use cuid
+                content: p.content, // CHANGED: Content is already ContentBlock[]
                 context: p.context,
                 notes,
-                createdAt: Date.now(),
+                createdAt: now,
+                variables: p.variables.map(v => ({...v, id: v.id || cuid('snap-var-')})) // Snapshot variables as well
               };
               return {
                 ...p,
                 versions: [newVersion, ...p.versions], // Add new version to the top
-                updatedAt: Date.now(),
+                updatedAt: now,
               };
             }
             return p;
@@ -156,11 +182,12 @@ const usePromptLabStore = create<PromptLabState>()(
               if (versionToRestore) {
                 return {
                   ...p,
-                  content: versionToRestore.content,
+                  content: versionToRestore.content, // CHANGED: Content is already ContentBlock[]
                   context: versionToRestore.context,
-                  updatedAt: Date.now(),
+                  variables: versionToRestore.variables, // Restore variables from version
+                  updatedAt: new Date().toISOString(), // Use ISO date string
                   // Optionally, you might create a new version after restore indicating it was a restore operation
-                  // versions: [{ id: uid(), content: versionToRestore.content, context: versionToRestore.context, notes: `Restored from ${versionToRestore.notes}`, createdAt: Date.now() }, ...p.versions]
+                  // versions: [{ id: cuid('v-restored-'), content: versionToRestore.content, context: versionToRestore.context, notes: `Restored from ${versionToRestore.notes}`, createdAt: new Date().toISOString(), variables: versionToRestore.variables }, ...p.versions]
                 };
               }
             }
@@ -177,14 +204,22 @@ const usePromptLabStore = create<PromptLabState>()(
 );
 
 // Custom hook to filter prompts by projectId
+// NOTE: This usePromptLab hook is effectively superseded by the one in hooks/usePrompts.ts
+// The `projectId` logic for filtering/fetching should primarily live in hooks/usePrompts.ts (which interacts with GraphQL)
+// This Zustand store version is typically for disconnected/local-first state management.
 export function usePromptLab(projectId?: string) {
     const store = usePromptLabStore();
-    const prompts = projectId
-        ? store.prompts // In a real app, this would be filtered by `projectId`
-        : store.prompts; // For now, returns all or you can implement a default 'personal' filter
+    
+    // For local storage, if you want to filter prompts by a projectId stored in the Zustand state itself
+    // Or if this store is meant for globally available, non-project-specific prompts.
+    // Given the `hooks/usePrompts.ts` exists, this `usePromptLab` hook might be redundant
+    // or serve a different purpose (e.g., local state for a specific part of the app).
+    const filteredPrompts = projectId
+        ? store.prompts.filter(p => p.projectId === projectId) // If `projectId` was stored on the Prompt object
+        : store.prompts; // Or, if `projectId` is undefined, return all prompts or personal prompts.
 
     return {
         ...store,
-        prompts,
+        prompts: filteredPrompts,
     };
 }

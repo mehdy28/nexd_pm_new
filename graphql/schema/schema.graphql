@@ -432,10 +432,20 @@
    defaultValue: String
    source: JSON # This is the complex JSON structure defining how to resolve the variable
  }
+
+ # NEW: ContentBlock type to represent parts of the prompt content
+ type ContentBlock {
+   id: ID!
+   type: String! # 'text' or 'variable'
+   value: String # For type 'text'
+   varId: ID # For type 'variable', references PromptVariable.id
+   placeholder: String # For type 'variable', the placeholder string like {{var}}
+   name: String # For type 'variable', the display name of the variable
+ }
  
  type Version {
    id: ID!
-   content: JSON! # CHANGED: From String to JSON for version content
+   content: [ContentBlock!]! # CHANGED: From String to [ContentBlock!]! for version content
    context: String!
    variables: [PromptVariable!]!
    createdAt: String!
@@ -445,7 +455,7 @@
  type Prompt {
    id: ID!
    title: String!
-   content: JSON! # CHANGED: From String to JSON
+   content: [ContentBlock!]! # CHANGED: From String to [ContentBlock!]!
    context: String! # Added
    description: String
    category: String
@@ -742,7 +752,7 @@
    # Add other relevant fields if you have them in Task/Milestone
    # For task updates, we need the original task ID, type, and sprint ID for context
    originalTaskId: ID # To link back to Task.id or Milestone.id
-   originalType: String # "TASK" or "MILESTONE"
+   originalType: String # "TASK" or "MILIESTONE"
  }
  
  type GanttDataResponse {
@@ -848,12 +858,31 @@
    defaultValue: String
    source: JSON
  }
+
+ # NEW Input types for Content Blocks
+ input CreateContentBlockInput {
+   id: ID # Client-generated ID for internal tracking
+   type: String! # 'text' or 'variable'
+   value: String # Required for 'text' blocks
+   varId: ID # Required for 'variable' blocks, references PromptVariable.id
+   placeholder: String # Required for 'variable' blocks
+   name: String # Required for 'variable' blocks
+ }
+
+ input UpdateContentBlockInput {
+   id: ID! # ID of the block to update
+   type: String # 'text' or 'variable'
+   value: String # For type 'text'
+   varId: ID # For type 'variable', references PromptVariable.id
+   placeholder: String # For type 'variable', the placeholder string like {{var}}
+   name: String # For type 'variable', the display name of the variable
+ }
  
  input CreatePromptInput {
    projectId: ID
    # userId: ID # Will be derived from context
    title: String!
-   content: JSON # CHANGED: From String to JSON
+   content: [CreateContentBlockInput!] # CHANGED: From String to [CreateContentBlockInput!]
    context: String
    description: String
    category: String
@@ -867,7 +896,7 @@
  input UpdatePromptInput {
    id: ID!
    title: String
-   content: JSON # CHANGED: From String to JSON
+   content: [UpdateContentBlockInput!] # CHANGED: From String to [UpdateContentBlockInput!]
    context: String
    description: String
    category: String
@@ -879,7 +908,7 @@
  
  input CreateVersionInput { # For initial versions on prompt creation
    id: ID
-   content: JSON! # CHANGED: From String to JSON
+   content: [CreateContentBlockInput!]! # CHANGED: From String to [CreateContentBlockInput!]!
    context: String!
    variables: [CreatePromptVariableInput!]!
    createdAt: String # Will be Date.toISOString()

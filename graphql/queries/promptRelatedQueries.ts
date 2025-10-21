@@ -22,7 +22,14 @@ export const GET_PROMPT_DETAILS_QUERY = gql`
     getPromptDetails(id: $id) {
       id
       title
-      content
+      content { # CHANGED: Querying fields of ContentBlock
+        id
+        type
+        value
+        varId
+        placeholder
+        name
+      }
       context
       description
       category
@@ -48,7 +55,14 @@ export const GET_PROMPT_DETAILS_QUERY = gql`
       }
       versions {
         id
-        content
+        content { # CHANGED: Querying fields of ContentBlock for versions
+          id
+          type
+          value
+          varId
+          placeholder
+          name
+        }
         context
         variables {
           id

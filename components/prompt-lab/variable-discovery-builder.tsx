@@ -1,3 +1,4 @@
+
 // components/prompt-lab/variable-discovery-builder.tsx
 'use client'
 
