@@ -44,6 +44,33 @@ function stripTypename<T>(obj: T): T {
   return obj;
 }
 
+// Helper for deep comparison of content blocks, crucial for optimistic updates
+// Make sure this matches the one in prompt-lab.tsx
+function deepCompareBlocks(arr1: ContentBlock[], arr2: ContentBlock[]): boolean {
+  if (arr1.length !== arr2.length) {
+    return false;
+  }
+  for (let i = 0; i < arr1.length; i++) {
+    const b1 = arr1[i];
+    const b2 = arr2[i];
+
+    if (b1.id !== b2.id || b1.type !== b2.type) {
+      return false;
+    }
+
+    if (b1.type === 'text') {
+      if (b1.value !== b2.value) {
+        return false;
+      }
+    } else if (b1.type === 'variable') {
+      if (b1.varId !== b2.varId || b1.placeholder !== b2.placeholder || b1.name !== b2.name) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
 
 interface UsePromptLabHook {
   prompts: Prompt[];
@@ -53,7 +80,9 @@ interface UsePromptLabHook {
   createPrompt: () => Promise<Prompt | undefined>;
   updatePrompt: (
     id: string,
-    updates: Partial<Omit<Prompt, 'id' | 'createdAt' | 'updatedAt' | 'user' | 'project' | 'versions'> & { content?: ContentBlock[] }>
+    updates: Partial<Omit<Prompt, 'id' | 'createdAt' | 'updatedAt' | 'user' | 'project' | 'versions'> & { content?: ContentBlock[] }>,
+    onCompletedCallback?: (updatedData?: Prompt) => void,
+    onErrorCallback?: () => void
   ) => void;
   deletePrompt: (id: string) => void;
   snapshotPrompt: (promptId: string, notes?: string) => void;
@@ -74,10 +103,24 @@ export function usePromptLab(initialProjectId?: string): UsePromptLabHook {
 
   const [listRefetchTrigger, setListRefetchTrigger] = useState(0);
 
+  // New state to track optimistically updated content that matches server response
+  // Maps promptId to the *content blocks* that were optimistically confirmed.
+  const [optimisticallyConfirmedContent, setOptimisticallyConfirmedContent] = useState<Map<string, ContentBlock[]>>(new Map());
+  // Ref to track if we're currently processing an optimistic update to prevent immediate re-fetching
+  const isOptimisticUpdateInProgress = useRef<Set<string>>(new Set());
+
+
   const selectPrompt = useCallback((id: string | null) => {
     console.log('[data loading sequence] [usePromptLab] selectPrompt called with ID:', id);
     setSelectedId(id);
     setLocalLoading(true); // Always set loading true when a selection change is initiated
+    // Clear any optimistic flags for the new selection, forcing a fresh load
+    setOptimisticallyConfirmedContent(prev => {
+        const newMap = new Map(prev);
+        newMap.delete(id || ''); // Clear for selectedId
+        return newMap;
+    });
+    isOptimisticUpdateInProgress.current.clear(); // Clear all ongoing flags as we're changing selected prompt
   }, []);
 
   // --- QUERY 1: Get list of prompts for the current project ---
@@ -91,7 +134,6 @@ export function usePromptLab(initialProjectId?: string): UsePromptLabHook {
     fetchPolicy: "network-only",
     onError: (err) => {
       console.error("[data loading sequence] [usePromptLab] Error fetching project prompts list:", err);
-      // No setLocalLoading(false) here, consolidated effect handles it
     },
   });
 
@@ -160,8 +202,22 @@ export function usePromptLab(initialProjectId?: string): UsePromptLabHook {
       variables: { id: selectedId },
       skip: !selectedId,
       fetchPolicy: "network-only",
+      // IMPORTANT: Prevent re-fetching or processing details if it's currently optimistically confirmed
+      // for the selected ID. This is the core to prevent flicker.
+      // This 'skip' condition should be carefully managed to ensure eventual consistency.
+      // We skip if an optimistic content update has just been successfully applied and matches the UI.
+      // The `!detailsLoading` check ensures we don't block the *initial* load.
+      skip: !selectedId || (selectedId && optimisticallyConfirmedContent.has(selectedId) && !detailsLoading),
       onError: (err) => {
         console.error("[data loading sequence] [usePromptLab] Error fetching prompt details:", err);
+        // If details fetch fails, remove any optimistic flag
+        if (selectedId) {
+            setOptimisticallyConfirmedContent(prev => {
+                const newMap = new Map(prev);
+                newMap.delete(selectedId);
+                return newMap;
+            });
+        }
       },
     }
   );
@@ -170,9 +226,27 @@ export function usePromptLab(initialProjectId?: string): UsePromptLabHook {
   useEffect(() => {
     console.log(`[data loading sequence] [usePromptLab] useEffect (details data processing) RUNNING. detailsLoading: ${detailsLoading}, promptDetailsData: ${!!promptDetailsData}, selectedId: ${selectedId}`);
 
-    // This effect runs whenever detailsLoading or promptDetailsData changes
-    // It should *only* update `prompts` state when a selectedId is active AND data is *available* and *not loading*.
+    // Only process if data is available, not loading, and matches selectedId
     if (selectedId && !detailsLoading && promptDetailsData?.getPromptDetails?.id === selectedId) {
+      // Before processing, check if we have an optimistically confirmed content that matches this incoming data.
+      const incomingContent = promptDetailsData.getPromptDetails.content || [];
+      const optimisticallyKnownContent = optimisticallyConfirmedContent.get(selectedId);
+
+      if (optimisticallyKnownContent && deepCompareBlocks(optimisticallyKnownContent, incomingContent)) {
+          // If incoming server data for content matches our optimistically confirmed state,
+          // we don't need to trigger a UI update based on this data to prevent flicker.
+          console.log(`[data loading sequence] [usePromptLab] Details data for ID ${selectedId} matches optimistic state. Skipping UI update to prevent flicker.`);
+          // Clear the optimistic flag now that we've seen the matching server data
+          setOptimisticallyConfirmedContent(prev => {
+              const newMap = new Map(prev);
+              newMap.delete(selectedId);
+              return newMap;
+          });
+          isOptimisticUpdateInProgress.current.delete(selectedId);
+          setLocalLoading(false); // Ensure loader is off as details are consistent
+          return; // Skip the rest of the effect
+      }
+
       console.log(`[data loading sequence] [usePromptLab] useEffect (details data processing): Details data received for ID: ${selectedId}. Processing...`);
       const p = promptDetailsData.getPromptDetails;
       const mappedDetailedPrompt = {
@@ -197,8 +271,15 @@ export function usePromptLab(initialProjectId?: string): UsePromptLabHook {
           return [...prevPrompts, mappedDetailedPrompt].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
         }
       });
+      // Clear optimistic flag after processing details
+      setOptimisticallyConfirmedContent(prev => {
+          const newMap = new Map(prev);
+          newMap.delete(selectedId);
+          return newMap;
+      });
+      isOptimisticUpdateInProgress.current.delete(selectedId);
     }
-  }, [promptDetailsData, detailsLoading, selectedId]);
+  }, [promptDetailsData, detailsLoading, selectedId, optimisticallyConfirmedContent]);
 
 
   // Effect for setting global error state
@@ -241,17 +322,13 @@ export function usePromptLab(initialProjectId?: string): UsePromptLabHook {
     const isListLoadingNow = listLoading;
     const areDetailsLoadingNow = detailsLoading;
 
-    // The key change: The global loader should turn off once details query *has returned data*,
-    // regardless of whether `content` is empty or not. An empty `content` array *is* data.
-    // So, `isSelectedPromptReady` should be true if a selectedId exists AND selectedPrompt is not null.
-    const isSelectedPromptReady = !!selectedId && !!selectedPrompt;
+    // A prompt is ready if a selectedId exists, selectedPrompt is populated,
+    // AND there's no active optimistic update for this ID (isOptimisticUpdateInProgress),
+    // AND details are not currently loading.
+    const isSelectedPromptReady = !!selectedId && !!selectedPrompt && !isOptimisticUpdateInProgress.current.has(selectedId) && !areDetailsLoadingNow;
 
-    // localLoading is TRUE if:
-    // 1. Project ID is missing (can't load anything)
-    // 2. The list of prompts is currently loading
-    // 3. Details for the selected prompt are currently loading
-    // 4. A prompt is selected, but the `selectedPrompt` object hasn't been populated yet
-    const newLocalLoading = isProjectMissing || isListLoadingNow || areDetailsLoadingNow || (!!selectedId && !isSelectedPromptReady);
+
+    const newLocalLoading = isProjectMissing || isListLoadingNow || (!!selectedId && (!isSelectedPromptReady && !optimisticallyConfirmedContent.has(selectedId)));
 
 
     if (newLocalLoading !== localLoading) {
@@ -260,15 +337,19 @@ export function usePromptLab(initialProjectId?: string): UsePromptLabHook {
         `listLoading=${isListLoadingNow} (${listLoading}), ` +
         `detailsLoading=${areDetailsLoadingNow} (${detailsLoading}), ` +
         `selectedId=${selectedId || 'null'}, ` +
-        `isSelectedPromptReady=${isSelectedPromptReady} (selectedPrompt: ${!!selectedPrompt ? 'exists' : 'null'})`);
+        `isSelectedPromptReady=${isSelectedPromptReady} (selectedPrompt: ${!!selectedPrompt ? 'exists' : 'null'}), ` +
+        `isOptimisticUpdateInProgress: ${isOptimisticUpdateInProgress.current.has(selectedId)}, ` +
+        `optimisticallyConfirmedContent: ${optimisticallyConfirmedContent.has(selectedId)}`);
       setLocalLoading(newLocalLoading);
     } else {
       console.log(`[data loading sequence] [usePromptLab] useEffect (GLOBAL LOADING STATE): localLoading is ${localLoading}, no change. ` +
         `Current reasons: projectIdMissing=${isProjectMissing}, listLoading=${isListLoadingNow}, ` +
         `detailsLoading=${areDetailsLoadingNow}, selectedId=${selectedId || 'null'}, ` +
-        `isSelectedPromptReady=${isSelectedPromptReady}`);
+        `isSelectedPromptReady=${isSelectedPromptReady}, ` +
+        `isOptimisticUpdateInProgress: ${isOptimisticUpdateInProgress.current.has(selectedId)}, ` +
+        `optimisticallyConfirmedContent: ${optimisticallyConfirmedContent.has(selectedId)}`);
     }
-  }, [listLoading, detailsLoading, selectedId, projectId, selectedPrompt, localLoading]);
+  }, [listLoading, detailsLoading, selectedId, projectId, selectedPrompt, localLoading, optimisticallyConfirmedContent, isOptimisticUpdateInProgress.current]);
 
 
   // --- Mutations ---
@@ -291,29 +372,95 @@ export function usePromptLab(initialProjectId?: string): UsePromptLabHook {
   });
 
   const [updatePromptMutation] = useMutation(UPDATE_PROMPT_MUTATION, {
-    onCompleted: (data) => {
-      console.log('[data loading sequence] [usePromptLab] UPDATE_PROMPT_MUTATION onCompleted: mutation successful for prompt ID:', data?.updatePrompt?.id);
-      setLocalError(null);
-      if (data?.updatePrompt) {
-        triggerListFetchOnBack(); // Update list in case title/tags changed
-        if (selectedId) {
-          console.log('[data loading sequence] [usePromptLab] UPDATE_PROMPT_MUTATION: Re-selecting prompt to trigger fresh details fetch.');
-          selectPrompt(selectedId); // This will trigger a new details fetch, which will manage localLoading
-        } else {
-          setLocalLoading(false); // If no prompt selected, then this update finished.
+    onCompleted: (data, clientOptions) => {
+      const updatedPrompt = data?.updatePrompt;
+      const id = (clientOptions as any)?.variables?.input?.id;
+      const sentContent = (clientOptions as any)?.variables?.input?.content;
+      console.log('[data loading sequence] [usePromptLab] UPDATE_PROMPT_MUTATION onCompleted for ID:', id);
+
+      if (updatedPrompt && id) {
+        setPrompts(prevPrompts => {
+          const mappedUpdatedPrompt = {
+            id: updatedPrompt.id, title: updatedPrompt.title, description: updatedPrompt.description, tags: updatedPrompt.tags,
+            isPublic: updatedPrompt.isPublic, createdAt: updatedPrompt.createdAt, updatedAt: updatedPrompt.updatedAt,
+            model: updatedPrompt.model || 'gpt-4o', projectId: updatedPrompt.projectId,
+            content: (updatedPrompt.content || []).map((b: ContentBlock) => ({ ...b, id: b.id || cuid('db-block-') })),
+            context: updatedPrompt.context,
+            variables: (updatedPrompt.variables || []).map((v: PromptVariable) => ({ ...v, id: v.id || cuid('db-var-') })),
+            versions: (updatedPrompt.versions || []).map((v: Version) => ({ ...v, id: v.id || cuid('db-ver-'), content: (v.content || []).map((b: ContentBlock) => ({ ...b, id: b.id || cuid('db-block-v-') })) })),
+          };
+
+          const existingIndex = prevPrompts.findIndex(p => p.id === mappedUpdatedPrompt.id);
+          if (existingIndex > -1) {
+            const newPrompts = [...prevPrompts];
+            newPrompts[existingIndex] = mappedUpdatedPrompt;
+            return newPrompts;
+          } else {
+            return [...prevPrompts, mappedUpdatedPrompt];
+          }
+        });
+        setLocalError(null);
+
+        // Check if the server's returned content matches what we optimistically sent
+        if (selectedId === id && sentContent && deepCompareBlocks(sentContent, updatedPrompt.content || [])) {
+            // Content matches, so we can mark it as optimistically confirmed
+            // This will prevent GET_PROMPT_DETAILS_QUERY from re-fetching immediately
+            setOptimisticallyConfirmedContent(prev => new Map(prev).set(id, sentContent));
+            console.log(`[data loading sequence] [usePromptLab] Optimistic content for ID ${id} confirmed by server response.`);
+        } else if (selectedId === id) {
+            // Content did not match, or we didn't send content.
+            // Ensure any optimistic flag is cleared so a refresh will occur.
+            setOptimisticallyConfirmedContent(prev => {
+                const newMap = new Map(prev);
+                newMap.delete(id);
+                return newMap;
+            });
+            console.log(`[data loading sequence] [usePromptLab] Optimistic content for ID ${id} did NOT match server response or no content sent.`);
         }
+
+        // Only trigger a full re-fetch/re-select if there's no pending optimistic update
+        // or if content didn't match. Otherwise, just clear in-progress flag and let details query react.
+        if (isOptimisticUpdateInProgress.current.has(id)) {
+            isOptimisticUpdateInProgress.current.delete(id);
+            setLocalLoading(false); // Optimistic UI is handling, turn off global loader
+        } else {
+            // This path is for updates not related to the content editor, or if content didn't match.
+            triggerListFetchOnBack();
+            if (selectedId === id) {
+                selectPrompt(selectedId);
+            } else {
+                setLocalLoading(false);
+            }
+        }
+        (clientOptions as any)?.variables?.onCompletedCallback?.(updatedPrompt);
       } else {
-        setLocalLoading(false); // If no data.updatePrompt, then it finished.
+        console.error('[data loading sequence] [usePromptLab] UPDATE_PROMPT_MUTATION onCompleted with no data.updatePrompt or ID.');
+        setLocalError("Failed to update prompt details.");
+        setLocalLoading(false);
+        const optimisticId = (clientOptions as any)?.variables?.input?.id;
+        if (optimisticId) isOptimisticUpdateInProgress.current.delete(optimisticId);
+        (clientOptions as any)?.variables?.onErrorCallback?.();
       }
     },
-    onError: (err) => {
-      console.error("[data loading sequence] [usePromptLab] Mutation Error: Update Prompt", err);
+    onError: (err, clientOptions) => {
+      const id = (clientOptions as any)?.variables?.input?.id;
+      console.error("[data loading sequence] [usePromptLab] Mutation Error: Update Prompt for ID:", id, err);
       setLocalError("Failed to update prompt.");
-      setLocalLoading(false); // Turn off loader on error
+      setLocalLoading(false);
+      // Remove from pending on network error too
+      if (id) {
+        isOptimisticUpdateInProgress.current.delete(id);
+        setOptimisticallyConfirmedContent(prev => {
+            const newMap = new Map(prev);
+            newMap.delete(id); // Clear optimistic flag on error
+            return newMap;
+        });
+      }
+      (clientOptions as any)?.variables?.onErrorCallback?.();
     },
   });
 
-  const [deletePromptMutation] = useMutation(DELETE_PROMPT_MUTATION, {
+  const deletePromptMutation = useMutation(DELETE_PROMPT_MUTATION, {
     onCompleted: (data) => {
       console.log('[data loading sequence] [usePromptLab] DELETE_PROMPT_MUTATION onCompleted. Deleted prompt ID:', data?.deletePrompt.id);
       setLocalError(null);
@@ -332,7 +479,7 @@ export function usePromptLab(initialProjectId?: string): UsePromptLabHook {
     },
   });
 
-  const [snapshotPromptMutation] = useMutation(SNAPSHOT_PROMPT_MUTATION, {
+  const snapshotPromptMutation = useMutation(SNAPSHOT_PROMPT_MUTATION, {
     onCompleted: (data) => {
       console.log('[data loading sequence] [usePromptLab] SNAPSHOT_PROMPT_MUTATION onCompleted. Prompt ID:', data?.snapshotPrompt?.id);
       setLocalError(null);
@@ -354,7 +501,7 @@ export function usePromptLab(initialProjectId?: string): UsePromptLabHook {
     },
   });
 
-  const [restorePromptVersionMutation] = useMutation(RESTORE_PROMPT_VERSION_MUTATION, {
+  const restorePromptVersionMutation = useMutation(RESTORE_PROMPT_VERSION_MUTATION, {
     onCompleted: (data) => {
       console.log('[data loading sequence] [usePromptLab] RESTORE_PROMPT_VERSION_MUTATION onCompleted. Prompt ID:', data?.restorePromptVersion?.id);
       setLocalError(null);
@@ -368,8 +515,15 @@ export function usePromptLab(initialProjectId?: string): UsePromptLabHook {
       } else {
         setLocalLoading(false); // If no data.restorePromptVersion, then it finished.
       }
-      // Consider an immediate list refetch here if restoring a version affects the list (e.g., updates `updatedAt`)
-      // triggerListFetchOnBack(); // Optionally
+      // Clear any optimistic flags as a restore should always force a full refresh
+      if (selectedId) {
+        setOptimisticallyConfirmedContent(prev => {
+            const newMap = new Map(prev);
+            newMap.delete(selectedId);
+            return newMap;
+        });
+        isOptimisticUpdateInProgress.current.delete(selectedId);
+      }
     },
     onError: (err) => {
       console.error("[data loading sequence] [usePromptLab] Mutation Error: Restore Prompt Version", err);
@@ -424,10 +578,18 @@ export function usePromptLab(initialProjectId?: string): UsePromptLabHook {
     updatePrompt: useCallback(
       (
         id: string,
-        updates: Partial<Omit<Prompt, 'id' | 'createdAt' | 'updatedAt' | 'user' | 'project' | 'versions'> & { content?: ContentBlock[] }>
+        updates: Partial<Omit<Prompt, 'id' | 'createdAt' | 'updatedAt' | 'user' | 'project' | 'versions'> & { content?: ContentBlock[] }>,
+        onCompletedCallback?: (updatedData?: Prompt) => void,
+        onErrorCallback?: () => void
       ) => {
         setLocalError(null);
-        setLocalLoading(true); // Start global loader
+        // Only set localLoading to true if this is an update that might take time and isn't purely UI-driven.
+        // For optimistic content updates, the UI is already updated, so we might want to keep localLoading false.
+        // However, other updates (like title, context, model) might still cause a momentary loader.
+        setLocalLoading(true); // Default to showing loader. Individual onCompleted/onError will turn it off.
+
+        // Mark this prompt as having an optimistic update in progress for this ID
+        isOptimisticUpdateInProgress.current.add(id);
         console.log('[data loading sequence] [usePromptLab] updatePrompt: Sending mutation for prompt ID:', id, 'with:', updates.title ? `new title: "${updates.title}"` : 'other updates');
 
         updatePromptMutation({
@@ -437,14 +599,25 @@ export function usePromptLab(initialProjectId?: string): UsePromptLabHook {
               description: updates.description, category: updates.category, tags: updates.tags,
               isPublic: updates.isPublic, model: updates.model, variables: updates.variables,
             }),
+            onCompletedCallback,
+            onErrorCallback,
           },
         }).catch((err) => {
           console.error("[data loading sequence] [usePromptLab] Mutation Error: Update Prompt", err);
           setLocalError("Failed to update prompt.");
-          setLocalLoading(false); // Turn off loader on error
+          setLocalLoading(false);
+          if (id) { // Ensure cleanup if an error occurs outside onCompleted/onError in mutation options
+              isOptimisticUpdateInProgress.current.delete(id);
+              setOptimisticallyConfirmedContent(prev => {
+                  const newMap = new Map(prev);
+                  newMap.delete(id); // Clear optimistic flag on network error
+                  return newMap;
+              });
+          }
+          onErrorCallback?.();
         });
       },
-      [updatePromptMutation, selectedId, selectPrompt, triggerListFetchOnBack]
+      [updatePromptMutation, isOptimisticUpdateInProgress]
     ),
     deletePrompt: useCallback(
       (id: string) => {

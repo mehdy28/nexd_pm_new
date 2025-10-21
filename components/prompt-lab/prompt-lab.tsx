@@ -254,8 +254,12 @@ export function PromptLab({ prompt, onBack, projectId }: { prompt: Prompt; onBac
     navigator.clipboard.writeText(text).catch(() => { })
   }
 
-  // Modified handleUpdatePrompt to be called directly
-  const handleUpdatePrompt = useCallback((patch: Partial<Prompt>) => {
+  // Modified handleUpdatePrompt to accept callbacks for optimistic UI
+  const handleUpdatePrompt = useCallback((
+    patch: Partial<Prompt>,
+    onCompletedCallback?: (updatedData?: Prompt) => void,
+    onErrorCallback?: () => void
+  ) => {
     console.log(`[data loading sequence] [PromptLab] handleUpdatePrompt Called for prompt ${prompt.id} with patch:`, patch);
     const patchedVariables = patch.variables ? patch.variables.map(v => ({ ...v, id: v.id || cuid('patch-var-') })) as PromptVariable[] : undefined;
     const patchedContent = patch.content ? patch.content.map(b => ({ ...b, id: b.id || cuid('patch-block-') })) : undefined;
@@ -263,32 +267,13 @@ export function PromptLab({ prompt, onBack, projectId }: { prompt: Prompt; onBac
       ...patch,
       variables: patchedVariables,
       content: patchedContent,
-    });
+    }, onCompletedCallback, onErrorCallback); // Pass callbacks to the hook's updatePrompt
   }, [prompt.id, updatePrompt]);
 
   const handleSnapshot = useCallback(async (notes?: string) => {
     setIsSnapshotting(true);
     console.log(`[data loading sequence] [PromptLab] handleSnapshot: Attempting to snapshot prompt ${prompt.id} with notes: ${notes}`);
     try {
-      // Before snapshotting, ensure current editor state is saved to the backend
-      // This is crucial if we're not auto-saving content constantly
-      const currentContent = serializeBlocks(prompt.content || []); // Use current prompt.content as base
-      const currentVariables = (prompt.variables || []).map(v => ({...v, id: v.id || cuid('snapshot-var-')}));
-
-      // A simple way to trigger an update *before* snapshotting:
-      // This will ensure the backend has the latest version of content, context, title, model
-      // before it creates a snapshot.
-      // This `updatePrompt` call will handle its own loading state internally in usePrompts.
-      await new Promise<void>((resolve) => {
-        updatePrompt(prompt.id, {
-          title: prompt.title || 'Untitled Prompt', // Use prompt's current title
-          context: prompt.context || '', // Use prompt's current context
-          model: prompt.model || 'gpt-4o', // Use prompt's current model
-          content: currentContent, // Pass the serialized content blocks from prompt
-          variables: currentVariables, // Pass the variables from prompt
-        }, resolve); // Pass resolve to the onCompleted callback in usePrompts.ts
-      });
-
       await snapshotPrompt(prompt.id, notes);
       toast.success("Prompt version saved!");
       setPendingNotes('');
@@ -300,7 +285,7 @@ export function PromptLab({ prompt, onBack, projectId }: { prompt: Prompt; onBac
       setIsSnapshotting(false);
       console.log('[data loading sequence] [PromptLab] Snapshot operation finished.');
     }
-  }, [prompt, snapshotPrompt, updatePrompt, pendingNotes]); // prompt is now a dependency
+  }, [prompt.id, snapshotPrompt]);
 
 
   const handleRestoreVersion = useCallback(async (versionId: string) => {
@@ -617,7 +602,7 @@ function EditorPanel({
   isSnapshotting,
 }: {
   prompt: Prompt
-  onUpdate: (patch: Partial<Prompt>) => void
+  onUpdate: (patch: Partial<Prompt>, onCompletedCallback?: (updatedData?: Prompt) => void, onErrorCallback?: () => void) => void
   onSnapshot: (notes?: string) => void
   pendingNotes: string;
   setPendingNotes: (notes: string) => void;
@@ -634,13 +619,15 @@ function EditorPanel({
   const isContextEditing = useRef(false);
   const initializedPromptId = useRef<string | null>(null);
 
-  // This ref stores the last *committed* state from props, used for comparison before patching.
-  // We no longer need it for comparing against a debounced patch.
-  // We'll use it to decide if we need to send an update when blur/change occurs.
+  // This ref stores the last *successfully committed* state from props.
   const lastCommittedPropsState = useRef<Partial<Prompt>>({});
+  // New ref to store blocks before an optimistic update for reversion
+  const lastKnownGoodBlocks = useRef<Block[]>([]);
 
 
   // --- Initialization Effect ---
+  // This effect runs once when the 'prompt' prop changes to a new, fully loaded prompt.
+  // It sets all local states from the incoming prop data.
   useEffect(() => {
     console.log(`[data loading sequence] [EditorPanel ${prompt.id}] useEffect (INITIALIZATION). prompt.id=${prompt.id}, initializedPromptId.current=${initializedPromptId.current}`);
 
@@ -659,14 +646,18 @@ function EditorPanel({
         model: prompt.model,
         content: parsedBlocks // Store the parsed blocks for accurate comparison
       };
-      console.log(`[data loading sequence] [EditorPanel ${prompt.id}] INITIALIZATION COMPLETE. lastCommittedPropsState set.`);
+      lastKnownGoodBlocks.current = parsedBlocks; // Initialize last known good blocks
+      console.log(`[data loading sequence] [EditorPanel ${prompt.id}] INITIALIZATION COMPLETE. lastCommittedPropsState and lastKnownGoodBlocks set.`);
     } else {
       console.log(`[data loading sequence] [EditorPanel ${prompt.id}] INITIALIZATION skipped: already initialized for this prompt ID. `);
     }
 
   }, [prompt]);
 
-  // --- Sync Effect (for external updates like restore version) ---
+  // --- Sync Effect (for external updates like restore version or initial details load) ---
+  // This effect runs to keep local states in sync with 'prompt' prop, unless the user is actively editing.
+  // Crucial for handling flicker: it should only update local `blocks` if the incoming `prompt.content`
+  // from props genuinely differs from `lastKnownGoodBlocks.current` *and* there's no optimistic update pending.
   useEffect(() => {
     console.log(`[data loading sequence] [EditorPanel ${prompt.id}] useEffect (UPDATE sync). `);
 
@@ -678,6 +669,7 @@ function EditorPanel({
 
     let changed = false;
 
+    // Only sync from props if not actively editing AND local state differs from prop.
     if (!isTitleEditing.current && localTitle !== prompt.title) {
       console.log(`[data loading sequence] [EditorPanel ${prompt.id}] UPDATE sync: Syncing localTitle: "${localTitle}" -> "${prompt.title}"`);
       setLocalTitle(prompt.title || '');
@@ -695,11 +687,18 @@ function EditorPanel({
     }
 
     const newBlocksFromProps = parseContentToBlocks(prompt.content || [], prompt.variables || []);
-    if (!deepCompareBlocks(blocks, newBlocksFromProps)) {
-      console.log(`[data loading sequence] [EditorPanel ${prompt.id}] UPDATE sync: Mismatch in blocks. Re-parsing and setting blocks.`);
+    // This is the key change for flicker:
+    // Only update `blocks` from props if it genuinely differs from the `lastKnownGoodBlocks.current`
+    // (which holds the last state that was either fetched OR successfully optimistically updated).
+    if (!deepCompareBlocks(lastKnownGoodBlocks.current, newBlocksFromProps)) {
+      console.log(`[data loading sequence] [EditorPanel ${prompt.id}] UPDATE sync: Mismatch between last known good blocks and props. Re-parsing and setting blocks.`);
       setBlocks(newBlocksFromProps);
+      lastKnownGoodBlocks.current = newBlocksFromProps; // Update last known good to reflect incoming props
       changed = true;
+    } else {
+        console.log(`[data loading sequence] [EditorPanel ${prompt.id}] UPDATE sync: Props content matches last known good. Skipping blocks update to prevent flicker.`);
     }
+
 
     // If an external change forced a sync, update lastCommittedPropsState
     if (changed) {
@@ -715,9 +714,8 @@ function EditorPanel({
   }, [
     prompt.content, prompt.variables, prompt.title, prompt.context, prompt.model,
     initializedPromptId.current,
-    blocks, // Blocks are included here because deepCompareBlocks needs current blocks
     localTitle, localContext, localModel, // Include local states to react if they differ from props
-  ]);
+  ]); // Removed 'blocks' from deps, as 'lastKnownGoodBlocks.current' is now the comparison point
 
   const logBlocks = useCallback((message: string, currentBlocks: Block[]) => {
     const formattedBlocks = currentBlocks.map(b =>
@@ -725,10 +723,6 @@ function EditorPanel({
     ).join(' | ');
     console.log(`[data loading sequence] [EditorPanel ${prompt.id}] --- BLOCKS STATE UPDATE --- ${message}\nCURRENT BLOCKS: ${formattedBlocks}`);
   }, [prompt.id]);
-
-  // Serialized content is used for the patch.
-  // This is still needed for snapshot, but no longer for the debounced auto-patch.
-  const serializedContent = useMemo(() => serializeBlocks(blocks), [blocks]);
 
   // Removed debouncedLocalStateForPatch and its useEffect.
   // Now, update actions will be more direct.
@@ -739,8 +733,10 @@ function EditorPanel({
     console.log('[data loading sequence] [EditorPanel] isTitleEditing: false');
     if (localTitle !== (lastCommittedPropsState.current.title || '')) {
       console.log(`[data loading sequence] [EditorPanel ${prompt.id}] Title blur: Sending update for title: "${localTitle}"`);
-      onUpdate({ title: localTitle || "Untitled Prompt" });
+      // No optimistic UI for these text fields, just update on blur and let the backend response trigger state sync.
+      // Update lastCommittedPropsState immediately to prevent re-sending the same patch before the query refetch completes.
       lastCommittedPropsState.current = { ...lastCommittedPropsState.current, title: localTitle };
+      onUpdate({ title: localTitle || "Untitled Prompt" });
     }
   }, [localTitle, onUpdate, prompt.id]);
 
@@ -749,8 +745,8 @@ function EditorPanel({
     console.log('[data loading sequence] [EditorPanel] isContextEditing: false');
     if (localContext !== (lastCommittedPropsState.current.context || '')) {
       console.log(`[data loading sequence] [EditorPanel ${prompt.id}] Context blur: Sending update for context.`);
-      onUpdate({ context: localContext });
       lastCommittedPropsState.current = { ...lastCommittedPropsState.current, context: localContext };
+      onUpdate({ context: localContext });
     }
   }, [localContext, onUpdate, prompt.id]);
 
@@ -759,51 +755,81 @@ function EditorPanel({
     setLocalModel(newModel);
     if (newModel !== (lastCommittedPropsState.current.model || 'gpt-4o')) {
       console.log(`[data loading sequence] [EditorPanel ${prompt.id}] Model change: Sending update for model: "${newModel}"`);
-      onUpdate({ model: newModel });
       lastCommittedPropsState.current = { ...lastCommittedPropsState.current, model: newModel };
+      onUpdate({ model: newModel });
     }
   }, [onUpdate, prompt.id]);
 
   // New: Unified content update that will also trigger a prompt update
   const handleContentBlocksUpdate = useCallback((newBlocks: Block[], action: string = 'internal') => {
-      setBlocks(newBlocks);
       const newSerializedContent = serializeBlocks(newBlocks);
 
       // Only send an update if content actually changed from the last committed state
       if (!deepCompareBlocks(newSerializedContent, lastCommittedPropsState.current.content || [])) {
           console.log(`[data loading sequence] [EditorPanel ${prompt.id}] handleContentBlocksUpdate triggered by ${action}: Content changed. Sending update.`);
-          onUpdate({ content: newSerializedContent });
-          lastCommittedPropsState.current = { ...lastCommittedPropsState.current, content: newSerializedContent };
+          // Optimistic update for `blocks` state has already occurred in the calling function (e.g., moveBlock)
+
+          onUpdate(
+            { content: newSerializedContent },
+            (updatedData?: Prompt) => { // onCompleted callback
+              // If the server data matches our optimistic state, prevent re-render or flicker
+              if (updatedData && deepCompareBlocks(updatedData.content || [], newSerializedContent)) {
+                  console.log(`[data loading sequence] [EditorPanel ${prompt.id}] Mutation for content successful and matches optimistic UI. Avoiding flicker.`);
+                  // Explicitly update lastCommittedPropsState to reflect the server's confirmed state
+                  lastCommittedPropsState.current = { ...lastCommittedPropsState.current, content: newSerializedContent };
+              } else {
+                  console.log(`[data loading sequence] [EditorPanel ${prompt.id}] Mutation for content successful but server data differs or is null. Re-syncing from server.`);
+                  // The `usePrompts` hook will handle reconciliation by triggering a re-fetch if needed.
+                  // `useEffect (UPDATE sync)` will handle the prop change when details come back.
+              }
+              toast.success("Content saved!", { duration: 1000 });
+            },
+            () => { // onError callback
+              // On error: Revert blocks state to last known good state
+              console.error(`[data loading sequence] [EditorPanel ${prompt.id}] Mutation for content failed. Reverting UI.`);
+              setBlocks(lastKnownGoodBlocks.current); // Revert to previous state
+              toast.error("Failed to save content. Reverted.", { duration: 3000 });
+              // Revert lastCommittedPropsState to reflect the old state as the server didn't accept the change
+              lastCommittedPropsState.current = { ...lastCommittedPropsState.current, content: lastKnownGoodBlocks.current };
+            }
+          );
       } else {
-          console.log(`[data loading sequence] [EditorPanel ${prompt.id}] handleContentBlocksUpdate triggered by ${action}: Content state updated, but no diff to last committed. No update sent.`);
+          console.log(`[data loading sequence] [EditorPanel ${prompt.id}] handleContentBlocksUpdate triggered by ${action}: Content state updated, but no diff to last committed. No mutation sent.`);
+          // If no mutation sent, `lastKnownGoodBlocks` is already updated by the individual action (e.g. moveBlock, updateTextBlock).
+          // We also need to update `lastCommittedPropsState.current.content` to ensure subsequent `handleContentBlocksUpdate` calls
+          // correctly detect whether a mutation is actually needed.
+          lastCommittedPropsState.current = { ...lastCommittedPropsState.current, content: newSerializedContent };
       }
   }, [onUpdate, prompt.id]);
 
 
   const insertVariableAt = useCallback((index: number, variable: { placeholder: string; id: string; name: string }) => {
     setBlocks(prev => {
+      lastKnownGoodBlocks.current = prev; // Save current state for potential revert
       let copy = [...prev];
       const newVarBlock: Block = { type: 'variable', id: cuid('v-insert-'), varId: variable.id, placeholder: variable.placeholder, name: variable.name };
       copy.splice(index, 0, newVarBlock);
-      logBlocks(`After directly inserting variable "${variable.placeholder}" at index ${index}`, copy);
-      handleContentBlocksUpdate(copy, `insertVariableAt:${variable.id}`);
+      logBlocks(`After directly inserting variable "${variable.placeholder}" at index ${index} (optimistic)`, copy);
+      handleContentBlocksUpdate(copy, `insertVariableAt:${variable.id}`); // Trigger mutation after optimistic update
       return copy;
     });
   }, [logBlocks, handleContentBlocksUpdate]);
 
   const insertTextAt = useCallback((index: number, text = '') => {
     setBlocks(prev => {
+      lastKnownGoodBlocks.current = prev; // Save current state for potential revert
       let copy = [...prev];
       const newBlock: Block = { type: 'text', id: cuid('t-insert-'), value: text }
       copy.splice(index, 0, newBlock)
-      logBlocks(`After directly inserting text block at index ${index}`, copy);
-      handleContentBlocksUpdate(copy, `insertTextAt`);
+      logBlocks(`After directly inserting text block at index ${index} (optimistic)`, copy);
+      handleContentBlocksUpdate(copy, `insertTextAt`); // Trigger mutation after optimistic update
       return copy
     })
   }, [logBlocks, handleContentBlocksUpdate]);
 
   const updateTextBlock = useCallback((id: string, value: string) => {
     setBlocks(prev => {
+      lastKnownGoodBlocks.current = prev; // Save current state for potential revert
       let updated = prev.map(b => b.type === 'text' && b.id === id ? { ...b, value } : b);
 
       const blockToRemove = updated.find(b => b.type === 'text' && b.id === id && b.value === '');
@@ -823,7 +849,7 @@ function EditorPanel({
             }
         }
       }
-      handleContentBlocksUpdate(updated, `updateTextBlock:${id}`);
+      handleContentBlocksUpdate(updated, `updateTextBlock:${id}`); // Trigger mutation after optimistic update
       return updated;
     });
   }, [handleContentBlocksUpdate]);
@@ -831,6 +857,7 @@ function EditorPanel({
   const removeBlock = useCallback((index: number) => {
     console.log(`[data loading sequence] [EditorPanel ${prompt.id}] removeBlock called for index: ${index}`);
     setBlocks(prev => {
+      lastKnownGoodBlocks.current = prev; // Save current state for potential revert
       let copy = [...prev];
       if (index < 0 || index >= copy.length) {
         console.warn(`[data loading sequence] [EditorPanel ${prompt.id}] removeBlock: Invalid index ${index}.`);
@@ -847,8 +874,8 @@ function EditorPanel({
           copy.push({ type: 'text', id: 'fixed-empty-fallback-block-id', value: '' });
         }
       }
-      logBlocks(`After removing block at index ${index}`, copy);
-      handleContentBlocksUpdate(copy, `removeBlock:${index}`);
+      logBlocks(`After removing block at index ${index} (optimistic)`, copy);
+      handleContentBlocksUpdate(copy, `removeBlock:${index}`); // Trigger mutation after optimistic update
       return copy
     })
   }, [logBlocks, prompt.id, handleContentBlocksUpdate]);
@@ -856,6 +883,7 @@ function EditorPanel({
   const moveBlock = useCallback((from: number, to: number) => {
     console.log(`[data loading sequence] [EditorPanel ${prompt.id}] moveBlock called from index: ${from} to index: ${to}`);
     setBlocks(prev => {
+      lastKnownGoodBlocks.current = prev; // Save current state for potential revert
       let copy = [...prev];
       if (from < 0 || from >= copy.length || to < 0 || to > copy.length) {
         console.warn(`[data loading sequence] [EditorPanel ${prompt.id}] moveBlock: Invalid indices from ${from} to ${to}.`);
@@ -865,8 +893,8 @@ function EditorPanel({
       const [item] = copy.splice(from, 1);
       copy.splice(to, 0, item);
 
-      logBlocks(`After moving block from ${from} to ${to}`, copy);
-      handleContentBlocksUpdate(copy, `moveBlock:${from}-${to}`);
+      logBlocks(`After moving block from ${from} to ${to} (optimistic)`, copy);
+      handleContentBlocksUpdate(copy, `moveBlock:${from}-${to}`); // Trigger mutation after optimistic update
       return copy;
     });
   }, [logBlocks, prompt.id, handleContentBlocksUpdate]);

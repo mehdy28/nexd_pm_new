@@ -19,12 +19,14 @@ import { usePromptLab } from "@/hooks/usePrompts";
 import { toast } from 'sonner';
 import { useQuery } from '@apollo/client';
 import { RESOLVE_PROMPT_VARIABLE_QUERY } from '@/graphql/queries/promptRelatedQueries';
-import { useDebounce } from 'use-debounce';
+// import { useDebounce } from 'use-debounce'; // Removed useDebounce
 
 // Adjusted Block type definition to match ContentBlock from GraphQL
 type Block = ContentBlock;
 
 // Utility for deep comparison of arrays of objects (used in EditorPanel's useEffect)
+// IMPORTANT: This comparison should be robust.
+// We need to ensure that the `id` generation doesn't cause false negatives.
 function deepCompareBlocks(arr1: Block[], arr2: Block[]): boolean {
   if (arr1.length !== arr2.length) {
     return false;
@@ -32,18 +34,24 @@ function deepCompareBlocks(arr1: Block[], arr2: Block[]): boolean {
   for (let i = 0; i < arr1.length; i++) {
     const b1 = arr1[i];
     const b2 = arr2[i];
-    if (!b1.id || !b2.id || b1.id !== b2.id || b1.type !== b2.type) {
+
+    // Compare essential identifying properties and type first
+    if (b1.id !== b2.id || b1.type !== b2.type) {
       return false;
     }
+
+    // Then compare type-specific values
     if (b1.type === 'text') {
       if (b1.value !== b2.value) {
         return false;
       }
     } else if (b1.type === 'variable') {
+      // For variables, compare varId (points to the actual variable object) and name/placeholder
       if (b1.varId !== b2.varId || b1.placeholder !== b2.placeholder || b1.name !== b2.name) {
         return false;
       }
     }
+    // If there are other block types, add comparisons for their specific properties here
   }
   return true;
 }
@@ -141,7 +149,6 @@ function stringifyBlocksForDisplay(blocks: Block[]): string {
 
 /* ---------- MAIN COMPONENT ---------- */
 export function PromptLab({ prompt, onBack, projectId }: { prompt: Prompt; onBack: () => void; projectId?: string; }) {
-  // Removed loadingDetails prop - it's handled by the global loader in PromptLabContainer
   console.log(`[data loading sequence] [PromptLab] Component Rendering START - Prompt ID: ${prompt?.id}.`);
   console.log(`[data loading sequence] [PromptLab] Prompt object received (partial): title=${prompt?.title}, content.length=${prompt?.content?.length || 0}, variables.length=${prompt?.variables?.length || 0}`);
 
@@ -164,7 +171,7 @@ export function PromptLab({ prompt, onBack, projectId }: { prompt: Prompt; onBac
   useEffect(() => {
     console.log(`[data loading sequence] [PromptLab] useEffect (init/reset) RUNNING - prompt ID: ${prompt?.id}, current lastInitializedPromptId: ${lastInitializedPromptId.current}`);
 
-    if (prompt) { // Prompt data is considered loaded by this point due to global loader
+    if (prompt) {
       if (prompt.id !== lastInitializedPromptId.current) {
         console.log(`[data loading sequence] [PromptLab] Action: Initializing states for NEW prompt ID: ${prompt.id}.`);
         if (prompt.versions && prompt.versions.length > 0) {
@@ -222,7 +229,7 @@ export function PromptLab({ prompt, onBack, projectId }: { prompt: Prompt; onBac
       setRenderedPreview("Select a prompt or create a new one.");
     }
 
-  }, [prompt]); // Only depends on 'prompt' now
+  }, [prompt]);
 
   // --- Effect for preview rendering ---
   useEffect(() => {
@@ -239,7 +246,7 @@ export function PromptLab({ prompt, onBack, projectId }: { prompt: Prompt; onBac
       console.log('[data loading sequence] [PromptLab] Preview rendering complete.');
     };
     generatePreview();
-  }, [prompt, previewVariableValues, projectId]); // Removed loadingDetails from deps
+  }, [prompt, previewVariableValues, projectId]);
 
   const selectedVersion = useMemo(() => prompt?.versions?.find((v) => v.id === selectedVersionId) || null, [prompt, selectedVersionId])
 
@@ -247,17 +254,20 @@ export function PromptLab({ prompt, onBack, projectId }: { prompt: Prompt; onBac
     navigator.clipboard.writeText(text).catch(() => { })
   }
 
-  const handleUpdatePrompt = useCallback((patch: Partial<Prompt>) => {
+  // Modified handleUpdatePrompt to accept callbacks for optimistic UI
+  const handleUpdatePrompt = useCallback((
+    patch: Partial<Prompt>,
+    onCompletedCallback?: (updatedData?: Prompt) => void,
+    onErrorCallback?: () => void
+  ) => {
     console.log(`[data loading sequence] [PromptLab] handleUpdatePrompt Called for prompt ${prompt.id} with patch:`, patch);
-    if (patch.variables) {
-      patch.variables = patch.variables.map(v => ({ ...v, id: v.id || cuid('patch-var-') })) as PromptVariable[];
-      console.log(`[data loading sequence] [PromptLab] Variables patched, new count: ${patch.variables.length}`);
-    }
-    if (patch.content) {
-      patch.content = patch.content.map(b => ({ ...b, id: b.id || cuid('patch-block-') }));
-      console.log(`[data loading sequence] [PromptLab] Content blocks patched, new count: ${patch.content.length}`);
-    }
-    updatePrompt(prompt.id, patch);
+    const patchedVariables = patch.variables ? patch.variables.map(v => ({ ...v, id: v.id || cuid('patch-var-') })) as PromptVariable[] : undefined;
+    const patchedContent = patch.content ? patch.content.map(b => ({ ...b, id: b.id || cuid('patch-block-') })) : undefined;
+    updatePrompt(prompt.id, {
+      ...patch,
+      variables: patchedVariables,
+      content: patchedContent,
+    }, onCompletedCallback, onErrorCallback); // Pass callbacks to the hook's updatePrompt
   }, [prompt.id, updatePrompt]);
 
   const handleSnapshot = useCallback(async (notes?: string) => {
@@ -276,6 +286,7 @@ export function PromptLab({ prompt, onBack, projectId }: { prompt: Prompt; onBac
       console.log('[data loading sequence] [PromptLab] Snapshot operation finished.');
     }
   }, [prompt.id, snapshotPrompt]);
+
 
   const handleRestoreVersion = useCallback(async (versionId: string) => {
     setIsRestoring(true);
@@ -319,10 +330,6 @@ export function PromptLab({ prompt, onBack, projectId }: { prompt: Prompt; onBac
     console.log(`[data loading sequence] [PromptLab] Calling handleUpdatePrompt with updated variables count: ${updatedVariables.length}`);
     handleUpdatePrompt({ variables: updatedVariables });
   }, [prompt?.variables, handleUpdatePrompt]);
-
-  // REMOVED THE LOADING UI BLOCK HERE
-  // The global loader in PromptLabContainer now handles this.
-  // The `prompt` prop is guaranteed to be fully loaded if we reach this point.
 
   console.log(`[data loading sequence] [PromptLab] Rendering MAIN UI for prompt ID: ${prompt.id}. Prompt data is considered fully loaded.`);
 
@@ -532,37 +539,54 @@ function VariableItem({ variable, onRemove }: { variable: PromptVariable; onRemo
 
 /* ---------- BLOCK-BASED EDITOR ---------- */
 
+// Helper to safely assign IDs to blocks if they don't have one
+function assignBlockIds(blocks: Block[]): Block[] {
+    return blocks.map(block => ({ ...block, id: block.id || cuid('b-assign-') }));
+}
+
+
 function parseContentToBlocks(content: Block[], variables: PromptVariable[]): Block[] {
-  let cleanedBlocks: Block[] = content.map(block => {
-    return { ...block, id: block.id || cuid('b-parsed-') };
-  });
+  // First, ensure all incoming blocks from content have stable IDs if they don't already
+  // This is crucial for deep comparison later.
+  let blocksWithStableIds = assignBlockIds(content);
 
   const consolidatedBlocks: Block[] = [];
-  if (cleanedBlocks.length > 0) {
-    cleanedBlocks.forEach((block) => {
+  if (blocksWithStableIds.length > 0) {
+    blocksWithStableIds.forEach((block) => {
       if (block.type === 'text') {
         const lastConsolidated = consolidatedBlocks[consolidatedBlocks.length - 1];
         if (lastConsolidated && lastConsolidated.type === 'text') {
+          // If merging text blocks, preserve the ID of the *first* block in the merged sequence
+          // Or generate a new stable ID if that seems safer. For now, keep the last one's ID.
           lastConsolidated.value += block.value;
         } else {
-          consolidatedBlocks.push({ ...block, id: block.id || cuid('t-consolidated-') });
+          consolidatedBlocks.push({ ...block }); // Use the block with its existing/assigned ID
         }
       } else {
-        consolidatedBlocks.push({ ...block, id: block.id || cuid('v-consolidated-') });
+        consolidatedBlocks.push({ ...block }); // Use the block with its existing/assigned ID
       }
     });
   }
 
+  // Ensure there's always at least one editable text block if content is empty or only variables
   if (consolidatedBlocks.length === 0 || consolidatedBlocks.every(b => b.type === 'variable')) {
-    consolidatedBlocks.push({ type: 'text', id: 'fixed-empty-fallback-block-id', value: '' });
+    // Only add a fallback if there's genuinely nothing editable.
+    // Use a fixed ID or a special temporary one that doesn't conflict.
+    if (!consolidatedBlocks.some(b => b.type === 'text' && b.id === 'fixed-empty-fallback-block-id')) {
+      consolidatedBlocks.push({ type: 'text', id: 'fixed-empty-fallback-block-id', value: '' });
+    }
   }
 
   return consolidatedBlocks;
 }
 
 function serializeBlocks(blocks: Block[]): Block[] {
+  // Filter out empty text blocks, but only if there's more than one block.
+  // This ensures a single empty text block can exist for editing.
   const filteredBlocks = blocks.filter(b => !(b.type === 'text' && b.value === '' && blocks.length > 1));
 
+  // Ensure all blocks have IDs before serialization.
+  // This is primarily for the backend, but also for Apollo Client caching.
   const blocksWithIds = filteredBlocks.map(b => b.id ? b : { ...b, id: cuid('serialized-block-') });
 
   return blocksWithIds;
@@ -578,7 +602,7 @@ function EditorPanel({
   isSnapshotting,
 }: {
   prompt: Prompt
-  onUpdate: (patch: Partial<Prompt>) => void
+  onUpdate: (patch: Partial<Prompt>, onCompletedCallback?: (updatedData?: Prompt) => void, onErrorCallback?: () => void) => void
   onSnapshot: (notes?: string) => void
   pendingNotes: string;
   setPendingNotes: (notes: string) => void;
@@ -595,7 +619,11 @@ function EditorPanel({
   const isContextEditing = useRef(false);
   const initializedPromptId = useRef<string | null>(null);
 
-  const hasInitiallySyncedProps = useRef(false); // Ref to track if the initial state has been completely synced from props
+  // This ref stores the last *successfully committed* state from props.
+  const lastCommittedPropsState = useRef<Partial<Prompt>>({});
+  // New ref to store blocks before an optimistic update for reversion
+  const lastKnownGoodBlocks = useRef<Block[]>([]);
+
 
   // --- Initialization Effect ---
   // This effect runs once when the 'prompt' prop changes to a new, fully loaded prompt.
@@ -608,55 +636,86 @@ function EditorPanel({
       setLocalTitle(prompt.title || '');
       setLocalContext(prompt.context || '');
       setLocalModel(prompt.model || 'gpt-4o');
-      setBlocks(parseContentToBlocks(prompt.content || [], prompt.variables || []));
+      const parsedBlocks = parseContentToBlocks(prompt.content || [], prompt.variables || []);
+      setBlocks(parsedBlocks);
       setPendingNotes('');
       initializedPromptId.current = prompt.id;
-      hasInitiallySyncedProps.current = true; // Mark that initial sync is complete
-      console.log(`[data loading sequence] [EditorPanel ${prompt.id}] INITIALIZATION COMPLETE. hasInitiallySyncedProps.current = true.`);
+      lastCommittedPropsState.current = {
+        title: prompt.title,
+        context: prompt.context,
+        model: prompt.model,
+        content: parsedBlocks // Store the parsed blocks for accurate comparison
+      };
+      lastKnownGoodBlocks.current = parsedBlocks; // Initialize last known good blocks
+      console.log(`[data loading sequence] [EditorPanel ${prompt.id}] INITIALIZATION COMPLETE. lastCommittedPropsState and lastKnownGoodBlocks set.`);
     } else {
       console.log(`[data loading sequence] [EditorPanel ${prompt.id}] INITIALIZATION skipped: already initialized for this prompt ID. `);
     }
 
   }, [prompt]);
 
-  // --- Sync Effect (for external updates like restore version) ---
+  // --- Sync Effect (for external updates like restore version or initial details load) ---
   // This effect runs to keep local states in sync with 'prompt' prop, unless the user is actively editing.
+  // Crucial for handling flicker: it should only update local `blocks` if the incoming `prompt.content`
+  // from props genuinely differs from `lastKnownGoodBlocks.current` *and* there's no optimistic update pending.
   useEffect(() => {
     console.log(`[data loading sequence] [EditorPanel ${prompt.id}] useEffect (UPDATE sync). `);
 
-    // Ensure we are initialized for this prompt and have passed the initial sync
-    if (prompt.id !== initializedPromptId.current || !hasInitiallySyncedProps.current) {
-      console.log(`[data loading sequence] [EditorPanel ${prompt.id}] UPDATE sync skipped: not fully initialized for this prompt ID, or initial sync not complete.`);
+    // Ensure we are initialized for this prompt.
+    if (prompt.id !== initializedPromptId.current) {
+      console.log(`[data loading sequence] [EditorPanel ${prompt.id}] UPDATE sync skipped: not initialized for this prompt ID.`);
       return;
     }
 
+    let changed = false;
+
+    // Only sync from props if not actively editing AND local state differs from prop.
     if (!isTitleEditing.current && localTitle !== prompt.title) {
       console.log(`[data loading sequence] [EditorPanel ${prompt.id}] UPDATE sync: Syncing localTitle: "${localTitle}" -> "${prompt.title}"`);
       setLocalTitle(prompt.title || '');
+      changed = true;
     }
     if (!isContextEditing.current && localContext !== prompt.context) {
-      console.log(`[data loading sequence] [EditorPanel ${prompt.id}] UPDATE sync: Syncing localContext: "${localContext}" -> "${prompt.context}"`);
+      console.log(`[data loading sequence] [EditorPanel ${prompt.id}] UPDATE sync: Syncing localContext: "${localContext.substring(0, Math.min(localContext.length, 20))}..." -> "${(prompt.context || '').substring(0, Math.min((prompt.context || '').length, 20))}..."`);
       setLocalContext(prompt.context || '');
+      changed = true;
     }
     if (localModel !== prompt.model) {
       console.log(`[data loading sequence] [EditorPanel ${prompt.id}] UPDATE sync: Syncing localModel: "${localModel}" -> "${prompt.model}"`);
       setLocalModel(prompt.model || 'gpt-4o');
+      changed = true;
     }
 
     const newBlocksFromProps = parseContentToBlocks(prompt.content || [], prompt.variables || []);
-    if (!deepCompareBlocks(blocks, newBlocksFromProps)) {
-      console.log(`[data loading sequence] [EditorPanel ${prompt.id}] UPDATE sync: Mismatch in blocks. Re-parsing and setting blocks.`);
+    // This is the key change for flicker:
+    // Only update `blocks` from props if it genuinely differs from the `lastKnownGoodBlocks.current`
+    // (which holds the last state that was either fetched OR successfully optimistically updated).
+    if (!deepCompareBlocks(lastKnownGoodBlocks.current, newBlocksFromProps)) {
+      console.log(`[data loading sequence] [EditorPanel ${prompt.id}] UPDATE sync: Mismatch between last known good blocks and props. Re-parsing and setting blocks.`);
       setBlocks(newBlocksFromProps);
+      lastKnownGoodBlocks.current = newBlocksFromProps; // Update last known good to reflect incoming props
+      changed = true;
     } else {
-      // console.log(`[data loading sequence] [EditorPanel ${prompt.id}] UPDATE sync: Blocks are in sync with props. No state update needed.`);
+        console.log(`[data loading sequence] [EditorPanel ${prompt.id}] UPDATE sync: Props content matches last known good. Skipping blocks update to prevent flicker.`);
+    }
+
+
+    // If an external change forced a sync, update lastCommittedPropsState
+    if (changed) {
+        lastCommittedPropsState.current = {
+            title: prompt.title,
+            context: prompt.context,
+            model: prompt.model,
+            content: newBlocksFromProps
+        };
+        console.log(`[data loading sequence] [EditorPanel ${prompt.id}] UPDATE sync: lastCommittedPropsState updated due to external sync.`);
     }
 
   }, [
     prompt.content, prompt.variables, prompt.title, prompt.context, prompt.model,
-    initializedPromptId.current, hasInitiallySyncedProps.current,
-    blocks,
-    localTitle, localContext, localModel,
-  ]);
+    initializedPromptId.current,
+    localTitle, localContext, localModel, // Include local states to react if they differ from props
+  ]); // Removed 'blocks' from deps, as 'lastKnownGoodBlocks.current' is now the comparison point
 
   const logBlocks = useCallback((message: string, currentBlocks: Block[]) => {
     const formattedBlocks = currentBlocks.map(b =>
@@ -665,130 +724,140 @@ function EditorPanel({
     console.log(`[data loading sequence] [EditorPanel ${prompt.id}] --- BLOCKS STATE UPDATE --- ${message}\nCURRENT BLOCKS: ${formattedBlocks}`);
   }, [prompt.id]);
 
-  const serializedContent = useMemo(() => serializeBlocks(blocks), [blocks]);
+  // Removed debouncedLocalStateForPatch and its useEffect.
+  // Now, update actions will be more direct.
 
-  // Ref to hold the latest local state for the debounced callback
-  const latestLocalState = useRef({
-    title: '',
-    context: '',
-    model: 'gpt-4o',
-    content: [] as Block[],
-  });
-
-  // Effect to keep latestLocalState ref updated on every render
-  useEffect(() => {
-    latestLocalState.current = {
-      title: localTitle,
-      context: localContext,
-      model: localModel,
-      content: serializedContent,
-    };
-  }, [localTitle, localContext, localModel, serializedContent]);
-
-  // Use useDebounce to debounce the values for the patch.
-  // This is the most stable way to ensure the debounced effect always gets fresh values.
-  const [debouncedLocalStateForPatch] = useDebounce(
-    {
-      title: localTitle,
-      context: localContext,
-      model: localModel,
-      content: serializedContent,
-    },
-    500
-  );
-
-  // --- Debounced Patch Effect ---
-  // This effect triggers the actual onUpdate mutation when debouncedLocalStateForPatch changes (i.e., user stopped typing for 500ms)
-  useEffect(() => {
-    console.log(`[data loading sequence] [EditorPanel ${prompt.id}] useEffect (DEBOUNCED PATCH - watching debouncedLocalStateForPatch).`);
-
-    // CRITICAL GUARD: Only send a patch if initial prop sync is complete
-    // and the prompt ID has been initialized.
-    if (!initializedPromptId.current || !hasInitiallySyncedProps.current || prompt.id !== initializedPromptId.current) {
-      console.log(`[data loading sequence] [EditorPanel ${prompt.id}] DEBOUNCED PATCH skipped: Not fully initialized (initializedPromptId: ${initializedPromptId.current}, hasInitiallySyncedProps: ${hasInitiallySyncedProps.current}).`);
-      return;
+  // New: Handlers for direct updates on blur/change for title, context, model
+  const handleTitleBlur = useCallback(() => {
+    isTitleEditing.current = false;
+    console.log('[data loading sequence] [EditorPanel] isTitleEditing: false');
+    if (localTitle !== (lastCommittedPropsState.current.title || '')) {
+      console.log(`[data loading sequence] [EditorPanel ${prompt.id}] Title blur: Sending update for title: "${localTitle}"`);
+      // No optimistic UI for these text fields, just update on blur and let the backend response trigger state sync.
+      // Update lastCommittedPropsState immediately to prevent re-sending the same patch before the query refetch completes.
+      lastCommittedPropsState.current = { ...lastCommittedPropsState.current, title: localTitle };
+      onUpdate({ title: localTitle || "Untitled Prompt" });
     }
+  }, [localTitle, onUpdate, prompt.id]);
 
-    const currentPatch = debouncedLocalStateForPatch; // Use the debounced values
-
-    const hasTitleChanged = currentPatch.title !== prompt.title;
-    const hasContextChanged = currentPatch.context !== prompt.context;
-    const hasModelChanged = currentPatch.model !== prompt.model;
-    const hasContentChanged = !deepCompareBlocks(currentPatch.content || [], prompt.content || []);
-
-    const hasChanges = hasTitleChanged || hasContextChanged || hasModelChanged || hasContentChanged;
-
-    if (hasChanges) {
-      console.log(`[data loading sequence] [EditorPanel ${prompt.id}] DEBOUNCED PATCH: differs from prop. Calling onUpdate with full patch.`);
-      console.log(`  - Title changed: ${hasTitleChanged} ("${currentPatch.title}" vs "${prompt.title}")`);
-      console.log(`  - Context changed: ${hasContextChanged} ("${currentPatch.context.substring(0, Math.min(currentPatch.context.length, 20))}..." vs "${prompt.context.substring(0, Math.min(prompt.context.length, 20))}...")`);
-      console.log(`  - Model changed: ${hasModelChanged} ("${currentPatch.model}" vs "${prompt.model}")`);
-      console.log(`  - Content changed: ${hasContentChanged}`);
-
-      const patchToSend = {
-        ...currentPatch,
-        title: currentPatch.title || "Untitled Prompt"
-      };
-      onUpdate(patchToSend);
-      console.log(`[data loading sequence] [EditorPanel ${prompt.id}] onUpdate called for debounced patch.`);
-    } else {
-      console.log(`[data loading sequence] [EditorPanel ${prompt.id}] DEBOUNCED PATCH: matches prop. No onUpdate needed.`);
+  const handleContextBlur = useCallback(() => {
+    isContextEditing.current = false;
+    console.log('[data loading sequence] [EditorPanel] isContextEditing: false');
+    if (localContext !== (lastCommittedPropsState.current.context || '')) {
+      console.log(`[data loading sequence] [EditorPanel ${prompt.id}] Context blur: Sending update for context.`);
+      lastCommittedPropsState.current = { ...lastCommittedPropsState.current, context: localContext };
+      onUpdate({ context: localContext });
     }
+  }, [localContext, onUpdate, prompt.id]);
 
-  }, [
-    debouncedLocalStateForPatch, onUpdate, prompt.id, prompt.title, prompt.context, prompt.model, prompt.content,
-    initializedPromptId.current, hasInitiallySyncedProps.current // These are critical guards
-  ]);
+  const handleModelChange = useCallback((newModel: string) => {
+    console.log(`[data loading sequence] [EditorPanel ${prompt.id}] Model select changed (local state):`, newModel);
+    setLocalModel(newModel);
+    if (newModel !== (lastCommittedPropsState.current.model || 'gpt-4o')) {
+      console.log(`[data loading sequence] [EditorPanel ${prompt.id}] Model change: Sending update for model: "${newModel}"`);
+      lastCommittedPropsState.current = { ...lastCommittedPropsState.current, model: newModel };
+      onUpdate({ model: newModel });
+    }
+  }, [onUpdate, prompt.id]);
+
+  // New: Unified content update that will also trigger a prompt update
+  const handleContentBlocksUpdate = useCallback((newBlocks: Block[], action: string = 'internal') => {
+      const newSerializedContent = serializeBlocks(newBlocks);
+
+      // Only send an update if content actually changed from the last committed state
+      if (!deepCompareBlocks(newSerializedContent, lastCommittedPropsState.current.content || [])) {
+          console.log(`[data loading sequence] [EditorPanel ${prompt.id}] handleContentBlocksUpdate triggered by ${action}: Content changed. Sending update.`);
+          // Optimistic update for `blocks` state has already occurred in the calling function (e.g., moveBlock)
+
+          onUpdate(
+            { content: newSerializedContent },
+            (updatedData?: Prompt) => { // onCompleted callback
+              // If the server data matches our optimistic state, prevent re-render or flicker
+              if (updatedData && deepCompareBlocks(updatedData.content || [], newSerializedContent)) {
+                  console.log(`[data loading sequence] [EditorPanel ${prompt.id}] Mutation for content successful and matches optimistic UI. Avoiding flicker.`);
+                  // Explicitly update lastCommittedPropsState to reflect the server's confirmed state
+                  lastCommittedPropsState.current = { ...lastCommittedPropsState.current, content: newSerializedContent };
+              } else {
+                  console.log(`[data loading sequence] [EditorPanel ${prompt.id}] Mutation for content successful but server data differs or is null. Re-syncing from server.`);
+                  // The `usePrompts` hook will handle reconciliation by triggering a re-fetch if needed.
+                  // `useEffect (UPDATE sync)` will handle the prop change when details come back.
+              }
+              toast.success("Content saved!", { duration: 1000 });
+            },
+            () => { // onError callback
+              // On error: Revert blocks state to last known good state
+              console.error(`[data loading sequence] [EditorPanel ${prompt.id}] Mutation for content failed. Reverting UI.`);
+              setBlocks(lastKnownGoodBlocks.current); // Revert to previous state
+              toast.error("Failed to save content. Reverted.", { duration: 3000 });
+              // Revert lastCommittedPropsState to reflect the old state as the server didn't accept the change
+              lastCommittedPropsState.current = { ...lastCommittedPropsState.current, content: lastKnownGoodBlocks.current };
+            }
+          );
+      } else {
+          console.log(`[data loading sequence] [EditorPanel ${prompt.id}] handleContentBlocksUpdate triggered by ${action}: Content state updated, but no diff to last committed. No mutation sent.`);
+          // If no mutation sent, `lastKnownGoodBlocks` is already updated by the individual action (e.g. moveBlock, updateTextBlock).
+          // We also need to update `lastCommittedPropsState.current.content` to ensure subsequent `handleContentBlocksUpdate` calls
+          // correctly detect whether a mutation is actually needed.
+          lastCommittedPropsState.current = { ...lastCommittedPropsState.current, content: newSerializedContent };
+      }
+  }, [onUpdate, prompt.id]);
+
 
   const insertVariableAt = useCallback((index: number, variable: { placeholder: string; id: string; name: string }) => {
     setBlocks(prev => {
+      lastKnownGoodBlocks.current = prev; // Save current state for potential revert
       let copy = [...prev];
-      const newVarBlock: Block = { type: 'variable', id: cuid('v-'), varId: variable.id, placeholder: variable.placeholder, name: variable.name };
-
+      const newVarBlock: Block = { type: 'variable', id: cuid('v-insert-'), varId: variable.id, placeholder: variable.placeholder, name: variable.name };
       copy.splice(index, 0, newVarBlock);
-      logBlocks(`After directly inserting variable "${variable.placeholder}" at index ${index}`, copy);
+      logBlocks(`After directly inserting variable "${variable.placeholder}" at index ${index} (optimistic)`, copy);
+      handleContentBlocksUpdate(copy, `insertVariableAt:${variable.id}`); // Trigger mutation after optimistic update
       return copy;
     });
-
-  }, [logBlocks]);
+  }, [logBlocks, handleContentBlocksUpdate]);
 
   const insertTextAt = useCallback((index: number, text = '') => {
     setBlocks(prev => {
+      lastKnownGoodBlocks.current = prev; // Save current state for potential revert
       let copy = [...prev];
-      const newBlock: Block = { type: 'text', id: cuid('t-'), value: text }
-
+      const newBlock: Block = { type: 'text', id: cuid('t-insert-'), value: text }
       copy.splice(index, 0, newBlock)
-      logBlocks(`After directly inserting text block at index ${index}`, copy);
+      logBlocks(`After directly inserting text block at index ${index} (optimistic)`, copy);
+      handleContentBlocksUpdate(copy, `insertTextAt`); // Trigger mutation after optimistic update
       return copy
     })
-
-  }, [logBlocks]);
+  }, [logBlocks, handleContentBlocksUpdate]);
 
   const updateTextBlock = useCallback((id: string, value: string) => {
-    console.log(`[data loading sequence] [EditorPanel ${prompt.id}] updateTextBlock called for block ID: ${id}, new value: "${value}". Propagating to blocks state.`);
     setBlocks(prev => {
+      lastKnownGoodBlocks.current = prev; // Save current state for potential revert
       let updated = prev.map(b => b.type === 'text' && b.id === id ? { ...b, value } : b);
 
       const blockToRemove = updated.find(b => b.type === 'text' && b.id === id && b.value === '');
-      if (blockToRemove && updated.length > 1) {
-        console.log(`[data loading sequence] [EditorPanel ${prompt.id}] updateTextBlock: Removing empty text block ${id} as there are other blocks.`);
+      if (blockToRemove && updated.length > 1 && blockToRemove.id !== 'fixed-empty-fallback-block-id') {
         updated = updated.filter(b => b.id !== id);
       }
 
-      if (updated.length === 0) {
-        console.log('[data loading sequence] [EditorPanel] updateTextBlock: All blocks removed, adding empty fallback.');
-        updated.push({ type: 'text', id: 'fixed-empty-fallback-block-id', value: '' });
+      if (updated.length === 0 || updated.every(b => b.type === 'variable')) {
+        if (!updated.some(b => b.type === 'text' && b.id === 'fixed-empty-fallback-block-id')) {
+          updated.push({ type: 'text', id: 'fixed-empty-fallback-block-id', value: '' });
+        }
+      } else {
+        if (updated.filter(b => b.type === 'text' && b.id === 'fixed-empty-fallback-block-id').length > 1) {
+            updated = updated.filter(b => !(b.type === 'text' && b.id === 'fixed-empty-fallback-block-id' && b.value === ''));
+            if (!updated.some(b => b.type === 'text' && b.id === 'fixed-empty-fallback-block-id')) {
+                updated.push({ type: 'text', id: 'fixed-empty-fallback-block-id', value: '' });
+            }
+        }
       }
-
-      logBlocks(`After updating text block ${id} to "${value.substring(0, Math.min(value.length, 30))}..."`, updated);
+      handleContentBlocksUpdate(updated, `updateTextBlock:${id}`); // Trigger mutation after optimistic update
       return updated;
     });
-
-  }, [logBlocks, prompt.id]);
+  }, [handleContentBlocksUpdate]);
 
   const removeBlock = useCallback((index: number) => {
     console.log(`[data loading sequence] [EditorPanel ${prompt.id}] removeBlock called for index: ${index}`);
     setBlocks(prev => {
+      lastKnownGoodBlocks.current = prev; // Save current state for potential revert
       let copy = [...prev];
       if (index < 0 || index >= copy.length) {
         console.warn(`[data loading sequence] [EditorPanel ${prompt.id}] removeBlock: Invalid index ${index}.`);
@@ -799,26 +868,22 @@ function EditorPanel({
       copy.splice(index, 1);
       console.log(`[data loading sequence] [EditorPanel ${prompt.id}] removeBlock: Removed block of type ${removedBlock.type} with ID ${removedBlock.id}.`);
 
-      if (copy.length === 0 || (copy.length === 1 && copy[0].type === 'text' && copy[0].value === '')) {
-        if (copy.length === 0) {
-          console.log('[data loading sequence] [EditorPanel] removeBlock: No blocks left, adding empty fallback.');
+      if (copy.length === 0 || copy.every(b => b.type === 'variable')) {
+        if (!copy.some(b => b.type === 'text' && b.id === 'fixed-empty-fallback-block-id')) {
+          console.log('[data loading sequence] [EditorPanel] removeBlock: Adding empty fallback text block.');
           copy.push({ type: 'text', id: 'fixed-empty-fallback-block-id', value: '' });
         }
-      } else if (copy.length > 1 && copy.every(b => b.type === 'variable')) {
-        console.log('[data loading sequence] [EditorPanel] removeBlock: Only variables left, adding empty text block for editing.');
-        copy.push({ type: 'text', id: 'fixed-empty-fallback-block-id', value: '' });
       }
-
-
-      logBlocks(`After removing block at index ${index}`, copy);
+      logBlocks(`After removing block at index ${index} (optimistic)`, copy);
+      handleContentBlocksUpdate(copy, `removeBlock:${index}`); // Trigger mutation after optimistic update
       return copy
     })
-
-  }, [logBlocks, prompt.id]);
+  }, [logBlocks, prompt.id, handleContentBlocksUpdate]);
 
   const moveBlock = useCallback((from: number, to: number) => {
     console.log(`[data loading sequence] [EditorPanel ${prompt.id}] moveBlock called from index: ${from} to index: ${to}`);
     setBlocks(prev => {
+      lastKnownGoodBlocks.current = prev; // Save current state for potential revert
       let copy = [...prev];
       if (from < 0 || from >= copy.length || to < 0 || to > copy.length) {
         console.warn(`[data loading sequence] [EditorPanel ${prompt.id}] moveBlock: Invalid indices from ${from} to ${to}.`);
@@ -828,11 +893,11 @@ function EditorPanel({
       const [item] = copy.splice(from, 1);
       copy.splice(to, 0, item);
 
-      logBlocks(`After moving block from ${from} to ${to}`, copy);
+      logBlocks(`After moving block from ${from} to ${to} (optimistic)`, copy);
+      handleContentBlocksUpdate(copy, `moveBlock:${from}-${to}`); // Trigger mutation after optimistic update
       return copy;
     });
-
-  }, [logBlocks, prompt.id]);
+  }, [logBlocks, prompt.id, handleContentBlocksUpdate]);
 
   const { isDragging: isDraggingSomething } = useDragLayer((monitor) => ({
     isDragging: monitor.isDragging(),
@@ -850,7 +915,13 @@ function EditorPanel({
       let targetIndex = blocks.length;
       if (blocks.length === 0) {
         targetIndex = 0;
+      } else {
+        const fallbackIndex = blocks.findIndex(b => b.id === 'fixed-empty-fallback-block-id');
+        if (fallbackIndex !== -1) {
+            targetIndex = fallbackIndex;
+        }
       }
+
 
       if (monitor.getItemType() === ItemTypes.VARIABLE) {
         console.log(`[data loading sequence] [EditorPanel ${prompt.id}][Drop] Inserting variable at index ${targetIndex}.`);
@@ -881,7 +952,7 @@ function EditorPanel({
       };
     },
 
-  }), [blocks.length, insertVariableAt, moveBlock, isDraggingSomething, prompt.id]);
+  }), [blocks.length, insertVariableAt, moveBlock, isDraggingSomething, prompt.id, blocks]); // Added blocks to deps for accurate targetIndex
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -894,17 +965,14 @@ function EditorPanel({
               setLocalTitle(e.target.value);
             }}
             onFocus={() => { isTitleEditing.current = true; console.log('[data loading sequence] [EditorPanel] isTitleEditing: true'); }}
-            onBlur={() => { isTitleEditing.current = false; console.log('[data loading sequence] [EditorPanel] isTitleEditing: false'); }}
+            onBlur={handleTitleBlur} // Direct update on blur
             className="h-10 text-sm font-medium"
             placeholder="Prompt title"
           />
           <select
             className="h-10 rounded-md border bg-background px-3 text-sm"
             value={localModel}
-            onChange={(e) => {
-              console.log(`[data loading sequence] [EditorPanel ${prompt.id}] Model select changed (local state):`, e.target.value);
-              setLocalModel(e.target.value);
-            }}
+            onChange={(e) => handleModelChange(e.target.value)} // Direct update on change
             title="Target model"
           >
             <option value="gpt-4o">OpenAI GPT-4o</option>
@@ -926,7 +994,7 @@ function EditorPanel({
               setLocalContext(e.target.value);
             }}
             onFocus={() => { isContextEditing.current = true; console.log('[data loading sequence] [EditorPanel] isContextEditing: true'); }}
-            onBlur={() => { isContextEditing.current = false; console.log('[data loading sequence] [EditorPanel] isContextEditing: false'); }}
+            onBlur={handleContextBlur} // Direct update on blur
             rows={6}
             className="overflow-y-auto"
             placeholder="Add domain, audience, constraints, style guides, and examples. Use {{variables}} if needed."
@@ -940,54 +1008,57 @@ function EditorPanel({
             className={`flex flex-col gap-2 min-h-[300px] border rounded p-3
                     ${isOverBlockContainer && canDropBlockContainer && isDraggingSomething ? 'bg-indigo-50 border-indigo-300' : 'bg-gray-50'}`}
           >
+            {/* Render conditional text for empty state only if no blocks and nothing is being dragged */}
             {blocks.length === 0 && !isDraggingSomething ? (
-              <div className="flex-1 text-center py-12 text-gray-400">
-                Drag variables or click "+ Add text" to start building your prompt.
-                <button
-                  onClick={() => {
-                    console.log(`[data loading sequence] [EditorPanel ${prompt.id}] Add text button clicked (empty state).`);
-                    insertTextAt(0, '');
-                  }}
-                  className="mt-4 px-3 py-1 border rounded-md text-sm text-gray-700 bg-white hover:bg-gray-100 flex items-center justify-center mx-auto"
-                >
-                  <Text className="mr-1 h-4 w-4" /> Add text
-                </button>
-              </div>
+                <div className="flex-1 text-center py-12 text-gray-400">
+                    Drag variables or click "+ Add text" to start building your prompt.
+                    <button
+                      onClick={() => {
+                        console.log(`[data loading sequence] [EditorPanel ${prompt.id}] Add text button clicked (empty state).`);
+                        insertTextAt(0, '');
+                      }}
+                      className="mt-4 px-3 py-1 border rounded-md text-sm text-gray-700 bg-white hover:bg-gray-100 flex items-center justify-center mx-auto"
+                    >
+                      <Text className="mr-1 h-4 w-4" /> Add text
+                    </button>
+                </div>
             ) : (
-              blocks.map((b, i) => (
-                <React.Fragment key={`block-fragment-${b.id}`}>
-                  {i === 0 && (
-                    <HoverAddTextBlock
-                      key={`hover-insert-before-first`}
-                      index={0}
-                      insertTextAt={insertTextAt}
-                    />
-                  )}
-                  <BlockRenderer
-                    key={b.id}
-                    block={b}
-                    index={i}
-                    allBlocks={blocks}
-                    updateTextBlock={updateTextBlock}
-                    removeBlock={removeBlock}
-                    moveBlock={moveBlock}
-                    insertVariableAt={insertVariableAt}
-                    isDraggingSomething={isDraggingSomething}
-                    insertTextAt={insertTextAt}
-                  />
-                  <HoverAddTextBlock
-                    key={`hover-insert-after-${b.id}`}
-                    index={i + 1}
-                    insertTextAt={insertTextAt}
-                  />
-                </React.Fragment>
-              ))
+                blocks.map((b, i) => (
+                    <React.Fragment key={`block-fragment-${b.id}`}>
+                        {/* Only show "Add text" hover between blocks or at the very beginning/end */}
+                        {(i === 0) && (
+                            <HoverAddTextBlock
+                                key={`hover-insert-before-${b.id}`} // Use a distinct key
+                                index={0}
+                                insertTextAt={insertTextAt}
+                            />
+                        )}
+                        <BlockRenderer
+                            key={b.id} // Ensure a stable key for BlockRenderer
+                            block={b}
+                            index={i}
+                            allBlocks={blocks}
+                            updateTextBlock={updateTextBlock}
+                            removeBlock={removeBlock}
+                            moveBlock={moveBlock}
+                            insertVariableAt={insertVariableAt}
+                            isDraggingSomething={isDraggingSomething}
+                            insertTextAt={insertTextAt}
+                        />
+                        <HoverAddTextBlock
+                            key={`hover-insert-after-${b.id}`}
+                            index={i + 1}
+                            insertTextAt={insertTextAt}
+                        />
+                    </React.Fragment>
+                ))
             )}
 
+            {/* Empty container drop target */}
             {blocks.length === 0 && isOverBlockContainer && canDropBlockContainer && isDraggingSomething && (
-              <div className="flex-1 flex items-center justify-center border-2 border-dashed border-indigo-400 rounded-md bg-indigo-50 text-indigo-700 h-24">
-                Drop item here
-              </div>
+                <div className="flex-1 flex items-center justify-center border-2 border-dashed border-indigo-400 rounded-md bg-indigo-50 text-indigo-700 h-24">
+                    Drop item here
+                </div>
             )}
           </div>
         </section>
@@ -1044,12 +1115,12 @@ function BlockRenderer({
 
   useEffect(() => {
     if (block.type === 'text') {
+      // Only update innerText if the current DOM value differs from block.value AND it's not currently focused
       if (contentEditableRef.current && contentEditableRef.current.innerText !== block.value && document.activeElement !== contentEditableRef.current) {
         contentEditableRef.current.innerText = block.value;
-      } else if (contentEditableRef.current && document.activeElement === contentEditableRef.current) {
       }
     }
-  }, [block.type, block.value]);
+  }, [block.type, block.value]); // Dependencies should be stable
 
   const [{ isDragging, canDrag }, dragRef, preview] = useDrag(() => ({
     type: ItemTypes.BLOCK,
@@ -1063,15 +1134,16 @@ function BlockRenderer({
       originalBlock: block,
     },
     canDrag: (monitor) => {
-      const result = true;
-      return result;
+      // Allow dragging of the fixed empty fallback block only if there are other blocks
+      // Or if it's not a fallback block
+      return block.id !== 'fixed-empty-fallback-block-id' || allBlocks.length > 1;
     },
     collect: (m) => {
       const dragging = m.isDragging();
       const currentCanDrag = m.canDrag();
       return { isDragging: dragging, canDrag: currentCanDrag };
     },
-  }), [block.id, index, block.type, block.value, block.placeholder, block.name, block.varId]);
+  }), [block.id, index, block.type, block.value, block.placeholder, block.name, block.varId, allBlocks.length]); // Added allBlocks.length for canDrag
 
   const connectDragSource = useCallback((node: HTMLElement | null) => {
     dragRef(node);
@@ -1107,9 +1179,18 @@ function BlockRenderer({
       let newDropPosition: 'before' | 'after' | null = null;
       const draggingItemType = monitor.getItemType();
 
+      // Prevent dropping a block onto itself
       if (draggingItemType === ItemTypes.BLOCK && (item as { id: string }).id === block.id) {
         if (localDropTargetPosition !== null) {
           setLocalDropTargetPosition(null);
+        }
+        return;
+      }
+
+      // Prevent dropping a block just before/after itself if it's the only block
+      if (draggingItemType === ItemTypes.BLOCK && (item as { index: number }).index === index) {
+        if (localDropTargetPosition !== null) {
+            setLocalDropTargetPosition(null);
         }
         return;
       }
@@ -1178,7 +1259,7 @@ function BlockRenderer({
 
         <div
           ref={connectDragSource}
-          className="cursor-grab shrink-0 flex items-center justify-center w-10 h-10 bg-blue-100 border border-blue-200 rounded-md text-blue-600 shadow-md transition-opacity duration-100 opacity-100 group-hover:opacity-100"
+          className={`cursor-grab shrink-0 flex items-center justify-center w-10 h-10 bg-blue-100 border border-blue-200 rounded-md text-blue-600 shadow-md transition-opacity duration-100 ${canDrag ? 'opacity-100' : 'opacity-50 cursor-not-allowed'} group-hover:opacity-100`}
         >
           <GripVertical className="h-6 w-6" />
         </div>
@@ -1207,9 +1288,11 @@ function BlockRenderer({
         e.preventDefault();
         return;
       }
+      // Allow backspace only if content is empty or selection is at start
       if (e.key === 'Backspace' && contentEditableRef.current?.innerText === '' && window.getSelection()?.anchorOffset === 0) {
         e.preventDefault();
-        if (allBlocks.length === 1 && allBlocks[0].id === block.id) {
+        // If it's the last remaining block or the fixed fallback block, don't remove, just clear value
+        if (allBlocks.length === 1 && allBlocks[0].id === block.id || block.id === 'fixed-empty-fallback-block-id') {
           updateTextBlock(block.id, '');
         } else {
           removeBlock(index);
@@ -1224,7 +1307,8 @@ function BlockRenderer({
 
     const onBlur = () => {
       const text = contentEditableRef.current?.innerText ?? ''
-      if (text === '' && allBlocks.length > 1) {
+      // Only remove if it's not the last remaining block AND it's not the fixed fallback block AND it's empty
+      if (text === '' && allBlocks.length > 1 && block.id !== 'fixed-empty-fallback-block-id') {
         removeBlock(index);
       }
     }
@@ -1240,7 +1324,7 @@ function BlockRenderer({
         >
           <div
             ref={connectDragSource}
-            className="cursor-grab shrink-0 flex items-center justify-center w-10 h-10 -ml-3 mr-2 text-gray-700 bg-gray-100 border border-gray-300 rounded-md shadow-md transition-opacity duration-100 opacity-100 group-hover:opacity-100"
+            className={`cursor-grab shrink-0 flex items-center justify-center w-10 h-10 -ml-3 mr-2 text-gray-700 bg-gray-100 border border-gray-300 rounded-md shadow-md transition-opacity duration-100 ${canDrag ? 'opacity-100' : 'opacity-50 cursor-not-allowed'} group-hover:opacity-100`}
             style={{ position: 'relative', left: '0', top: '0', transform: 'none' }}
           >
             <GripVertical className="h-6 w-6" />
@@ -1256,7 +1340,8 @@ function BlockRenderer({
             ref={contentEditableRef}
           >
           </div>
-          {(allBlocks.length > 1) || (block.type === 'text' && block.value !== '') ? (
+          {/* Show remove button only if not the last block OR it's not the fixed fallback AND it's not empty */}
+          {(allBlocks.length > 1 || (block.type === 'text' && block.value !== '') && block.id !== 'fixed-empty-fallback-block-id') ? (
             <button
               onClick={() => {
                 removeBlock(index);
@@ -1477,4 +1562,3 @@ function VersionsPanel({
 
   )
 }
-
