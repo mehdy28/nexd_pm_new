@@ -167,6 +167,18 @@ export function PromptLab({ prompt, onBack, projectId }: { prompt: Prompt; onBac
 
   const lastInitializedPromptId = useRef<string | null>(null);
 
+  // Memoize prompt's relevant data for effect dependencies to prevent unnecessary re-runs
+  const memoizedPromptDataForPreview = useMemo(() => {
+    if (!prompt) return null;
+    return {
+      id: prompt.id,
+      content: prompt.content || [],
+      context: prompt.context || '',
+      variables: prompt.variables || [],
+    };
+  }, [prompt?.id, prompt?.content, prompt?.context, prompt?.variables]);
+
+
   // --- Effect for state initialization/reset based on prompt ---
   useEffect(() => {
     console.log(`[data loading sequence] [PromptLab] useEffect (init/reset) RUNNING - prompt ID: ${prompt?.id}, current lastInitializedPromptId: ${lastInitializedPromptId.current}`);
@@ -233,20 +245,35 @@ export function PromptLab({ prompt, onBack, projectId }: { prompt: Prompt; onBac
 
   // --- Effect for preview rendering ---
   useEffect(() => {
-    console.log(`[data loading sequence] [PromptLab] useEffect (preview render) RUNNING - prompt ID: ${prompt?.id}, previewVariableValues length: ${Object.keys(previewVariableValues).length}`);
-    if (!prompt) {
-      console.log('[data loading sequence] [PromptLab] Condition: prompt is NULL. Setting renderedPreview to "Select a prompt or create a new one."');
+    console.log(`[data loading sequence] [PromptLab] useEffect (preview render) RUNNING - prompt ID: ${memoizedPromptDataForPreview?.id}, previewVariableValues length: ${Object.keys(previewVariableValues).length}`);
+    
+    if (!memoizedPromptDataForPreview) { // Use memoized data here
+      console.log('[data loading sequence] [PromptLab] Condition: memoizedPromptDataForPreview is NULL. Setting renderedPreview to "Select a prompt or create a new one."');
       setRenderedPreview("Select a prompt or create a new one.");
       return;
     }
+    
     console.log('[data loading sequence] [PromptLab] Action: Generating preview based on prompt and previewVariableValues.');
     const generatePreview = async () => {
-      const preview = await renderPrompt(prompt.content || [], prompt.context || '', prompt.variables || [], previewVariableValues, projectId);
-      setRenderedPreview(preview);
+      const preview = await renderPrompt(
+        memoizedPromptDataForPreview.content, // Use memoized content
+        memoizedPromptDataForPreview.context, // Use memoized context
+        memoizedPromptDataForPreview.variables, // Use memoized variables
+        previewVariableValues,
+        projectId
+      );
+      // Only update if the generated preview actually changed to prevent unnecessary re-renders
+      if (preview !== renderedPreview) {
+          setRenderedPreview(preview);
+          console.log('[data loading sequence] [PromptLab] Preview state updated.');
+      } else {
+          console.log('[data loading sequence] [PromptLab] Generated preview is identical to current state. No update.');
+      }
       console.log('[data loading sequence] [PromptLab] Preview rendering complete.');
     };
     generatePreview();
-  }, [prompt, previewVariableValues, projectId]);
+  }, [memoizedPromptDataForPreview, previewVariableValues, projectId, renderedPreview]); // Add renderedPreview to dependencies for self-comparison
+
 
   const selectedVersion = useMemo(() => prompt?.versions?.find((v) => v.id === selectedVersionId) || null, [prompt, selectedVersionId])
 
@@ -498,12 +525,13 @@ export function PromptLab({ prompt, onBack, projectId }: { prompt: Prompt; onBac
 /* ---------- Variable Item (Sidebar) ---------- */
 
 function VariableItem({ variable, onRemove }: { variable: PromptVariable; onRemove: (id: string) => void }) {
-  const [{ isDragging }, drag, preview] = useDrag(() => ({
+  const [{ isDragging, canDrag }, drag, preview] = useDrag(() => ({
     type: ItemTypes.VARIABLE,
     item: { id: variable.id, placeholder: variable.placeholder, name: variable.name },
     collect: (monitor) => {
       const dragging = monitor.isDragging();
-      return { isDragging: dragging };
+      const currentCanDrag = monitor.canDrag();
+      return { isDragging: dragging, canDrag: currentCanDrag };
     },
   }), [variable]);
 
@@ -1284,11 +1312,11 @@ function BlockRenderer({
 
   } else { // type === 'text'
     const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-      if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        return;
-      }
-      // Allow backspace only if content is empty or selection is at start
+      // The default behavior for 'Enter' in a contentEditable div is to insert a newline.
+      // This allows it to happen unless Shift+Enter (if you want to implement custom behavior for Shift+Enter).
+      // For now, we are letting default 'Enter' behavior.
+      // Removed: if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); return; }
+
       if (e.key === 'Backspace' && contentEditableRef.current?.innerText === '' && window.getSelection()?.anchorOffset === 0) {
         e.preventDefault();
         // If it's the last remaining block or the fixed fallback block, don't remove, just clear value
@@ -1332,7 +1360,7 @@ function BlockRenderer({
           <div
             contentEditable
             suppressContentEditableWarning
-            onKeyDown={onKeyDown}
+            onKeyDown={onKeyDown} // Now allows Enter key
             onInput={onInput}
             onBlur={onBlur}
             className="flex-1 min-h-[40px] text-sm outline-none w-full whitespace-pre-wrap py-2"
@@ -1359,6 +1387,8 @@ function BlockRenderer({
 
   }
 }
+
+
 
 const getEmptyImage = () => {
   if (typeof window === 'undefined') return new Image();
