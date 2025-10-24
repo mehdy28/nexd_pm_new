@@ -1,4 +1,6 @@
- import { gql } from 'graphql-tag'; // Or your equivalent for GQL queries
+// lib/graphql/queries.ts
+ 
+import { gql } from 'graphql-tag'; // Or your equivalent for GQL queries
  
 // --- Prompt Queries ---
 
@@ -22,13 +24,14 @@ export const GET_PROMPT_DETAILS_QUERY = gql`
     getPromptDetails(id: $id) {
       id
       title
-      content { # CHANGED: Querying fields of ContentBlock
+      content { # CHANGED: Requesting subfields for ContentBlock
         id
         type
         value
         varId
         placeholder
         name
+        # __typename # Uncomment if Apollo Client requires __typename for ContentBlock
       }
       context
       description
@@ -55,13 +58,14 @@ export const GET_PROMPT_DETAILS_QUERY = gql`
       }
       versions {
         id
-        content { # CHANGED: Querying fields of ContentBlock for versions
+        content { # CHANGED: Requesting subfields for ContentBlock
           id
           type
           value
           varId
           placeholder
           name
+          # __typename # Uncomment if Apollo Client requires __typename for ContentBlock
         }
         context
         variables {

@@ -1,4 +1,3 @@
-
 // components/prompt-lab/variable-discovery-builder.tsx
 'use client'
 
@@ -25,7 +24,7 @@ import { Badge } from '@/components/ui/badge';
 import { Command, CommandInput, CommandItem, CommandList, CommandEmpty, CommandGroup } from "@/components/ui/command";
 import { Check, ChevronsUpDown, ArrowLeft, Lightbulb, Keyboard, Database, ListChecks, Calendar, FileText, Users, Briefcase, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { PromptVariable, PromptVariableType, PromptVariableSource } from './store';
+import { PromptVariable, PromptVariableType, PromptVariableSource } from './store'; // Import the updated PromptVariableSource
 import { useDebounce } from 'use-debounce';
 import { toast } from 'sonner';
 // Import Apollo Client hooks and queries
@@ -94,6 +93,12 @@ export function VariableDiscoveryBuilder({
   // State for the Data Explorer
   const [selectedCategoryInExplorer, setSelectedCategoryInExplorer] = useState<string | null>(null);
   const [selectedFieldInExplorer, setSelectedFieldInExplorer] = useState<string | null>(null);
+  // NEW: State for aggregation and format if applicable
+  const [selectedAggregation, setSelectedAggregation] = useState<PromptVariableSource['aggregation'] | null>(null);
+  const [selectedAggregationField, setSelectedAggregationField] = useState<string | null>(null);
+  const [selectedFormat, setSelectedFormat] = useState<PromptVariableSource['format'] | null>(null);
+  // NEW: State for filter if applicable (simplified for V1 UI)
+  const [selectedFilter, setSelectedFilter] = useState<PromptVariableSource['filter'] | null>(null);
 
   // NEW: Use useLazyQuery directly in VariableDiscoveryBuilder
   const [fetchPreview, { data: previewData, loading: isLoadingPreview, error: previewErrorObj }] = useLazyQuery(RESOLVE_PROMPT_VARIABLE_QUERY);
@@ -118,67 +123,216 @@ export function VariableDiscoveryBuilder({
 
   // --- Data for Suggestions & Explorer ---
   const dataCategories = useMemo(() => [
-    { value: 'project', label: 'Project', icon: Briefcase },
-    { value: 'tasks', label: 'Tasks', icon: ListChecks },
-    { value: 'sprints', label: 'Sprints', icon: Calendar },
-    { value: 'documents', label: 'Documents', icon: FileText },
-    { value: 'members', label: 'Members', icon: Users },
-    { value: 'workspace', label: 'Workspace', icon: Database },
-    { value: 'user', label: 'Me (Current User)', icon: Users },
+    { value: 'PROJECT', label: 'Project', icon: Briefcase },
+    { value: 'TASK', label: 'Tasks', icon: ListChecks },
+    { value: 'SPRINT', label: 'Sprints', icon: Calendar },
+    { value: 'DOCUMENT', label: 'Documents', icon: FileText },
+    { value: 'MEMBER', label: 'Members', icon: Users }, // Project Members
+    { value: 'WORKSPACE', label: 'Workspace', icon: Database },
+    { value: 'USER', label: 'Me (Current User)', icon: Users },
   ], []);
 
-  const getFieldsForCategory = useCallback((category: string | null) => {
-    if (!category) return [];
-    switch (category) {
-      case 'project': return [
-        { value: 'name', label: 'Project Name', type: PromptVariableType.STRING, description: 'The name of the current project.', source: { type: 'PROJECT_FIELD', field: 'name' } },
-        { value: 'description', label: 'Project Description', type: PromptVariableType.RICH_TEXT, description: 'The detailed description of the current project.', source: { type: 'PROJECT_FIELD', field: 'description' } },
-        { value: 'status', label: 'Project Status', type: PromptVariableType.STRING, description: 'The current status of the project (e.g., ACTIVE, PLANNING).', source: { type: 'PROJECT_FIELD', field: 'status' } },
-        { value: 'totalTaskCount', label: 'Total Tasks Count', type: PromptVariableType.NUMBER, description: 'The total number of tasks in the project.', source: { type: 'PROJECT_FIELD', field: 'totalTaskCount', aggregation: 'COUNT' } },
-        { value: 'completedTaskCount', label: 'Completed Tasks Count', type: PromptVariableType.NUMBER, description: 'The number of tasks in the project that are marked as DONE.', source: { type: 'PROJECT_FIELD', field: 'completedTaskCount', aggregation: 'COUNT', filter: { status: 'DONE' } } },
-      ];
-      case 'tasks': return [
-        { value: 'all_titles_list', label: 'All Tasks Titles List', type: PromptVariableType.LIST_OF_STRINGS, description: 'A bulleted list of all task titles in the project.', source: { type: 'TASKS_AGGREGATION', aggregation: 'LIST_TITLES', format: 'BULLET_POINTS' } },
-        { value: 'my_tasks_titles_list', label: 'My Tasks Titles List', type: PromptVariableType.LIST_OF_STRINGS, description: 'A bulleted list of task titles assigned to the current user.', source: { type: 'TASKS_AGGREGATION', filter: { assigneeId: 'current_user' }, aggregation: 'LIST_TITLES', format: 'BULLET_POINTS' } },
-        { value: 'completed_count', label: 'Completed Tasks Count', type: PromptVariableType.NUMBER, description: 'The total count of completed tasks in the project.', source: { type: 'TASKS_AGGREGATION', filter: { status: 'DONE' }, aggregation: 'COUNT' } },
-        { value: 'task_title_by_id', label: 'Specific Task: Title (by ID)', type: PromptVariableType.STRING, description: 'The title of a specific task (requires a task ID to be provided in the filter).', source: { type: 'SINGLE_TASK_FIELD', field: 'title', entityId: 'prompt_for_task_id' } },
-      ];
-      case 'sprints': return [
-        { value: 'current_name', label: 'Current Sprint Name', type: PromptVariableType.STRING, description: 'The name of the currently active sprint.', source: { type: 'SPRINT_FIELD', entityId: 'current_sprint', field: 'name' } },
-        { value: 'current_endDate', label: 'Current Sprint End Date', type: PromptVariableType.DATE, description: 'The end date of the currently active sprint.', source: { type: 'SPRINT_FIELD', entityId: 'current_sprint', field: 'endDate' } },
-        { value: 'upcoming_names_list', label: 'Upcoming Sprints Names List', type: PromptVariableType.LIST_OF_STRINGS, description: 'A bulleted list of names of all upcoming (planning) sprints.', source: { type: 'SPRINT_AGGREGATION', filter: { status: 'PLANNING' }, aggregation: 'LIST_NAMES', format: 'BULLET_POINTS' } },
-      ];
-      case 'documents': return [
-        { value: 'latest_title', label: 'Latest Document Title', type: PromptVariableType.STRING, description: 'The title of the most recently updated document.', source: { type: 'DOCUMENT_FIELD', entityId: 'latest', field: 'title' } },
-        { value: 'latest_content', label: 'Latest Document Content', type: PromptVariableType.RICH_TEXT, description: 'The full rich-text content of the most recently updated document.', source: { type: 'DOCUMENT_FIELD', entityId: 'latest', field: 'content' } },
-        { value: 'all_titles_list', label: 'All Documents Titles List', type: PromptVariableType.LIST_OF_STRINGS, description: 'A bulleted list of titles of all documents in the project.', source: { type: 'DOCUMENT_AGGREGATION', aggregation: 'LIST_TITLES', format: 'BULLET_POINTS' } },
-      ];
-      case 'members': return [
-        { value: 'all_names_list', label: 'All Project Members Names List', type: PromptVariableType.LIST_OF_STRINGS, description: 'A comma-separated list of names of all members in the project.', source: { type: 'MEMBER_LIST', aggregation: 'LIST_NAMES', format: 'COMMA_SEPARATED' } },
-        { value: 'admin_names_list', label: 'Admin Members Names List', type: PromptVariableType.LIST_OF_STRINGS, description: 'A comma-separated list of names of project administrators.', source: { type: 'MEMBER_LIST', filter: { role: 'ADMIN' }, aggregation: 'LIST_NAMES', format: 'COMMA_SEPARATED' } },
-      ];
-      case 'workspace': return [
-        { value: 'name', label: 'Workspace Name', type: PromptVariableType.STRING, description: 'The name of the workspace this project belongs to.', source: { type: 'WORKSPACE_FIELD', field: 'name' } },
-        { value: 'industry', label: 'Workspace Industry', type: PromptVariableType.STRING, description: 'The industry defined for the workspace.', source: { type: 'WORKSPACE_FIELD', field: 'industry' } },
-      ];
-      case 'user': return [
-        { value: 'firstName', label: 'My First Name', type: PromptVariableType.STRING, description: 'The first name of the current user.', source: { type: 'USER_FIELD', field: 'firstName' } },
-        { value: 'email', label: 'My Email', type: PromptVariableType.STRING, description: 'The email address of the current user.', source: { type: 'USER_FIELD', field: 'email' } },
-      ];
-      case 'date_function': return [
-        { value: 'today', label: 'Today\'s Date', type: PromptVariableType.DATE, description: 'The current date.', source: { type: 'DATE_FUNCTION', field: 'today' }, defaultValue: new Date().toISOString().split('T')[0] },
-      ];
-      default: return [];
+  // Define fields and potential default aggregations/formats for each entity type
+  const getEntityDefinition = useCallback((entityType: PromptVariableSource['entityType']) => {
+    switch (entityType) {
+      case 'PROJECT': return {
+        fields: [
+          { value: 'name', label: 'Project Name', type: PromptVariableType.STRING, description: 'The name of the current project.' },
+          { value: 'description', label: 'Project Description', type: PromptVariableType.RICH_TEXT, description: 'The detailed description of the current project.' },
+          { value: 'status', label: 'Project Status', type: PromptVariableType.STRING, description: 'The current status of the project (e.g., ACTIVE, PLANNING).' },
+          { value: 'color', label: 'Project Color', type: PromptVariableType.STRING, description: 'The color code assigned to the project.' },
+          { value: 'startDate', label: 'Project Start Date', type: PromptVariableType.DATE, description: 'The start date of the project.' },
+          { value: 'endDate', label: 'Project End Date', type: PromptVariableType.DATE, description: 'The anticipated end date of the project.' },
+          // Note: totalTaskCount/completedTaskCount are now aggregations on TASKS entity
+        ],
+        aggregations: [], // Project is a single entity, no direct aggregations on it
+        defaultFormat: null,
+      };
+      case 'TASK': return {
+        fields: [
+          { value: 'title', label: 'Task Title', type: PromptVariableType.STRING, description: 'The title of the task.' },
+          { value: 'description', label: 'Task Description', type: PromptVariableType.RICH_TEXT, description: 'The detailed description of the task.' },
+          { value: 'status', label: 'Task Status', type: PromptVariableType.STRING, description: 'The status of the task (e.g., TODO, DONE).' },
+          { value: 'priority', label: 'Task Priority', type: PromptVariableType.STRING, description: 'The priority of the task (LOW, MEDIUM, HIGH).' },
+          { value: 'dueDate', label: 'Task Due Date', type: PromptVariableType.DATE, description: 'The due date of the task.' },
+          { value: 'startDate', label: 'Task Start Date', type: PromptVariableType.DATE, description: 'The start date of the task.' },
+          { value: 'endDate', label: 'Task End Date', type: PromptVariableType.DATE, description: 'The actual or estimated end date of the task.' },
+          { value: 'completed', label: 'Task Completed', type: PromptVariableType.BOOLEAN, description: 'Whether the task is marked as completed.' },
+          { value: 'points', label: 'Task Points', type: PromptVariableType.NUMBER, description: 'Story points assigned to the task.' },
+          { value: 'completionPercentage', label: 'Task Completion %', type: PromptVariableType.NUMBER, description: 'Percentage of task completion.' },
+          { value: 'assignee.firstName', label: 'Assignee First Name', type: PromptVariableType.STRING, description: 'First name of the task assignee.' },
+          { value: 'assignee.lastName', label: 'Assignee Last Name', type: PromptVariableType.STRING, description: 'Last name of the task assignee.' },
+          { value: 'assignee.email', label: 'Assignee Email', type: PromptVariableType.STRING, description: 'Email of the task assignee.' },
+          { value: 'creator.firstName', label: 'Creator First Name', type: PromptVariableType.STRING, description: 'First name of the task creator.' },
+        ],
+        aggregations: [
+          { value: 'COUNT', label: 'Count', resultType: PromptVariableType.NUMBER, description: 'Total number of tasks matching criteria.' },
+          { value: 'LIST_FIELD_VALUES', label: 'List Titles', aggregationField: 'title', resultType: PromptVariableType.LIST_OF_STRINGS, description: 'A list of titles of tasks matching criteria.' },
+          { value: 'LIST_FIELD_VALUES', label: 'List Descriptions', aggregationField: 'description', resultType: PromptVariableType.LIST_OF_STRINGS, description: 'A list of descriptions of tasks matching criteria.' },
+          { value: 'SUM', label: 'Sum Points', aggregationField: 'points', resultType: PromptVariableType.NUMBER, description: 'Sum of points for tasks matching criteria.' },
+          { value: 'AVERAGE', label: 'Average Points', aggregationField: 'points', resultType: PromptVariableType.NUMBER, description: 'Average points for tasks matching criteria.' },
+          { value: 'LAST_UPDATED_FIELD_VALUE', label: 'Last Updated Task Title', aggregationField: 'title', resultType: PromptVariableType.STRING, description: 'Title of the most recently updated task.' },
+        ],
+        defaultFormat: 'BULLET_POINTS',
+        filters: [
+            { field: 'status', label: 'Status Is', type: 'select', options: ['TODO', 'DONE'] },
+            { field: 'assigneeId', label: 'Assigned To', type: 'special', specialValue: 'CURRENT_USER_ID' },
+            { field: 'completed', label: 'Is Completed', type: 'boolean' },
+            { field: 'priority', label: 'Priority Is', type: 'select', options: ['LOW', 'MEDIUM', 'HIGH'] },
+        ]
+      };
+      case 'SPRINT': return {
+        fields: [
+          { value: 'name', label: 'Sprint Name', type: PromptVariableType.STRING, description: 'The name of the sprint.' },
+          { value: 'description', label: 'Sprint Description', type: PromptVariableType.RICH_TEXT, description: 'The detailed description of the sprint.' },
+          { value: 'startDate', label: 'Sprint Start Date', type: PromptVariableType.DATE, description: 'The start date of the sprint.' },
+          { value: 'endDate', label: 'Sprint End Date', type: PromptVariableType.DATE, description: 'The end date of the sprint.' },
+          { value: 'isCompleted', label: 'Sprint Completed', type: PromptVariableType.BOOLEAN, description: 'Whether the sprint is marked as completed.' },
+          { value: 'status', label: 'Sprint Status', type: PromptVariableType.STRING, description: 'The current status of the sprint (e.g., PLANNING, ACTIVE, COMPLETED).' },
+        ],
+        aggregations: [
+          { value: 'COUNT', label: 'Count', resultType: PromptVariableType.NUMBER, description: 'Total number of sprints matching criteria.' },
+          { value: 'LIST_FIELD_VALUES', label: 'List Names', aggregationField: 'name', resultType: PromptVariableType.LIST_OF_STRINGS, description: 'A list of names of sprints matching criteria.' },
+          { value: 'LAST_UPDATED_FIELD_VALUE', label: 'Last Updated Sprint Name', aggregationField: 'name', resultType: PromptVariableType.STRING, description: 'Name of the most recently updated sprint.' },
+        ],
+        defaultFormat: 'BULLET_POINTS',
+        filters: [
+            { field: 'status', label: 'Status Is', type: 'select', options: ['PLANNING', 'ACTIVE', 'COMPLETED'] },
+            { field: 'isCompleted', label: 'Is Completed', type: 'boolean' },
+            { field: 'specialValue', label: 'Is Active Sprint', type: 'special', specialValue: 'ACTIVE_SPRINT' },
+        ]
+      };
+      case 'DOCUMENT': return {
+        fields: [
+          { value: 'title', label: 'Document Title', type: PromptVariableType.STRING, description: 'The title of the document.' },
+          { value: 'content', label: 'Document Content', type: PromptVariableType.RICH_TEXT, description: 'The rich-text content of the document.' },
+          { value: 'dataUrl', label: 'Document Data URL', type: PromptVariableType.STRING, description: 'URL for PDF or other file-based content.' },
+        ],
+        aggregations: [
+          { value: 'COUNT', label: 'Count', resultType: PromptVariableType.NUMBER, description: 'Total number of documents matching criteria.' },
+          { value: 'LIST_FIELD_VALUES', label: 'List Titles', aggregationField: 'title', resultType: PromptVariableType.LIST_OF_STRINGS, description: 'A list of titles of documents matching criteria.' },
+          { value: 'LAST_UPDATED_FIELD_VALUE', label: 'Last Updated Document Title', aggregationField: 'title', resultType: PromptVariableType.STRING, description: 'Title of the most recently updated document.' },
+          { value: 'LAST_UPDATED_FIELD_VALUE', label: 'Last Updated Document Content', aggregationField: 'content', resultType: PromptVariableType.RICH_TEXT, description: 'Content of the most recently updated document.' },
+        ],
+        defaultFormat: 'BULLET_POINTS',
+      };
+      case 'MEMBER': return { // Project Members
+        fields: [
+          { value: 'user.firstName', label: 'Member First Name', type: PromptVariableType.STRING, description: 'First name of the project member.' },
+          { value: 'user.lastName', label: 'Member Last Name', type: PromptVariableType.STRING, description: 'Last name of the project member.' },
+          { value: 'user.email', label: 'Member Email', type: PromptVariableType.STRING, description: 'Email of the project member.' },
+          { value: 'role', label: 'Member Role', type: PromptVariableType.STRING, description: 'Role of the member in the project.' },
+        ],
+        aggregations: [
+          { value: 'COUNT', label: 'Count', resultType: PromptVariableType.NUMBER, description: 'Total number of members matching criteria.' },
+          { value: 'LIST_FIELD_VALUES', label: 'List Full Names', aggregationField: 'user.fullName', resultType: PromptVariableType.LIST_OF_STRINGS, description: 'A list of full names of members matching criteria.' },
+          { value: 'LIST_FIELD_VALUES', label: 'List Emails', aggregationField: 'user.email', resultType: PromptVariableType.LIST_OF_STRINGS, description: 'A list of emails of members matching criteria.' },
+        ],
+        defaultFormat: 'COMMA_SEPARATED',
+        filters: [
+            { field: 'role', label: 'Role Is', type: 'select', options: ['OWNER', 'ADMIN', 'MEMBER', 'VIEWER'] },
+        ]
+      };
+      case 'WORKSPACE': return {
+        fields: [
+          { value: 'name', label: 'Workspace Name', type: PromptVariableType.STRING, description: 'The name of the workspace.' },
+          { value: 'description', label: 'Workspace Description', type: PromptVariableType.RICH_TEXT, description: 'The description of the workspace.' },
+          { value: 'industry', label: 'Workspace Industry', type: PromptVariableType.STRING, description: 'The industry of the workspace.' },
+          { value: 'teamSize', label: 'Workspace Team Size', type: PromptVariableType.STRING, description: 'The team size of the workspace.' },
+          { value: 'workFields', label: 'Workspace Work Fields', type: PromptVariableType.LIST_OF_STRINGS, description: 'List of work fields for the workspace.' },
+          { value: 'owner.firstName', label: 'Owner First Name', type: PromptVariableType.STRING, description: 'First name of the workspace owner.' },
+          { value: 'owner.email', label: 'Owner Email', type: PromptVariableType.STRING, description: 'Email of the workspace owner.' },
+        ],
+        aggregations: [],
+        defaultFormat: null,
+      };
+      case 'USER': return { // Current User
+        fields: [
+          { value: 'firstName', label: 'My First Name', type: PromptVariableType.STRING, description: 'The first name of the current user.' },
+          { value: 'lastName', label: 'My Last Name', type: PromptVariableType.STRING, description: 'The last name of the current user.' },
+          { value: 'email', label: 'My Email', type: PromptVariableType.STRING, description: 'The email address of the current user.' },
+          { value: 'role', label: 'My Role', type: PromptVariableType.STRING, description: 'The global role of the current user.' },
+        ],
+        aggregations: [],
+        defaultFormat: null,
+      };
+      case 'DATE_FUNCTION': return {
+        fields: [
+          { value: 'today', label: 'Today\'s Date', type: PromptVariableType.DATE, description: 'The current date.' },
+        ],
+        aggregations: [],
+        defaultFormat: null,
+      };
+      default: return { fields: [], aggregations: [], defaultFormat: null };
     }
   }, []);
 
+  // Helper to construct PromptVariableSource based on selections
+  const buildPromptVariableSource = useCallback((
+    entityType: PromptVariableSource['entityType'] | null,
+    field: string | null,
+    aggregation: PromptVariableSource['aggregation'] | null = null,
+    aggregationField: string | null = null,
+    format: PromptVariableSource['format'] | null = null,
+    filter: PromptVariableSource['filter'] | null = null,
+  ): PromptVariableSource | null => {
+    if (!entityType) return null;
+
+    const source: PromptVariableSource = { entityType };
+
+    if (field) source.field = field;
+    if (aggregation) source.aggregation = aggregation;
+    if (aggregationField) source.aggregationField = aggregationField;
+    if (format) source.format = format;
+    if (filter) source.filter = filter;
+
+    return source;
+  }, []);
+
   const generalSuggestions = useMemo(() => [
-    { name: 'Project Name', placeholder: generatePlaceholder('Project Name'), type: PromptVariableType.STRING, description: 'The name of the current project.', source: { type: 'PROJECT_FIELD', field: 'name' } },
-    { name: 'My Email', placeholder: generatePlaceholder('My Email'), type: PromptVariableType.STRING, description: 'The email address of the current user.', source: { type: 'USER_FIELD', field: 'email' } },
-    { name: 'Today\'s Date', placeholder: generatePlaceholder('Today\'s Date'), type: PromptVariableType.DATE, description: 'The current date.', source: { type: 'DATE_FUNCTION', field: 'today' }, defaultValue: new Date().toISOString().split('T')[0] },
-    { name: 'Total Tasks Count', placeholder: generatePlaceholder('Total Tasks Count'), type: PromptVariableType.NUMBER, description: 'The total number of tasks in the project.', source: { type: 'PROJECT_FIELD', field: 'totalTaskCount', aggregation: 'COUNT' } },
-    { name: 'All Task Titles List', placeholder: generatePlaceholder('All Task Titles List'), type: PromptVariableType.LIST_OF_STRINGS, description: 'A bulleted list of all task titles in the project.', source: { type: 'TASKS_AGGREGATION', aggregation: 'LIST_TITLES', format: 'BULLET_POINTS' } },
-  ], []);
+    { 
+      name: 'Project Name', 
+      placeholder: generatePlaceholder('Project Name'), 
+      type: PromptVariableType.STRING, 
+      description: 'The name of the current project.', 
+      source: buildPromptVariableSource('PROJECT', 'name') 
+    },
+    { 
+      name: 'My Email', 
+      placeholder: generatePlaceholder('My Email'), 
+      type: PromptVariableType.STRING, 
+      description: 'The email address of the current user.', 
+      source: buildPromptVariableSource('USER', 'email') 
+    },
+    { 
+      name: 'Today\'s Date', 
+      placeholder: generatePlaceholder('Today\'s Date'), 
+      type: PromptVariableType.DATE, 
+      description: 'The current date.', 
+      source: buildPromptVariableSource('DATE_FUNCTION', 'today') 
+    },
+    { 
+      name: 'Total Tasks Count', 
+      placeholder: generatePlaceholder('Total Tasks Count'), 
+      type: PromptVariableType.NUMBER, 
+      description: 'The total number of tasks in the project.', 
+      source: buildPromptVariableSource('TASK', null, 'COUNT') 
+    },
+    { 
+      name: 'Completed Tasks Count', 
+      placeholder: generatePlaceholder('Completed Tasks Count'), 
+      type: PromptVariableType.NUMBER, 
+      description: 'The number of tasks in the project that are marked as DONE.', 
+      source: buildPromptVariableSource('TASK', null, 'COUNT', null, null, { field: 'status', operator: 'EQ', value: 'DONE' }) 
+    },
+    { 
+      name: 'All Task Titles List', 
+      placeholder: generatePlaceholder('All Task Titles List'), 
+      type: PromptVariableType.LIST_OF_STRINGS, 
+      description: 'A bulleted list of all task titles in the project.', 
+      source: buildPromptVariableSource('TASK', null, 'LIST_FIELD_VALUES', 'title', 'BULLET_POINTS') 
+    },
+  ], [buildPromptVariableSource]);
 
   // Filtered suggestions based on search term
   const filteredSuggestions = useMemo(() => {
@@ -187,29 +341,50 @@ export function VariableDiscoveryBuilder({
 
     const allSearchable = [
       ...generalSuggestions,
-      ...dataCategories.flatMap(cat =>
-        getFieldsForCategory(cat.value).map(field => ({
-          name: `${cat.label}: ${field.label}`,
-          placeholder: generatePlaceholder(`${cat.value}_${field.value}`),
-          type: field.type,
-          description: field.description,
-          source: field.source,
-          defaultValue: field.defaultValue,
-        }))
-      ),
-      ...getFieldsForCategory('date_function').map(field => ({
+      ...dataCategories.flatMap(cat => {
+        const entityDef = getEntityDefinition(cat.value as PromptVariableSource['entityType']);
+        return [
+          ...entityDef.fields.map(field => ({
+            name: `${cat.label}: ${field.label}`,
+            placeholder: generatePlaceholder(`${cat.value}_${field.value}`),
+            type: field.type,
+            description: field.description,
+            source: buildPromptVariableSource(cat.value as PromptVariableSource['entityType'], field.value),
+            defaultValue: undefined, // No default value for dynamic fields generally
+          })),
+          ...entityDef.aggregations.map(agg => ({
+            name: `${cat.label}: ${agg.label}`,
+            placeholder: generatePlaceholder(`${cat.value}_${agg.value}_${agg.aggregationField || ''}`),
+            type: agg.resultType,
+            description: agg.description,
+            source: buildPromptVariableSource(
+                cat.value as PromptVariableSource['entityType'], 
+                null, // No single field if it's an aggregation
+                agg.value, 
+                agg.aggregationField, 
+                entityDef.defaultFormat // Use default format from entity def
+            ),
+            defaultValue: undefined,
+          })),
+        ];
+      }),
+      // Date Function handled specifically as a category
+      ...getEntityDefinition('DATE_FUNCTION').fields.map(field => ({
           name: `Date: ${field.label}`,
           placeholder: generatePlaceholder(`Date_${field.label}`),
           type: field.type,
           description: field.description,
-          source: field.source,
-          defaultValue: field.defaultValue,
+          source: buildPromptVariableSource('DATE_FUNCTION', field.value),
+          defaultValue: field.value === 'today' ? new Date().toISOString().split('T')[0] : undefined,
       })),
     ];
 
     const uniqueSuggestionsMap = new Map<string, typeof allSearchable[0]>();
     allSearchable.forEach(s => {
-        const sourceKey = s.source ? `${s.source.type}-${s.source.field || ''}-${s.source.aggregation || ''}` : 'manual';
+        // NEW: More robust sourceKey generation for uniqueness
+        const sourceKey = s.source 
+            ? `${s.source.entityType}-${s.source.field || ''}-${s.source.aggregation || ''}-${s.source.aggregationField || ''}-${s.source.format || ''}-${s.source.filter ? JSON.stringify(s.source.filter) : ''}` 
+            : 'manual';
         const key = `${s.type}-${sourceKey}`;
         if (!uniqueSuggestionsMap.has(key)) {
             uniqueSuggestionsMap.set(key, s);
@@ -221,7 +396,7 @@ export function VariableDiscoveryBuilder({
       s.placeholder.toLowerCase().includes(lowerSearch) ||
       s.description?.toLowerCase().includes(lowerSearch)
     );
-  }, [debouncedSearchTerm, generalSuggestions, dataCategories, getFieldsForCategory]);
+  }, [debouncedSearchTerm, generalSuggestions, dataCategories, getEntityDefinition, buildPromptVariableSource]);
 
 
   // --- Reset state when dialog opens or closes ---
@@ -237,6 +412,10 @@ export function VariableDiscoveryBuilder({
       setTempVariableSource(null);
       setSelectedCategoryInExplorer(null);
       setSelectedFieldInExplorer(null);
+      setSelectedAggregation(null);
+      setSelectedAggregationField(null);
+      setSelectedFormat(null);
+      setSelectedFilter(null);
     } else {
       if (!projectId) {
         setCurrentStep('manual_config');
@@ -258,34 +437,88 @@ export function VariableDiscoveryBuilder({
 
   // --- Update temp variable state when explorer selections change ---
   useEffect(() => {
-    if (currentStep === 'explore_data' && selectedCategoryInExplorer && selectedFieldInExplorer) {
-      const categoryFields = getFieldsForCategory(selectedCategoryInExplorer);
-      const matchedField = categoryFields.find(f => f.value === selectedFieldInExplorer);
+    if (currentStep === 'explore_data' && selectedCategoryInExplorer) {
+      const entityDef = getEntityDefinition(selectedCategoryInExplorer as PromptVariableSource['entityType']);
+      let newName = '';
+      let newPlaceholder = '';
+      let newType: PromptVariableType | null = null;
+      let newSource: PromptVariableSource | null = null;
+      let newDescription = '';
+      let newDefaultValue = '';
 
-      if (matchedField) {
-        setTempVariableName(matchedField.label);
-        setTempVariablePlaceholder(generatePlaceholder(`${selectedCategoryInExplorer}_${matchedField.value}`));
-        setTempVariableType(matchedField.type);
-        setTempVariableSource(matchedField.source || null);
-        setTempVariableDescription(matchedField.description || '');
-        setTempVariableDefaultValue(matchedField.defaultValue || '');
-      } else {
-        setTempVariableName(`Custom ${selectedCategoryInExplorer} Field: ${selectedFieldInExplorer}`);
-        setTempVariablePlaceholder(generatePlaceholder(`${selectedCategoryInExplorer}_${selectedFieldInExplorer}`));
-        setTempVariableType(PromptVariableType.STRING);
-        setTempVariableSource({ type: (selectedCategoryInExplorer.toUpperCase() + '_FIELD') as PromptVariableSource['type'], field: selectedFieldInExplorer });
-        setTempVariableDescription('');
-        setTempVariableDefaultValue('');
+      if (selectedFieldInExplorer) {
+        const matchedField = entityDef.fields.find(f => f.value === selectedFieldInExplorer);
+        if (matchedField) {
+          newName = matchedField.label;
+          newPlaceholder = generatePlaceholder(`${selectedCategoryInExplorer}_${matchedField.value}`);
+          newType = matchedField.type;
+          newSource = buildPromptVariableSource(
+            selectedCategoryInExplorer as PromptVariableSource['entityType'],
+            matchedField.value
+          );
+          newDescription = matchedField.description || '';
+          if (selectedCategoryInExplorer === 'DATE_FUNCTION' && matchedField.value === 'today') {
+              newDefaultValue = new Date().toISOString().split('T')[0];
+          }
+        } else {
+          // Fallback for custom/unlisted field (less common with structured fields)
+          newName = `${entityDef.label || selectedCategoryInExplorer}: ${selectedFieldInExplorer}`;
+          newPlaceholder = generatePlaceholder(`${selectedCategoryInExplorer}_${selectedFieldInExplorer}`);
+          newType = PromptVariableType.STRING; // Default to string for unknown fields
+          newSource = buildPromptVariableSource(
+            selectedCategoryInExplorer as PromptVariableSource['entityType'],
+            selectedFieldInExplorer
+          );
+          newDescription = `Custom field '${selectedFieldInExplorer}' from ${entityDef.label || selectedCategoryInExplorer}`;
+        }
+      } else if (selectedAggregation) {
+        const matchedAgg = entityDef.aggregations.find(agg => agg.value === selectedAggregation && (agg.aggregationField === selectedAggregationField || !agg.aggregationField));
+        if (matchedAgg) {
+            newName = `${entityDef.label} ${matchedAgg.label}${matchedAgg.aggregationField ? ` (${matchedAgg.aggregationField})` : ''}`;
+            newPlaceholder = generatePlaceholder(`${selectedCategoryInExplorer}_${matchedAgg.value}_${matchedAgg.aggregationField || ''}`);
+            newType = matchedAgg.resultType;
+            newSource = buildPromptVariableSource(
+                selectedCategoryInExplorer as PromptVariableSource['entityType'],
+                null, // No single field for aggregations
+                matchedAgg.value,
+                matchedAgg.aggregationField,
+                selectedFormat || entityDef.defaultFormat,
+                selectedFilter // Apply filter if selected
+            );
+            newDescription = matchedAgg.description || '';
+        }
       }
-    } else if (currentStep === 'explore_data' && !selectedFieldInExplorer) {
+
+      setTempVariableName(newName);
+      setTempVariablePlaceholder(newPlaceholder);
+      setTempVariableType(newType);
+      setTempVariableSource(newSource);
+      setTempVariableDescription(newDescription);
+      setTempVariableDefaultValue(newDefaultValue);
+    } else if (currentStep === 'explore_data' && !selectedCategoryInExplorer) {
+      // Clear configuration if no category is selected
       setTempVariableName('');
       setTempVariablePlaceholder('');
       setTempVariableType(null);
       setTempVariableSource(null);
       setTempVariableDescription('');
       setTempVariableDefaultValue('');
+      setSelectedAggregation(null);
+      setSelectedAggregationField(null);
+      setSelectedFormat(null);
+      setSelectedFilter(null);
     }
-  }, [selectedCategoryInExplorer, selectedFieldInExplorer, getFieldsForCategory, currentStep]);
+  }, [
+    selectedCategoryInExplorer, 
+    selectedFieldInExplorer, 
+    selectedAggregation, 
+    selectedAggregationField, 
+    selectedFormat,
+    selectedFilter,
+    getEntityDefinition, 
+    currentStep, 
+    buildPromptVariableSource
+  ]);
 
 
   const handleCreateVariable = () => {
@@ -311,6 +544,21 @@ export function VariableDiscoveryBuilder({
     return !!tempVariableName && !!tempVariablePlaceholder && !!tempVariableType;
   }, [tempVariableName, tempVariablePlaceholder, tempVariableType]);
 
+
+  const selectedEntityDef = selectedCategoryInExplorer 
+    ? getEntityDefinition(selectedCategoryInExplorer as PromptVariableSource['entityType']) 
+    : { fields: [], aggregations: [], defaultFormat: null, filters: [] };
+
+  const availableAggregationFields = useMemo(() => {
+    if (!selectedAggregation || !selectedCategoryInExplorer) return [];
+    const entityDef = getEntityDefinition(selectedCategoryInExplorer as PromptVariableSource['entityType']);
+    // Filter fields that are suitable for aggregation
+    return entityDef.fields.filter(f => 
+        (selectedAggregation === 'SUM' || selectedAggregation === 'AVERAGE') 
+            ? f.type === PromptVariableType.NUMBER 
+            : true // All fields can be listed
+    );
+  }, [selectedAggregation, selectedCategoryInExplorer, getEntityDefinition]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -357,6 +605,10 @@ export function VariableDiscoveryBuilder({
                       setCurrentStep('choose_type');
                       setSelectedCategoryInExplorer(null);
                       setSelectedFieldInExplorer(null);
+                      setSelectedAggregation(null); // Clear aggregation
+                      setSelectedAggregationField(null); // Clear aggregation field
+                      setSelectedFormat(null); // Clear format
+                      setSelectedFilter(null); // Clear filter
                       setSearchTerm('');
                       setTempVariableSource(null);
                     }} className="self-start -ml-2 mb-4">
@@ -385,9 +637,22 @@ export function VariableDiscoveryBuilder({
                                   setTempVariableSource(s.source || null);
                                   setTempVariableDescription(s.description || '');
                                   setTempVariableDefaultValue(s.defaultValue || '');
-                                  const categoryValue = s.source?.type?.toLowerCase().replace('_field', '').replace('_aggregation', '').replace('_list', '').replace('_function', '') || null;
-                                  setSelectedCategoryInExplorer(categoryValue);
-                                  setSelectedFieldInExplorer(s.source?.field || null);
+                                  // Update explorer state based on selected suggestion's source for UI consistency
+                                  if (s.source) {
+                                    setSelectedCategoryInExplorer(s.source.entityType);
+                                    setSelectedFieldInExplorer(s.source.field || null);
+                                    setSelectedAggregation(s.source.aggregation || null);
+                                    setSelectedAggregationField(s.source.aggregationField || null);
+                                    setSelectedFormat(s.source.format || null);
+                                    setSelectedFilter(s.source.filter || null);
+                                  } else {
+                                    setSelectedCategoryInExplorer(null);
+                                    setSelectedFieldInExplorer(null);
+                                    setSelectedAggregation(null);
+                                    setSelectedAggregationField(null);
+                                    setSelectedFormat(null);
+                                    setSelectedFilter(null);
+                                  }
                                   setSearchTerm('');
                                 }}
                                 className="cursor-pointer flex justify-between items-center"
@@ -405,7 +670,7 @@ export function VariableDiscoveryBuilder({
                         {/* Browse by Category & Fields (only if no search term) */}
                         {searchTerm === '' && (
                           <>
-                            <CommandGroup heading="Browse by Category">
+                            <CommandGroup heading="Browse by Entity Type">
                               {dataCategories.map((cat) => {
                                 const Icon = cat.icon;
                                 return (
@@ -414,6 +679,10 @@ export function VariableDiscoveryBuilder({
                                     onSelect={() => {
                                       setSelectedCategoryInExplorer(cat.value);
                                       setSelectedFieldInExplorer(null);
+                                      setSelectedAggregation(null);
+                                      setSelectedAggregationField(null);
+                                      setSelectedFormat(null);
+                                      setSelectedFilter(null);
                                     }}
                                     className={cn(
                                       "cursor-pointer flex items-center",
@@ -426,14 +695,18 @@ export function VariableDiscoveryBuilder({
                                 );
                               })}
                                 <CommandItem
-                                    key="date_function"
+                                    key="DATE_FUNCTION" // Changed from 'date_function' to 'DATE_FUNCTION'
                                     onSelect={() => {
-                                      setSelectedCategoryInExplorer('date_function');
+                                      setSelectedCategoryInExplorer('DATE_FUNCTION');
                                       setSelectedFieldInExplorer(null);
+                                      setSelectedAggregation(null);
+                                      setSelectedAggregationField(null);
+                                      setSelectedFormat(null);
+                                      setSelectedFilter(null);
                                     }}
                                     className={cn(
                                       "cursor-pointer flex items-center",
-                                      selectedCategoryInExplorer === 'date_function' && "bg-accent text-accent-foreground"
+                                      selectedCategoryInExplorer === 'DATE_FUNCTION' && "bg-accent text-accent-foreground"
                                     )}
                                   >
                                     <Calendar className="mr-2 h-4 w-4" />
@@ -442,24 +715,106 @@ export function VariableDiscoveryBuilder({
                             </CommandGroup>
 
                             {selectedCategoryInExplorer && (
-                              <CommandGroup heading={`${dataCategories.find(c => c.value === selectedCategoryInExplorer)?.label || 'Selected'} Fields`}>
-                                {getFieldsForCategory(selectedCategoryInExplorer).map((fieldOption) => (
-                                  <CommandItem
-                                    key={fieldOption.value}
-                                    onSelect={() => {
-                                      setSelectedFieldInExplorer(fieldOption.value);
-                                    }}
-                                    className={cn(
-                                      "cursor-pointer",
-                                      selectedFieldInExplorer === fieldOption.value && "bg-accent text-accent-foreground"
-                                    )}
-                                  >
-                                    <Check className={cn("mr-2 h-4 w-4", selectedFieldInExplorer === fieldOption.value ? "opacity-100" : "opacity-0")} />
-                                    {fieldOption.label}
-                                    <span className="text-xs text-muted-foreground ml-auto">{fieldOption.type.replace(/_/g, ' ')}</span>
-                                  </CommandItem>
-                                ))}
-                              </CommandGroup>
+                              <>
+                                {/* Step 2: Select Field or Aggregation */}
+                                {selectedEntityDef.fields.length > 0 && (
+                                    <CommandGroup heading={`${selectedEntityDef.label || 'Selected'} Fields`}>
+                                        {selectedEntityDef.fields.map((fieldOption) => (
+                                            <CommandItem
+                                                key={`field-${fieldOption.value}`}
+                                                onSelect={() => {
+                                                    setSelectedFieldInExplorer(fieldOption.value);
+                                                    setSelectedAggregation(null); // Clear aggregation if a field is selected
+                                                    setSelectedAggregationField(null);
+                                                    setSelectedFormat(null);
+                                                }}
+                                                className={cn(
+                                                    "cursor-pointer",
+                                                    selectedFieldInExplorer === fieldOption.value && !selectedAggregation && "bg-accent text-accent-foreground"
+                                                )}
+                                            >
+                                                <Check className={cn("mr-2 h-4 w-4", selectedFieldInExplorer === fieldOption.value && !selectedAggregation ? "opacity-100" : "opacity-0")} />
+                                                {fieldOption.label}
+                                                <span className="text-xs text-muted-foreground ml-auto">{fieldOption.type.replace(/_/g, ' ')}</span>
+                                            </CommandItem>
+                                        ))}
+                                    </CommandGroup>
+                                )}
+                                {selectedEntityDef.aggregations.length > 0 && (
+                                    <CommandGroup heading={`${selectedEntityDef.label || 'Selected'} Aggregations`}>
+                                        {selectedEntityDef.aggregations.map((aggOption) => (
+                                            <CommandItem
+                                                key={`agg-${aggOption.value}-${aggOption.aggregationField || ''}`}
+                                                onSelect={() => {
+                                                    setSelectedAggregation(aggOption.value);
+                                                    setSelectedAggregationField(aggOption.aggregationField || null);
+                                                    setSelectedFieldInExplorer(null); // Clear field selection if an aggregation is selected
+                                                    setSelectedFormat(aggOption.resultType === PromptVariableType.LIST_OF_STRINGS ? (entityDef.defaultFormat || 'BULLET_POINTS') : null); // Set default format if applicable
+                                                }}
+                                                className={cn(
+                                                    "cursor-pointer",
+                                                    selectedAggregation === aggOption.value && (selectedAggregationField === aggOption.aggregationField || !aggOption.aggregationField) && "bg-accent text-accent-foreground"
+                                                )}
+                                            >
+                                                <Check className={cn("mr-2 h-4 w-4", selectedAggregation === aggOption.value && (selectedAggregationField === aggOption.aggregationField || !aggOption.aggregationField) ? "opacity-100" : "opacity-0")} />
+                                                {aggOption.label}
+                                                {aggOption.aggregationField && <span className="text-xs text-muted-foreground ml-1">({aggOption.aggregationField})</span>}
+                                                <span className="text-xs text-muted-foreground ml-auto">{aggOption.resultType.replace(/_/g, ' ')}</span>
+                                            </CommandItem>
+                                        ))}
+                                    </CommandGroup>
+                                )}
+
+                                {/* Step 3 (Advanced): Filters & Format (Simplified UI for V1) */}
+                                { (selectedFieldInExplorer || selectedAggregation) && selectedEntityDef.filters && selectedEntityDef.filters.length > 0 && (
+                                    <CommandGroup heading={`${selectedEntityDef.label || 'Selected'} Filters`}>
+                                        {selectedEntityDef.filters.map((filterOption) => (
+                                            <CommandItem
+                                                key={`filter-${filterOption.field}-${filterOption.specialValue || filterOption.value || 'any'}`}
+                                                onSelect={() => {
+                                                    // This is a simplified filter selection for V1
+                                                    // In a real PowerBI-like UI, this would open a sub-dialog to configure filter conditions
+                                                    if (filterOption.specialValue === 'CURRENT_USER_ID') {
+                                                        setSelectedFilter({ field: filterOption.field, operator: 'EQ', specialValue: 'CURRENT_USER_ID' });
+                                                    } else if (filterOption.specialValue === 'ACTIVE_SPRINT') {
+                                                        setSelectedFilter({ field: 'status', operator: 'EQ', value: 'ACTIVE' }); // Or a more complex source for active sprint
+                                                    }
+                                                    // For simple select/boolean filters, you'd implement a separate input control here
+                                                    // For now, we'll just demonstrate the selection of predefined 'filter types'
+                                                }}
+                                                className={cn(
+                                                    "cursor-pointer",
+                                                    selectedFilter && selectedFilter.field === filterOption.field && "bg-accent text-accent-foreground"
+                                                )}
+                                            >
+                                                <Check className={cn("mr-2 h-4 w-4", selectedFilter && selectedFilter.field === filterOption.field ? "opacity-100" : "opacity-0")} />
+                                                {filterOption.label}
+                                            </CommandItem>
+                                        ))}
+                                    </CommandGroup>
+                                )}
+
+                                {(selectedAggregation && selectedAggregationField && selectedAggregationField.includes('List')) && (
+                                    <CommandGroup heading="Format Output">
+                                        {Object.values(PromptVariableType).includes(PromptVariableType.LIST_OF_STRINGS) && ( // Ensure LIST_OF_STRINGS is a valid type
+                                            <>
+                                                <CommandItem onSelect={() => setSelectedFormat('BULLET_POINTS')} className={cn("cursor-pointer", selectedFormat === 'BULLET_POINTS' && "bg-accent text-accent-foreground")}>
+                                                    <Check className={cn("mr-2 h-4 w-4", selectedFormat === 'BULLET_POINTS' ? "opacity-100" : "opacity-0")} />
+                                                    Bullet Points
+                                                </CommandItem>
+                                                <CommandItem onSelect={() => setSelectedFormat('COMMA_SEPARATED')} className={cn("cursor-pointer", selectedFormat === 'COMMA_SEPARATED' && "bg-accent text-accent-foreground")}>
+                                                    <Check className={cn("mr-2 h-4 w-4", selectedFormat === 'COMMA_SEPARATED' ? "opacity-100" : "opacity-0")} />
+                                                    Comma Separated
+                                                </CommandItem>
+                                                <CommandItem onSelect={() => setSelectedFormat('PLAIN_TEXT')} className={cn("cursor-pointer", selectedFormat === 'PLAIN_TEXT' && "bg-accent text-accent-foreground")}>
+                                                    <Check className={cn("mr-2 h-4 w-4", selectedFormat === 'PLAIN_TEXT' ? "opacity-100" : "opacity-0")} />
+                                                    Plain Text (Newline Delimited)
+                                                </CommandItem>
+                                            </>
+                                        )}
+                                    </CommandGroup>
+                                )}
+                              </>
                             )}
                           </>
                         )}

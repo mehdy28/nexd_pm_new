@@ -2,17 +2,6 @@
  # Enums
  # ----------------------------------
  
- enum TaskStatusGQL { # Your TaskStatus enum from Prisma
-   TODO
-   DONE
- }
- 
- enum PriorityGQL { # Your Priority enum from Prisma
-   LOW
-   MEDIUM
-   HIGH
- }
- 
  enum SprintStatus { # New enum for Sprint status
    PLANNING
    ACTIVE
@@ -47,13 +36,13 @@
    CANCELLED
  }
  
- # Consolidated TaskStatus (removing TaskStatusGQL in favor of this one)
+ # Consolidated TaskStatus 
  enum TaskStatus {
    TODO
    DONE
  }
  
- # Consolidated Priority (removing PriorityGQL in favor of this one)
+ # Consolidated Priority 
  enum Priority {
    LOW
    MEDIUM
@@ -122,6 +111,7 @@
    role: UserRole!
    createdAt: String!
    updatedAt: String!
+   fullName: String # ADDED: For displaying full names easily
  
    workspaceMembers: [WorkspaceMember]
    ownedWorkspaces: [Workspace]
@@ -432,7 +422,7 @@
    defaultValue: String
    source: JSON # This is the complex JSON structure defining how to resolve the variable
  }
-
+ 
  # NEW: ContentBlock type to represent parts of the prompt content
  type ContentBlock {
    id: ID!
@@ -539,7 +529,7 @@
    description: String
    assignee: UserAvatarPartial
    originalTaskId: ID # To link back to Task.id or Milestone.id
-   originalType: String # "TASK" or "MILESTONE"
+   originalType: String # "TASK" or "MILIESTONE"
  }
  
  type GanttDataResponse {
@@ -594,7 +584,6 @@
    email: String!
    firstName: String
    lastName: String
-   avatar: String # Added avatar
  }
  
  type UserAvatarPartial { # For assignee in tasks, similar to UserFullDetails but named for context
@@ -714,7 +703,7 @@
    startDate: String # ISO Date string
    endDate: String   # ISO Date string
    isCompleted: Boolean
-   status: SprintStatus # NEW: Allow updating status
+   status: SprintStatus
  }
  
  
@@ -858,7 +847,7 @@
    defaultValue: String
    source: JSON
  }
-
+ 
  # NEW Input types for Content Blocks
  input CreateContentBlockInput {
    id: ID # Client-generated ID for internal tracking
@@ -868,7 +857,7 @@
    placeholder: String # Required for 'variable' blocks
    name: String # Required for 'variable' blocks
  }
-
+ 
  input UpdateContentBlockInput {
    id: ID! # ID of the block to update
    type: String # 'text' or 'variable'
@@ -1026,3 +1015,7 @@
  # Scalars
  # ----------------------------------
  scalar JSON
+ 
+ 
+ 
+

@@ -1,16 +1,12 @@
+// graphql/resolvers/promptResolver.ts
+
 import { GraphQLResolveInfo } from 'graphql';
 import { prisma } from "@/lib/prisma";
-import { type Prompt, type PromptVariable, type Version, PromptVariableType, type ContentBlock } from '@/components/prompt-lab/types'; // Added ContentBlock to import
+import { type Prompt, type PromptVariable, type Version, PromptVariableType, PromptVariableSource } from '@/components/prompt-lab/store'; // Updated import to include PromptVariableSource
 
 interface GraphQLContext {
   prisma: typeof prisma;
   user?: { id: string; email: string; role: string }; // User might still be provided, but not checked
-}
-
-// Extend the Prompt interface for resolvers to properly type the JSON content
-interface PromptWithContentBlocks extends Prompt {
-  content: ContentBlock[];
-  versions: Array<Omit<Version, 'content'> & { content: ContentBlock[] }>;
 }
 
 // Utility to generate a unique ID, mimicking client-side cuid for consistency
@@ -19,35 +15,156 @@ function generateUniqueId(): string {
   return `svr_${Math.random().toString(36).slice(2)}${Date.now()}`;
 }
 
+// --- Helper Functions for dynamic resolution ---
+
+function buildPrismaWhereClause(
+  sourceFilter: PromptVariableSource['filter'] | undefined,
+  projectId: string,
+  currentUserId: string | undefined,
+  entityType: PromptVariableSource['entityType']
+): any {
+  const where: any = {};
+
+  // Always filter by projectId if not a USER or DATE_FUNCTION entity
+  if (entityType !== 'USER' && entityType !== 'DATE_FUNCTION') {
+    where.projectId = projectId;
+  } else if (entityType === 'USER') {
+    where.id = currentUserId; // For USER entity, filter by current user's ID
+  }
+
+  if (sourceFilter && sourceFilter.field && sourceFilter.operator) {
+    let value = sourceFilter.value;
+
+    // Handle special dynamic values
+    if (sourceFilter.specialValue === 'CURRENT_USER_ID') {
+      value = currentUserId;
+    } else if (sourceFilter.specialValue === 'CURRENT_PROJECT_ID') {
+      value = projectId;
+    } else if (sourceFilter.specialValue === 'ACTIVE_SPRINT' && entityType === 'SPRINT') {
+        where.status = 'ACTIVE';
+        return where; // Special case, status filter applied directly
+    }
+    
+    // Convert status for tasks/sprints/projects to uppercase to match enum if needed
+    if (['status', 'priority', 'role'].includes(sourceFilter.field) && typeof value === 'string') {
+        value = value.toUpperCase();
+    }
+
+
+    switch (sourceFilter.operator) {
+      case 'EQ':
+        if (value !== undefined) where[sourceFilter.field] = value;
+        break;
+      case 'NEQ':
+        if (value !== undefined) where[sourceFilter.field] = { not: value };
+        break;
+      case 'GT':
+        if (value !== undefined) where[sourceFilter.field] = { gt: value };
+        break;
+      case 'LT':
+        if (value !== undefined) where[sourceFilter.field] = { lt: value };
+        break;
+      case 'GTE':
+        if (value !== undefined) where[sourceFilter.field] = { gte: value };
+        break;
+      case 'LTE':
+        if (value !== undefined) where[sourceFilter.field] = { lte: value };
+        break;
+      case 'CONTAINS':
+        if (typeof value === 'string') where[sourceFilter.field] = { contains: value, mode: 'insensitive' };
+        break;
+      case 'STARTS_WITH':
+        if (typeof value === 'string') where[sourceFilter.field] = { startsWith: value, mode: 'insensitive' };
+        break;
+      case 'ENDS_WITH':
+        if (typeof value === 'string') where[sourceFilter.field] = { endsWith: value, mode: 'insensitive' };
+        break;
+      case 'IN_LIST':
+        if (Array.isArray(value)) where[sourceFilter.field] = { in: value };
+        break;
+      default:
+        // No-op or throw error for unsupported operator
+        break;
+    }
+  }
+
+  return where;
+}
+
+// Extracts value from a nested field path (e.g., 'user.firstName')
+function extractFieldValue(record: any, fieldPath: string): any {
+  if (!record || !fieldPath) return undefined;
+  return fieldPath.split('.').reduce((obj, key) => (obj && typeof obj === 'object' ? obj[key] : undefined), record);
+}
+
+async function applyAggregation(
+  records: any[],
+  source: PromptVariableSource,
+  context: GraphQLContext
+): Promise<string> {
+  const { aggregation, aggregationField, format } = source;
+
+  if (records.length === 0) return 'No data found';
+
+  switch (aggregation) {
+    case 'COUNT':
+      return String(records.length);
+
+    case 'SUM':
+    case 'AVERAGE': {
+      if (!aggregationField) return 'N/A (Aggregation field not specified)';
+      const values = records.map(r => Number(extractFieldValue(r, aggregationField))).filter(v => !isNaN(v));
+      if (values.length === 0) return 'N/A (No numeric data to aggregate)';
+      const sum = values.reduce((acc, val) => acc + val, 0);
+      return aggregation === 'SUM' ? String(sum) : String(sum / values.length);
+    }
+
+    case 'LIST_FIELD_VALUES': {
+      if (!aggregationField) return 'N/A (Aggregation field not specified)';
+      const values = records.map(r => extractFieldValue(r, aggregationField)).filter(Boolean); // Filter out null/undefined
+      if (values.length === 0) return 'No data found';
+      switch (format) {
+        case 'BULLET_POINTS': return values.map(v => `• ${v}`).join('\n');
+        case 'COMMA_SEPARATED': return values.join(', ');
+        case 'PLAIN_TEXT': return values.join('\n');
+        case 'JSON_ARRAY': return JSON.stringify(values);
+        default: return values.join('\n'); // Default to plain text new line
+      }
+    }
+
+    case 'LAST_UPDATED_FIELD_VALUE':
+    case 'FIRST_CREATED_FIELD_VALUE': {
+      if (!aggregationField) return 'N/A (Aggregation field not specified)';
+      // Assuming records are already sorted by updatedAt or createdAt if such aggregations are used.
+      // For more robustness, you might need to sort here explicitly.
+      const record = aggregation === 'LAST_UPDATED_FIELD_VALUE' ? records[0] : records[records.length - 1]; // Assumes desc for last_updated
+      const value = extractFieldValue(record, aggregationField);
+      return value !== undefined ? String(value) : 'N/A';
+    }
+    
+    // Add other aggregations as needed
+    default:
+      return 'N/A (Unsupported aggregation)';
+  }
+}
+
+// --- Main Resolvers ---
+
 const promptResolvers = {
   Query: {
     getProjectPrompts: async (
       _parent: any,
       { projectId }: { projectId?: string },
-      context: GraphQLContext // Context might still have user, but we won't check it
+      context: GraphQLContext
     ): Promise<Prompt[]> => {
-      // All user and project access checks removed.
-
       let finalWhereClause: any = {};
       if (projectId) {
-          // If projectId is provided, filter by project.
-          finalWhereClause = {
-              projectId: projectId,
-          };
+          finalWhereClause = { projectId };
       } else {
-          // If no projectId, fetch all prompts that are not linked to a project (personal ones)
-          // For simplicity, we'll try to get them for the logged-in user if available, otherwise just no-project prompts.
-          // Note: If `user` is undefined here, it might fetch prompts with `userId: undefined` if that's possible.
-          // Assuming `user` from context is always present for 'personal' logic, even if not strictly enforced.
           finalWhereClause = {
-              // projectId: null, // Only fetch prompts without a project
-              // Assuming you still want personal prompts if no projectId, this will fetch all `projectId: null`
-              // If you want all prompts if no projectId (even project ones), remove projectId: null
-              // Let's go with "all prompts matching projectId, or all personal prompts for the user if no projectId".
-              // This is closest to original intent without specific auth.
               AND: [
                 { projectId: null },
-                { userId: context.user?.id || '' } // Fallback to empty string if user not available, meaning no match for userId
+                { userId: context.user?.id || '' }
               ]
           };
       }
@@ -65,7 +182,6 @@ const promptResolvers = {
           updatedAt: true,
           model: true,
           projectId: true,
-          // Content, context, variables, versions are not returned in list query for performance
         },
       });
 
@@ -76,9 +192,7 @@ const promptResolvers = {
       _parent: any,
       { id }: { id: string },
       context: GraphQLContext
-    ): Promise<PromptWithContentBlocks> => { // Changed return type to PromptWithContentBlocks
-      // All user and project access checks removed.
-
+    ): Promise<Prompt> => {
       const prompt = await prisma.prompt.findUnique({
         where: { id },
         include: {
@@ -90,203 +204,140 @@ const promptResolvers = {
           },
         },
       });
-
-      if (!prompt) {
-        throw new Error("Prompt not found.");
-      }
-      
-      // Ensure content and versions content are arrays of ContentBlock or default to empty array
-      const parsedPrompt: PromptWithContentBlocks = {
-        ...prompt,
-        content: (prompt.content as ContentBlock[] || []),
-        variables: (prompt.variables as PromptVariable[] || []).map(v => ({ ...v, id: v.id || generateUniqueId() })),
-        versions: (prompt.versions as Array<Omit<Version, 'content'> & { content: ContentBlock[] }> || []).map(v => ({ 
-            ...v, 
-            id: v.id || generateUniqueId(),
-            content: (v.content as ContentBlock[] || []) 
-        })),
-      };
-
-      return parsedPrompt;
+      return prompt as unknown as Prompt;
     },
 
     resolvePromptVariable: async (
       _parent: any,
-      { projectId, variableSource, promptVariableId }: { projectId?: string; variableSource: any; promptVariableId?: string },
+      { projectId, variableSource }: { projectId?: string; variableSource: any; promptVariableId?: string },
       context: GraphQLContext
     ): Promise<string> => {
-      // All user and project access checks removed.
+      const source = variableSource as PromptVariableSource;
+      const currentUserId = context.user?.id;
 
-      if (variableSource.type === 'USER_FIELD') {
-        const currentUser = await prisma.user.findUnique({ where: { id: context.user?.id || '' } }); // Use context.user without checking if it exists
-        if (!currentUser) return 'N/A'; // Still return N/A if user doesn't exist in DB
-        switch (variableSource.field) {
-          case 'firstName': return currentUser.firstName || 'N/A';
-          case 'email': return currentUser.email || 'N/A';
-          default: return 'N/A';
-        }
-      }
-
-      if (variableSource.type === 'DATE_FUNCTION' && variableSource.field === 'today') {
+      // Handle DATE_FUNCTION separately as it doesn't need project context
+      if (source.entityType === 'DATE_FUNCTION' && source.field === 'today') {
         return new Date().toISOString().split('T')[0];
       }
 
-      if (!projectId) {
-        return 'N/A (Project context required for dynamic data)';
+      // Project context required for all other dynamic data sources
+      if (!projectId && source.entityType !== 'USER') {
+        return 'N/A (Project context required for this dynamic data)';
       }
 
-      const project = await prisma.project.findUnique({
+      // If entityType is USER, and we need current user's data
+      if (source.entityType === 'USER') {
+        const userWhere = buildPrismaWhereClause(source.filter, projectId || '', currentUserId, source.entityType);
+        const currentUser = await context.prisma.user.findUnique({ where: userWhere });
+        if (!currentUser) return 'N/A (Current user data not found)';
+        return extractFieldValue(currentUser, source.field || '') || 'N/A';
+      }
+
+      // Fetch the project for context validation if it's a project-scoped entity
+      const project = await context.prisma.project.findUnique({
         where: { id: projectId },
         include: {
             workspace: true,
+            members: {
+                include: { user: true }
+            }
         }
       });
-      if (!project) return 'N/A (Project not found)'; // Still need this to prevent access to undefined project properties
+      if (!project) return 'N/A (Project not found)';
 
 
-      switch (variableSource.type) {
-        case 'PROJECT_FIELD': {
-          switch (variableSource.field) {
-            case 'name': return project.name;
-            case 'description': return project.description || 'N/A';
-            case 'status': return project.status;
-            case 'totalTaskCount': {
-              const count = await prisma.task.count({ where: { projectId } });
-              return String(count);
-            }
-            case 'completedTaskCount': {
-              const count = await prisma.task.count({ where: { projectId, status: 'DONE' } });
-              return String(count);
-            }
-            default: return 'N/A';
-          }
+      let result: any;
+      let prismaModel: any;
+      let include: any;
+      let orderBy: any;
+      let fieldToSelect: string | undefined = source.field; // The field to get if not aggregating
+
+      switch (source.entityType) {
+        case 'PROJECT': {
+          if (!source.field) return 'N/A (Project field not specified)';
+          return extractFieldValue(project, source.field) || 'N/A';
         }
-        case 'TASKS_AGGREGATION': {
-          const where: any = { projectId };
-          if (variableSource.filter?.assigneeId === 'current_user') {
-            where.assigneeId = context.user?.id; // Use context.user without checking if it exists
-          }
-          if (variableSource.filter?.status) {
-            where.status = variableSource.filter.status;
-          }
-
-          if (variableSource.aggregation === 'LIST_TITLES') {
-            const tasks = await prisma.task.findMany({
-              where,
-              select: { title: true },
-              orderBy: { createdAt: 'asc' },
-            });
-            const titles = tasks.map(t => t.title).filter(Boolean);
-            if (titles.length === 0) return 'No tasks found';
-            return variableSource.format === 'BULLET_POINTS' ? titles.map(t => `• ${t}`).join('\n') : titles.join(', ');
-          }
-          if (variableSource.aggregation === 'COUNT') {
-            const count = await prisma.task.count({ where });
-            return String(count);
-          }
-          return 'N/A';
+        case 'WORKSPACE': {
+          if (!project.workspace) return 'N/A (Workspace not found)';
+          if (!source.field) return 'N/A (Workspace field not specified)';
+          return extractFieldValue(project.workspace, source.field) || 'N/A';
         }
-        case 'SINGLE_TASK_FIELD': {
-          let taskWhere: any = { projectId };
-          if (variableSource.entityId === 'prompt_for_task_id') {
-              const anyTask = await prisma.task.findFirst({ where: { projectId }, orderBy: { createdAt: 'desc' } });
-              if (anyTask) taskWhere.id = anyTask.id;
-              else return 'N/A (No tasks in project)';
-          } else if (variableSource.entityId) {
-              taskWhere.id = variableSource.entityId;
+        case 'TASK': {
+          prismaModel = context.prisma.task;
+          const where = buildPrismaWhereClause(source.filter, projectId!, currentUserId, source.entityType);
+          include = { assignee: true, creator: true }; // Include relations for nested fields like assignee.firstName
+          orderBy = { updatedAt: 'desc' }; // Default order for 'LAST_UPDATED_FIELD_VALUE'
+
+          if (source.aggregation) {
+            const records = await prismaModel.findMany({ where, include, orderBy });
+            return await applyAggregation(records, source, context);
           } else {
-              return 'N/A (Specific task ID or "prompt_for_task_id" expected)';
-          }
-
-          const task = await prisma.task.findUnique({
-            where: taskWhere,
-          });
-
-          if (!task) return 'N/A (Task not found)';
-
-          switch (variableSource.field) {
-            case 'title': return task.title;
-            case 'description': return task.description || 'N/A';
-            default: return 'N/A';
+            // No aggregation, assume single task needed (e.g., first, or by ID if filter provides it)
+            // For simplicity, take the first one if no specific ID is filtered
+            const record = await prismaModel.findFirst({ where, include, orderBy });
+            if (!record) return 'N/A (Task not found)';
+            return extractFieldValue(record, source.field || '') || 'N/A';
           }
         }
-        case 'SPRINT_FIELD':
-        case 'SPRINT_AGGREGATION': {
-            let sprintWhere: any = { projectId };
-            if (variableSource.entityId === 'current_sprint') {
-                sprintWhere.status = 'ACTIVE';
-            } else if (variableSource.filter?.status) {
-                sprintWhere.status = variableSource.filter.status;
+        case 'SPRINT': {
+          prismaModel = context.prisma.sprint;
+          const where = buildPrismaWhereClause(source.filter, projectId!, currentUserId, source.entityType);
+          orderBy = { startDate: 'desc' }; // Default order for 'current_sprint' or 'LAST_UPDATED_FIELD_VALUE'
+
+          if (source.aggregation) {
+            const records = await prismaModel.findMany({ where, orderBy });
+            return await applyAggregation(records, source, context);
+          } else {
+            const record = await prismaModel.findFirst({ where, orderBy });
+            if (!record) return 'N/A (Sprint not found)';
+            return extractFieldValue(record, source.field || '') || 'N/A';
+          }
+        }
+        case 'DOCUMENT': {
+          prismaModel = context.prisma.document;
+          const where = buildPrismaWhereClause(source.filter, projectId!, currentUserId, source.entityType);
+          orderBy = { updatedAt: 'desc' };
+
+          if (source.aggregation) {
+            const records = await prismaModel.findMany({ where, orderBy });
+            return await applyAggregation(records, source, context);
+          } else {
+            const record = await prismaModel.findFirst({ where, orderBy });
+            if (!record) return 'N/A (Document not found)';
+            // Special handling for JSON content
+            if (source.field === 'content' && typeof record.content === 'object') {
+                return JSON.stringify(record.content);
+            }
+            return extractFieldValue(record, source.field || '') || 'N/A';
+          }
+        }
+        case 'MEMBER': { // ProjectMember entity
+            prismaModel = context.prisma.projectMember;
+            const where = buildPrismaWhereClause(source.filter, projectId!, currentUserId, source.entityType);
+            include = { user: true }; // Always include user for member details
+            orderBy = { joinedAt: 'asc' };
+
+            // Special aggregation for full names, as 'user.fullName' is not a direct Prisma field
+            if (source.aggregation === 'LIST_FIELD_VALUES' && source.aggregationField === 'user.fullName') {
+                const projectMembers = await prismaModel.findMany({ where, include, orderBy });
+                const fullNames = projectMembers
+                    .map((pm: any) => `${pm.user.firstName || ''} ${pm.user.lastName || ''}`.trim())
+                    .filter(Boolean);
+                if (fullNames.length === 0) return 'No members found';
+                return applyAggregation(fullNames.map(name => ({ name })), { ...source, aggregationField: 'name' }, context); // Re-use aggregation for formatting
             }
 
-            if (variableSource.aggregation === 'LIST_NAMES') {
-                const sprints = await prisma.sprint.findMany({
-                    where: sprintWhere,
-                    select: { name: true },
-                    orderBy: { startDate: 'asc' },
-                });
-                const names = sprints.map(s => s.name).filter(Boolean);
-                if (names.length === 0) return 'No sprints found';
-                return variableSource.format === 'BULLET_POINTS' ? names.map(n => `• ${n}`).join('\n') : names.join(', ');
-            } else { // Single field for SPRINT_FIELD
-                const sprint = await prisma.sprint.findFirst({
-                    where: sprintWhere,
-                    orderBy: { startDate: 'desc' },
-                });
-                if (!sprint) return 'N/A (Sprint not found)';
-                switch (variableSource.field) {
-                    case 'name': return sprint.name;
-                    case 'endDate': return sprint.endDate.toISOString().split('T')[0];
-                    default: return 'N/A';
-                }
+            if (source.aggregation) {
+                const records = await prismaModel.findMany({ where, include, orderBy });
+                return await applyAggregation(records, source, context);
+            } else {
+                const record = await prismaModel.findFirst({ where, include, orderBy });
+                if (!record) return 'N/A (Member not found)';
+                return extractFieldValue(record, source.field || '') || 'N/A';
             }
         }
-        case 'DOCUMENT_FIELD':
-        case 'DOCUMENT_AGGREGATION': {
-            let documentWhere: any = { projectId };
-
-            if (variableSource.aggregation === 'LIST_TITLES') {
-                const documents = await prisma.document.findMany({
-                    where: documentWhere,
-                    select: { title: true },
-                    orderBy: { updatedAt: 'desc' },
-                });
-                const titles = documents.map(d => d.title).filter(Boolean);
-                if (titles.length === 0) return 'No documents found';
-                return variableSource.format === 'BULLET_POINTS' ? titles.map(t => `• ${t}`).join('\n') : titles.join(', ');
-            } else { // Single field for DOCUMENT_FIELD
-                const document = await prisma.document.findFirst({
-                    where: documentWhere,
-                    orderBy: { updatedAt: 'desc' },
-                });
-                if (!document) return 'N/A (Document not found)';
-                switch (variableSource.field) {
-                    case 'title': return document.title;
-                    case 'content': return JSON.stringify(document.content) || 'N/A';
-                    default: return 'N/A';
-                }
-            }
-        }
-        case 'MEMBER_LIST': {
-            const projectMembers = await prisma.projectMember.findMany({
-                where: { projectId, ...variableSource.filter },
-                include: { user: { select: { firstName: true, lastName: true } } },
-                orderBy: { joinedAt: 'asc' },
-            });
-            const names = projectMembers.map(pm => `${pm.user.firstName || ''} ${pm.user.lastName || ''}`.trim()).filter(Boolean);
-            if (names.length === 0) return 'No members found';
-            return variableSource.format === 'COMMA_SEPARATED' ? names.join(', ') : names.map(n => `• ${n}`).join('\n');
-        }
-        case 'WORKSPACE_FIELD': {
-            if (!project.workspace) return 'N/A (Workspace not found for this project)';
-            switch (variableSource.field) {
-                case 'name': return project.workspace.name;
-                case 'industry': return project.workspace.industry || 'N/A';
-                case 'teamSize': return project.workspace.teamSize || 'N/A';
-                default: return 'N/A';
-            }
-        }
-        default: return 'N/A (Unknown variable source type)';
+        default:
+          return 'N/A (Unsupported entity type)';
       }
     },
   },
@@ -297,7 +348,7 @@ const promptResolvers = {
       { input }: { input: {
         projectId?: string;
         title: string;
-        content?: ContentBlock[]; // Changed to ContentBlock[]
+        content?: string;
         context?: string;
         description?: string;
         category?: string;
@@ -308,45 +359,27 @@ const promptResolvers = {
         versions?: Version[];
       }},
       context: GraphQLContext
-    ): Promise<PromptWithContentBlocks> => { // Changed return type
-      // All user and project access checks removed.
-
-      // Basic input validation remains for data integrity
-      if (!input.title) {
-        throw new Error("Prompt title is required.");
-      }
-
+    ): Promise<Prompt> => {
       const newPromptData = {
         title: input.title,
-        content: (input.content as any || []), // Cast to any to store as Json
+        content: input.content || '',
         context: input.context || '',
         description: input.description,
         category: input.category,
         tags: input.tags || [],
         isPublic: input.isPublic || false,
         model: input.model || 'gpt-4o',
-        userId: context.user?.id || 'anonymous', // Assign to current user if available, otherwise 'anonymous' (or handle as desired)
+        userId: context.user?.id || 'anonymous',
         projectId: input.projectId,
         variables: (input.variables || []).map(v => ({...v, id: v.id || generateUniqueId()})),
-        versions: (input.versions || []).map(v => ({...v, id: v.id || generateUniqueId(), content: (v.content as any || [])})), // Handle content in versions
+        versions: (input.versions || []).map(v => ({...v, id: v.id || generateUniqueId()})),
       };
 
       const newPrompt = await prisma.prompt.create({
         data: newPromptData,
       });
 
-      const parsedPrompt: PromptWithContentBlocks = { // Parse content for return
-        ...newPrompt,
-        content: (newPrompt.content as ContentBlock[] || []),
-        variables: (newPrompt.variables as PromptVariable[] || []).map(v => ({ ...v, id: v.id || generateUniqueId() })),
-        versions: (newPrompt.versions as Array<Omit<Version, 'content'> & { content: ContentBlock[] }> || []).map(v => ({ 
-            ...v, 
-            id: v.id || generateUniqueId(),
-            content: (v.content as ContentBlock[] || []) 
-        })),
-      };
-
-      return parsedPrompt;
+      return newPrompt as unknown as Prompt;
     },
 
     updatePrompt: async (
@@ -354,7 +387,7 @@ const promptResolvers = {
       { input }: { input: {
         id: string;
         title?: string;
-        content?: ContentBlock[]; // Changed to ContentBlock[]
+        content?: string;
         context?: string;
         description?: string;
         category?: string;
@@ -364,20 +397,18 @@ const promptResolvers = {
         variables?: PromptVariable[];
       }},
       context: GraphQLContext
-    ): Promise<PromptWithContentBlocks> => { // Changed return type
-      // All user and project access checks removed.
-
+    ): Promise<Prompt> => {
       const existingPrompt = await prisma.prompt.findUnique({
         where: { id: input.id },
       });
 
       if (!existingPrompt) {
-        throw new Error("Prompt not found."); // Keep this for data integrity, as we can't update a non-existent prompt.
+        throw new Error("Prompt not found.");
       }
 
       const updateData: any = { updatedAt: new Date() };
       if (input.title !== undefined) updateData.title = input.title;
-      if (input.content !== undefined) updateData.content = (input.content as any); // Cast to any to store as Json
+      if (input.content !== undefined) updateData.content = input.content;
       if (input.context !== undefined) updateData.context = input.context;
       if (input.description !== undefined) updateData.description = input.description;
       if (input.category !== undefined) updateData.category = input.category;
@@ -393,18 +424,7 @@ const promptResolvers = {
         data: updateData,
       });
 
-      const parsedPrompt: PromptWithContentBlocks = { // Parse content for return
-        ...updatedPrompt,
-        content: (updatedPrompt.content as ContentBlock[] || []),
-        variables: (updatedPrompt.variables as PromptVariable[] || []).map(v => ({ ...v, id: v.id || generateUniqueId() })),
-        versions: (updatedPrompt.versions as Array<Omit<Version, 'content'> & { content: ContentBlock[] }> || []).map(v => ({ 
-            ...v, 
-            id: v.id || generateUniqueId(),
-            content: (v.content as ContentBlock[] || []) 
-        })),
-      };
-
-      return parsedPrompt;
+      return updatedPrompt as unknown as Prompt;
     },
 
     deletePrompt: async (
@@ -412,14 +432,12 @@ const promptResolvers = {
       { id }: { id: string },
       context: GraphQLContext
     ): Promise<Prompt> => {
-      // All user and project access checks removed.
-
       const existingPrompt = await prisma.prompt.findUnique({
         where: { id },
       });
 
       if (!existingPrompt) {
-        throw new Error("Prompt not found."); // Keep for data integrity.
+        throw new Error("Prompt not found.");
       }
 
       const deletedPrompt = await prisma.prompt.delete({
@@ -433,22 +451,20 @@ const promptResolvers = {
       _parent: any,
       { input }: { input: { promptId: string; notes?: string } },
       context: GraphQLContext
-    ): Promise<PromptWithContentBlocks> => { // Changed return type
-      // All user and project access checks removed.
-
+    ): Promise<Prompt> => {
       const prompt = await prisma.prompt.findUnique({
         where: { id: input.promptId },
       });
 
       if (!prompt) {
-        throw new Error("Prompt not found."); // Keep for data integrity.
+        throw new Error("Prompt not found.");
       }
 
-      const currentContent = (prompt.content as ContentBlock[] || []); // Content is now array of ContentBlock
+      const currentContent = prompt.content as string || '';
       const currentContext = prompt.context as string || '';
       const currentVariables = (prompt.variables as PromptVariable[]) || [];
 
-      const newVersion: Omit<Version, 'content'> & { content: ContentBlock[] } = { // Explicitly type newVersion content
+      const newVersion: Version = {
         id: generateUniqueId(),
         content: currentContent,
         context: currentContext,
@@ -457,75 +473,69 @@ const promptResolvers = {
         notes: input.notes || `Version saved on ${new Date().toLocaleString()}`,
       };
 
-      const updatedVersions = [newVersion, ...(prompt.versions as Array<Omit<Version, 'content'> & { content: ContentBlock[] }> || [])];
+      const updatedVersions = [newVersion, ...(prompt.versions as Version[] || [])];
 
       const updatedPrompt = await prisma.prompt.update({
         where: { id: input.promptId },
         data: {
-          versions: updatedVersions as any, // Cast to any to store as Json
+          versions: updatedVersions,
           updatedAt: new Date(),
         },
       });
 
-      const parsedPrompt: PromptWithContentBlocks = { // Parse content for return
-        ...updatedPrompt,
-        content: (updatedPrompt.content as ContentBlock[] || []),
-        variables: (updatedPrompt.variables as PromptVariable[] || []).map(v => ({ ...v, id: v.id || generateUniqueId() })),
-        versions: (updatedPrompt.versions as Array<Omit<Version, 'content'> & { content: ContentBlock[] }> || []).map(v => ({ 
-            ...v, 
-            id: v.id || generateUniqueId(),
-            content: (v.content as ContentBlock[] || []) 
-        })),
-      };
-
-      return parsedPrompt;
+      return updatedPrompt as unknown as Prompt;
     },
 
     restorePromptVersion: async (
       _parent: any,
       { input }: { input: { promptId: string; versionId: string } },
       context: GraphQLContext
-    ): Promise<PromptWithContentBlocks> => { // Changed return type
-      // All user and project access checks removed.
-
+    ): Promise<Prompt> => {
       const prompt = await prisma.prompt.findUnique({
         where: { id: input.promptId },
       });
 
       if (!prompt) {
-        throw new Error("Prompt not found."); // Keep for data integrity.
+        throw new Error("Prompt not found.");
       }
 
-      const versions = (prompt.versions as Array<Omit<Version, 'content'> & { content: ContentBlock[] }> || []);
+      const versions = (prompt.versions as Version[]) || [];
       const versionToRestore = versions.find((v) => v.id === input.versionId);
 
       if (!versionToRestore) {
-        throw new Error("Version not found."); // Keep for data integrity.
+        throw new Error("Version not found.");
       }
 
       const updatedPrompt = await prisma.prompt.update({
         where: { id: input.promptId },
         data: {
-          content: (versionToRestore.content as any), // Cast to any to store as Json
+          content: versionToRestore.content,
           context: versionToRestore.context,
           variables: versionToRestore.variables.map(v => ({ ...v, id: v.id || generateUniqueId() })),
           updatedAt: new Date(),
         },
       });
 
-      const parsedPrompt: PromptWithContentBlocks = { // Parse content for return
-        ...updatedPrompt,
-        content: (updatedPrompt.content as ContentBlock[] || []),
-        variables: (updatedPrompt.variables as PromptVariable[] || []).map(v => ({ ...v, id: v.id || generateUniqueId() })),
-        versions: (updatedPrompt.versions as Array<Omit<Version, 'content'> & { content: ContentBlock[] }> || []).map(v => ({ 
-            ...v, 
-            id: v.id || generateUniqueId(),
-            content: (v.content as ContentBlock[] || []) 
-        })),
-      };
-
-      return parsedPrompt;
+      return updatedPrompt as unknown as Prompt;
     },
+  },
+
+  // NEW: Project Type Resolvers for computed fields
+  Project: {
+    totalTaskCount: async (parent: any, _args: any, context: GraphQLContext) => {
+      if (!parent.id) return 0;
+      return context.prisma.task.count({ where: { projectId: parent.id } });
+    },
+    completedTaskCount: async (parent: any, _args: any, context: GraphQLContext) => {
+      if (!parent.id) return 0;
+      return context.prisma.task.count({ where: { projectId: parent.id, status: 'DONE' } });
+    },
+    // Add other computed fields for Project here if necessary
+  },
+
+  // User type resolver for full name
+  User: {
+      fullName: (parent: any) => `${parent.firstName || ''} ${parent.lastName || ''}`.trim(),
   },
 };
 
