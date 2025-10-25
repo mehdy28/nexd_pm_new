@@ -12,9 +12,9 @@ import { DndProvider, useDrag, useDrop, useDragLayer } from 'react-dnd'
 import { HTML5Backend } from 'react-dnd-html5-backend'
 import { Tab } from "@headlessui/react"
 import { VariableDiscoveryBuilder } from "./variable-discovery-builder"
-import { usePromptLab } from "@/hooks/usePrompts";
 import { toast } from 'sonner';
 import { useDebounce } from 'use-debounce';
+import { usePromptDetails } from "@/hooks/usePromptDetails";
 
 
 // Utility for deep comparison of arrays of objects (used in EditorPanel's useEffect)
@@ -26,17 +26,23 @@ function deepCompareBlocks(arr1: Block[], arr2: Block[]): boolean {
   for (let i = 0; i < arr1.length; i++) {
     const b1 = arr1[i];
     const b2 = arr2[i];
+
     if (b1.type !== b2.type) {
       console.log(`[deepCompareBlocks] Block ${i}: Different types`, b1.type, b2.type);
       return false;
     }
+
     if (b1.type === 'text') {
+      // @ts-ignore
       if (b1.value !== b2.value) {
+        // @ts-ignore
         console.log(`[deepCompareBlocks] Block ${i} (text): Different values`, b1.value, b2.value);
         return false;
       }
     } else if (b1.type === 'variable') {
+      // @ts-ignore
       if (b1.varId !== b2.varId || b1.placeholder !== b2.placeholder || b1.name !== b2.name) {
+        // @ts-ignore
         console.log(`[deepCompareBlocks] Block ${i} (variable): Different identity`, {b1_varId: b1.varId, b1_ph: b1.placeholder, b1_name: b1.name}, {b2_varId: b2.varId, b2_ph: b2.placeholder, b2_name: b2.name});
         return false;
       }
@@ -60,7 +66,7 @@ function mergeRefs<T>(...refs: (React.Ref<T> | undefined)[]): React.RefCallback<
 }
 
 // Helper to generate a client-side CUID for embedded JSON objects (variables, versions)
-function cuid(prefix: string = ''): string { // Added prefix for debugging
+function cuid(prefix: string = ''): string {
   const chars = '0123456789abcdefghijklmnopqrstuvwxyz';
   let result = prefix + 'c';
   for (let i = 0; i < 24; i++) {
@@ -71,13 +77,29 @@ function cuid(prefix: string = ''): string { // Added prefix for debugging
 
 /* Utility to render prompt by substituting placeholder text */
 async function renderPrompt(
-  content: string,
+  contentBlocks: Block[],
   context: string,
   variables: PromptVariable[],
   variableValues: Record<string, string>,
   projectId?: string
 ): Promise<string> {
-  let renderedContent = content;
+  let renderedContent = '';
+  
+  renderedContent = contentBlocks.map(block => {
+    if (block.type === 'text') {
+      return block.value;
+    } else if (block.type === 'variable') {
+      const matchingVariable = variables.find(v => v.id === block.varId);
+      const displayValue = variableValues[block.placeholder] || (matchingVariable?.defaultValue || '');
+
+      if (matchingVariable?.source && (!variableValues[block.placeholder] || variableValues[block.placeholder] === 'N/A')) {
+        return `[${matchingVariable.name} (dynamic)]`;
+      }
+      return displayValue || block.placeholder;
+    }
+    return '';
+  }).join('');
+
   let renderedContext = context;
 
   for (const variable of variables) {
@@ -89,8 +111,10 @@ async function renderPrompt(
 
     const highlightedValue = `[[${valueToSubstitute}]]`;
     const regex = new RegExp(variable.placeholder.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&'), 'g');
-    renderedContent = renderedContent.replace(regex, highlightedValue);
-    renderedContext = renderedContext.replace(regex, highlightedValue);
+    
+    if (renderedContext.includes(variable.placeholder)) {
+        renderedContext = renderedContext.replace(regex, highlightedValue);
+    }
   }
 
   const lines = [
@@ -108,16 +132,18 @@ async function renderPrompt(
 
 /* ---------- MAIN COMPONENT ---------- */
 export function PromptLab({ prompt, onBack, projectId }: { prompt: Prompt; onBack: () => void; projectId?: string }) {
-  // `usePromptLab` is not needed directly here in PromptLab for `currentSelectedPrompt` and `promptsLoading`
-  // as the `prompt` prop is already guaranteed by PromptLabContainer.
-  const { updatePrompt, snapshotPrompt, restorePromptVersion } = usePromptLab(projectId); 
+  const {
+    updatePromptDetails,
+    snapshotPrompt,
+    restorePromptVersion,
+  } = usePromptDetails(prompt.id, projectId);
 
   const [selectedVersionId, setSelectedVersionId] = useState<string | null>(null)
   const [rightTab, setRightTab] = useState<"editor" | "version-details" | "preview">("editor")
   const [leftTab, setLeftTab] = useState<"versions" | "variables">("variables")
   const [showVariableBuilder, setShowVariableBuilder] = useState(false);
   const [previewVariableValues, setPreviewVariableValues] = useState<Record<string, string>>({})
-  const [renderedPreview, setRenderedPreview] = "";
+  const [renderedPreview, setRenderedPreview] = useState("");
   const [pendingNotes, setPendingNotes] = useState("");
   
   const [isSnapshotting, setIsSnapshotting] = useState(false);
@@ -125,15 +151,15 @@ export function PromptLab({ prompt, onBack, projectId }: { prompt: Prompt; onBac
 
 
   useEffect(() => {
-    console.log('[PromptLab] Root useEffect: prompt prop changed. Prompt ID:', prompt.id, 'Title:', prompt.title, 'Content length:', prompt.content.length);
+    console.log('[PromptLab] [Trace: RootEffect] prompt prop changed. Prompt ID:', prompt.id, 'Title:', prompt.title, 'Content length:', prompt.content.length, 'Versions:', prompt.versions.length);
     if (prompt) {
       if (prompt.versions.length > 0) {
         if (!selectedVersionId || !prompt.versions.some((v) => v.id === selectedVersionId)) {
-          console.log('[PromptLab] Selecting latest version:', prompt.versions[0].id);
+          console.log('[PromptLab] [Trace: RootEffect] No selected version or selected version not found, selecting latest:', prompt.versions[0].id);
           setSelectedVersionId(prompt.versions[0].id)
         }
       } else if (selectedVersionId) {
-        console.log('[PromptLab] No versions, deselecting version.');
+        console.log('[PromptLab] [Trace: RootEffect] No versions available, deselecting version.');
         setSelectedVersionId(null)
       }
       
@@ -145,7 +171,7 @@ export function PromptLab({ prompt, onBack, projectId }: { prompt: Prompt; onBac
           initialPreviewValues[v.placeholder] = `[${v.name} (dynamic)]`;
         }
       });
-      console.log('[PromptLab] Updating previewVariableValues based on prompt.variables:', prompt.variables.length, 'variables found.');
+      console.log('[PromptLab] [Trace: RootEffect] Updating previewVariableValues based on prompt.variables. Count:', prompt.variables.length);
       setPreviewVariableValues(initialPreviewValues);
     }
   }, [prompt, selectedVersionId]);
@@ -153,7 +179,7 @@ export function PromptLab({ prompt, onBack, projectId }: { prompt: Prompt; onBac
 
   useEffect(() => {
     if (prompt) {
-      console.log('[PromptLab] Root useEffect: Generating preview based on prompt and previewVariableValues.');
+      console.log('[PromptLab] [Trace: PreviewEffect] Generating preview based on prompt and previewVariableValues.');
       const generatePreview = async () => {
         const preview = await renderPrompt(prompt.content, prompt.context || '', prompt.variables, previewVariableValues, projectId);
         setRenderedPreview(preview);
@@ -170,68 +196,66 @@ export function PromptLab({ prompt, onBack, projectId }: { prompt: Prompt; onBac
   }
 
   const handleUpdatePrompt = useCallback((patch: Partial<Prompt>) => {
-    console.log('[PromptLab] handleUpdatePrompt called with patch:', patch);
+    console.log('[PromptLab] [Trace: HandleUpdate] handleUpdatePrompt called with patch keys:', Object.keys(patch));
     if (patch.variables) {
       patch.variables = patch.variables.map(v => ({...v, id: v.id || cuid('patch-var-')})) as PromptVariable[];
-      console.log('[PromptLab] handleUpdatePrompt: Variables patched, new count:', patch.variables.length);
+      console.log('[PromptLab] [Trace: HandleUpdate] Variables in patch adjusted with client-side IDs. New count:', patch.variables.length);
     }
-    updatePrompt(prompt.id, patch); // CORRECTED: Use updatePrompt from usePromptLab hook
-  }, [prompt.id, updatePrompt]);
+    if (patch.content && Array.isArray(patch.content)) {
+        console.log('[PromptLab] [Trace: HandleUpdate] Content patch is an array of blocks, ensuring correct type.');
+    }
+    updatePromptDetails(prompt.id, patch);
+  }, [prompt.id, updatePromptDetails]);
 
   const handleSnapshot = useCallback(async (notes?: string) => {
     setIsSnapshotting(true);
-    console.log('[PromptLab] handleSnapshot: Attempting to snapshot prompt', prompt.id, 'with notes:', notes);
+    console.log('[PromptLab] [Trace: HandleSnapshot] Attempting to snapshot prompt', prompt.id, 'with notes:', notes);
     try {
       await snapshotPrompt(prompt.id, notes);
       toast.success("Prompt version saved!");
       setPendingNotes('');
     } catch (error) {
-      console.error(`Failed to snapshot prompt ${prompt.id}:`, error);
+      console.error(`[PromptLab] [Error: HandleSnapshot] Failed to snapshot prompt ${prompt.id}:`, error);
       toast.error("Failed to save version", { description: (error as any).message || 'An unknown error occurred.' });
     } finally {
       setIsSnapshotting(false);
-      console.log('[PromptLab] handleSnapshot: Snapshot operation finished.');
+      console.log('[PromptLab] [Trace: HandleSnapshot] Snapshot operation finished.');
     }
   }, [prompt.id, snapshotPrompt]);
 
   const handleRestoreVersion = useCallback(async (versionId: string) => {
     setIsRestoring(true);
-    console.log('[PromptLab] handleRestoreVersion: Attempting to restore prompt', prompt.id, 'from version', versionId);
+    console.log('[PromptLab] [Trace: HandleRestore] Attempting to restore prompt', prompt.id, 'from version', versionId);
     try {
       await restorePromptVersion(prompt.id, versionId);
       toast.success("Prompt restored from version!");
     } catch (error) {
-      console.error(`Failed to restore prompt ${prompt.id} from version ${versionId}:`, error);
+      console.error(`[PromptLab] [Error: HandleRestore] Failed to restore prompt ${prompt.id} from version ${versionId}:`, error);
       toast.error("Failed to restore version", { description: (error as any).message || 'An unknown error occurred.' });
     } finally {
       setIsRestoring(false);
-      console.log('[PromptLab] handleRestoreVersion: Restore operation finished.');
+      console.log('[PromptLab] [Trace: HandleRestore] Restore operation finished.');
     }
   }, [prompt.id, restorePromptVersion]);
 
   const handleCreateVariable = useCallback((newVariable: Omit<PromptVariable, 'id'>) => {
-    console.log('[PromptLab] handleCreateVariable: Creating new variable:', newVariable.name);
+    console.log('[PromptLab] [Trace: HandleCreateVar] Creating new variable:', newVariable.name);
     const variableWithId: PromptVariable = {
       ...newVariable,
       id: cuid('p-var-'),
     };
     const updatedVariables = [...prompt.variables, variableWithId];
-    console.log('[PromptLab] handleCreateVariable: Calling handleUpdatePrompt with updated variables count:', updatedVariables.length);
+    console.log('[PromptLab] [Trace: HandleCreateVar] Calling handleUpdatePrompt with updated variables count:', updatedVariables.length);
     handleUpdatePrompt({ variables: updatedVariables });
     setShowVariableBuilder(false);
   }, [prompt.variables, handleUpdatePrompt]);
 
   const handleRemoveVariable = useCallback((variableId: string) => {
-    console.log('[PromptLab] handleRemoveVariable: Removing variable with ID:', variableId);
+    console.log('[PromptLab] [Trace: HandleRemoveVar] Removing variable with ID:', variableId);
     const updatedVariables = prompt.variables.filter(v => v.id !== variableId);
-    console.log('[PromptLab] handleRemoveVariable: Calling handleUpdatePrompt with updated variables count:', updatedVariables.length);
+    console.log('[PromptLab] [Trace: HandleRemoveVar] Calling handleUpdatePrompt with updated variables count:', updatedVariables.length);
     handleUpdatePrompt({ variables: updatedVariables });
   }, [prompt.variables, handleUpdatePrompt]);
-
-
-  // Removed the internal loading and "Please select a prompt" checks.
-  // PromptLabContainer ensures `prompt` prop is valid before rendering this component.
-  // If `prompt` is passed, it's considered selected and either partially or fully loaded.
 
   return (
     <DndProvider backend={HTML5Backend}>
@@ -245,7 +269,7 @@ export function PromptLab({ prompt, onBack, projectId }: { prompt: Prompt; onBac
                 selectedIndex={leftTab === "versions" ? 0 : 1}
                 onChange={(index) => {
                     setLeftTab(index === 0 ? "versions" : "variables");
-                    console.log('[PromptLab] Left Tab changed to:', index === 0 ? "Versions" : "Variables");
+                    console.log('[PromptLab] [Trace: LeftTabChange] Left Tab changed to:', index === 0 ? "Versions" : "Variables");
                 }}
                 className="flex-1 min-h-0 flex flex-col"
               >
@@ -298,7 +322,7 @@ export function PromptLab({ prompt, onBack, projectId }: { prompt: Prompt; onBac
                     <div className="flex flex-col gap-2 border-b p-3" style={{ borderColor: "var(--border)", background: "var(--muted-bg)" }}>
                       <h3 className="font-semibold">Variables</h3>
                       <Button className="w-full h-9 btn-primary" onClick={() => {
-                        console.log('[PromptLab] Variables tab: Create New Variable button clicked.');
+                        console.log('[PromptLab] [Trace: VarTab] Variables tab: Create New Variable button clicked.');
                         setShowVariableBuilder(true);
                       }}>
                         <Plus className="mr-1 h-4 w-4" /> Create New Variable
@@ -325,7 +349,7 @@ export function PromptLab({ prompt, onBack, projectId }: { prompt: Prompt; onBac
               <div className="flex-1 min-h-0 overflow-y-auto">
                 <Tabs value={rightTab} onValueChange={(v) => {
                     setRightTab(v as any);
-                    console.log('[PromptLab] Right Tab changed to:', v);
+                    console.log('[PromptLab] [Trace: RightTabChange] Right Tab changed to:', v);
                 }} className="flex h-full flex-col">
                   <div className="border-b" style={{ borderColor: "var(--border)" }}>
                     <TabsList className="h-11 bg-transparent">
@@ -338,7 +362,7 @@ export function PromptLab({ prompt, onBack, projectId }: { prompt: Prompt; onBac
                   <div className="min-h-0 flex-1 overflow-y-auto">
                     <TabsContent value="editor" className="m-0 outline-none flex-1 overflow-y-auto">
                       <EditorPanel
-                          prompt={prompt} // Pass the fully detailed prompt from usePromptLab
+                          prompt={prompt}
                           onUpdate={handleUpdatePrompt}
                           onSnapshot={handleSnapshot}
                           pendingNotes={pendingNotes}
@@ -347,7 +371,6 @@ export function PromptLab({ prompt, onBack, projectId }: { prompt: Prompt; onBac
                         />
                     </TabsContent>
 
-                    {/* Version Details Panel */}
                     <TabsContent value="version-details" className="m-0 outline-none p-4 flex-1 overflow-y-auto">
                       <VersionsPanel
                         versions={prompt.versions || []}
@@ -358,7 +381,6 @@ export function PromptLab({ prompt, onBack, projectId }: { prompt: Prompt; onBac
                       />
                     </TabsContent>
 
-                    {/* Preview Section */}
                     <TabsContent value="preview" className="m-0 outline-none p-4 flex-1 overflow-y-auto">
                       <div className="mb-2 flex items-center justify-between">
                         <div className="text-sm font-medium">Preview</div>
@@ -384,7 +406,6 @@ export function PromptLab({ prompt, onBack, projectId }: { prompt: Prompt; onBac
           </div>
         </div>
 
-        {/* NEW: Variable Discovery Builder */}
         <VariableDiscoveryBuilder
           open={showVariableBuilder}
           onOpenChange={setShowVariableBuilder}
@@ -448,105 +469,6 @@ type Block =
   | { type: 'text'; id: string; value: string }
   | { type: 'variable'; id: string; varId: string; placeholder: string; name: string }
 
-function parseContentToBlocks(content: string, variables: PromptVariable[], prevBlocks: Block[] = []): Block[] {
-  console.log('[parseContentToBlocks] Starting parse. Content length:', content.length, 'Variables count:', variables.length, 'Prev blocks count:', prevBlocks.length);
-  const sortedVariables = variables.length > 0
-    ? variables.sort((a, b) => b.placeholder.length - a.placeholder.length)
-    : [];
-  const placeholders = sortedVariables.map(v => v.placeholder);
-
-  let tempBlocks: Block[] = [];
-  let currentText = '';
-  let prevBlockMap = new Map<string, Block>();
-
-  prevBlocks.forEach(block => {
-    if (block.type === 'text') {
-      prevBlockMap.set(`text-${block.value}`, block);
-    } else {
-      prevBlockMap.set(`variable-${block.varId}-${block.placeholder}`, block);
-    }
-  });
-
-
-  if (placeholders.length > 0) {
-    const escaped = placeholders.map(p => p.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')).join('|');
-    const re = new RegExp(`(${escaped})`, 'g');
-    const parts = content.split(re);
-
-    parts.forEach((part) => {
-      const matchedVar = sortedVariables.find(v => v.placeholder === part);
-      if (matchedVar) {
-        if (currentText !== '') {
-          const textBlockKey = `text-${currentText}`;
-          const existingTextBlock = prevBlockMap.get(textBlockKey);
-          tempBlocks.push({ type: 'text', id: existingTextBlock?.id || cuid('t-'), value: currentText });
-          currentText = '';
-        }
-        const varBlockKey = `variable-${matchedVar.id}-${matchedVar.placeholder}`;
-        const existingVarBlock = prevBlockMap.get(varBlockKey);
-        tempBlocks.push({ type: 'variable', id: existingVarBlock?.id || cuid('v-'), varId: matchedVar.id, placeholder: matchedVar.placeholder, name: matchedVar.name });
-      } else {
-        currentText += part;
-      }
-    });
-  } else {
-    currentText = content;
-  }
-
-  if (currentText !== '') {
-    const textBlockKey = `text-${currentText}`;
-    const existingTextBlock = prevBlockMap.get(textBlockKey);
-    tempBlocks.push({ type: 'text', id: existingTextBlock?.id || cuid('t-'), value: currentText });
-  }
-
-  let finalBlocks: Block[] = [];
-  tempBlocks.forEach((block, idx) => {
-    if (block.type === 'text' && block.value === '') {
-      if (
-        (idx > 0 && tempBlocks[idx - 1].type === 'text' && tempBlocks[idx - 1].value === '') ||
-        (idx < tempBlocks.length - 1 && tempBlocks[idx + 1].type === 'text' && tempBlocks[idx + 1].value === '')
-      ) {
-        if (!((idx === 0 || idx === tempBlocks.length - 1) && tempBlocks.length === 1)) {
-            return;
-        }
-      }
-    }
-    finalBlocks.push(block);
-  });
-  
-  if (finalBlocks.length === 0 || (finalBlocks.length === 1 && finalBlocks[0].type === 'variable' && finalBlocks[0].placeholder === '')) {
-    console.log('[parseContentToBlocks] Fallback: Adding initial empty text block.');
-    finalBlocks.push({ type: 'text', id: cuid('t-initial-empty-fallback'), value: '' });
-  }
-  
-  if (finalBlocks.length > 1 && finalBlocks[0].type === 'text' && finalBlocks[0].value === '') {
-    console.log('[parseContentToBlocks] Removing leading empty text block.');
-    finalBlocks.shift();
-  }
-  if (finalBlocks.length > 1 && finalBlocks[finalBlocks.length - 1].type === 'text' && finalBlocks[finalBlocks.length - 1].value === '') {
-    console.log('[parseContentToBlocks] Removing trailing empty text block.');
-    finalBlocks.pop();
-  }
-
-  if (finalBlocks.length === 0) {
-    console.log('[parseContentToBlocks] Final fallback: Returning single empty text block.');
-    return [{ type: 'text', id: cuid('t-final-empty-fallback'), value: '' }];
-  }
-  console.log('[parseContentToBlocks] Parse finished. Final blocks count:', finalBlocks.length, 'Example ID:', finalBlocks[0]?.id);
-  return finalBlocks;
-}
-
-
-function serializeBlocks(blocks: Block[]): string {
-  const serialized = blocks
-    .filter(b => !(b.type === 'text' && b.value === ''))
-    .map(b => b.type === 'text' ? b.value : b.placeholder)
-    .join('');
-  
-  return serialized;
-}
-
-
 /* ---------- EditorPanel: Enhanced Prompt Creation ---------- */
 function EditorPanel({
   prompt,
@@ -563,47 +485,88 @@ function EditorPanel({
   setPendingNotes: (notes: string) => void;
   isSnapshotting: boolean;
 }) {
-  console.log(`[EditorPanel ${prompt.id}] Rendered with prompt ID: ${prompt.id}, Title: "${prompt.title}", Content length: ${prompt.content.length}`);
+  console.log(`[EditorPanel ${prompt.id}] [Trace: Render] Rendered with prompt ID: ${prompt.id}, Title: "${prompt.title}", Content length: ${prompt.content.length}`);
 
   const [blocks, setBlocks] = useState<Block[]>([]);
   const [localTitle, setLocalTitle] = useState('');
   const [localContext, setLocalContext] = useState('');
   const [localModel, setLocalModel] = useState('');
 
-  // Primary useEffect to initialize/re-initialize all local states when prompt.id changes
-  // or when the prompt object itself changes (e.g., from initial minimal to full details)
+  // Using refs to prevent initial unwanted mutations and redundant updates
+  const isInitialMount = useRef(true);
+  const lastKnownPropValues = useRef({
+    id: '',
+    title: '',
+    context: '',
+    model: '',
+    content: [] as Block[],
+  });
+
+  // Effect to synchronize local state with prompt prop when prompt.id changes
+  // or on initial mount.
   useEffect(() => {
-    console.log(`[EditorPanel ${prompt.id}] useEffect (prompt.id change): Initializing/Resetting all local states.`);
-    // Initialize block state
-    setBlocks(parseContentToBlocks(prompt.content || '', prompt.variables || []));
-    // Initialize other local states
-    setLocalTitle(prompt.title);
-    setLocalContext(prompt.context);
-    setLocalModel(prompt.model);
-    setPendingNotes(''); // Reset pending notes for a new prompt
-  }, [prompt.id]); // Only re-run when the prompt ID changes
-
-
-  // Secondary useEffect for blocks state, specifically when content/variables change for the *current* prompt
-  // This handles internal updates (e.g., after an optimistic update to variables, or fresh data from GET_PROMPT_DETAILS_QUERY)
-  useEffect(() => {
-    // Only proceed if prompt is fully loaded (content/variables are present) AND
-    // the blocks state has already been initialized for this prompt.id
-    if (!prompt.content && prompt.variables.length === 0 && blocks.length === 0) {
-        console.log(`[EditorPanel ${prompt.id}] useEffect (content/variables change): Prompt is still minimal/loading, skipping blocks update.`);
-        return;
-    }
-
-    console.log(`[EditorPanel ${prompt.id}] useEffect (content/variables change): Re-parsing blocks if content/variables differ.`);
-    const newBlocks = parseContentToBlocks(prompt.content || '', prompt.variables || [], blocks);
+    console.log(`[EditorPanel ${prompt.id}] [Trace: Effect_PromptSync] Syncing local states with prompt prop. Prompt ID: ${prompt.id}.`);
     
-    if (!deepCompareBlocks(blocks, newBlocks)) {
-      console.log(`[EditorPanel ${prompt.id}] useEffect (content/variables change): Blocks are NOT semantically identical. Updating blocks state.`);
-      setBlocks(newBlocks);
+    // Only update local states if the prompt ID has truly changed or it's the very first mount
+    // for this specific prompt ID.
+    if (prompt.id !== lastKnownPropValues.current.id || isInitialMount.current) {
+      console.log(`[EditorPanel ${prompt.id}] [Trace: Effect_PromptSync] New prompt ID detected or initial mount. Resetting all local states.`);
+      
+      const initialBlocksFromProp: Block[] = (prompt.content && Array.isArray(prompt.content) ? prompt.content : []) as Block[];
+      const normalizedInitialBlocks = initialBlocksFromProp.filter(b => !(b.type === 'text' && b.value === '')).length > 0
+                                      ? initialBlocksFromProp
+                                      : [{ type: 'text', id: cuid('t-initial-empty'), value: '' }];
+      
+      setBlocks(normalizedInitialBlocks);
+      setLocalTitle(prompt.title);
+      setLocalContext(prompt.context);
+      setLocalModel(prompt.model);
+      setPendingNotes('');
+
+      // Update ref to track current prop values
+      lastKnownPropValues.current = {
+        id: prompt.id,
+        title: prompt.title,
+        context: prompt.context,
+        model: prompt.model,
+        content: normalizedInitialBlocks, // Store normalized content for comparison
+      };
+
+      if (isInitialMount.current) {
+        isInitialMount.current = false;
+      }
     } else {
-      console.log(`[EditorPanel ${prompt.id}] useEffect (content/variables change): Blocks are semantically identical. No state update needed.`);
+      console.log(`[EditorPanel ${prompt.id}] [Trace: Effect_PromptSync] Prompt ID has not changed. Skipping full state reset.`);
+      // If prompt ID hasn't changed but other prompt properties might have (e.g., from restore/snapshot),
+      // we need to update local states if they diverge from the prop and are not already optimistically applied.
+      if (prompt.title !== localTitle && prompt.title !== lastKnownPropValues.current.title) {
+        console.log(`[EditorPanel ${prompt.id}] [Trace: Effect_PromptSync] Prop title updated to "${prompt.title}", updating localTitle.`);
+        setLocalTitle(prompt.title);
+        lastKnownPropValues.current.title = prompt.title;
+      }
+      if (prompt.context !== localContext && prompt.context !== lastKnownPropValues.current.context) {
+        console.log(`[EditorPanel ${prompt.id}] [Trace: Effect_PromptSync] Prop context updated, updating localContext.`);
+        setLocalContext(prompt.context);
+        lastKnownPropValues.current.context = prompt.context;
+      }
+      if (prompt.model !== localModel && prompt.model !== lastKnownPropValues.current.model) {
+        console.log(`[EditorPanel ${prompt.id}] [Trace: Effect_PromptSync] Prop model updated to "${prompt.model}", updating localModel.`);
+        setLocalModel(prompt.model);
+        lastKnownPropValues.current.model = prompt.model;
+      }
+
+      const currentPropContent = (prompt.content && Array.isArray(prompt.content) ? prompt.content : []) as Block[];
+      const normalizedCurrentPropContent = currentPropContent.filter(b => !(b.type === 'text' && b.value === '')).length > 0
+                                            ? currentPropContent
+                                            : [{ type: 'text', id: cuid('t-normalized-empty-sync'), value: '' }];
+
+      if (!deepCompareBlocks(blocks, normalizedCurrentPropContent) && !deepCompareBlocks(lastKnownPropValues.current.content, normalizedCurrentPropContent)) {
+        console.log(`[EditorPanel ${prompt.id}] [Trace: Effect_PromptSync] Prop content updated, updating blocks state.`);
+        setBlocks(normalizedCurrentPropContent);
+        lastKnownPropValues.current.content = normalizedCurrentPropContent;
+      }
     }
-  }, [prompt.content, prompt.variables, prompt.id]);
+  }, [prompt.id, prompt.title, prompt.context, prompt.model, prompt.content]); // Include all relevant prompt fields
 
   const logBlocks = useCallback((message: string, currentBlocks: Block[]) => {
     const formattedBlocks = currentBlocks.map(b =>
@@ -613,18 +576,24 @@ function EditorPanel({
   }, [prompt.id]);
 
   // Debounce the content update to the backend
-  const serializedContent = useMemo(() => serializeBlocks(blocks), [blocks]);
-  const [debouncedSerializedContent] = useDebounce(serializedContent, 500);
+  const [debouncedBlocks] = useDebounce(blocks, 500);
 
   useEffect(() => {
-    console.log(`[EditorPanel ${prompt.id}] useEffect: debouncedSerializedContent changed.`);
-    if (debouncedSerializedContent !== prompt.content) {
-      console.log(`[EditorPanel ${prompt.id}] useEffect: Debounced serialized content differs from prop content. Calling onUpdate.`);
-      onUpdate({ content: debouncedSerializedContent });
+    console.log(`[EditorPanel ${prompt.id}] [Trace: Effect_DebouncedBlocks] debouncedBlocks changed.`);
+    const currentPropContent = (prompt.content && Array.isArray(prompt.content) ? prompt.content : []) as Block[];
+    const normalizedCurrentPropContent = currentPropContent.filter(b => !(b.type === 'text' && b.value === '')).length > 0
+                                            ? currentPropContent
+                                            : [{ type: 'text', id: cuid('t-normalized-empty-debounced'), value: '' }];
+
+    if (!deepCompareBlocks(normalizedCurrentPropContent, debouncedBlocks) && !deepCompareBlocks(lastKnownPropValues.current.content, debouncedBlocks)) {
+      console.log(`[EditorPanel ${prompt.id}] [Trace: Effect_DebouncedBlocks] Debounced blocks differ from prop content AND last known sent value. Calling onUpdate.`);
+      onUpdate({ content: debouncedBlocks });
+      lastKnownPropValues.current.content = debouncedBlocks; // Optimistically update ref after sending
     } else {
-      console.log(`[EditorPanel ${prompt.id}] useEffect: Debounced serialized content matches prop content.`);
+      console.log(`[EditorPanel ${prompt.id}] [Trace: Effect_DebouncedBlocks] Debounced blocks match prop content OR last known sent value. No update needed.`);
     }
-  }, [debouncedSerializedContent, onUpdate, prompt.content, prompt.id]);
+  }, [debouncedBlocks, onUpdate, prompt.content, prompt.id]);
+
 
   // Debounce for title, context, model updates
   const [debouncedLocalTitle] = useDebounce(localTitle, 300);
@@ -632,23 +601,35 @@ function EditorPanel({
   const [debouncedLocalModel] = useDebounce(localModel, 300);
 
   useEffect(() => {
-    if (debouncedLocalTitle !== prompt.title) {
-      console.log(`[EditorPanel ${prompt.id}] useEffect: Debounced title "${debouncedLocalTitle}" differs from prop title "${prompt.title}". Calling onUpdate.`);
-      onUpdate({ title: debouncedLocalTitle || "Untitled Prompt" });
+    // Only call onUpdate if the debounced value actually differs from the *current* prompt prop
+    // AND if it's also different from the last value we sent to the server (or what was initially loaded).
+    // This helps avoid redundant updates if the prop itself changes to a value we just optimistically applied.
+    if (debouncedLocalTitle !== prompt.title && debouncedLocalTitle !== lastKnownPropValues.current.title) {
+      console.log(`[EditorPanel ${prompt.id}] [Trace: Effect_DebouncedTitle] Debounced title "${debouncedLocalTitle}" differs from prop title "${prompt.title}" AND last sent "${lastKnownPropValues.current.title}". Calling onUpdate.`);
+      onUpdate({ title: debouncedLocalTitle }); // FIX APPLIED HERE: Removed "Untitled Prompt" fallback
+      lastKnownPropValues.current.title = debouncedLocalTitle; // Update ref after sending
+    } else {
+      console.log(`[EditorPanel ${prompt.id}] [Trace: Effect_DebouncedTitle] Debounced title "${debouncedLocalTitle}" matches prop title "${prompt.title}" OR last sent value. No update needed.`);
     }
   }, [debouncedLocalTitle, prompt.title, onUpdate, prompt.id]);
 
   useEffect(() => {
-    if (debouncedLocalContext !== prompt.context) {
-      console.log(`[EditorPanel ${prompt.id}] useEffect: Debounced context "${debouncedLocalContext.substring(0, 50)}..." differs from prop context. Calling onUpdate.`);
+    if (debouncedLocalContext !== prompt.context && debouncedLocalContext !== lastKnownPropValues.current.context) {
+      console.log(`[EditorPanel ${prompt.id}] [Trace: Effect_DebouncedContext] Debounced context "${debouncedLocalContext.substring(0, Math.min(debouncedLocalContext.length, 50))}..." differs from prop context AND last sent. Calling onUpdate.`);
       onUpdate({ context: debouncedLocalContext });
+      lastKnownPropValues.current.context = debouncedLocalContext; // Update ref after sending
+    } else {
+      console.log(`[EditorPanel ${prompt.id}] [Trace: Effect_DebouncedContext] Debounced context matches prop context OR last sent value. No update needed.`);
     }
   }, [debouncedLocalContext, prompt.context, onUpdate, prompt.id]);
 
   useEffect(() => {
-    if (debouncedLocalModel !== prompt.model) {
-      console.log(`[EditorPanel ${prompt.id}] useEffect: Debounced model "${debouncedLocalModel}" differs from prop model "${prompt.model}". Calling onUpdate.`);
+    if (debouncedLocalModel !== prompt.model && debouncedLocalModel !== lastKnownPropValues.current.model) {
+      console.log(`[EditorPanel ${prompt.id}] [Trace: Effect_DebouncedModel] Debounced model "${debouncedLocalModel}" differs from prop model "${prompt.model}" AND last sent. Calling onUpdate.`);
       onUpdate({ model: debouncedLocalModel });
+      lastKnownPropValues.current.model = debouncedLocalModel; // Update ref after sending
+    } else {
+      console.log(`[EditorPanel ${prompt.id}] [Trace: Effect_DebouncedModel] Debounced model matches prop model OR last sent value. No update needed.`);
     }
   }, [debouncedLocalModel, prompt.model, onUpdate, prompt.id]);
 
@@ -677,20 +658,30 @@ function EditorPanel({
   }, [logBlocks]);
 
   const updateTextBlock = useCallback((id: string, value: string) => {
-    console.log(`[EditorPanel ${prompt.id}] updateTextBlock called for block ID: ${id}, new value: "${value}". Propagating to blocks state.`);
+    console.log(`[EditorPanel ${prompt.id}] [Trace: UpdateTextBlock] updateTextBlock called for block ID: ${id}, new value: "${value}". Propagating to blocks state.`);
     setBlocks(prev => {
         let updated = prev.map(b => b.type === 'text' && b.id === id ? { ...b, value } : b);
         
-        if (value === '' && prev.length > 1) {
-             console.log(`[EditorPanel ${prompt.id}] updateTextBlock: Removing empty text block ${id} as there are other blocks.`);
-             updated = updated.filter(b => !(b.type === 'text' && b.id === id && b.value === ''));
+        // Logic to remove empty text blocks, but ensure at least one text block remains if no variables
+        const nonTextBlocksExist = updated.some(b => b.type === 'variable');
+        const currentTextBlocksCount = updated.filter(b => b.type === 'text').length;
+
+        if (value === '' && !nonTextBlocksExist && currentTextBlocksCount === 1 && updated.find(b => b.id === id) === updated[0]) {
+             // If this is the only block and it becomes empty, keep it
+             console.log(`[EditorPanel ${prompt.id}] [Trace: UpdateTextBlock] Only text block and it became empty, keeping it.`);
+        } else if (value === '' && updated.length > 1) {
+             // If a text block becomes empty and there are other blocks, remove it
+             console.log(`[EditorPanel ${prompt.id}] [Trace: UpdateTextBlock] Removing empty text block ${id} as there are other blocks.`);
+             updated = updated.filter(b => !(b.type === 'text' && b.id === id));
              if (updated.length === 0) {
-                console.log('[EditorPanel] updateTextBlock: All blocks removed, adding empty fallback.');
+                console.log('[EditorPanel] [Trace: UpdateTextBlock] All blocks removed, adding empty fallback after text block update.');
                 updated.push({ type: 'text', id: cuid('t-empty-fallback-after-update'), value: '' });
-            }
-        } else if (updated.length === 0) {
-            console.log('[EditorPanel] updateTextBlock: All blocks removed, adding empty fallback (edge case).');
-            updated.push({ type: 'text', id: cuid('t-empty-fallback-after-update'), value: '' });
+             }
+        }
+        // If after update, all blocks are gone (e.g., removing the last variable block), add an empty text block
+        else if (updated.length === 0) {
+            console.log('[EditorPanel] [Trace: UpdateTextBlock] All blocks removed, adding empty fallback (safeguard).');
+            updated.push({ type: 'text', id: cuid('t-empty-fallback-safeguard'), value: '' });
         }
 
 
@@ -700,20 +691,20 @@ function EditorPanel({
   }, [logBlocks, prompt.id]);
 
   const removeBlock = useCallback((index: number) => {
-    console.log(`[EditorPanel ${prompt.id}] removeBlock called for index: ${index}`);
+    console.log(`[EditorPanel ${prompt.id}] [Trace: RemoveBlock] removeBlock called for index: ${index}`);
     setBlocks(prev => {
       let copy = [...prev];
       if (index < 0 || index >= copy.length) {
-          console.warn(`[EditorPanel ${prompt.id}] removeBlock: Invalid index ${index}.`);
+          console.warn(`[EditorPanel ${prompt.id}] [Trace: RemoveBlock] Invalid index ${index}.`);
           return prev;
       }
 
-      const removedBlock = copy[index];
       copy.splice(index, 1); 
-      console.log(`[EditorPanel ${prompt.id}] removeBlock: Removed block of type ${removedBlock.type} with ID ${removedBlock.id}.`);
+      console.log(`[EditorPanel ${prompt.id}] [Trace: RemoveBlock] Removed block at index ${index}.`);
       
+      // Ensure there's always at least one text block if the list becomes empty
       if (copy.length === 0) {
-        console.log('[EditorPanel] removeBlock: No blocks left, adding empty fallback.');
+        console.log('[EditorPanel] [Trace: RemoveBlock] No blocks left, adding empty fallback.');
         copy.push({ type: 'text', id: cuid('t-empty-after-remove'), value: '' });
       }
 
@@ -723,11 +714,11 @@ function EditorPanel({
   }, [logBlocks, prompt.id]);
 
   const moveBlock = useCallback((from: number, to: number) => {
-    console.log(`[EditorPanel ${prompt.id}] moveBlock called from index: ${from} to index: ${to}`);
+    console.log(`[EditorPanel ${prompt.id}] [Trace: MoveBlock] moveBlock called from index: ${from} to index: ${to}`);
     setBlocks(prev => {
       let copy = [...prev];
       if (from < 0 || from >= copy.length || to < 0 || to > copy.length) {
-          console.warn(`[EditorPanel ${prompt.id}] moveBlock: Invalid indices from ${from} to ${to}.`);
+          console.warn(`[EditorPanel ${prompt.id}] [Trace: MoveBlock] Invalid indices from ${from} to ${to}.`);
           return prev;
       }
 
@@ -747,10 +738,10 @@ function EditorPanel({
     accept: [ItemTypes.VARIABLE, ItemTypes.BLOCK],
     drop: (item: any, monitor) => {
       if (monitor.didDrop()) {
-        console.log('[EditorPanel][Drop] Drop handled by a nested target, ignoring.');
+        console.log('[EditorPanel][DropContainer] Drop handled by a nested target, ignoring.');
         return;
       }
-      console.log(`[EditorPanel ${prompt.id}][Drop] Item dropped into container.`, item);
+      console.log(`[EditorPanel ${prompt.id}][DropContainer] Item dropped into container.`, item);
 
       let targetIndex = blocks.length;
       if (blocks.length === 0) {
@@ -758,7 +749,7 @@ function EditorPanel({
       }
 
       if (monitor.getItemType() === ItemTypes.VARIABLE) {
-        console.log(`[EditorPanel ${prompt.id}][Drop] Inserting variable at index ${targetIndex}.`);
+        console.log(`[EditorPanel ${prompt.id}][DropContainer] Inserting variable at index ${targetIndex}.`);
         insertVariableAt(targetIndex, item);
       } else if (monitor.getItemType() === ItemTypes.BLOCK) {
         const dragIndex = item.index;
@@ -767,13 +758,13 @@ function EditorPanel({
                              (dragIndex === targetIndex + 1 && targetIndex < dragIndex);
 
         if (isNoRealMove) {
-          console.log('[EditorPanel][Drop] No real move detected, ignoring block drop.');
+          console.log('[EditorPanel][DropContainer] No real move detected, ignoring block drop.');
           return;
         }
 
-        console.log(`[EditorPanel ${prompt.id}][Drop] Moving block from ${dragIndex} to ${targetIndex}.`);
+        console.log(`[EditorPanel ${prompt.id}][DropContainer] Moving block from ${dragIndex} to ${targetIndex}.`);
         moveBlock(dragIndex, targetIndex);
-        item.index = targetIndex;
+        item.index = targetIndex; // Update the index of the dragged item for subsequent drops
       }
     },
     collect: (monitor) => {
@@ -794,17 +785,17 @@ function EditorPanel({
           <Input
             value={localTitle}
             onChange={(e) => {
-              console.log(`[EditorPanel ${prompt.id}] Title input changed (local state):`, e.target.value);
+              console.log(`[EditorPanel ${prompt.id}] [Trace: InputTitle] Title input changed (local state):`, e.target.value);
               setLocalTitle(e.target.value);
             }}
             className="h-10 text-sm font-medium"
-            placeholder="Prompt title"
+            placeholder="Untitled Prompt" // Added placeholder for visual hint
           />
           <select
             className="h-10 rounded-md border bg-background px-3 text-sm"
             value={localModel}
             onChange={(e) => {
-              console.log(`[EditorPanel ${prompt.id}] Model select changed (local state):`, e.target.value);
+              console.log(`[EditorPanel ${prompt.id}] [Trace: SelectModel] Model select changed (local state):`, e.target.value);
               setLocalModel(e.target.value);
             }}
             title="Target model"
@@ -824,7 +815,7 @@ function EditorPanel({
           <Textarea
             value={localContext}
             onChange={(e) => {
-              console.log(`[EditorPanel ${prompt.id}] Context textarea changed (local state):`, e.target.value.substring(0, 50) + '...');
+              console.log(`[EditorPanel ${prompt.id}] [Trace: InputContext] Context textarea changed (local state):`, e.target.value.substring(0, Math.min(e.target.value.length, 50)) + '...');
               setLocalContext(e.target.value);
             }}
             rows={6}
@@ -845,7 +836,7 @@ function EditorPanel({
                     Drag variables or click "+ Add text" to start building your prompt.
                     <button
                       onClick={() => {
-                        console.log(`[EditorPanel ${prompt.id}] Add text button clicked (empty state).`);
+                        console.log(`[EditorPanel ${prompt.id}] [Trace: EmptyStateAddText] Add text button clicked (empty state).`);
                         insertTextAt(0, '');
                       }}
                       className="mt-4 px-3 py-1 border rounded-md text-sm text-gray-700 bg-white hover:bg-gray-100 flex items-center justify-center mx-auto"
@@ -901,7 +892,7 @@ function EditorPanel({
           />
           <Button
             onClick={() => {
-              console.log(`[EditorPanel ${prompt.id}] Save button clicked.`);
+              console.log(`[EditorPanel ${prompt.id}] [Trace: SaveButton] Save button clicked.`);
               onSnapshot(pendingNotes || 'New version');
             }}
             className="btn-primary"
@@ -940,19 +931,20 @@ function BlockRenderer({
   insertTextAt: (index: number, text?: string) => void;
 }) {
   const contentEditableRef = useRef<HTMLDivElement | null>(null);
-  const wrapperRef = useRef<HTMLDivElement | null>(contentEditableRef.current); // Use contentEditableRef for wrapper
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
 
-  console.log(`[BlockRenderer ${block.id}] Rendered with block.value: "${block.type === 'text' ? block.value : 'N/A'}"`);
+  console.log(`[BlockRenderer ${block.id}] [Trace: Render] Rendered. Type: ${block.type}, Value: "${block.type === 'text' ? block.value.substring(0,20) : 'N/A'}"`);
 
 
   useEffect(() => {
     if (block.type === 'text') {
-      console.log(`[BlockRenderer ${block.id}] useEffect: block.value changed to "${block.value}".`);
+      console.log(`[BlockRenderer ${block.id}] [Trace: TextBlockEffect] block.value changed to "${block.value}".`);
+      // Only update DOM if the block is not actively being edited AND the DOM value differs
       if (contentEditableRef.current && contentEditableRef.current.innerText !== block.value && document.activeElement !== contentEditableRef.current) {
-        console.log(`[BlockRenderer ${block.id}] useEffect: DOM innerText differs from block.value and not active. Setting innerText to "${block.value}".`);
+        console.log(`[BlockRenderer ${block.id}] [Trace: TextBlockEffect] DOM innerText differs from block.value and not active. Setting innerText.`);
         contentEditableRef.current.innerText = block.value;
       } else if (contentEditableRef.current && document.activeElement === contentEditableRef.current) {
-        console.log(`[BlockRenderer ${block.id}] useEffect: Component is active, avoiding DOM update to prevent disrupting user input.`);
+        console.log(`[BlockRenderer ${block.id}] [Trace: TextBlockEffect] Component is active, avoiding DOM update to prevent disrupting user input.`);
       }
     }
   }, [block.type, block.value]);
@@ -970,12 +962,13 @@ function BlockRenderer({
       originalBlock: block,
     },
     canDrag: (monitor) => {
-      const result = true;
-      return result;
+      console.log(`[BlockRenderer ${block.id}] [Trace: DragCanDrag] Can drag check. Item: ${block.type}.`);
+      return true; // Always allow dragging
     },
     collect: (m) => {
         const dragging = m.isDragging();
         const currentCanDrag = m.canDrag();
+        console.log(`[BlockRenderer ${block.id}] [Trace: DragCollect] isDragging: ${dragging}, canDrag: ${currentCanDrag}`);
         return { isDragging: dragging, canDrag: currentCanDrag };
     },
   }), [block.id, index, block.type, block.value, block.placeholder, block.name, block.varId]);
@@ -985,6 +978,7 @@ function BlockRenderer({
   }, [dragRef]);
 
   useEffect(() => {
+    // Hide the default HTML5 drag preview
     preview(getEmptyImage(), { captureDraggingState: true });
   }, [preview]);
 
@@ -999,6 +993,7 @@ function BlockRenderer({
       }
       if (!monitor.isOver({ shallow: true })) {
         if (localDropTargetPosition !== null) {
+            console.log(`[BlockRenderer ${block.id}] [Trace: DropHover] Monitor not shallow over, clearing localDropTargetPosition.`);
             setLocalDropTargetPosition(null);
         }
         return;
@@ -1015,8 +1010,10 @@ function BlockRenderer({
       let newDropPosition: 'before' | 'after' | null = null;
       const draggingItemType = monitor.getItemType();
 
+      // Prevent dropping a block onto itself
       if (draggingItemType === ItemTypes.BLOCK && (item as { id: string }).id === block.id) {
         if (localDropTargetPosition !== null) {
+            console.log(`[BlockRenderer ${block.id}] [Trace: DropHover] Dragging block onto itself, clearing localDropTargetPosition.`);
             setLocalDropTargetPosition(null);
         }
         return;
@@ -1027,43 +1024,51 @@ function BlockRenderer({
       }
 
       if (localDropTargetPosition !== newDropPosition) {
+        console.log(`[BlockRenderer ${block.id}] [Trace: DropHover] Updating localDropTargetPosition from ${localDropTargetPosition} to ${newDropPosition}.`);
         setLocalDropTargetPosition(newDropPosition);
       }
     },
     drop(item: any, monitor) {
       const dragItemType = monitor.getItemType();
       
-      setLocalDropTargetPosition(null);
+      console.log(`[BlockRenderer ${block.id}] [Trace: DropDrop] Item dropped. Type: ${String(dragItemType)}, Item ID: ${item.id}.`);
+      setLocalDropTargetPosition(null); // Clear highlight on drop
 
       if (monitor.didDrop()) {
+        console.log(`[BlockRenderer ${block.id}] [Trace: DropDrop] Drop already handled by another target, skipping.`);
         return;
       }
 
       let targetIndex = localDropTargetPosition === 'after' ? index + 1 : index;
 
       if (dragItemType === ItemTypes.VARIABLE) {
-          console.log(`[BlockRenderer ${block.id}][Drop] Inserting variable at index ${targetIndex}.`);
+          console.log(`[BlockRenderer ${block.id}][DropDrop] Inserting variable at index ${targetIndex}.`);
           insertVariableAt(targetIndex, item);
       } else if (dragItemType === ItemTypes.BLOCK) {
         const dragIndex = item.index;
 
+        // Condition to check if it's a "no real move" for Block type
+        // This is crucial to prevent unnecessary state updates
         const isNoRealMove = (dragIndex === targetIndex) ||
-                             (dragIndex + 1 === targetIndex && targetIndex === index + 1) ||
-                             (dragIndex === targetIndex + 1 && targetIndex === index);
+                             (dragIndex + 1 === targetIndex && dragIndex < targetIndex) || // moving down 1 position to immediately after self
+                             (dragIndex === targetIndex + 1 && targetIndex < dragIndex); // moving up 1 position to immediately before self
+        
+        console.log(`[BlockRenderer ${block.id}][DropDrop] DragIndex: ${dragIndex}, TargetIndex: ${targetIndex}, IsNoRealMove: ${isNoRealMove}`);
 
         if (isNoRealMove) {
-          console.log(`[BlockRenderer ${block.id}][Drop] No real move detected, ignoring block drop.`);
+          console.log(`[BlockRenderer ${block.id}][DropDrop] No real move detected, ignoring block drop.`);
           return;
         }
 
-        console.log(`[BlockRenderer ${block.id}][Drop] Moving block from ${dragIndex} to ${targetIndex}.`);
+        console.log(`[BlockRenderer ${block.id}][DropDrop] Moving block from ${dragIndex} to ${targetIndex}.`);
         moveBlock(dragIndex, targetIndex);
-        item.index = targetIndex;
+        item.index = targetIndex; // Update the index of the dragged item for subsequent drops
       }
     },
     collect: (monitor) => {
         const isOverVal = monitor.isOver({ shallow: true });
         const canDropVal = monitor.canDrop();
+        console.log(`[BlockRenderer ${block.id}] [Trace: DropCollect] isOver: ${isOverVal}, canDrop: ${canDropVal}`);
         return {
             isOver: isOverVal,
             canDrop: canDropVal,
@@ -1103,18 +1108,20 @@ function BlockRenderer({
     )
   } else {
     const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+      console.log(`[BlockRenderer ${block.id}] [Trace: TextKeyDown] Key down: ${e.key}`);
       if (e.key === 'Enter' && !e.shiftKey) {
-        console.log(`[BlockRenderer ${block.id}] onKeyDown: Enter pressed, preventing default.`);
+        console.log(`[BlockRenderer ${block.id}] [Trace: TextKeyDown] Enter pressed, preventing default.`);
         e.preventDefault();
         return;
       }
       if (e.key === 'Backspace' && contentEditableRef.current?.innerText === '' && window.getSelection()?.anchorOffset === 0) {
           e.preventDefault();
-          console.log(`[BlockRenderer ${block.id}] onKeyDown: Backspace on empty block, attempting to remove.`);
+          console.log(`[BlockRenderer ${block.id}] [Trace: TextKeyDown] Backspace on empty block with cursor at start.`);
           if (allBlocks.length === 1 && allBlocks[0].id === block.id) {
-              console.log(`[BlockRenderer ${block.id}] onKeyDown: Only block left, clearing content.`);
+              console.log(`[BlockRenderer ${block.id}] [Trace: TextKeyDown] Only block left, preventing removal.`);
               updateTextBlock(block.id, ''); 
           } else {
+              console.log(`[BlockRenderer ${block.id}] [Trace: TextKeyDown] Removing block at index ${index}.`);
               removeBlock(index);
           }
       }
@@ -1122,15 +1129,15 @@ function BlockRenderer({
 
     const onInput = (e: React.FormEvent<HTMLDivElement>) => {
       const newText = e.currentTarget.innerText;
-      console.log(`[BlockRenderer ${block.id}] onInput: Current innerText: "${newText}". Calling updateTextBlock.`);
+      console.log(`[BlockRenderer ${block.id}] [Trace: TextOnInput] Current innerText: "${newText.substring(0, Math.min(newText.length, 50))}...". Calling updateTextBlock.`);
       updateTextBlock(block.id, newText);
     }
 
     const onBlur = () => {
       const text = contentEditableRef.current?.innerText ?? ''
-      console.log(`[BlockRenderer ${block.id}] onBlur: Final text: "${text}". Block.value: "${block.value}".`);
+      console.log(`[BlockRenderer ${block.id}] [Trace: TextOnBlur] Final text: "${text.substring(0, Math.min(text.length, 50))}...". Block.value: "${block.value.substring(0, Math.min(block.value.length, 50))}...".`);
       if (text === '' && allBlocks.length > 1) {
-          console.log(`[BlockRenderer ${block.id}] onBlur: Empty text block and not the only block, removing.`);
+          console.log(`[BlockRenderer ${block.id}] [Trace: TextOnBlur] Empty text block and not the only block, removing.`);
           removeBlock(index);
       }
     }
@@ -1162,10 +1169,10 @@ function BlockRenderer({
                 ref={contentEditableRef}
             >
             </div>
-            {(allBlocks.length > 1) || (block.type === 'text' && block.value !== '') ? (
+            {(allBlocks.length > 1) || (block.type === 'text' && block.value !== '') ? ( // Show remove button if more than 1 block or if this text block has content
                 <button
                     onClick={() => {
-                        console.log(`[BlockRenderer ${block.id}] Remove button clicked.`);
+                        console.log(`[BlockRenderer ${block.id}] [Trace: RemoveButton] Remove button clicked.`);
                         removeBlock(index);
                     }}
                     className="ml-2 p-1 rounded-full text-gray-400 hover:bg-gray-200 hover:text-red-600 transition-opacity"
@@ -1215,7 +1222,7 @@ function HoverAddTextBlock({
           size="sm"
           onClick={(e) => {
             e.stopPropagation();
-            console.log(`[HoverAddTextBlock] Add text button clicked at index ${index}.`);
+            console.log(`[HoverAddTextBlock] [Trace: ButtonClick] Add text button clicked at index ${index}.`);
             insertTextAt(index);
             setIsHovering(false);
           }}
@@ -1326,15 +1333,15 @@ function VersionsPanel({
   const selectedVersion = versions.find(v => v.id === selectedVersionId);
 
   useEffect(() => {
-    console.log('[VersionsPanel] useEffect: versions or selectedVersionId changed.');
+    console.log('[VersionsPanel] [Trace: Effect] versions or selectedVersionId changed.');
     if (!selectedVersionId && versions.length > 0) {
-      console.log('[VersionsPanel] No version selected, defaulting to latest.');
+      console.log('[VersionsPanel] [Trace: Effect] No version selected, defaulting to latest.');
       onSelectVersion(versions[0].id);
     }
   }, [selectedVersionId, versions, onSelectVersion]);
 
   if (!selectedVersion) {
-    console.log('[VersionsPanel] No selected version to display.');
+    console.log('[VersionsPanel] [Trace: Render] No selected version to display.');
     return (
       <div className="grid h-full place-items-center text-sm text-slate-500">
         No version selected.
@@ -1342,7 +1349,7 @@ function VersionsPanel({
     );
   }
 
-  console.log('[VersionsPanel] Displaying selected version:', selectedVersion.id, selectedVersion.notes);
+  console.log('[VersionsPanel] [Trace: Render] Displaying selected version:', selectedVersion.id, selectedVersion.notes);
   return (
     <div className="flex h-full min-h-0 flex-col p-4">
         <h3 className="font-semibold text-lg mb-2">{selectedVersion?.notes || 'No Notes'}</h3>
@@ -1352,7 +1359,7 @@ function VersionsPanel({
             <label className="block text-sm font-medium mb-1">Version Content</label>
             <Textarea
                 readOnly
-                value={selectedVersion?.content || ''}
+                value={JSON.stringify(selectedVersion.content, null, 2) || ''} // Pretty print for debugging
                 rows={10}
                 className="font-mono overflow-y-auto bg-gray-50 dark:bg-gray-800"
                 placeholder="No content available for this version."

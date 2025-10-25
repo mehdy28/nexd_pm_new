@@ -26,7 +26,7 @@ export type PromptVariableSource = {
     field?: string; // The field to filter by (e.g., 'status', 'isCompleted', 'assigneeId', 'role')
     operator?: 'EQ' | 'NEQ' | 'GT' | 'LT' | 'GTE' | 'LTE' | 'CONTAINS' | 'STARTS_WITH' | 'ENDS_WITH' | 'IN_LIST'; // Comparison operator
     value?: string | number | boolean | string[]; // The value to compare against
-    specialValue?: 'CURRENT_USER_ID' | 'CURRENT_PROJECT_ID' | 'ACTIVE_SPRINT_ID' | 'LATEST_UPDATED_ENTITY_ID'; // Placeholder for dynamic values (e.g., entityId for SINGLE_TASK_FIELD)
+    specialValue?: 'CURRENT_USER_ID' | 'CURRENT_PROJECT_ID' | 'ACTIVE_SPRINT'; // Placeholder for dynamic values
   };
 
   // Aggregation, applicable if `entityType` can return multiple records (e.g., TASKS, MEMBERS, DOCUMENTS)
@@ -50,9 +50,14 @@ export type PromptVariable = {
   source?: PromptVariableSource | null; // NEW: How this variable's value is derived from project data
 };
 
+// NEW: Type for content blocks (moved from prompt-lab.tsx)
+export type Block =
+  | { type: 'text'; id: string; value: string }
+  | { type: 'variable'; id: string; varId: string; placeholder: string; name: string }
+
 export type Version = {
   id: string;
-  content: string;
+  content: Block[]; // CHANGED: From string to Block[]
   context: string;
   notes?: string;
   createdAt: number;
@@ -66,13 +71,12 @@ export type Prompt = {
   tags: string[];
   isPublic: boolean;
   model: string; // e.g., gpt-4o
-  content: string;
+  content: Block[]; // CHANGED: From string to Block[]
   context: string;
   createdAt: number;
   updatedAt: number;
   versions: Version[];
   variables: PromptVariable[];
-  projectId?: string; // Added for clarity
 };
 
 interface PromptLabState {
@@ -102,7 +106,7 @@ const usePromptLabStore = create<PromptLabState>()(
           tags: [],
           isPublic: false,
           model: 'gpt-4o',
-          content: '',
+          content: [], // Changed to empty array
           context: '',
           createdAt: Date.now(),
           updatedAt: Date.now(),
@@ -149,7 +153,7 @@ const usePromptLabStore = create<PromptLabState>()(
             if (p.id === id) {
               const newVersion: Version = {
                 id: Math.random().toString(36).slice(2),
-                content: p.content,
+                content: p.content, // Now copies Block[]
                 context: p.context,
                 notes,
                 createdAt: Date.now(),
@@ -173,7 +177,7 @@ const usePromptLabStore = create<PromptLabState>()(
               if (versionToRestore) {
                 return {
                   ...p,
-                  content: versionToRestore.content,
+                  content: versionToRestore.content, // Now copies Block[]
                   context: versionToRestore.context,
                   updatedAt: Date.now(),
                   // Optionally, you might create a new version after restore indicating it was a restore operation

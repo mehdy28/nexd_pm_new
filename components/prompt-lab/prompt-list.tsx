@@ -12,8 +12,8 @@ interface PromptListProps {
   prompts: Prompt[];
   onSelectPrompt: (id: string) => void;
   onCreatePrompt: () => Promise<any>;
-  isLoading: boolean; // Keep this prop for clarity, though it will likely be `false` when this component renders
-  isError: boolean; // Keep this prop for clarity, though it will likely be `false` when this component renders
+  isLoading?: boolean; // Keep this prop for clarity, though it will likely be `false` when this component renders
+  isError?: boolean; // Keep this prop for clarity, though it will likely be `false` when this component renders
 }
 
 export function PromptList({ prompts, onSelectPrompt, onCreatePrompt, isLoading, isError }: PromptListProps) {

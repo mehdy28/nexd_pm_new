@@ -584,6 +584,8 @@
    email: String!
    firstName: String
    lastName: String
+   avatar: String
+
  }
  
  type UserAvatarPartial { # For assignee in tasks, similar to UserFullDetails but named for context

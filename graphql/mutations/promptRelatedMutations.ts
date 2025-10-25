@@ -7,7 +7,15 @@ export const CREATE_PROMPT_MUTATION = gql`
     createPrompt(input: $input) {
       id
       title
-      content
+      content { # Now expecting ContentBlock subfields
+        id
+        type
+        value
+        varId
+        placeholder
+        name
+        # __typename 
+      }
       context
       description
       tags
@@ -38,7 +46,15 @@ export const UPDATE_PROMPT_MUTATION = gql`
     updatePrompt(input: $input) {
       id
       title
-      content
+      content { # CHANGED: Requesting subfields for ContentBlock
+        id
+        type
+        value
+        varId
+        placeholder
+        name
+        # __typename 
+      }
       context
       description
       tags
@@ -71,7 +87,15 @@ export const SNAPSHOT_PROMPT_MUTATION = gql`
       id
       versions { # Return all versions to update UI
         id
-        content
+        content { # Now expecting ContentBlock subfields
+          id
+          type
+          value
+          varId
+          placeholder
+          name
+          # __typename
+        }
         context
         variables {
           id
@@ -92,7 +116,15 @@ export const RESTORE_PROMPT_VERSION_MUTATION = gql`
   mutation RestorePromptVersion($input: RestorePromptVersionInput!) {
     restorePromptVersion(input: $input) {
       id
-      content
+      content { # Now expecting ContentBlock subfields
+        id
+        type
+        value
+        varId
+        placeholder
+        name
+        # __typename
+      }
       context
       variables { # Return updated content and variables
         id

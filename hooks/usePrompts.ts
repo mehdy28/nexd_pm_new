@@ -1,27 +1,25 @@
-
 // hooks/usePrompts.ts
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from "react";
-import { useQuery, useMutation, useLazyQuery } from "@apollo/client"; // Import useLazyQuery
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useQuery, useMutation, useLazyQuery } from "@apollo/client";
 import { useParams } from "next/navigation";
 
 import {
   GET_PROJECT_PROMPTS_QUERY,
   GET_PROMPT_DETAILS_QUERY,
-  RESOLVE_PROMPT_VARIABLE_QUERY, // Keep this query document
-  } from "@/graphql/queries/promptRelatedQueries";
+  RESOLVE_PROMPT_VARIABLE_QUERY, // Not used in this context, but keeping
+} from "@/graphql/queries/promptRelatedQueries";
 import {
   CREATE_PROMPT_MUTATION,
   UPDATE_PROMPT_MUTATION,
   DELETE_PROMPT_MUTATION,
   SNAPSHOT_PROMPT_MUTATION,
   RESTORE_PROMPT_VERSION_MUTATION,
- } from "@/graphql/mutations/promptRelatedMutations";
-import { Prompt, PromptVariable, Version, PromptVariableType, PromptVariableSource } from '@/components/prompt-lab/store';
+} from "@/graphql/mutations/promptRelatedMutations";
+import { Prompt, PromptVariable, Version, PromptVariableType, PromptVariableSource, Block } from '@/components/prompt-lab/store';
 
-// Helper to generate a client-side CUID for embedded JSON objects (variables, versions)
-function cuid(prefix: string = ''): string { // Added prefix for debugging
+function cuid(prefix: string = ''): string {
   const chars = '0123456789abcdefghijklmnopqrstuvwxyz';
   let result = prefix + 'c';
   for (let i = 0; i < 24; i++) {
@@ -45,6 +43,7 @@ interface UsePromptLabHook {
   restorePromptVersion: (promptId: string, versionId: string) => void;
   selectPrompt: (id: string | null) => void;
   refetchPromptsList: () => Promise<any>;
+  triggerInitialPromptsFetch: () => void;
   projectId: string | undefined;
 }
 
@@ -57,22 +56,28 @@ export function usePromptLab(initialProjectId?: string): UsePromptLabHook {
   const [localLoading, setLocalLoading] = useState(true);
   const [localError, setLocalError] = useState<string | null>(null);
 
+  // Removed `shouldFetchList` state as its explicit control is being replaced by `triggerInitialPromptsFetch`
+  // and implicit behavior for initial load.
+
+  const lastDetailedPromptData = useRef<Prompt | null>(null);
+
   const selectPrompt = useCallback((id: string | null) => {
-    console.log('[usePromptLab] selectPrompt called with ID:', id);
+    console.log('[usePromptLab] [Trace: Select] selectPrompt called with ID:', id);
     setSelectedId(id);
+    if (id === null) {
+      lastDetailedPromptData.current = null;
+      console.log('[usePromptLab] [Trace: Select] Deselected prompt, cleared lastDetailedPromptData.');
+    }
   }, []);
 
-  const {
-    data: promptsListData,
-    loading: listLoading,
-    error: listError,
-    refetch: refetchPromptsList,
-  } = useQuery(GET_PROJECT_PROMPTS_QUERY, {
+  const [
+    getProjectPrompts,
+    { data: promptsListData, loading: listLoading, error: listError, refetch: apolloRefetchPromptsList }
+  ] = useLazyQuery(GET_PROJECT_PROMPTS_QUERY, {
     variables: { projectId },
-    skip: !projectId,
-    fetchPolicy: "cache-and-network",
+    fetchPolicy: "network-only",
     onCompleted: (data) => {
-      console.log('[usePromptLab] GET_PROJECT_PROMPTS_QUERY onCompleted. Data:', data?.getProjectPrompts.length, 'prompts.');
+      console.log('[usePromptLab] [Trace: QueryListComplete] GET_PROJECT_PROMPTS_QUERY onCompleted. Data length:', data?.getProjectPrompts.length, 'prompts.');
       setLocalError(null);
       const mappedPrompts: Prompt[] = data.getProjectPrompts.map(
         (p: any) => ({
@@ -84,7 +89,7 @@ export function usePromptLab(initialProjectId?: string): UsePromptLabHook {
           createdAt: p.createdAt,
           updatedAt: p.updatedAt,
           model: p.model || 'gpt-4o',
-          content: '',
+          content: [],
           context: '',
           projectId: p.projectId,
           variables: [],
@@ -99,30 +104,67 @@ export function usePromptLab(initialProjectId?: string): UsePromptLabHook {
           if (prevPrompt) {
             return {
               ...newPrompt,
-              content: prevPrompt.content,
-              context: prevPrompt.context,
-              variables: prevPrompt.variables,
-              versions: prevPrompt.versions,
+              content: prevPrompt.id === selectedId && lastDetailedPromptData.current?.id === selectedId 
+                         ? lastDetailedPromptData.current.content 
+                         : prevPrompt.content,
+              context: prevPrompt.id === selectedId && lastDetailedPromptData.current?.id === selectedId 
+                         ? lastDetailedPromptData.current.context 
+                         : prevPrompt.context,
+              variables: prevPrompt.id === selectedId && lastDetailedPromptData.current?.id === selectedId 
+                           ? lastDetailedPromptData.current.variables 
+                           : prevPrompt.variables,
+              versions: prevPrompt.id === selectedId && lastDetailedPromptData.current?.id === selectedId 
+                          ? lastDetailedPromptData.current.versions 
+                          : prevPrompt.versions,
             };
           }
           return newPrompt;
         });
 
         const updatedPromptIds = new Set(mappedPrompts.map(p => p.id));
-        const filteredPrevPrompts = prevPrompts.filter(prevPrompt => updatedPromptIds.has(prevPrompt.id));
+        const filteredPrevPrompts = prevPrompts.filter(prevPrompt => updatedPromptIds.has(prevPrompt.id) || prevPrompt.id === selectedId);
 
         const finalPrompts = Array.from(new Set([...filteredPrevPrompts, ...mergedPrompts].map(p => p.id)))
-          .map(id => mergedPrompts.find(p => p.id === id) || filteredPrevPrompts.find(p => p.id === id)) as Prompt[];
+          .map(id => {
+            if (id === selectedId && lastDetailedPromptData.current?.id === selectedId) {
+                return lastDetailedPromptData.current;
+            }
+            return mergedPrompts.find(p => p.id === id) || filteredPrevPrompts.find(p => p.id === id);
+          }) as Prompt[];
 
-        console.log('[usePromptLab] setPrompts (list): Updating prompts state. New count:', finalPrompts.length);
+        console.log('[usePromptLab] [Trace: SetPromptsList] Updating prompts state from list. New count:', finalPrompts.length);
         return finalPrompts.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
       });
     },
     onError: (err) => {
-      console.error("[usePromptLab] Error fetching project prompts list:", err);
+      console.error("[usePromptLab] [Error: QueryList] Error fetching project prompts list:", err);
       setLocalError("Failed to load prompts list.");
     },
   });
+
+  const triggerInitialPromptsFetch = useCallback(() => {
+    if (projectId) {
+      console.log('[usePromptLab] [Trace: TriggerFetch] Explicitly triggering GET_PROJECT_PROMPTS_QUERY (network-only).');
+      getProjectPrompts(); // Directly call the lazy query
+      setPrompts([]); // Clear prompts when explicitly fetching the list
+      setSelectedId(null); // Deselect any prompt
+      lastDetailedPromptData.current = null; // Clear detailed data
+      setLocalError(null);
+    }
+  }, [getProjectPrompts, projectId]);
+
+  // Effect to trigger the initial list fetch when projectId changes or component mounts,
+  // but only if no prompt is selected and the list hasn't been fetched yet.
+  useEffect(() => {
+    console.log('[usePromptLab] [Trace: useEffectListFetch] projectId:', projectId, 'selectedId:', selectedId, 'promptsListData:', promptsListData ? 'exists' : 'null', 'getProjectPrompts.called:', getProjectPrompts.called);
+    // Only fetch list initially IF projectId exists and selectedId is null,
+    // and if promptsListData is empty/null AND getProjectPrompts hasn't been called yet.
+    // This ensures it only runs once for the initial load of the "library" view.
+    if (projectId && selectedId === null && !promptsListData && !getProjectPrompts.called) { 
+      console.log('[usePromptLab] [Trace: useEffectListFetch] Triggering initial list fetch (auto-load).');
+      getProjectPrompts();
+    }
+  }, [projectId, getProjectPrompts, selectedId, promptsListData]);
 
   const { data: promptDetailsData, loading: detailsLoading } = useQuery(
     GET_PROMPT_DETAILS_QUERY,
@@ -132,36 +174,44 @@ export function usePromptLab(initialProjectId?: string): UsePromptLabHook {
       fetchPolicy: "network-only",
       onCompleted: (data) => {
         if (data?.getPromptDetails) {
-          console.log('[usePromptLab] GET_PROMPT_DETAILS_QUERY onCompleted. Details for ID:', data.getPromptDetails.id);
+          console.log('[usePromptLab] [Trace: QueryDetailsComplete] GET_PROMPT_DETAILS_QUERY onCompleted. Details for ID:', data.getPromptDetails.id);
           setLocalError(null);
+          const detailedPrompt: Prompt = {
+            id: data.getPromptDetails.id,
+            title: data.getPromptDetails.title,
+            content: (data.getPromptDetails.content && Array.isArray(data.getPromptDetails.content) ? data.getPromptDetails.content : []) as Block[],
+            context: data.getPromptDetails.context,
+            description: data.getPromptDetails.description,
+            category: data.getPromptDetails.category,
+            tags: data.getPromptDetails.tags,
+            isPublic: data.getPromptDetails.isPublic,
+            createdAt: data.getPromptDetails.createdAt,
+            updatedAt: data.getPromptDetails.updatedAt,
+            model: data.getPromptDetails.model,
+            projectId: data.getPromptDetails.projectId,
+            variables: data.getPromptDetails.variables.map((v: PromptVariable) => ({ ...v, id: v.id || cuid('db-var-') })),
+            versions: data.getPromptDetails.versions.map((v: any) => ({
+               ...v,
+               id: v.id || cuid('db-ver-'),
+               content: (v.content && Array.isArray(v.content) ? v.content : []) as Block[],
+            })),
+          };
+
+          lastDetailedPromptData.current = detailedPrompt;
+
           setPrompts((prevPrompts) =>
             prevPrompts.map((p) =>
-              p.id === data.getPromptDetails.id
-                ? {
-                    ...p,
-                    title: data.getPromptDetails.title,
-                    content: data.getPromptDetails.content,
-                    context: data.getPromptDetails.context,
-                    description: data.getPromptDetails.description,
-                    category: data.getPromptDetails.category,
-                    tags: data.getPromptDetails.tags,
-                    isPublic: data.getPromptDetails.isPublic,
-                    createdAt: data.getPromptDetails.createdAt,
-                    updatedAt: data.getPromptDetails.updatedAt,
-                    model: data.getPromptDetails.model,
-                    projectId: data.getPromptDetails.projectId,
-                    variables: data.getPromptDetails.variables.map((v: PromptVariable) => ({ ...v, id: v.id || cuid('db-var-') })), // Ensure unique client-side IDs
-                    versions: data.getPromptDetails.versions.map((v: Version) => ({ ...v, id: v.id || cuid('db-ver-') })), // Ensure unique client-side IDs
-                  }
+              p.id === detailedPrompt.id
+                ? { ...detailedPrompt }
                 : p
             )
           );
         }
       },
       onError: (err) => {
-        console.error("[usePromptLab] Error fetching prompt details:", err);
+        console.error("[usePromptLab] [Error: QueryDetails] Error fetching prompt details:", err);
         setLocalError("Failed to load prompt details.");
-        setSelectedId(null);
+        setSelectedId(null); // Deselect if details fail to load
       },
     }
   );
@@ -169,50 +219,15 @@ export function usePromptLab(initialProjectId?: string): UsePromptLabHook {
   const [createPromptMutation] = useMutation(CREATE_PROMPT_MUTATION, {
     update(cache, { data: { createPrompt } }) {
       if (!createPrompt) return;
-      console.log('[usePromptLab] CREATE_PROMPT_MUTATION update cache for new prompt:', createPrompt.id);
-
-      const existingPromptsQuery = cache.readQuery<{
-        getProjectPrompts: Prompt[];
-      }>({
-        query: GET_PROJECT_PROMPTS_QUERY,
-        variables: { projectId },
-      });
-
-      if (existingPromptsQuery) {
-        cache.writeQuery({
-          query: GET_PROJECT_PROMPTS_QUERY,
-          variables: { projectId },
-          data: {
-            getProjectPrompts: [
-              {
-                id: createPrompt.id,
-                title: createPrompt.title,
-                description: createPrompt.description,
-                tags: createPrompt.tags,
-                isPublic: createPrompt.isPublic,
-                createdAt: createPrompt.createdAt,
-                updatedAt: createPrompt.updatedAt,
-                model: createPrompt.model,
-                projectId: createPrompt.projectId,
-                content: '',
-                context: '',
-                variables: [],
-                versions: [],
-                __typename: "Prompt",
-              },
-              ...existingPromptsQuery.getProjectPrompts,
-            ].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()),
-          },
-        });
-      }
+      console.log('[usePromptLab] [Trace: MutationCreateCache] CREATE_PROMPT_MUTATION update cache for new prompt:', createPrompt.id);
     },
     onCompleted: (data) => {
       if (data?.createPrompt) {
-        console.log('[usePromptLab] CREATE_PROMPT_MUTATION onCompleted. New prompt ID:', data.createPrompt.id);
+        console.log('[usePromptLab] [Trace: MutationCreateComplete] CREATE_PROMPT_MUTATION onCompleted. New prompt ID:', data.createPrompt.id);
         const newPrompt: Prompt = {
           id: data.createPrompt.id,
           title: data.createPrompt.title,
-          content: data.createPrompt.content,
+          content: (data.createPrompt.content && Array.isArray(data.createPrompt.content) ? data.createPrompt.content : []) as Block[],
           context: data.createPrompt.context,
           description: data.createPrompt.description,
           tags: data.createPrompt.tags,
@@ -222,14 +237,19 @@ export function usePromptLab(initialProjectId?: string): UsePromptLabHook {
           model: data.createPrompt.model,
           projectId: data.createPrompt.projectId,
           variables: data.createPrompt.variables.map((v: PromptVariable) => ({ ...v, id: v.id || cuid('db-var-') })),
-          versions: data.createPrompt.versions.map((v: Version) => ({ ...v, id: v.id || cuid('db-ver-') })),
+          versions: data.createPrompt.versions.map((v: any) => ({
+              ...v,
+              id: v.id || cuid('db-ver-'),
+              content: (v.content && Array.isArray(v.content) ? v.content : []) as Block[],
+          })),
         };
+        lastDetailedPromptData.current = newPrompt;
         setPrompts((prevPrompts) => [newPrompt, ...prevPrompts].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()));
-        selectPrompt(newPrompt.id);
+        selectPrompt(newPrompt.id); // Select the newly created prompt
       }
     },
     onError: (err) => {
-      console.error("[usePromptLab] Mutation Error: Create Prompt", err);
+      console.error("[usePromptLab] [Error: MutationCreate] Mutation Error: Create Prompt", err);
       setLocalError("Failed to create prompt.");
     },
   });
@@ -237,16 +257,7 @@ export function usePromptLab(initialProjectId?: string): UsePromptLabHook {
   const [updatePromptMutation] = useMutation(UPDATE_PROMPT_MUTATION, {
     onCompleted: (data) => {
       if (data?.updatePrompt) {
-        console.log('[usePromptLab] UPDATE_PROMPT_MUTATION onCompleted. Updated prompt ID:', data.updatePrompt.id, 'Title:', data.updatePrompt.title);
-        // This onCompleted fires AFTER the server response.
-        // We already have an optimistic update.
-        // The `selectPrompt(selectedId)` call here was likely causing the revert/stuck feeling.
-        // Apollo Client's cache normalization should automatically update the GET_PROMPT_DETAILS_QUERY
-        // if its fields are part of the UPDATE_PROMPT_MUTATION response.
-
-        // So, we only manually update prompts list fields if needed,
-        // but the main content/context/variables should be picked up by the selectedPrompt's useEffect
-        // reacting to the cache update for GET_PROMPT_DETAILS_QUERY.
+        console.log('[usePromptLab] [Trace: MutationUpdateComplete] UPDATE_PROMPT_MUTATION onCompleted. Updated prompt ID:', data.updatePrompt.id, 'Title:', data.updatePrompt.title);
         setPrompts((prevPrompts) =>
           prevPrompts.map((p) =>
             p.id === data.updatePrompt.id
@@ -258,152 +269,111 @@ export function usePromptLab(initialProjectId?: string): UsePromptLabHook {
                   isPublic: data.updatePrompt.isPublic,
                   model: data.updatePrompt.model,
                   updatedAt: data.updatePrompt.updatedAt,
-                  // Do NOT update content, context, variables here.
-                  // Let the GET_PROMPT_DETAILS_QUERY (triggered by selectPrompt) or Apollo cache handle it.
-                  // Only update list-view relevant fields.
-                  content: p.content, // Preserve previous content
-                  context: p.context, // Preserve previous context
-                  variables: p.variables, // Preserve previous variables
                 }
               : p
           ).sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
         );
-        // IMPORTANT: Removed selectPrompt(selectedId) here. This was causing a network-only re-fetch
-        // which could overwrite optimistic updates with older server data, leading to the "stuck" effect.
-        // Apollo's cache should handle the updates automatically.
       }
     },
     onError: (err) => {
-      console.error("[usePromptLab] Mutation Error: Update Prompt", err);
+      console.error("[usePromptLab] [Error: MutationUpdate] Mutation Error: Update Prompt", err);
       setLocalError("Failed to update prompt.");
-      // On error, revert to server state by refetching details or list
-      if (selectedId) selectPrompt(selectedId); // Re-fetch details to revert editor content to last known good server state
-      else refetchPromptsList(); // If no prompt selected, just refetch list
+      if (selectedId) selectPrompt(selectedId); // Re-select to potentially refresh details on error
+      else apolloRefetchPromptsList(); // Refetch list if no prompt is selected and update failed
     },
   });
 
   const [deletePromptMutation] = useMutation(DELETE_PROMPT_MUTATION, {
     update(cache, { data: { deletePrompt } }) {
       if (!deletePrompt) return;
-      console.log('[usePromptLab] DELETE_PROMPT_MUTATION update cache for deleted prompt:', deletePrompt.id);
-
-      const existingPrompts = cache.readQuery<{
-        getProjectPrompts: Prompt[];
-      }>({
-        query: GET_PROJECT_PROMPTS_QUERY,
-        variables: { projectId },
-      });
-
-      if (existingPrompts) {
-        cache.writeQuery({
-          query: GET_PROJECT_PROMPTS_QUERY,
-          variables: { projectId },
-          data: {
-            getProjectPrompts: existingPrompts.getProjectPrompts.filter(
-              (p) => p.id !== deletePrompt.id
-            ),
-          },
-        });
-      }
+      console.log('[usePromptLab] [Trace: MutationDeleteCache] DELETE_PROMPT_MUTATION update cache for deleted prompt:', deletePrompt.id);
     },
     onCompleted: (data) => {
       if (data?.deletePrompt.id) {
-        console.log('[usePromptLab] DELETE_PROMPT_MUTATION onCompleted. Deleted prompt ID:', data.deletePrompt.id);
+        console.log('[usePromptLab] [Trace: MutationDeleteComplete] DELETE_PROMPT_MUTATION onCompleted. Deleted prompt ID:', data.deletePrompt.id);
         setPrompts((prevPrompts) => prevPrompts.filter((p) => p.id !== data.deletePrompt.id));
         if (selectedId === data.deletePrompt.id) {
+          console.log('[usePromptLab] [Trace: MutationDeleteComplete] Deselecting deleted prompt.');
           setSelectedId(null);
+          lastDetailedPromptData.current = null;
+          // REMOVED: setShouldFetchList(true);
+          // Rely on triggerInitialPromptsFetch to explicitly reload the list later if needed.
         }
       }
     },
     onError: (err) => {
-      console.error("[usePromptLab] Mutation Error: Delete Prompt", err);
+      console.error("[usePromptLab] [Error: MutationDelete] Mutation Error: Delete Prompt", err);
       setLocalError("Failed to delete prompt.");
-      refetchPromptsList();
+      apolloRefetchPromptsList(); // Refetch list on error
     },
   });
 
   const [snapshotPromptMutation] = useMutation(SNAPSHOT_PROMPT_MUTATION, {
     onCompleted: (data) => {
       if (data?.snapshotPrompt) {
-        console.log('[usePromptLab] SNAPSHOT_PROMPT_MUTATION onCompleted. Prompt ID:', data.snapshotPrompt.id);
-        setPrompts((prevPrompts) =>
-          prevPrompts.map((p) =>
-            p.id === data.snapshotPrompt.id
-              ? {
-                  ...p,
-                  versions: data.snapshotPrompt.versions.map((v: Version) => ({ ...v, id: v.id || cuid('db-ver-') })),
-                  updatedAt: data.snapshotPrompt.updatedAt,
-                }
-              : p
-          ).sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
-        );
-        // This is a case where we *do* want to re-fetch details, as versions list is new.
+        console.log('[usePromptLab] [Trace: MutationSnapshotComplete] SNAPSHOT_PROMPT_MUTATION onCompleted. Prompt ID:', data.snapshotPrompt.id);
         if (selectedId === data.snapshotPrompt.id) {
-          console.log('[usePromptLab] SNAPSHOT_PROMPT_MUTATION: Re-selecting prompt to update versions list.');
-          selectPrompt(selectedId);
+          console.log('[usePromptLab] [Trace: MutationSnapshotComplete] Re-selecting prompt to refresh details after snapshot.');
+          selectPrompt(selectedId); // Trigger details refetch for the selected prompt
+        } else {
+             // If not selected, just update its updatedAt for list sorting purposes
+             setPrompts(prevPrompts => prevPrompts.map(p => p.id === data.snapshotPrompt.id ? {...p, updatedAt: data.snapshotPrompt.updatedAt} : p));
         }
       }
     },
     onError: (err) => {
-      console.error("[usePromptLab] Mutation Error: Snapshot Prompt", err);
+      console.error("[usePromptLab] [Error: MutationSnapshot] Mutation Error: Snapshot Prompt", err);
       setLocalError("Failed to save version.");
-      if (selectedId) selectPrompt(selectedId);
+      if (selectedId) selectPrompt(selectedId); // Re-select to potentially refresh details on error
     },
   });
 
   const [restorePromptVersionMutation] = useMutation(RESTORE_PROMPT_VERSION_MUTATION, {
     onCompleted: (data) => {
       if (data?.restorePromptVersion) {
-        console.log('[usePromptLab] RESTORE_PROMPT_VERSION_MUTATION onCompleted. Prompt ID:', data.restorePromptVersion.id);
-        setPrompts((prevPrompts) =>
-          prevPrompts.map((p) =>
-            p.id === data.restorePromptVersion.id
-              ? {
-                  ...p,
-                  content: data.restorePromptVersion.content,
-                  context: data.restorePromptVersion.context,
-                  variables: data.restorePromptVersion.variables.map((v: PromptVariable) => ({ ...v, id: v.id || cuid('db-var-') })),
-                  updatedAt: data.restorePromptVersion.updatedAt,
-                }
-              : p
-          )
-        );
-        // This is a case where we *do* want to re-fetch details, as content/context/variables change.
+        console.log('[usePromptLab] [Trace: MutationRestoreComplete] RESTORE_PROMPT_VERSION_MUTATION onCompleted. Prompt ID:', data.restorePromptVersion.id);
         if (selectedId === data.restorePromptVersion.id) {
-            console.log('[usePromptLab] RESTORE_PROMPT_VERSION_MUTATION: Re-selecting prompt to update editor content.');
-            selectPrompt(selectedId);
+            console.log('[usePromptLab] [Trace: MutationRestoreComplete] Re-selecting prompt to refresh details after restore.');
+            selectPrompt(selectedId); // Trigger details refetch for the selected prompt
+        } else {
+            // If not selected, just update its updatedAt for list sorting purposes
+            setPrompts(prevPrompts => prevPrompts.map(p => p.id === data.restorePromptVersion.id ? {...p, updatedAt: new Date().toISOString()} : p));
         }
       }
     },
     onError: (err) => {
-      console.error("[usePromptLab] Mutation Error: Restore Prompt Version", err);
+      console.error("[usePromptLab] [Error: MutationRestore] Mutation Error: Restore Prompt Version", err);
       setLocalError("Failed to restore version.");
-      if (selectedId) selectPrompt(selectedId);
+      if (selectedId) selectPrompt(selectedId); // Re-select to potentially refresh details on error
     },
   });
 
-
   useEffect(() => {
-    console.log('[usePromptLab] Root useEffect: Updating localLoading state. listLoading:', listLoading, 'detailsLoading:', detailsLoading, 'projectId:', projectId);
-    setLocalLoading(listLoading || detailsLoading || !projectId);
-  }, [listLoading, detailsLoading, projectId]);
+    console.log('[usePromptLab] [Trace: GlobalEffect] Updating localLoading state. listLoading:', listLoading, 'detailsLoading:', detailsLoading, 'projectId:', projectId, 'selectedId:', selectedId);
+    
+    // Determine overall loading state:
+    // Loading if list is loading AND no prompt is selected (library view)
+    // OR if details are loading AND a prompt IS selected (detail view)
+    const isLoadingListForLibrary = (listLoading && selectedId === null);
+
+    setLocalLoading( isLoadingListForLibrary || (detailsLoading && !!selectedId) );
+  }, [listLoading, detailsLoading, projectId, selectedId, prompts.length]);
 
   useEffect(() => {
     if (listError) {
-      console.error('[usePromptLab] Root useEffect: listError detected:', listError.message);
+      console.error('[usePromptLab] [Trace: GlobalEffect] listError detected:', listError.message);
       setLocalError(listError.message);
     }
   }, [listError]);
 
-
   const createPrompt = useCallback(
     async (): Promise<Prompt | undefined> => {
       setLocalError(null);
-      console.log('[usePromptLab] createPrompt: Initiating creation for projectId:', projectId);
+      console.log('[usePromptLab] [Trace: Create] createPrompt: Initiating creation for projectId:', projectId);
       try {
         const defaultPrompt: Omit<Prompt, 'id' | 'createdAt' | 'updatedAt' | 'user' | 'project' | 'versions'> = {
           title: 'Untitled Prompt',
-          content: '',
+          content: [],
           context: '',
           description: '',
           category: '',
@@ -421,10 +391,10 @@ export function usePromptLab(initialProjectId?: string): UsePromptLabHook {
         });
 
         if (data?.createPrompt) {
-          return {
+          const newPrompt: Prompt = {
             id: data.createPrompt.id,
             title: data.createPrompt.title,
-            content: data.createPrompt.content,
+            content: (data.createPrompt.content && Array.isArray(data.createPrompt.content) ? data.createPrompt.content : []) as Block[],
             context: data.createPrompt.context,
             description: data.createPrompt.description,
             tags: data.createPrompt.tags,
@@ -434,11 +404,16 @@ export function usePromptLab(initialProjectId?: string): UsePromptLabHook {
             model: data.createPrompt.model,
             projectId: data.createPrompt.projectId,
             variables: data.createPrompt.variables.map((v: PromptVariable) => ({ ...v, id: v.id || cuid('db-var-') })),
-            versions: data.createPrompt.versions.map((v: Version) => ({ ...v, id: v.id || cuid('db-ver-') })),
+            versions: data.createPrompt.versions.map((v: any) => ({
+              ...v,
+              id: v.id || cuid('db-ver-'),
+              content: (v.content && Array.isArray(v.content) ? v.content : []) as Block[],
+            })),
           };
+          return newPrompt;
         }
       } catch (err: any) {
-        console.error("[usePromptLab] Error creating prompt via GraphQL:", err);
+        console.error("[usePromptLab] [Error: CreateGraphQL] Error creating prompt via GraphQL:", err);
         setLocalError("Failed to create prompt.");
       }
       return undefined;
@@ -452,7 +427,7 @@ export function usePromptLab(initialProjectId?: string): UsePromptLabHook {
       updates: Partial<Omit<Prompt, 'id' | 'createdAt' | 'updatedAt' | 'user' | 'project' | 'versions'>>
     ) => {
       setLocalError(null);
-      console.log('[usePromptLab] updatePrompt: Optimistically updating prompt ID:', id, 'with:', updates);
+      console.log('[usePromptLab] [Trace: Update] updatePrompt: Optimistically updating prompt ID:', id, 'with keys:', Object.keys(updates));
 
       setPrompts((prev) => {
         const updatedPrompts = prev.map((p) =>
@@ -461,37 +436,51 @@ export function usePromptLab(initialProjectId?: string): UsePromptLabHook {
                 ...p,
                 ...updates,
                 updatedAt: new Date().toISOString(),
-                // Ensure variables are deeply updated if present in patch, preserving client-side IDs
+                content: updates.content ? (updates.content && Array.isArray(updates.content) ? updates.content : []) as Block[] : p.content,
                 variables: updates.variables ? updates.variables.map((v: Partial<PromptVariable>) => ({...v, id: v.id || cuid('patch-var-')})) as PromptVariable[] : p.variables,
               }
             : p
         );
-        // Ensure the array reference changes even if the content is "deeply equal" but the object itself is not
         const sorted = [...updatedPrompts].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-        console.log('[usePromptLab] updatePrompt: Prompts state optimistically updated. Selected prompt title:', sorted.find(p => p.id === id)?.title);
+        console.log('[usePromptLab] [Trace: UpdateOptimistic] Prompts state optimistically updated. Selected prompt title:', sorted.find(p => p.id === id)?.title);
+        
+        if (id === selectedId) {
+            const updatedSelectedPrompt = sorted.find(p => p.id === id);
+            if (updatedSelectedPrompt) {
+                // Ensure lastDetailedPromptData reflects the optimistic update
+                lastDetailedPromptData.current = updatedSelectedPrompt;
+                console.log('[usePromptLab] [Trace: UpdateOptimistic] lastDetailedPromptData updated for selected prompt.');
+            }
+        }
+
         return sorted;
       });
+
+      const filteredUpdates: Record<string, any> = {};
+      for (const key in updates) {
+        // @ts-ignore
+        if (updates[key] !== undefined && updates[key] !== null) {
+          if (key === 'content' && Array.isArray(updates[key]) && updates[key].length === 0) {
+            filteredUpdates[key] = updates[key];
+          } else {
+            // @ts-ignore
+            filteredUpdates[key] = updates[key];
+          }
+        }
+      }
 
       updatePromptMutation({
         variables: {
           input: {
             id,
-            title: updates.title,
-            content: updates.content,
-            context: updates.context,
-            description: updates.description,
-            category: updates.category,
-            tags: updates.tags,
-            isPublic: updates.isPublic,
-            model: updates.model,
-            variables: updates.variables,
+            ...filteredUpdates,
           },
         },
       }).catch((err) => {
-        console.error("[usePromptLab] Error updating prompt via GraphQL:", err);
+        console.error("[usePromptLab] [Error: UpdateGraphQL] Error updating prompt via GraphQL:", err);
         setLocalError("Failed to update prompt.");
         if (selectedId) selectPrompt(selectedId);
-        else refetchPromptsList();
+        else apolloRefetchPromptsList();
       });
     },
     [updatePromptMutation, selectedId, selectPrompt]
@@ -500,35 +489,37 @@ export function usePromptLab(initialProjectId?: string): UsePromptLabHook {
   const deletePrompt = useCallback(
     (id: string) => {
       setLocalError(null);
-      console.log('[usePromptLab] deletePrompt: Optimistically deleting prompt ID:', id);
+      console.log('[usePromptLab] [Trace: Delete] deletePrompt: Optimistically deleting prompt ID:', id);
       setPrompts((prev) => prev.filter((p) => p.id !== id));
       if (selectedId === id) {
-        console.log('[usePromptLab] deletePrompt: Deselecting deleted prompt.');
+        console.log('[usePromptLab] [Trace: DeleteOptimistic] Deselecting deleted prompt.');
         setSelectedId(null);
+        lastDetailedPromptData.current = null;
+        // REMOVED: setShouldFetchList(true); // Removed as it caused unintended list refetches.
       }
 
       deletePromptMutation({
         variables: { id },
       }).catch((err) => {
-        console.error("[usePromptLab] Error deleting prompt via GraphQL:", err);
+        console.error("[usePromptLab] [Error: DeleteGraphQL] Error deleting prompt via GraphQL:", err);
         setLocalError("Failed to delete prompt.");
-        refetchPromptsList();
+        apolloRefetchPromptsList();
       });
     },
-    [selectedId, deletePromptMutation, refetchPromptsList]
+    [selectedId, deletePromptMutation, apolloRefetchPromptsList] // Removed setShouldFetchList from dependencies
   );
 
   const snapshotPrompt = useCallback(
     (promptId: string, notes?: string) => {
       setLocalError(null);
-      console.log('[usePromptLab] snapshotPrompt: Initiating snapshot for prompt ID:', promptId);
+      console.log('[usePromptLab] [Trace: Snapshot] snapshotPrompt: Initiating snapshot for prompt ID:', promptId);
       snapshotPromptMutation({
         variables: {
           input: { promptId, notes: notes || `Version saved at ${new Date().toLocaleString()}` },
         },
       }).catch((err) => {
-        console.error("[usePromptLab] Error creating prompt snapshot via GraphQL:", err);
-        setLocalError("Failed to save prompt version.");
+        console.error("[usePromptLab] [Error: SnapshotGraphQL] Error creating prompt snapshot via GraphQL:", err);
+        setLocalError("Failed to save version.");
         if (selectedId) selectPrompt(selectedId);
       });
     },
@@ -538,14 +529,14 @@ export function usePromptLab(initialProjectId?: string): UsePromptLabHook {
   const restorePromptVersion = useCallback(
     (promptId: string, versionId: string) => {
       setLocalError(null);
-      console.log('[usePromptLab] restorePromptVersion: Initiating restore for prompt ID:', promptId, 'version ID:', versionId);
+      console.log('[usePromptLab] [Trace: Restore] restorePromptVersion: Initiating restore for prompt ID:', promptId, 'version ID:', versionId);
       restorePromptVersionMutation({
         variables: {
           input: { promptId, versionId },
         },
       }).catch((err) => {
-        console.error("[usePromptLab] Error restoring prompt version via GraphQL:", err);
-        setLocalError("Failed to restore prompt version.");
+        console.error("[usePromptLab] [Error: RestoreGraphQL] Error restoring prompt version via GraphQL:", err);
+        setLocalError("Failed to restore version.");
         if (selectedId) selectPrompt(selectedId);
       });
     },
@@ -555,13 +546,16 @@ export function usePromptLab(initialProjectId?: string): UsePromptLabHook {
   const selectedPrompt = useMemo(
     () => {
       const foundPrompt = prompts.find((p) => p.id === selectedId) || null;
-      console.log('[usePromptLab] selectedPrompt useMemo re-evaluated. Found:', !!foundPrompt, 'ID:', foundPrompt?.id, 'Title:', foundPrompt?.title);
+      console.log('[usePromptLab] [Trace: SelectedPromptMemo] selectedPrompt useMemo re-evaluated. Found:', !!foundPrompt, 'ID:', foundPrompt?.id, 'Title:', foundPrompt?.title);
+      if (foundPrompt && foundPrompt.id === lastDetailedPromptData.current?.id) {
+          return lastDetailedPromptData.current;
+      }
       return foundPrompt;
     },
     [prompts, selectedId]
   );
 
-  console.log('[usePromptLab] Rendered. Prompts count:', prompts.length, 'Selected ID:', selectedId);
+  console.log('[usePromptLab] [Trace: Render] Rendered. Prompts count:', prompts.length, 'Selected ID:', selectedId, 'Local Loading:', localLoading);
   return {
     prompts,
     selectedPrompt,
@@ -573,7 +567,8 @@ export function usePromptLab(initialProjectId?: string): UsePromptLabHook {
     snapshotPrompt,
     restorePromptVersion,
     selectPrompt,
-    refetchPromptsList,
+    refetchPromptsList: apolloRefetchPromptsList,
+    triggerInitialPromptsFetch, // Now the explicit way to get the list
     projectId,
   };
 }

@@ -136,6 +136,7 @@ export function VariableDiscoveryBuilder({
   const getEntityDefinition = useCallback((entityType: PromptVariableSource['entityType']) => {
     switch (entityType) {
       case 'PROJECT': return {
+        label: 'Project',
         fields: [
           { value: 'name', label: 'Project Name', type: PromptVariableType.STRING, description: 'The name of the current project.' },
           { value: 'description', label: 'Project Description', type: PromptVariableType.RICH_TEXT, description: 'The detailed description of the current project.' },
@@ -147,8 +148,10 @@ export function VariableDiscoveryBuilder({
         ],
         aggregations: [], // Project is a single entity, no direct aggregations on it
         defaultFormat: null,
+        filters: [], // Project entity itself usually not filtered here
       };
       case 'TASK': return {
+        label: 'Task',
         fields: [
           { value: 'title', label: 'Task Title', type: PromptVariableType.STRING, description: 'The title of the task.' },
           { value: 'description', label: 'Task Description', type: PromptVariableType.RICH_TEXT, description: 'The detailed description of the task.' },
@@ -176,12 +179,13 @@ export function VariableDiscoveryBuilder({
         defaultFormat: 'BULLET_POINTS',
         filters: [
             { field: 'status', label: 'Status Is', type: 'select', options: ['TODO', 'DONE'] },
-            { field: 'assigneeId', label: 'Assigned To', type: 'special', specialValue: 'CURRENT_USER_ID' },
+            { field: 'assigneeId', label: 'Assigned To Current User', type: 'special', specialValue: 'CURRENT_USER_ID' },
             { field: 'completed', label: 'Is Completed', type: 'boolean' },
             { field: 'priority', label: 'Priority Is', type: 'select', options: ['LOW', 'MEDIUM', 'HIGH'] },
         ]
       };
       case 'SPRINT': return {
+        label: 'Sprint',
         fields: [
           { value: 'name', label: 'Sprint Name', type: PromptVariableType.STRING, description: 'The name of the sprint.' },
           { value: 'description', label: 'Sprint Description', type: PromptVariableType.RICH_TEXT, description: 'The detailed description of the sprint.' },
@@ -199,10 +203,11 @@ export function VariableDiscoveryBuilder({
         filters: [
             { field: 'status', label: 'Status Is', type: 'select', options: ['PLANNING', 'ACTIVE', 'COMPLETED'] },
             { field: 'isCompleted', label: 'Is Completed', type: 'boolean' },
-            { field: 'specialValue', label: 'Is Active Sprint', type: 'special', specialValue: 'ACTIVE_SPRINT' },
+            { field: 'specialValue', label: 'Is Currently Active', type: 'special', specialValue: 'ACTIVE_SPRINT' },
         ]
       };
       case 'DOCUMENT': return {
+        label: 'Document',
         fields: [
           { value: 'title', label: 'Document Title', type: PromptVariableType.STRING, description: 'The title of the document.' },
           { value: 'content', label: 'Document Content', type: PromptVariableType.RICH_TEXT, description: 'The rich-text content of the document.' },
@@ -215,8 +220,10 @@ export function VariableDiscoveryBuilder({
           { value: 'LAST_UPDATED_FIELD_VALUE', label: 'Last Updated Document Content', aggregationField: 'content', resultType: PromptVariableType.RICH_TEXT, description: 'Content of the most recently updated document.' },
         ],
         defaultFormat: 'BULLET_POINTS',
+        filters: []
       };
       case 'MEMBER': return { // Project Members
+        label: 'Member',
         fields: [
           { value: 'user.firstName', label: 'Member First Name', type: PromptVariableType.STRING, description: 'First name of the project member.' },
           { value: 'user.lastName', label: 'Member Last Name', type: PromptVariableType.STRING, description: 'Last name of the project member.' },
@@ -234,6 +241,7 @@ export function VariableDiscoveryBuilder({
         ]
       };
       case 'WORKSPACE': return {
+        label: 'Workspace',
         fields: [
           { value: 'name', label: 'Workspace Name', type: PromptVariableType.STRING, description: 'The name of the workspace.' },
           { value: 'description', label: 'Workspace Description', type: PromptVariableType.RICH_TEXT, description: 'The description of the workspace.' },
@@ -245,8 +253,10 @@ export function VariableDiscoveryBuilder({
         ],
         aggregations: [],
         defaultFormat: null,
+        filters: []
       };
       case 'USER': return { // Current User
+        label: 'User',
         fields: [
           { value: 'firstName', label: 'My First Name', type: PromptVariableType.STRING, description: 'The first name of the current user.' },
           { value: 'lastName', label: 'My Last Name', type: PromptVariableType.STRING, description: 'The last name of the current user.' },
@@ -255,22 +265,25 @@ export function VariableDiscoveryBuilder({
         ],
         aggregations: [],
         defaultFormat: null,
+        filters: []
       };
       case 'DATE_FUNCTION': return {
+        label: 'Date Function',
         fields: [
           { value: 'today', label: 'Today\'s Date', type: PromptVariableType.DATE, description: 'The current date.' },
         ],
         aggregations: [],
         defaultFormat: null,
+        filters: []
       };
-      default: return { fields: [], aggregations: [], defaultFormat: null };
+      default: return { label: 'Unknown', fields: [], aggregations: [], defaultFormat: null, filters: [] };
     }
   }, []);
 
   // Helper to construct PromptVariableSource based on selections
   const buildPromptVariableSource = useCallback((
     entityType: PromptVariableSource['entityType'] | null,
-    field: string | null,
+    field: string | null = null,
     aggregation: PromptVariableSource['aggregation'] | null = null,
     aggregationField: string | null = null,
     format: PromptVariableSource['format'] | null = null,
@@ -545,9 +558,14 @@ export function VariableDiscoveryBuilder({
   }, [tempVariableName, tempVariablePlaceholder, tempVariableType]);
 
 
-  const selectedEntityDef = selectedCategoryInExplorer 
-    ? getEntityDefinition(selectedCategoryInExplorer as PromptVariableSource['entityType']) 
-    : { fields: [], aggregations: [], defaultFormat: null, filters: [] };
+  // IMPORTANT: Move selectedEntityDef declaration here to ensure it's always in scope
+  const selectedEntityDef = useMemo(() => {
+    if (!selectedCategoryInExplorer) {
+        return { label: 'Unknown', fields: [], aggregations: [], defaultFormat: null, filters: [] };
+    }
+    return getEntityDefinition(selectedCategoryInExplorer as PromptVariableSource['entityType']);
+  }, [selectedCategoryInExplorer, getEntityDefinition]);
+
 
   const availableAggregationFields = useMemo(() => {
     if (!selectedAggregation || !selectedCategoryInExplorer) return [];
@@ -676,7 +694,7 @@ export function VariableDiscoveryBuilder({
                                 return (
                                   <CommandItem
                                     key={cat.value}
-                                    onSelect={() => {
+                                    onSelect={() => { // MODIFIED: Simplified onSelect
                                       setSelectedCategoryInExplorer(cat.value);
                                       setSelectedFieldInExplorer(null);
                                       setSelectedAggregation(null);
@@ -696,7 +714,7 @@ export function VariableDiscoveryBuilder({
                               })}
                                 <CommandItem
                                     key="DATE_FUNCTION" // Changed from 'date_function' to 'DATE_FUNCTION'
-                                    onSelect={() => {
+                                    onSelect={() => { // MODIFIED: Simplified onSelect
                                       setSelectedCategoryInExplorer('DATE_FUNCTION');
                                       setSelectedFieldInExplorer(null);
                                       setSelectedAggregation(null);
@@ -749,7 +767,7 @@ export function VariableDiscoveryBuilder({
                                                     setSelectedAggregation(aggOption.value);
                                                     setSelectedAggregationField(aggOption.aggregationField || null);
                                                     setSelectedFieldInExplorer(null); // Clear field selection if an aggregation is selected
-                                                    setSelectedFormat(aggOption.resultType === PromptVariableType.LIST_OF_STRINGS ? (entityDef.defaultFormat || 'BULLET_POINTS') : null); // Set default format if applicable
+                                                    setSelectedFormat(aggOption.resultType === PromptVariableType.LIST_OF_STRINGS ? (selectedEntityDef.defaultFormat || 'BULLET_POINTS') : null); // Set default format if applicable
                                                 }}
                                                 className={cn(
                                                     "cursor-pointer",
