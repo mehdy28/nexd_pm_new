@@ -50,10 +50,10 @@ export type PromptVariable = {
   source?: PromptVariableSource | null; // NEW: How this variable's value is derived from project data
 };
 
-// NEW: Type for content blocks (moved from prompt-lab.tsx)
+// UPDATED: Type for content blocks to include __typename
 export type Block =
-  | { type: 'text'; id: string; value: string }
-  | { type: 'variable'; id: string; varId: string; placeholder: string; name: string }
+  | { type: 'text'; id: string; value: string; __typename: 'ContentBlock' }
+  | { type: 'variable'; id: string; varId: string; placeholder: string; name: string; __typename: 'ContentBlock' }
 
 export type Version = {
   id: string;
@@ -151,9 +151,11 @@ const usePromptLabStore = create<PromptLabState>()(
         set((state) => ({
           prompts: state.prompts.map((p) => {
             if (p.id === id) {
+              // Ensure that `p.content` blocks also carry `__typename` for new versions
+              const contentWithTypename: Block[] = p.content.map(block => ({ ...block, __typename: 'ContentBlock' }));
               const newVersion: Version = {
                 id: Math.random().toString(36).slice(2),
-                content: p.content, // Now copies Block[]
+                content: contentWithTypename, // Now copies Block[]
                 context: p.context,
                 notes,
                 createdAt: Date.now(),
@@ -175,9 +177,11 @@ const usePromptLabStore = create<PromptLabState>()(
             if (p.id === promptId) {
               const versionToRestore = p.versions.find((v) => v.id === versionId);
               if (versionToRestore) {
+                // Ensure restored content blocks also have __typename if they didn't before
+                const restoredContentWithTypename: Block[] = versionToRestore.content.map(block => ({ ...block, __typename: 'ContentBlock' }));
                 return {
                   ...p,
-                  content: versionToRestore.content, // Now copies Block[]
+                  content: restoredContentWithTypename, // Now copies Block[]
                   context: versionToRestore.context,
                   updatedAt: Date.now(),
                   // Optionally, you might create a new version after restore indicating it was a restore operation

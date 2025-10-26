@@ -2,6 +2,7 @@
 'use client'
 
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react"
+// Assuming Prompt and Version from store.ts are also updated to include __typename if necessary
 import { PromptVariableType, type Prompt, type Version, type PromptVariable, type PromptVariableSource } from '@/components/prompt-lab/store';
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -27,6 +28,10 @@ function deepCompareBlocks(arr1: Block[], arr2: Block[]): boolean {
     const b1 = arr1[i];
     const b2 = arr2[i];
 
+    // Note: We are no longer comparing __typename here, as the backend doesn't want it.
+    // However, if the client-side rendering *needs* __typename for type discrimination,
+    // ensure it's handled in the UI logic, but stripped before sending to backend.
+    
     if (b1.type !== b2.type) {
       console.log(`[deepCompareBlocks] Block ${i}: Different types`, b1.type, b2.type);
       return false;
@@ -204,6 +209,24 @@ export function PromptLab({ prompt, onBack, projectId }: { prompt: Prompt; onBac
     }
     if (patch.content && Array.isArray(patch.content)) {
         console.log('[PromptLab] [Trace: HandleUpdate] Content patch is an array of blocks, ensuring correct type.');
+        
+        // NEW FIX: Filter out null/undefined fields AND __typename before sending
+        const cleanedContent = patch.content.map(block => {
+          // Destructure __typename out of the block, and then conditionally omit other fields
+          const { __typename, ...blockWithoutTypename } = block;
+
+          if (blockWithoutTypename.type === 'text') {
+            const { varId, placeholder, name, ...rest } = blockWithoutTypename; // Omit variable-specific fields
+            return rest;
+          } else if (blockWithoutTypename.type === 'variable') {
+            const { value, ...rest } = blockWithoutTypename; // Omit text-specific fields
+            return rest;
+          }
+          return blockWithoutTypename; // Should not happen if types are strictly followed
+        });
+
+        console.log('[PromptLab] [Trace: HandleUpdate] Sending cleaned content payload:', JSON.stringify(cleanedContent, null, 2)); // Log actual content payload
+        patch.content = cleanedContent as unknown as Block[]; // Cast back, as Block type still expects __typename
     }
     updatePromptDetails(prompt.id, patch);
   }, [prompt.id, updatePromptDetails]);
@@ -466,9 +489,10 @@ function VariableItem({ variable, onRemove }: { variable: PromptVariable; onRemo
 
 /* ---------- BLOCK-BASED EDITOR ---------- */
 
+// Block type definition (in prompt-lab.tsx, this should match store.ts for consistency)
 type Block =
-  | { type: 'text'; id: string; value: string }
-  | { type: 'variable'; id: string; varId: string; placeholder: string; name: string }
+  | { type: 'text'; id: string; value: string; __typename: 'ContentBlock' }
+  | { type: 'variable'; id: string; varId: string; placeholder: string; name: string; __typename: 'ContentBlock' }
 
 /* ---------- EditorPanel: Enhanced Prompt Creation ---------- */
 function EditorPanel({
@@ -523,10 +547,10 @@ function EditorPanel({
             console.log(`[EditorPanel ${componentId}] [Trace: Effect_PromptSync] New prompt ID detected or initial data load. Resetting all local states.`);
             
             const initialBlocksFromProp: Block[] = (prompt.content && Array.isArray(prompt.content) ? prompt.content : []) as Block[];
-            // Ensure there's at least one empty text block if content is initially empty
-            const normalizedInitialBlocks = initialBlocksFromProp.filter(b => !(b.type === 'text' && b.value === '')).length > 0
-                                            ? initialBlocksFromProp
-                                            : [{ type: 'text', id: cuid('t-initial-empty'), value: '' }];
+            // Ensure there's at least one empty text block if content is initially empty, and add __typename
+            const normalizedInitialBlocks = initialBlocksFromProp.length > 0
+                                            ? initialBlocksFromProp.map(b => ({ ...b, __typename: 'ContentBlock' })) as Block[] // Ensure __typename is added
+                                            : [{ type: 'text', id: cuid('t-initial-empty'), value: '', __typename: 'ContentBlock' }]; // Add __typename here too
             
             setBlocks(normalizedInitialBlocks);
             setLocalTitle(prompt.title);
@@ -572,11 +596,11 @@ function EditorPanel({
             }
 
             const currentPropContent = (prompt.content && Array.isArray(prompt.content) ? prompt.content : []) as Block[];
-            const normalizedCurrentPropContent = currentPropContent.filter(b => !(b.type === 'text' && b.value === '')).length > 0
-                                                    ? currentPropContent
-                                                    : [{ type: 'text', id: cuid('t-normalized-empty-sync'), value: '' }];
+            const normalizedCurrentPropContent = currentPropContent.length > 0
+                                                    ? currentPropContent.map(b => ({ ...b, __typename: 'ContentBlock' })) as Block[] // Ensure __typename is added
+                                                    : [{ type: 'text', id: cuid('t-normalized-empty-sync'), value: '', __typename: 'ContentBlock' }]; // Add __typename here too
 
-            if (!deepCompareBlocks(blocks, normalizedCurrentPropContent) && !deepCompareBlocks(lastKnownPropValues.current.content, normalizedCurrentPropContent)) {
+            if (!deepCompareBlocks(blocks, normalizedCurrentPropContent) && !deepCompareBlocks(lastKnownPropValues.current.content, normalizedCurrentCurrentPromptContent)) {
                 console.log(`[EditorPanel ${componentId}] [Trace: Effect_PromptSync] Prop content updated, updating blocks state.`);
                 setBlocks(normalizedCurrentPropContent);
                 lastKnownPropValues.current.content = normalizedCurrentPropContent;
@@ -618,9 +642,9 @@ function EditorPanel({
     }
 
     const currentPropContent = (prompt.content && Array.isArray(prompt.content) ? prompt.content : []) as Block[];
-    const normalizedCurrentPropContent = currentPropContent.filter(b => !(b.type === 'text' && b.value === '')).length > 0
-                                            ? currentPropContent
-                                            : [{ type: 'text', id: cuid('t-normalized-empty-debounced'), value: '' }];
+    const normalizedCurrentPropContent = currentPropContent.length > 0
+                                            ? currentPropContent.map(b => ({ ...b, __typename: 'ContentBlock' })) as Block[] // Ensure __typename is added
+                                            : [{ type: 'text', id: cuid('t-normalized-empty-debounced'), value: '', __typename: 'ContentBlock' }]; // Add __typename here too
 
     if (!deepCompareBlocks(normalizedCurrentPropContent, debouncedBlocks) && !deepCompareBlocks(lastKnownPropValues.current.content, debouncedBlocks)) {
       console.log(`[EditorPanel ${componentId}] [Trace: Effect_DebouncedBlocks] Debounced blocks differ from prop content AND last known sent value. Calling onUpdate. Debounced:`, debouncedBlocks, "Prop:", normalizedCurrentPropContent, "LastSent:", lastKnownPropValues.current.content);
@@ -694,7 +718,7 @@ function EditorPanel({
     if (debouncedLocalModel !== prompt.model && debouncedLocalModel !== lastKnownPropValues.current.model) {
       console.log(`[EditorPanel ${componentId}] [Trace: Effect_DebouncedModel] Debounced model "${debouncedLocalModel}" differs from prop model "${prompt.model}" AND last sent. Calling onUpdate.`);
       onUpdate({ model: debouncedLocalModel });
-      lastKnownPropValues.current.model = debouncedLocalModel; // Update ref after sending
+      lastKnownPropValues.current.model = debouncedLocalModel; // Optimistically update ref after sending
     } else {
       console.log(`[EditorPanel ${componentId}] [Trace: Effect_DebouncedModel] Debounced model matches prop model OR last sent value. No update needed.`);
     }
@@ -704,7 +728,7 @@ function EditorPanel({
   const insertVariableAt = useCallback((index: number, variable: { placeholder: string; id: string; name: string }) => {
     setBlocks(prev => {
       let copy = [...prev];
-      const newVarBlock: Block = { type: 'variable', id: cuid('v-'), varId: variable.id, placeholder: variable.placeholder, name: variable.name };
+      const newVarBlock: Block = { type: 'variable', id: cuid('v-'), varId: variable.id, placeholder: variable.placeholder, name: variable.name, __typename: 'ContentBlock' }; // Added __typename
       
       copy.splice(index, 0, newVarBlock);
       logBlocks(`After directly inserting variable "${variable.placeholder}" at index ${index}`, copy);
@@ -716,7 +740,7 @@ function EditorPanel({
   const insertTextAt = useCallback((index: number, text = '') => {
     setBlocks(prev => {
       let copy = [...prev];
-      const newBlock: Block = { type: 'text', id: cuid('t-'), value: text }
+      const newBlock: Block = { type: 'text', id: cuid('t-'), value: text, __typename: 'ContentBlock' } // Added __typename
 
       copy.splice(index, 0, newBlock)
       logBlocks(`After directly inserting text block at index ${index}`, copy);
@@ -742,13 +766,13 @@ function EditorPanel({
              updated = updated.filter(b => !(b.type === 'text' && b.id === id));
              if (updated.length === 0) {
                 console.log('[EditorPanel] [Trace: UpdateTextBlock] All blocks removed, adding empty fallback after text block update.');
-                updated.push({ type: 'text', id: cuid('t-empty-fallback-after-update'), value: '' });
+                updated.push({ type: 'text', id: cuid('t-empty-fallback-after-update'), value: '', __typename: 'ContentBlock' }); // Added __typename
              }
         }
         // If after update, all blocks are gone (e.g., removing the last variable block), add an empty text block
         else if (updated.length === 0) {
             console.log('[EditorPanel] [Trace: UpdateTextBlock] All blocks removed, adding empty fallback (safeguard).');
-            updated.push({ type: 'text', id: cuid('t-empty-fallback-safeguard'), value: '' });
+            updated.push({ type: 'text', id: cuid('t-empty-fallback-safeguard'), value: '', __typename: 'ContentBlock' }); // Added __typename
         }
 
 
@@ -772,7 +796,7 @@ function EditorPanel({
       // Ensure there's always at least one text block if the list becomes empty
       if (copy.length === 0) {
         console.log('[EditorPanel] [Trace: RemoveBlock] No blocks left, adding empty fallback.');
-        copy.push({ type: 'text', id: cuid('t-empty-after-remove'), value: '' });
+        copy.push({ type: 'text', id: cuid('t-empty-after-remove'), value: '', __typename: 'ContentBlock' }); // Added __typename
       }
 
       logBlocks(`After removing block at index ${index}`, copy);
@@ -1000,6 +1024,7 @@ function BlockRenderer({
   insertTextAt: (index: number, text?: string) => void;
   componentId: string; // Add componentId prop
 }) {
+  // FIX: Initialize with null, not the variable itself
   const contentEditableRef = useRef<HTMLDivElement | null>(null);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
 
@@ -1030,6 +1055,9 @@ function BlockRenderer({
       name: block.type === 'variable' ? block.name : undefined,
       varId: block.type === 'variable' ? block.varId : undefined,
       originalBlock: block,
+      // Omit __typename when dragging. The drag layer might not need it,
+      // and it's best to keep payloads clean.
+      // __typename: block.__typename, 
     },
     canDrag: (monitor) => {
       console.log(`[BlockRenderer ${block.id}] [Trace: DragCanDrag] Can drag check. Item: ${block.type}.`);
@@ -1041,7 +1069,7 @@ function BlockRenderer({
         console.log(`[BlockRenderer ${block.id}] [Trace: DragCollect] isDragging: ${dragging}, canDrag: ${currentCanDrag}`);
         return { isDragging: dragging, canDrag: currentCanDrag };
     },
-  }), [block.id, index, block.type, block.value, block.placeholder, block.name, block.varId]);
+  }), [block.id, index, block.type, block.value, block.placeholder, block.name, block.varId]); // Removed block.__typename from deps
 
   const connectDragSource = useCallback((node: HTMLElement | null) => {
     dragRef(node);
@@ -1336,7 +1364,7 @@ function CustomDragLayer() {
   const renderItem = () => {
     switch (itemType) {
       case ItemTypes.VARIABLE:
-        const variableItem = item as { id: string; placeholder: string; name?: string };
+        const variableItem = item as { id: string; placeholder: string; name?: string; __typename?: string };
         return (
           <div className="bg-blue-200 border border-blue-400 rounded-md px-3 py-1 shadow-md opacity-90">
             <span className="font-semibold">{variableItem.name || variableItem.placeholder}</span>
@@ -1347,10 +1375,13 @@ function CustomDragLayer() {
         const blockItem = item as { originalBlock: Block };
         const blockToRender = blockItem.originalBlock;
 
-        if (blockToRender.type === 'variable') {
+        // Omit __typename for consistency with what's being sent to backend in mutation
+        const { __typename: _, ...blockRenderData } = blockToRender;
+
+        if (blockRenderData.type === 'variable') {
           return (
             <div className="flex items-center justify-between p-2 bg-blue-50 border border-blue-200 rounded-md shadow-md opacity-90">
-              <div className="text-sm font-medium">{blockToRender.name || blockToRender.placeholder}</div>
+              <div className="text-sm font-medium">{blockRenderData.name || blockRenderData.placeholder}</div>
             </div>
           );
         } else { // Text block
@@ -1360,7 +1391,7 @@ function CustomDragLayer() {
                   className="flex-1 min-h-[40px] text-sm w-full whitespace-pre-wrap"
                   style={{ minWidth: '100px', maxWidth: '300px' }}
               >
-                  {blockToRender.value.substring(0, Math.min(blockToRender.value.length, 100)) + (blockToRender.value.length > 100 ? '...' : '')}
+                  {blockRenderData.value.substring(0, Math.min(blockRenderData.value.length, 100)) + (blockRenderData.value.length > 100 ? '...' : '')}
               </div>
             </div>
           );
@@ -1429,7 +1460,11 @@ function VersionsPanel({
             <label className="block text-sm font-medium mb-1">Version Content</label>
             <Textarea
                 readOnly
-                value={JSON.stringify(selectedVersion.content, null, 2) || ''} // Pretty print for debugging
+                // Omit __typename when displaying raw JSON to avoid confusion if backend doesn't use it
+                value={JSON.stringify(selectedVersion.content.map(b => {
+                  const { __typename, ...rest } = b;
+                  return rest;
+                }), null, 2) || ''} // Pretty print for debugging
                 rows={10}
                 className="font-mono overflow-y-auto bg-gray-50 dark:bg-gray-800"
                 placeholder="No content available for this version."
@@ -1464,3 +1499,4 @@ function VersionsPanel({
     </div>
   )
 }
+
