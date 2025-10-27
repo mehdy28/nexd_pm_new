@@ -1,73 +1,1892 @@
-// components/prompt-lab/prompt-lab.tsx
-'use client'
+Thank you for providing the files. This gives a complete picture of your current setup.
 
-import React, { useEffect, useMemo, useRef, useState, useCallback } from "react"
-import { PromptVariableType, type Prompt, type Version, type PromptVariable, type PromptVariableSource } from '@/components/prompt-lab/store';
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
-import { Button } from "@/components/ui/button"
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
-import { Copy, Plus, GitCommit, Text, Trash2, GripVertical, Loader2 } from "lucide-react"
-import { DndProvider, useDrag, useDrop, useDragLayer } from 'react-dnd'
-import { HTML5Backend } from 'react-dnd-html5-backend'
-import { Tab } from "@headlessui/react"
-import { VariableDiscoveryBuilder } from "./variable-discovery-builder"
-import { toast } from 'sonner';
-import { useDebounce } from 'use-debounce';
-import { usePromptDetails } from "@/hooks/usePromptDetails";
+Here's the plan to implement the requested features:
 
+**1. Database Schema (`prisma/schema.prisma`) Modification:**
+   *   Add a `description` field to the `Version` structure within the `Prompt` model's `versions` JSON field. Since `versions` is `Json`, we don't add a new Prisma field, but rather update the *expected structure* of the JSON blob. This is important: Prisma itself won't validate `description` at the database level, but our application will assume its presence within the JSON.
 
-// Utility for deep comparison of arrays of objects (used in EditorPanel's useEffect)
-function deepCompareBlocks(arr1: Block[], arr2: Block[]): boolean {
-  if (arr1.length !== arr2.length) {
-    console.log('[deepCompareBlocks] Different lengths: ', arr1.length, arr2.length);
-    return false;
-  }
-  for (let i = 0; i < arr1.length; i++) {
-    const b1 = arr1[i];
-    const b2 = arr2[i];
+**2. GraphQL Schema (`graphql/schema/schema.graphql`) Modification:**
+   *   Add a `description: String` field to the `Version` type.
+   *   Add a `description: String` field to the `CreateVersionInput`.
 
-    if (b1.type !== b2.type) {
-      console.log(`[deepCompareBlocks] Block ${i}: Different types`, b1.type, b2.type);
-      return false;
-    }
+**3. `usePromptDetails` Hook (`hooks/usePromptDetails.ts`) Modification:**
+   *   No direct changes needed here for the `snapshotPrompt` call, as it already passes `notes`. The resolver will handle assigning `notes` to the correct field.
+   *   Adjust the `Version` mapping in `onCompleted` to include the `description`.
 
-    if (b1.type === 'text') {
-      // @ts-ignore
-      if (b1.value !== b2.value) {
-        // @ts-ignore
-        console.log(`[deepCompareBlocks] Block ${i} (text): Different values`, b1.value, b2.value);
-        return false;
+**4. Resolvers (`graphql/resolvers/promptResolver.ts`) Modification:**
+   *   **`snapshotPrompt`:** This resolver currently stores the `notes` in the `Version` object. We will continue to use `notes` for the title of the version. The description part will be handled by adding a new `UpdateVersionDescriptionInput` and a `updateVersionDescription` mutation and resolver.
+   *   **New Mutation: `updateVersionDescription`:** Create a new mutation that allows updating the `description` for a specific `Version` within a `Prompt`. This will involve finding the `Prompt`, finding the specific `Version` within its `versions` array, updating the `description`, and then saving the updated `versions` array back to the `Prompt`.
+
+**5. `components/prompt-lab/prompt-lab.tsx` Modification:**
+   *   **Editor Panel:** Ensure `pendingNotes` is correctly passed to `onSnapshot`.
+   *   **Versions Panel:**
+        *   Display the `notes` as the version name/title.
+        *   Add a `Textarea` for the `description` field.
+        *   Implement local state for the `description` and a debounce mechanism to save it.
+        *   Integrate a new `updateVersionDescription` mutation (which we'll define) to persist changes.
+
+Let's start with the schema and resolver changes.
+
+---
+
+Here are the adjusted files:
+
+**1. `graphql/mutations/promptRelatedMutations.ts` (ADD `UPDATE_VERSION_DESCRIPTION_MUTATION`)**
+**2. `graphql/resolvers/promptResolver.ts` (UPDATE `snapshotPrompt` and ADD `updateVersionDescription`)**
+**3. `graphql/schema/schema.graphql` (UPDATE `Version` type and ADD `UpdateVersionDescriptionInput` and `updateVersionDescription` mutation)**
+**4. `hooks/usePromptDetails.ts` (UPDATE `Version` mapping and ADD `updateVersionDescription` mutation handling)**
+
+---
+
+### Adjusted Files:
+
+**1. `graphql/mutations/promptRelatedMutations.ts`**
+
+```typescript
+// graphql/mutations/promptRelatedMutations.ts
+import { gql } from 'graphql-tag'; // Or your equivalent for GQL mutations
+
+// --- Prompt Mutations ---
+
+export const CREATE_PROMPT_MUTATION = gql`
+  mutation CreatePrompt($input: CreatePromptInput!) {
+    createPrompt(input: $input) {
+      id
+      title
+      content { # Now expecting ContentBlock subfields
+        id
+        type
+        value
+        varId
+        placeholder
+        name
+          
       }
-    } else if (b1.type === 'variable') {
-      // @ts-ignore
-      if (b1.varId !== b2.varId || b1.placeholder !== b2.placeholder || b1.name !== b2.name) {
-        // @ts-ignore
-        console.log(`[deepCompareBlocks] Block ${i} (variable): Different identity`, {b1_varId: b1.varId, b1_ph: b1.placeholder, b1_name: b1.name}, {b2_varId: b2.varId, b2_ph: b2.placeholder, b2_name: b2.name});
-        return false;
+      context
+      description
+      category
+      tags
+      isPublic
+      createdAt
+      updatedAt
+      model
+      projectId
+      variables {
+        id
+        name
+        placeholder
+        type
+        defaultValue
+        source
+      }
+      versions {
+        id
+        createdAt
+        notes
+        description # ADDED: Request description for new versions
       }
     }
   }
-  console.log('[deepCompareBlocks] Blocks are semantically identical.');
-  return true;
+`;
+
+export const UPDATE_PROMPT_MUTATION = gql`
+  mutation UpdatePrompt($input: UpdatePromptInput!) {
+    updatePrompt(input: $input) {
+      id
+      title
+      content { # CHANGED: Requesting subfields for ContentBlock
+        id
+        type
+        value
+        varId
+        placeholder
+        name
+          
+      }
+      context
+      description
+      tags
+      isPublic
+      updatedAt
+      model
+      variables { # Return updated variables
+        id
+        name
+        placeholder
+        type
+        defaultValue
+        source
+      }
+    }
+  }
+`;
+
+export const DELETE_PROMPT_MUTATION = gql`
+  mutation DeletePrompt($id: ID!) {
+    deletePrompt(id: $id) {
+      id
+    }
+  }
+`;
+
+export const SNAPSHOT_PROMPT_MUTATION = gql`
+  mutation SnapshotPrompt($input: SnapshotPromptInput!) {
+    snapshotPrompt(input: $input) {
+      id
+      versions { # Return all versions to update UI
+        id
+        content { # Now expecting ContentBlock subfields
+          id
+          type
+          value
+          varId
+          placeholder
+          name
+        }
+        context
+        variables {
+          id
+          name
+          placeholder
+          type
+          defaultValue
+          source
+        }
+        createdAt
+        notes
+        description # ADDED: Request description for snapped versions
+      }
+    }
+  }
+`;
+
+export const RESTORE_PROMPT_VERSION_MUTATION = gql`
+  mutation RestorePromptVersion($input: RestorePromptVersionInput!) {
+    restorePromptVersion(input: $input) {
+      id
+      content { # Now expecting ContentBlock subfields
+        id
+        type
+        value
+        varId
+        placeholder
+        name
+      }
+      context
+      variables { # Return updated content and variables
+        id
+        name
+        placeholder
+        type
+        defaultValue
+        source
+      }
+    }
+  }
+`;
+
+// NEW: Mutation for updating a specific version's description
+export const UPDATE_VERSION_DESCRIPTION_MUTATION = gql`
+  mutation UpdateVersionDescription($input: UpdateVersionDescriptionInput!) {
+    updateVersionDescription(input: $input) {
+      id
+      versions {
+        id
+        notes
+        description # ADDED: Ensure description is returned
+        createdAt
+      }
+    }
+  }
+`;
+```
+
+**2. `graphql/resolvers/promptResolver.ts`**
+
+```typescript
+// graphql/resolvers/promptResolver.ts
+
+import { GraphQLResolveInfo } from 'graphql';
+import { prisma } from "@/lib/prisma";
+import { type Prompt, type PromptVariable, type Version, PromptVariableType, PromptVariableSource } from '@/components/prompt-lab/store'; // Updated import to include PromptVariableSource
+
+interface GraphQLContext {
+  prisma: typeof prisma;
+  user?: { id: string; email: string; role: string }; // User might still be provided, but not checked
 }
 
-const ItemTypes = { VARIABLE: 'variable', BLOCK: 'block' }
-
-// Helper to merge multiple refs
-function mergeRefs<T>(...refs: (React.Ref<T> | undefined)[]): React.RefCallback<T> {
-  return (node: T) => {
-    refs.forEach(ref => {
-      if (!ref) return;
-      if (typeof ref === 'function') ref(node);
-      else if ('current' in ref) (ref as any).current = node;
-    });
-  };
+// Utility to generate a unique ID, mimicking client-side cuid for consistency
+function generateUniqueId(): string {
+  // In a real backend, you'd rely on database-generated IDs or a more robust UUID/CUID library
+  return `svr_${Math.random().toString(36).slice(2)}${Date.now()}`;
 }
 
-// Helper to generate a client-side CUID for embedded JSON objects (variables, versions)
+// --- Helper Functions for dynamic resolution ---
+
+function buildPrismaWhereClause(
+  sourceFilter: PromptVariableSource['filter'] | undefined,
+  projectId: string,
+  currentUserId: string | undefined,
+  entityType: PromptVariableSource['entityType']
+): any {
+  const where: any = {};
+
+  // Always filter by projectId if not a USER or DATE_FUNCTION entity
+  if (entityType !== 'USER' && entityType !== 'DATE_FUNCTION') {
+    where.projectId = projectId;
+  } else if (entityType === 'USER') {
+    where.id = currentUserId; // For USER entity, filter by current user's ID
+  }
+
+  if (sourceFilter && sourceFilter.field && sourceFilter.operator) {
+    let value = sourceFilter.value;
+
+    // Handle special dynamic values
+    if (sourceFilter.specialValue === 'CURRENT_USER_ID') {
+      value = currentUserId;
+    } else if (sourceFilter.specialValue === 'CURRENT_PROJECT_ID') {
+      value = projectId;
+    } else if (sourceFilter.specialValue === 'ACTIVE_SPRINT' && entityType === 'SPRINT') {
+        where.status = 'ACTIVE';
+        return where; // Special case, status filter applied directly
+    }
+    
+    // Convert status for tasks/sprints/projects to uppercase to match enum if needed
+    if (['status', 'priority', 'role'].includes(sourceFilter.field) && typeof value === 'string') {
+        value = value.toUpperCase();
+    }
+
+
+    switch (sourceFilter.operator) {
+      case 'EQ':
+        if (value !== undefined) where[sourceFilter.field] = value;
+        break;
+      case 'NEQ':
+        if (value !== undefined) where[sourceFilter.field] = { not: value };
+        break;
+      case 'GT':
+        if (value !== undefined) where[sourceFilter.field] = { gt: value };
+        break;
+      case 'LT':
+        if (value !== undefined) where[sourceFilter.field] = { lt: value };
+        break;
+      case 'GTE':
+        if (value !== undefined) where[sourceFilter.field] = { gte: value };
+        break;
+      case 'LTE':
+        if (value !== undefined) where[sourceFilter.field] = { lte: value };
+        break;
+      case 'CONTAINS':
+        if (typeof value === 'string') where[sourceFilter.field] = { contains: value, mode: 'insensitive' };
+        break;
+      case 'STARTS_WITH':
+        if (typeof value === 'string') where[sourceFilter.field] = { startsWith: value, mode: 'insensitive' };
+        break;
+      case 'ENDS_WITH':
+        if (typeof value === 'string') where[sourceFilter.field] = { endsWith: value, mode: 'insensitive' };
+        break;
+      case 'IN_LIST':
+        if (Array.isArray(value)) where[sourceFilter.field] = { in: value };
+        break;
+      default:
+        // No-op or throw error for unsupported operator
+        break;
+    }
+  }
+
+  return where;
+}
+
+// Extracts value from a nested field path (e.g., 'user.firstName')
+function extractFieldValue(record: any, fieldPath: string): any {
+  if (!record || !fieldPath) return undefined;
+  return fieldPath.split('.').reduce((obj, key) => (obj && typeof obj === 'object' ? obj[key] : undefined), record);
+}
+
+async function applyAggregation(
+  records: any[],
+  source: PromptVariableSource,
+  context: GraphQLContext
+): Promise<string> {
+  const { aggregation, aggregationField, format } = source;
+
+  if (records.length === 0) return 'No data found';
+
+  switch (aggregation) {
+    case 'COUNT':
+      return String(records.length);
+
+    case 'SUM':
+    case 'AVERAGE': {
+      if (!aggregationField) return 'N/A (Aggregation field not specified)';
+      const values = records.map(r => Number(extractFieldValue(r, aggregationField))).filter(v => !isNaN(v));
+      if (values.length === 0) return 'N/A (No numeric data to aggregate)';
+      const sum = values.reduce((acc, val) => acc + val, 0);
+      return aggregation === 'SUM' ? String(sum) : String(sum / values.length);
+    }
+
+    case 'LIST_FIELD_VALUES': {
+      if (!aggregationField) return 'N/A (Aggregation field not specified)';
+      const values = records.map(r => extractFieldValue(r, aggregationField)).filter(Boolean); // Filter out null/undefined
+      if (values.length === 0) return 'No data found';
+      switch (format) {
+        case 'BULLET_POINTS': return values.map(v => `• ${v}`).join('\n');
+        case 'COMMA_SEPARATED': return values.join(', ');
+        case 'PLAIN_TEXT': return values.join('\n');
+        case 'JSON_ARRAY': return JSON.stringify(values);
+        default: return values.join('\n'); // Default to plain text new line
+      }
+    }
+
+    case 'LAST_UPDATED_FIELD_VALUE':
+    case 'FIRST_CREATED_FIELD_VALUE': {
+      if (!aggregationField) return 'N/A (Aggregation field not specified)';
+      // Assuming records are already sorted by updatedAt or createdAt if such aggregations are used.
+      // For more robustness, you might need to sort here explicitly.
+      const record = aggregation === 'LAST_UPDATED_FIELD_VALUE' ? records[0] : records[records.length - 1]; // Assumes desc for last_updated
+      const value = extractFieldValue(record, aggregationField);
+      return value !== undefined ? String(value) : 'N/A';
+    }
+    
+    // Add other aggregations as needed
+    default:
+      return 'N/A (Unsupported aggregation)';
+  }
+}
+
+// --- Main Resolvers ---
+
+const promptResolvers = {
+  Query: {
+    getProjectPrompts: async (
+      _parent: any,
+      { projectId }: { projectId?: string },
+      context: GraphQLContext
+    ): Promise<Prompt[]> => {
+      let finalWhereClause: any = {};
+      if (projectId) {
+          finalWhereClause = { projectId };
+      } else {
+          finalWhereClause = {
+              AND: [
+                { projectId: null },
+                { userId: context.user?.id || '' }
+              ]
+          };
+      }
+
+      const prompts = await prisma.prompt.findMany({
+        where: finalWhereClause,
+        orderBy: { updatedAt: 'desc' },
+        select: {
+          id: true,
+          title: true,
+          description: true,
+          tags: true,
+          isPublic: true,
+          createdAt: true,
+          updatedAt: true,
+          model: true,
+          projectId: true,
+        },
+      });
+
+      return prompts as unknown as Prompt[];
+    },
+
+    getPromptDetails: async (
+      _parent: any,
+      { id }: { id: string },
+      context: GraphQLContext
+    ): Promise<Prompt> => {
+      const prompt = await prisma.prompt.findUnique({
+        where: { id },
+        include: {
+          user: {
+            select: { id: true, firstName: true, lastName: true },
+          },
+          project: {
+            select: { id: true, name: true, workspaceId: true },
+          },
+        },
+      });
+      return prompt as unknown as Prompt;
+    },
+
+    resolvePromptVariable: async (
+      _parent: any,
+      { projectId, variableSource }: { projectId?: string; variableSource: any; promptVariableId?: string },
+      context: GraphQLContext
+    ): Promise<string> => {
+      const source = variableSource as PromptVariableSource;
+      const currentUserId = context.user?.id;
+
+      // Handle DATE_FUNCTION separately as it doesn't need project context
+      if (source.entityType === 'DATE_FUNCTION' && source.field === 'today') {
+        return new Date().toISOString().split('T')[0];
+      }
+
+      // Project context required for all other dynamic data sources
+      if (!projectId && source.entityType !== 'USER') {
+        return 'N/A (Project context required for this dynamic data)';
+      }
+
+      // If entityType is USER, and we need current user's data
+      if (source.entityType === 'USER') {
+        const userWhere = buildPrismaWhereClause(source.filter, projectId || '', currentUserId, source.entityType);
+        const currentUser = await context.prisma.user.findUnique({ where: userWhere });
+        if (!currentUser) return 'N/A (Current user data not found)';
+        return extractFieldValue(currentUser, source.field || '') || 'N/A';
+      }
+
+      // Fetch the project for context validation if it's a project-scoped entity
+      const project = await context.prisma.project.findUnique({
+        where: { id: projectId },
+        include: {
+            workspace: true,
+            members: {
+                include: { user: true }
+            }
+        }
+      });
+      if (!project) return 'N/A (Project not found)';
+
+
+      let result: any;
+      let prismaModel: any;
+      let include: any;
+      let orderBy: any;
+      let fieldToSelect: string | undefined = source.field; // The field to get if not aggregating
+
+      switch (source.entityType) {
+        case 'PROJECT': {
+          if (!source.field) return 'N/A (Project field not specified)';
+          return extractFieldValue(project, source.field) || 'N/A';
+        }
+        case 'WORKSPACE': {
+          if (!project.workspace) return 'N/A (Workspace not found)';
+          if (!source.field) return 'N/A (Workspace field not specified)';
+          return extractFieldValue(project.workspace, source.field) || 'N/A';
+        }
+        case 'TASK': {
+          prismaModel = context.prisma.task;
+          const where = buildPrismaWhereClause(source.filter, projectId!, currentUserId, source.entityType);
+          include = { assignee: true, creator: true }; // Include relations for nested fields like assignee.firstName
+          orderBy = { updatedAt: 'desc' }; // Default order for 'LAST_UPDATED_FIELD_VALUE'
+
+          if (source.aggregation) {
+            const records = await prismaModel.findMany({ where, include, orderBy });
+            return await applyAggregation(records, source, context);
+          } else {
+            // No aggregation, assume single task needed (e.g., first, or by ID if filter provides it)
+            // For simplicity, take the first one if no specific ID is filtered
+            const record = await prismaModel.findFirst({ where, include, orderBy });
+            if (!record) return 'N/A (Task not found)';
+            return extractFieldValue(record, source.field || '') || 'N/A';
+          }
+        }
+        case 'SPRINT': {
+          prismaModel = context.prisma.sprint;
+          const where = buildPrismaWhereClause(source.filter, projectId!, currentUserId, source.entityType);
+          orderBy = { startDate: 'desc' }; // Default order for 'current_sprint' or 'LAST_UPDATED_FIELD_VALUE'
+
+          if (source.aggregation) {
+            const records = await prismaModel.findMany({ where, orderBy });
+            return await applyAggregation(records, source, context);
+          } else {
+            const record = await prismaModel.findFirst({ where, orderBy });
+            if (!record) return 'N/A (Sprint not found)';
+            return extractFieldValue(record, source.field || '') || 'N/A';
+          }
+        }
+        case 'DOCUMENT': {
+          prismaModel = context.prisma.document;
+          const where = buildPrismaWhereClause(source.filter, projectId!, currentUserId, source.entityType);
+          orderBy = { updatedAt: 'desc' };
+
+          if (source.aggregation) {
+            const records = await prismaModel.findMany({ where, orderBy });
+            return await applyAggregation(records, source, context);
+          } else {
+            const record = await prismaModel.findFirst({ where, orderBy });
+            if (!record) return 'N/A (Document not found)';
+            // Special handling for JSON content
+            if (source.field === 'content' && typeof record.content === 'object') {
+                return JSON.stringify(record.content);
+            }
+            return extractFieldValue(record, source.field || '') || 'N/A';
+          }
+        }
+        case 'MEMBER': { // ProjectMember entity
+            prismaModel = context.prisma.projectMember;
+            const where = buildPrismaWhereClause(source.filter, projectId!, currentUserId, source.entityType);
+            include = { user: true }; // Always include user for member details
+            orderBy = { joinedAt: 'asc' };
+
+            // Special aggregation for full names, as 'user.fullName' is not a direct Prisma field
+            if (source.aggregation === 'LIST_FIELD_VALUES' && source.aggregationField === 'user.fullName') {
+                const projectMembers = await prismaModel.findMany({ where, include, orderBy });
+                const fullNames = projectMembers
+                    .map((pm: any) => `${pm.user.firstName || ''} ${pm.user.lastName || ''}`.trim())
+                    .filter(Boolean);
+                if (fullNames.length === 0) return 'No members found';
+                return applyAggregation(fullNames.map(name => ({ name })), { ...source, aggregationField: 'name' }, context); // Re-use aggregation for formatting
+            }
+
+            if (source.aggregation) {
+                const records = await prismaModel.findMany({ where, include, orderBy });
+                return await applyAggregation(records, source, context);
+            } else {
+                const record = await prismaModel.findFirst({ where, include, orderBy });
+                if (!record) return 'N/A (Member not found)';
+                return extractFieldValue(record, source.field || '') || 'N/A';
+            }
+        }
+        default:
+          return 'N/A (Unsupported entity type)';
+      }
+    },
+  },
+
+  Mutation: {
+    createPrompt: async (
+      _parent: any,
+      { input }: { input: {
+        projectId?: string;
+        title: string;
+        content?: string;
+        context?: string;
+        description?: string;
+        category?: string;
+        tags?: string[];
+        isPublic?: boolean;
+        model?: string;
+        variables?: PromptVariable[];
+        versions?: Version[];
+      }},
+      context: GraphQLContext
+    ): Promise<Prompt> => {
+      const newPromptData = {
+        title: input.title,
+        content: input.content || '[]', // Ensure JSON string format for content
+        context: input.context || '',
+        description: input.description,
+        category: input.category,
+        tags: input.tags || [],
+        isPublic: input.isPublic || false,
+        model: input.model || 'gpt-4o',
+        userId: context.user?.id || 'anonymous',
+        projectId: input.projectId,
+        variables: (input.variables || []).map(v => ({...v, id: v.id || generateUniqueId()})),
+        versions: (input.versions || []).map(v => ({...v, id: v.id || generateUniqueId()})),
+      };
+
+      const newPrompt = await prisma.prompt.create({
+        data: newPromptData as any, // Cast to any to handle Json type directly
+      });
+
+      return newPrompt as unknown as Prompt;
+    },
+
+    updatePrompt: async (
+      _parent: any,
+      { input }: { input: {
+        id: string;
+        title?: string;
+        content?: any; // Allow `any` for Json type
+        context?: string;
+        description?: string;
+        category?: string;
+        tags?: string[];
+        isPublic?: boolean;
+        model?: string;
+        variables?: PromptVariable[];
+      }},
+      context: GraphQLContext
+    ): Promise<Prompt> => {
+      const existingPrompt = await prisma.prompt.findUnique({
+        where: { id: input.id },
+      });
+
+      if (!existingPrompt) {
+        throw new Error("Prompt not found.");
+      }
+
+      const updateData: any = { updatedAt: new Date() };
+      if (input.title !== undefined) updateData.title = input.title;
+      if (input.content !== undefined) updateData.content = input.content;
+      if (input.context !== undefined) updateData.context = input.context;
+      if (input.description !== undefined) updateData.description = input.description;
+      if (input.category !== undefined) updateData.category = input.category;
+      if (input.tags !== undefined) updateData.tags = input.tags;
+      if (input.isPublic !== undefined) updateData.isPublic = input.isPublic;
+      if (input.model !== undefined) updateData.model = input.model;
+      if (input.variables !== undefined) {
+        updateData.variables = input.variables.map(v => ({ ...v, id: v.id || generateUniqueId() }));
+      }
+
+      const updatedPrompt = await prisma.prompt.update({
+        where: { id: input.id },
+        data: updateData,
+      });
+
+      return updatedPrompt as unknown as Prompt;
+    },
+
+    deletePrompt: async (
+      _parent: any,
+      { id }: { id: string },
+      context: GraphQLContext
+    ): Promise<Prompt> => {
+      const existingPrompt = await prisma.prompt.findUnique({
+        where: { id },
+      });
+
+      if (!existingPrompt) {
+        throw new Error("Prompt not found.");
+      }
+
+      const deletedPrompt = await prisma.prompt.delete({
+        where: { id },
+      });
+
+      return deletedPrompt as unknown as Prompt;
+    },
+
+    snapshotPrompt: async (
+      _parent: any,
+      { input }: { input: { promptId: string; notes?: string } },
+      context: GraphQLContext
+    ): Promise<Prompt> => {
+      const prompt = await prisma.prompt.findUnique({
+        where: { id: input.promptId },
+      });
+
+      if (!prompt) {
+        throw new Error("Prompt not found.");
+      }
+
+      const currentContent = prompt.content as any || []; // Expecting JSON array
+      const currentContext = prompt.context as string || '';
+      const currentVariables = (prompt.variables as PromptVariable[]) || [];
+
+      // Notes from input become the version's title
+      // Description is optional and defaults to empty string
+      const newVersion: Version = {
+        id: generateUniqueId(),
+        content: currentContent,
+        context: currentContext,
+        variables: currentVariables.map(v => ({ ...v, id: v.id || generateUniqueId() })),
+        createdAt: new Date().toISOString(),
+        notes: input.notes || `Version saved on ${new Date().toLocaleString()}`,
+        description: "", // ADDED: Initialize description as empty
+      };
+
+      const updatedVersions = [newVersion, ...(prompt.versions as Version[] || [])];
+
+      const updatedPrompt = await prisma.prompt.update({
+        where: { id: input.promptId },
+        data: {
+          versions: updatedVersions,
+          updatedAt: new Date(),
+        },
+      });
+
+      return updatedPrompt as unknown as Prompt;
+    },
+
+    restorePromptVersion: async (
+      _parent: any,
+      { input }: { input: { promptId: string; versionId: string } },
+      context: GraphQLContext
+    ): Promise<Prompt> => {
+      const prompt = await prisma.prompt.findUnique({
+        where: { id: input.promptId },
+      });
+
+      if (!prompt) {
+        throw new Error("Prompt not found.");
+      }
+
+      const versions = (prompt.versions as Version[]) || [];
+      const versionToRestore = versions.find((v) => v.id === input.versionId);
+
+      if (!versionToRestore) {
+        throw new Error("Version not found.");
+      }
+
+      const updatedPrompt = await prisma.prompt.update({
+        where: { id: input.promptId },
+        data: {
+          content: versionToRestore.content,
+          context: versionToRestore.context,
+          variables: versionToRestore.variables.map(v => ({ ...v, id: v.id || generateUniqueId() })),
+          updatedAt: new Date(),
+        },
+      });
+
+      return updatedPrompt as unknown as Prompt;
+    },
+
+    // NEW: Mutation to update a specific version's description
+    updateVersionDescription: async (
+      _parent: any,
+      { input }: { input: { promptId: string; versionId: string; description: string } },
+      context: GraphQLContext
+    ): Promise<Prompt> => {
+      const prompt = await prisma.prompt.findUnique({
+        where: { id: input.promptId },
+      });
+
+      if (!prompt) {
+        throw new Error("Prompt not found.");
+      }
+
+      let versions = (prompt.versions as Version[]) || [];
+      const versionIndex = versions.findIndex((v) => v.id === input.versionId);
+
+      if (versionIndex === -1) {
+        throw new Error("Version not found.");
+      }
+
+      // Create a shallow copy to modify immutably
+      const updatedVersions = [...versions];
+      updatedVersions[versionIndex] = {
+        ...updatedVersions[versionIndex],
+        description: input.description,
+      };
+
+      const updatedPrompt = await prisma.prompt.update({
+        where: { id: input.promptId },
+        data: {
+          versions: updatedVersions,
+          updatedAt: new Date(),
+        },
+      });
+
+      return updatedPrompt as unknown as Prompt;
+    },
+  },
+
+  // NEW: Project Type Resolvers for computed fields
+  Project: {
+    totalTaskCount: async (parent: any, _args: any, context: GraphQLContext) => {
+      if (!parent.id) return 0;
+      return context.prisma.task.count({ where: { projectId: parent.id } });
+    },
+    completedTaskCount: async (parent: any, _args: any, context: GraphQLContext) => {
+      if (!parent.id) return 0;
+      return context.prisma.task.count({ where: { projectId: parent.id, status: 'DONE' } });
+    },
+    // Add other computed fields for Project here if necessary
+  },
+
+  // User type resolver for full name
+  User: {
+      fullName: (parent: any) => `${parent.firstName || ''} ${parent.lastName || ''}`.trim(),
+  },
+};
+
+export default promptResolvers;
+```
+
+**3. `graphql/schema/schema.graphql`**
+
+```graphql
+# ----------------------------------
+# Enums
+# ----------------------------------
+
+enum SprintStatus { # New enum for Sprint status
+  PLANNING
+  ACTIVE
+  COMPLETED
+}
+
+enum UserRole {
+  ADMIN
+  MEMBER
+}
+
+enum WorkspaceRole {
+  OWNER
+  ADMIN
+  MEMBER
+  GUEST
+}
+
+enum ProjectRole {
+  OWNER
+  ADMIN
+  MEMBER
+  VIEWER
+}
+
+enum ProjectStatus {
+  PLANNING
+  ACTIVE
+  ON_HOLD
+  COMPLETED
+  ARCHIVED
+  CANCELLED
+}
+
+# Consolidated TaskStatus 
+enum TaskStatus {
+  TODO
+  DONE
+}
+
+# Consolidated Priority 
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum DependencyType {
+  FINISH_TO_START
+  START_TO_START
+  FINISH_TO_FINISH
+  START_TO_FINISH
+}
+
+enum Plan {
+  FREE
+  PRO
+  ENTERPRISE
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  CANCELLED
+  PAST_DUE
+  UNPAID
+}
+
+enum ActivityType {
+  TASK_CREATED
+  TASK_UPDATED
+  TASK_COMPLETED
+  TASK_ASSIGNED
+  PROJECT_CREATED
+  PROJECT_UPDATED
+  DOCUMENT_CREATED
+  DOCUMENT_UPDATED
+  WIREFRAME_CREATED
+  WIREFRAME_UPDATED
+  COMMENT_ADDED
+  MEMBER_ADDED
+  MEMBER_REMOVED
+}
+
+# NEW: Prompt specific enums
+enum PromptVariableType {
+  STRING
+  NUMBER
+  BOOLEAN # Added BOOLEAN to this enum for consistency
+  DATE
+  RICH_TEXT # For BlockNote content
+  LIST_OF_STRINGS
+}
+
+# ----------------------------------
+# Models
+# ----------------------------------
+
+
+type User {
+  id: ID!
+  email: String!
+  firstName: String
+  lastName: String
+  avatar: String
+  firebaseUid: String
+  # password: String # Not typically exposed in GraphQL output types
+  role: UserRole!
+  createdAt: String!
+  updatedAt: String!
+  fullName: String # ADDED: For displaying full names easily
+
+  workspaceMembers: [WorkspaceMember]
+  ownedWorkspaces: [Workspace]
+  projectMembers: [ProjectMember]
+  assignedTasks: [Task]
+  createdTasks: [Task]
+  personalTasks: [Task]
+  personalDocuments: [Document]
+  personalWireframes: [Wireframe]
+  personalPrompts: [Prompt] # Added
+  personalSections: [PersonalSection] # New: For personal sections
+  activities: [Activity]
+  comments: [Comment]
+  mentions: [Mention]
+}
+
+type Workspace {
+  id: ID!
+  name: String!
+  slug: String!
+  description: String
+  avatar: String
+  plan: Plan!
+  createdAt: String!
+  updatedAt: String!
+  owner: User!
+  # New fields for Workspace
+  industry: String
+  teamSize: String
+  workFields: [String!] # List of strings for work fields
+
+  members: [WorkspaceMember!]!
+  projects: [Project!]!
+  subscription: Subscription
+  settings: WorkspaceSettings
+  personalTasks: [Task] # New: Personal tasks can also be associated with a workspace
+}
+
+type WorkspaceMember {
+  id: ID!
+  role: WorkspaceRole!
+  joinedAt: String!
+  workspace: Workspace!
+  user: User!
+}
+
+type WorkspaceSettings {
+  id: ID!
+  allowGuestAccess: Boolean!
+  timeZone: String!
+  workspace: Workspace!
+}
+
+type Project {
+  id: ID!
+  name: String!
+  description: String
+  color: String!
+  status: ProjectStatus!
+  startDate: String
+  endDate: String
+  createdAt: String!
+  updatedAt: String!
+  workspace: Workspace!
+
+  members: [ProjectMember!]!
+  tasks: [Task!]!
+  documents: [Document!]!
+  wireframes: [Wireframe!]!
+  prompts: [Prompt!]!    # Added
+  activities: [Activity!]!
+  sprints: [Sprint!]!    # New: Sprints for the project
+  sections: [Section!]!  # New: Sections for the project
+
+  projectMemberCount: Int!
+  totalTaskCount: Int!
+  completedTaskCount: Int!
+}
+
+type ProjectMember {
+  id: ID!
+  role: ProjectRole!
+  joinedAt: String!
+  project: Project!
+  user: User!
+}
+
+# New model: Sprint for a project
+type Sprint {
+  id: ID!
+  name: String!
+  description: String
+  startDate: String!
+  endDate: String!
+  isCompleted: Boolean!
+  createdAt: String!
+  updatedAt: String!
+  project: Project!
+  tasks: [Task!]! # Tasks belonging to this sprint
+  milestones: [Milestone!]!
+  status: SprintStatus! # NEW: Add status to Sprint
+}
+
+type Milestone {
+  id: ID!
+  name: String!
+  description: String
+  dueDate: String! # ISO Date string
+  isCompleted: Boolean!
+  createdAt: String!
+  updatedAt: String!
+
+  sprintId: String!
+  sprint: Sprint! # Corrected: Reference Sprint directly, not SprintDetails
+}
+
+
+
+# New model: Section for a project
+type Section {
+  id: ID!
+  name: String!
+  order: Int! # To define the order of sections (e.g., TODO, IN_PROGRESS)
+  createdAt: String!
+  updatedAt: String!
+  projectId: String!
+  project: Project!
+
+  tasks: [Task!]! # Tasks belonging to this section
+}
+
+# New model: PersonalSection for a user's personal tasks
+type PersonalSection {
+  id: ID!
+  name: String!
+  order: Int!
+  createdAt: String!
+  updatedAt: String!
+  user: User!
+  tasks: [Task!]! # Personal tasks belonging to this personal section
+}
+
+type Task {
+  id: ID!
+  title: String!
+  description: String
+  status: TaskStatus! # Using consolidated TaskStatus
+  priority: Priority! # Using consolidated Priority
+  dueDate: String
+  startDate: String
+  endDate: String
+  createdAt: String!
+  updatedAt: String!
+  completed: Boolean!
+
+  # New fields for points and completion percentage
+  points: Int
+  completionPercentage: Float
+
+  # Relationships for project tasks
+  project: Project
+  sprint: Sprint # New: for project tasks
+  section: Section # New: for project tasks
+
+  # Relationships for personal tasks
+  personalUser: User # Original userId renamed for clarity for personal tasks
+  personalWorkspace: Workspace # New: Workspace for personal tasks
+  personalSection: PersonalSection # New: for personal tasks
+
+  # Common relationships (assignee, creator, subtasks, dependencies)
+  assignee: User
+  creator: User!
+
+  parent: Task
+  subtasks: [Task!]!
+
+  dependencies: [TaskDependency!]!
+  dependents: [TaskDependency!]!
+
+  comments: [Comment!]!
+  activities: [Activity!]!
+  labels: [TaskLabel!]!
+}
+
+type Label {
+  id: ID!
+  name: String!
+  color: String!
+  # workspaceId: String! # Typically exposed via the workspace object itself
+  workspace: Workspace! # Relation to Workspace
+  tasks: [TaskLabel!]!
+}
+
+type TaskLabel {
+  taskId: String!
+  labelId: String!
+  task: Task!
+  label: Label!
+}
+
+type Document {
+  id: ID!
+  title: String!
+  content: JSON # The BlockNote content is JSON
+  dataUrl: String # For PDF content
+  createdAt: String!
+  updatedAt: String!
+  type: String! # "doc" or "pdf"
+  projectId: ID
+  project: Project
+  personalUser: User
+  # ... other fields
+}
+
+
+type Wireframe {
+  id: ID!
+  title: String!
+  data: JSON!
+  thumbnail: String
+  createdAt: String!
+  updatedAt: String!
+
+  project: Project
+  personalUser: User
+
+  comments: [Comment!]!
+  activities: [Activity!]!
+}
+
+# --- NEW TYPES FOR WIREFRAMES ---
+type WireframeListItem {
+  id: ID!
+  title: String!
+  updatedAt: String!
+  thumbnail: String # Renamed from previewDataUrl
+  projectId: ID # To filter by project
+}
+
+input CreateWireframeInput {
+  projectId: ID!
+  title: String!
+  data: JSON! # Initial data for the wireframe
+  thumbnail: String # Optional thumbnail base64 string
+}
+
+input UpdateWireframeInput {
+  id: ID!
+  title: String
+  data: JSON # Optional, expects JSON data
+  thumbnail: String # Optional thumbnail base64 string
+}
+
+
+type Comment {
+  id: ID!
+  content: String!
+  createdAt: String!
+  updatedAt: String!
+  author: User!
+
+  task: Task
+  document: Document
+  wireframe: Wireframe
+  prompt: Prompt
+  mentions: [Mention!]!
+}
+
+type Mention {
+  id: ID!
+  comment: Comment!
+  user: User!
+}
+
+type Activity {
+  id: ID!
+  type: ActivityType!
+  data: JSON!
+  createdAt: String!
+  user: User!
+
+  project: Project
+  task: Task
+  document: Document
+  wireframe: Wireframe
+  prompt: Prompt
+}
+
+type Subscription {
+  id: ID!
+  plan: Plan!
+  status: SubscriptionStatus!
+  currentPeriodEnd: String!
+  cancelAtPeriodEnd: Boolean!
+  stripeCustomerId: String
+  stripeSubscriptionId: String
+  createdAt: String!
+  updatedAt: String!
+  workspace: Workspace!
+}
+
+# NEW: Prompt related types
+type PromptVariable {
+  id: ID!
+  name: String!
+  placeholder: String!
+  description: String
+  type: PromptVariableType!
+  defaultValue: String
+  source: JSON # This is the complex JSON structure defining how to resolve the variable
+}
+
+# NEW: ContentBlock type to represent parts of the prompt content
+type ContentBlock {
+  id: ID!
+  type: String! # 'text' or 'variable'
+  value: String # For type 'text'
+  varId: ID # For type 'variable', references PromptVariable.id
+  placeholder: String # For type 'variable', the placeholder string like {{var}}
+  name: String # For type 'variable', the display name of the variable
+}
+
+type Version {
+  id: ID!
+  content: [ContentBlock!]! # CHANGED: From String to [ContentBlock!]! for version content
+  context: String!
+  variables: [PromptVariable!]!
+  createdAt: String!
+  notes: String
+  description: String # ADDED: Description for the version
+}
+
+type Prompt {
+  id: ID!
+  title: String!
+  content: [ContentBlock!]! # CHANGED: From String to [ContentBlock!]!
+  context: String! # Added
+  description: String
+  category: String
+  tags: [String!]!
+  isPublic: Boolean!
+  createdAt: String!
+  updatedAt: String!
+  model: String # Added for model selection
+
+  projectId: ID # NEW: Added scalar projectId field
+  project: Project
+  user: User
+
+  comments: [Comment!]!
+  activities: [Activity!]!
+  variables: [PromptVariable!]! # Array of embedded variables
+  versions: [Version!]! # Array of embedded versions
+}
+
+type TaskDependency {
+  id: ID!
+  type: DependencyType!
+  lag: Int!
+
+  precedingTask: Task!
+  dependentTask: Task!
+}
+
+type WorkspaceData {
+  id: ID!
+  name: String!
+  description: String
+  industry: String
+  teamSize: String
+  workFields: [String!]
+  members: [WorkspaceMemberData!]!
+  projects: [ProjectData!]!
+}
+
+type WorkspaceMemberData {
+  id: ID! # This is the WorkspaceMember ID
+  role: WorkspaceRole!
+  user: UserPartial! # Partial user data
+}
+
+type UserPartial {
+  id: ID!
+  email: String!
+  firstName: String
+  lastName: String
+}
+
+type ProjectData {
+  id: ID!
+  name: String!
+  description: String
+  status: ProjectStatus!
+  projectMemberCount: Int!
+  totalTaskCount: Int!
+  completedTaskCount: Int!
+}
+
+type ProjectMemberDetails { # For ProjectDetails, more detailed than WorkspaceMemberData
+  id: ID! # ProjectMember ID
+  role: ProjectRole!
+  user: UserFullDetails! # More user info needed here
+}
+
+# --- NEW TYPES FOR GANTT VIEW QUERY ---
+type GanttTaskData { # Custom type to match Gantt library's Task structure
+  id: ID!
+  name: String!
+  start: String! # ISO Date string
+  end: String!   # ISO Date string
+  progress: Int!
+  type: String!  # "task", "milestone", "project" (for sprint parents)
+  sprint: ID     # The ID of the parent sprint (if type is task/milestone)
+  hideChildren: Boolean
+  displayOrder: Int
+  # Add other relevant fields if you have them in Task/Milestone (e.g., description, assignee)
+  description: String
+  assignee: UserAvatarPartial
+  originalTaskId: ID # To link back to Task.id or Milestone.id
+  originalType: String # "TASK" or "MILIESTONE"
+}
+
+type GanttDataResponse {
+  sprints: [SprintNameId!]! # List of sprints for filter dropdown
+  tasks: [GanttTaskData!]! # Flattened list of tasks/milestones for Gantt chart
+}
+
+type SprintDetails { # Update SprintDetails type
+  id: ID!
+  name: String!
+  description: String
+  startDate: String!
+  endDate: String!
+  isCompleted: Boolean!
+  status: SprintStatus! # Using the new SprintStatus enum
+  tasks: [TaskListView!]! # Tasks directly under this sprint
+  milestones: [Milestone!]! # NEW: Milestones directly under this sprint
+}
+
+# You might also consider an ActivityDetails type if you uncomment it
+# type ActivityDetails {
+#   id: ID!
+#   type: ActivityType!
+#   data: JSON!
+#   createdAt: String!
+#   user: UserFullDetails!
+# }
+
+type ProjectDetails { # New type to represent the comprehensive data for a single project page
+  id: ID!
+  name: String!
+  description: String
+  status: ProjectStatus!
+  color: String!
+  createdAt: String!
+
+  # Computed stats
+  totalTasks: Int!
+  completedTasks: Int!
+  inProgressTasks: Int!
+  overdueTasks: Int!
+  upcomingDeadlines: Int!
+  displayStatus: String! # Added for UI convenience, can be derived from status
+
+  members: [ProjectMemberDetails!]!
+  sprints: [SprintDetails!]!
+  # activities: [ActivityDetails!]! # Uncomment if needed
+}
+
+type UserFullDetails {
+  id: ID!
+  email: String!
+  firstName: String
+  lastName: String
+  avatar: String
+
+}
+
+type UserAvatarPartial { # For assignee in tasks, similar to UserFullDetails but named for context
+  id: ID!
+  firstName: String
+  lastName: String
+  avatar: String
+}
+
+type SprintNameId { # For the dropdown filter
+  id: ID!
+  name: String!
+}
+
+type TaskListView { # Simplified Task type for list view
+  id: ID!
+  title: String!
+  description: String
+  status: TaskStatus! # Mapped from Prisma TaskStatus, using consolidated enum
+  priority: Priority! # Mapped from Prisma Priority, using consolidated enum
+  dueDate: String # YYYY-MM-DD
+  points: Int       # Added points field
+  completionPercentage: Float # Added completionPercentage field
+  assignee: UserAvatarPartial # Assignee details
+  completed: Boolean! # Derived field for UI
+  sprintId: ID # <--- ADD THIS IF NOT ALREADY PRESENT (CRITICAL for previous fixes)
+  sectionId: ID # <--- ADD THIS SO UI KNOWS THE TASK'S SECTION
+}
+
+type SectionWithTasks { # For project sections
+  id: ID!
+  name: String!
+  order: Int! # <--- ADD THIS FOR SECTION REORDERING
+  tasks: [TaskListView!]!
+}
+
+type PersonalSectionWithTasks { # For personal sections
+  id: ID!
+  name: String!
+  tasks: [TaskListView!]!
+}
+
+
+input DeleteSectionOptions {
+  deleteTasks: Boolean! # True to delete tasks, false to reassign
+  reassignToSectionId: ID # Required if deleteTasks is false
+}
+
+
+
+type ProjectTasksAndSectionsData {
+  sprints: [SprintNameId!]!
+  sections: [SectionWithTasks!]!
+  personalSections: [PersonalSectionWithTasks!]!
+  projectMembers: [ProjectMemberFullDetails!]!
+  # defaultSelectedSprintId: ID # REMOVED: Managed on client
+}
+
+
+
+
+
+# Input type for creating a task
+input CreateProjectTaskInput {
+  projectId: ID!
+  sectionId: ID!
+  title: String!
+  description: String
+  status: TaskStatus # Using consolidated TaskStatus
+  priority: Priority # Using consolidated Priority
+  dueDate: String
+  startDate: String
+  endDate: String
+  assigneeId: ID
+  sprintId: ID
+  points: Int
+  parentId: ID # For subtasks, if you implement this in ListView
+}
+
+# Input type for updating a task
+input UpdateProjectTaskInput {
+  id: ID!
+  title: String # Changed from String! to String (optional, not nullable)
+  description: String
+  status: TaskStatus # Using consolidated TaskStatus
+  priority: Priority # Using consolidated Priority
+  dueDate: String # Changed to String (optional)
+  startDate: String
+  endDate: String
+  assigneeId: ID # Changed to ID (optional)
+  sprintId: ID # Changed to ID (optional)
+  points: Int # Changed to Int (optional)
+  parentId: ID
+  isCompleted: Boolean # NEW: For updating sprint completion status
+  sectionId: ID # <--- ADD THIS FOR MOVING TASKS BETWEEN SECTIONS
+}
+
+# Input type for creating a sprint
+input CreateSprintInput {
+  projectId: ID!
+  name: String!
+  description: String
+  startDate: String! # ISO Date string
+  endDate: String!   # ISO Date string
+  status: SprintStatus # NEW: Allow setting initial status
+}
+
+# Input type for updating a sprint (Consolidated to one definition)
+input UpdateSprintInput {
+  id: ID!
+  name: String
+  description: String
+  startDate: String # ISO Date string
+  endDate: String   # ISO Date string
+  isCompleted: Boolean
+  status: SprintStatus
+}
+
+
+type ProjectMemberFullDetails { # NEW: For project members list
+  id: ID! # This is the ProjectMember ID
+  role: ProjectRole!
+  user: UserFullDetails!
+}
+
+
+
+# --- NEW TYPES FOR LOOKUP QUERIES ---
+
+type UserLookupPartial { # For member lookups, minimal user info
+  id: ID!
+  firstName: String
+  lastName: String
+  email: String
+  avatar: String
+}
+
+type ProjectMemberLookupItem {
+  id: ID! # This is the ProjectMember ID
+  role: ProjectRole!
+  user: UserLookupPartial!
+}
+
+type SprintLookupItem {
+  id: ID!
+  name: String!
+  status: SprintStatus!
+  startDate: String!
+  endDate: String!
+}
+
+type TaskLookupItem {
+  id: ID!
+  title: String!
+  status: TaskStatus!
+  priority: Priority!
+  dueDate: String
+  assignee: UserAvatarPartial # Simplified assignee for lookup
+  sprint: SprintNameId # Simplified sprint for lookup
+}
+
+# Minimal Document type for list view (consolidated to one definition)
+# Renaming DocumentLookupItem to DocumentListItem as per your existing usage
+type DocumentListItem { 
+  id: ID!
+  title: String!
+  updatedAt: String! # For sorting/display
+  type: String! # "doc" or "pdf" (derived, if content is null assume PDF, else doc)
+  projectId: ID # To filter by project
+}
+
+type WorkspaceLookupData {
+  id: ID!
+  name: String!
+  owner: UserAvatarPartial! # Simplified owner for lookup
+  members: [WorkspaceMemberLookupItem!]!
+}
+
+type WorkspaceMemberLookupItem {
+  id: ID! # WorkspaceMember ID
+  role: WorkspaceRole!
+  user: UserLookupPartial!
+}
+
+
+# --- NEW TYPES FOR GANTT VIEW QUERY (from your provided schema, ensure they are complete)
+type GanttTaskData {
+  id: ID!
+  name: String!
+  start: String! # ISO Date string (startDate)
+  end: String!   # ISO Date string (endDate or dueDate)
+  progress: Int!
+  type: String!  # "task", "milestone", "project" (for sprint groups)
+  sprint: ID     # The ID of the parent sprint (if type is task/milestone)
+  hideChildren: Boolean
+  displayOrder: Int
+  description: String
+  assignee: UserAvatarPartial
+  # Add other relevant fields if you have them in Task/Milestone
+  # For task updates, we need the original task ID, type, and sprint ID for context
+  originalTaskId: ID # To link back to Task.id or Milestone.id
+  originalType: String # "TASK" or "MILIESTONE"
+}
+
+type GanttDataResponse {
+  sprints: [SprintNameId!]! # List of sprints for filter dropdown
+  tasks: [GanttTaskData!]! # Flattened list of tasks/milestones for Gantt chart
+}
+
+type SprintDetails { # Update SprintDetails type (used in getProjectDetails)
+  id: ID!
+  name: String!
+  description: String
+  startDate: String!
+  endDate: String!   # ISO Date string
+  isCompleted: Boolean!
+  status: SprintStatus!
+  tasks: [TaskListView!]! # Tasks directly under this sprint
+  milestones: [Milestone!]!
+}
+
+# Input for creating a new task from Gantt (simplified)
+input CreateGanttTaskInput {
+  projectId: ID!
+  sprintId: ID! # Tasks always belong to a sprint in Gantt context
+  name: String!
+  description: String
+  startDate: String!
+  endDate: String! # Use endDate here for Gantt's `end`
+  assigneeId: ID
+  progress: Int # For initial progress
+  type: String! # "task" or "milestone"
+}
+
+# Input for updating a Gantt task/milestone
+input UpdateGanttTaskInput {
+  id: ID! # ID of the original Task or Milestone
+  type: String! # "TASK" or "MILIESTONE" - tells resolver which model to update
+  name: String
+  description: String
+  startDate: String
+  endDate: String # For task (maps to Task.endDate) or milestone (maps to Milestone.dueDate)
+  assigneeId: ID # For task only
+  progress: Int # For task only
+}
+
+
+# --- NEW TYPES FOR DOCUMENTS ---
+
+# The original DocumentListItem type is now used for lookups too.
+# type DocumentListItem {
+#   id: ID!
+#   title: String!
+#   updatedAt: String! # For sorting/display
+#   type: String! # "doc" or "pdf" (derived, if content is null assume PDF, else doc)
+#   projectId: ID # To filter by project
+# }
+
+input CreateDocumentInput {
+  projectId: ID!
+  title: String!
+  content: JSON # Expects Block[] as JSON
+  dataUrl: String # Optional for PDF
+}
+
+
+input UpdateDocumentInput {
+  id: ID!
+  title: String
+  content: JSON # Optional, expects Block[] as JSON
+  dataUrl: String # Optional for PDF
+}
+
+# ----------------------------------
+# NEW: PROMPT LAB INPUTS
+# ----------------------------------
+
+input CreatePromptVariableInput {
+  id: ID # Client-generated ID is fine for embedded JSON
+  name: String!
+  placeholder: String!
+  description: String
+  type: PromptVariableType!
+  defaultValue: String
+  source: JSON
+}
+
+input UpdatePromptVariableInput {
+  id: ID!
+  name: String
+  placeholder: String
+  description: String
+  type: PromptVariableType
+  defaultValue: String
+  source: JSON
+}
+
+# NEW Input types for Content Blocks
+input CreateContentBlockInput {
+  id: ID # Client-generated ID for internal tracking
+  type: String! # 'text' or 'variable'
+  value: String # Required for 'text' blocks
+  varId: ID # Required for 'variable' blocks, references PromptVariable.id
+  placeholder: String # Required for 'variable' blocks
+  name: String # Required for 'variable' blocks
+}
+
+input UpdateContentBlockInput {
+  id: ID! # ID of the block to update
+  type: String # 'text' or 'variable'
+  value: String # For type 'text'
+  varId: ID # For type 'variable', references PromptVariable.id
+  placeholder: String # For type 'variable', the placeholder string like {{var}}
+  name: String # For type 'variable', the display name of the variable
+}
+
+input CreatePromptInput {
+  projectId: ID
+  # userId: ID # Will be derived from context
+  title: String!
+  content: [CreateContentBlockInput!] # CHANGED: From String to [CreateContentBlockInput!]
+  context: String
+  description: String
+  category: String
+  tags: [String!]
+  isPublic: Boolean
+  model: String
+  variables: [CreatePromptVariableInput!]
+  versions: [CreateVersionInput!]
+}
+
+input UpdatePromptInput {
+  id: ID!
+  title: String
+  content: [UpdateContentBlockInput!] # CHANGED: From String to [UpdateContentBlockInput!]
+  context: String
+  description: String
+  category: String
+  tags: [String!]
+  isPublic: Boolean
+  model: String
+  variables: [UpdatePromptVariableInput!] # For updating the *entire* variables array
+}
+
+input CreateVersionInput { # For initial versions on prompt creation
+  id: ID
+  content: [CreateContentBlockInput!]! # CHANGED: From String to [CreateContentBlockInput!]!
+  context: String!
+  variables: [CreatePromptVariableInput!]!
+  createdAt: String # Will be Date.toISOString()
+  notes: String
+  description: String # ADDED: Description for the version
+}
+
+input SnapshotPromptInput {
+  promptId: ID!
+  notes: String
+}
+
+input RestorePromptVersionInput {
+  promptId: ID!
+  versionId: ID!
+}
+
+# NEW: Input for updating a version's description
+input UpdateVersionDescriptionInput {
+  promptId: ID!
+  versionId: ID!
+  description: String!
+}
+
+# ----------------------------------
+# Root Queries
+# ----------------------------------
+type Query {
+
+  getGanttData(projectId: ID!, sprintId: ID): GanttDataResponse # NEW Query
+
+
+  getProjectTasksAndSections(projectId: ID!, sprintId: ID): ProjectTasksAndSectionsData
+
+  getProjectDetails(projectId: ID!): ProjectDetails
+
+  getWorkspaceData: WorkspaceData # New query
+  me: User
+
+  # --- NEW DOCUMENT QUERIES ---
+  getProjectDocuments(projectId: ID!): [DocumentListItem!]! # Get list of documents for a project
+  getDocumentDetails(id: ID!): Document # Get full details of a single document
+
+  # --- NEW WIREFRAME QUERIES ---
+  getProjectWireframes(projectId: ID!): [WireframeListItem!]! # Get list of wireframes for a project
+  getWireframeDetails(id: ID!): Wireframe # Get full details of a single wireframe
+
+  # --- NEW PROMPT QUERIES ---
+  getProjectPrompts(projectId: ID): [Prompt!]! # Added `projectId` as optional for personal prompts
+  getPromptDetails(id: ID!): Prompt
+  # UPDATED: Added workspaceId to resolvePromptVariable query
+  resolvePromptVariable(projectId: ID, workspaceId: ID, variableSource: JSON!, promptVariableId: ID): String
+
+  # NEW LOOKUP QUERIES
+  getProjectSprintsLookup(projectId: ID!): [SprintLookupItem!]!
+  getProjectMembersLookup(projectId: ID!): [ProjectMemberLookupItem!]!
+  getProjectTasksLookup(projectId: ID!, sprintId: ID): [TaskLookupItem!]!
+  getProjectDocumentsLookup(projectId: ID!): [DocumentListItem!]! # Corrected to use DocumentListItem
+  getWorkspaceDataLookup(workspaceId: ID!): WorkspaceLookupData
+}
+
+
+
+# ----------------------------------
+# Root Mutations (CRUD-style)
+# ----------------------------------
+type Mutation {
+  createProjectTask(input: CreateProjectTaskInput!): TaskListView! # New mutation
+  updateProjectTask(input: UpdateProjectTaskInput!): TaskListView! # New mutation
+
+  deleteProjectSection(id: ID!, options: DeleteSectionOptions): Section! # Updated mutation
+
+  createProjectSection(projectId: ID!, name: String!, order: Int): Section! # New mutation
+  updateProjectSection(id: ID!, name: String, order: Int): Section! # New mutation
+
+  createUser(email: String!, password: String, firstName: String, lastName: String, role: UserRole): User! # Added password to creation
+
+  setupWorkspace(
+    userId: ID!
+    workspaceName: String!
+    workspaceDescription: String
+    projectName: String!
+    projectDescription: String
+    industry: String
+    teamSize: String
+    workFields: [String!]
+  ): Workspace! # Returns the created Workspace
+
+  createProject(
+    workspaceId: ID!
+    name: String!
+    description: String
+  ): Project! # Returns the created Project
+
+  deleteProjectTask(id: ID!): TaskListView! # NEW: Mutation to delete a task
+
+  # Sprint Mutations
+  createSprint(input: CreateSprintInput!): SprintDetails! # Returns the created sprint
+  updateSprint(input: UpdateSprintInput!): SprintDetails! # Returns the updated sprint
+  deleteSprint(id: ID!): SprintDetails! # Returns the deleted sprint
+
+
+
+
+  createGanttTask(input: CreateGanttTaskInput!): GanttTaskData! # NEW: Create a task/milestone for Gantt
+  updateGanttTask(input: UpdateGanttTaskInput!): GanttTaskData! # NEW: Update a task/milestone for Gantt
+
+  # --- NEW DOCUMENT MUTATIONS ---
+  createDocument(input: CreateDocumentInput!): DocumentListItem! # Returns the created document item
+  updateDocument(input: UpdateDocumentInput!): DocumentListItem! # Returns the updated document item
+  deleteDocument(id: ID!): DocumentListItem! # Returns the deleted document item
+
+  # --- NEW WIREFRAME MUTATIONS ---
+  createWireframe(input: CreateWireframeInput!): WireframeListItem! # Returns the created wireframe item
+  updateWireframe(input: UpdateWireframeInput!): WireframeListItem! # Returns the updated wireframe item
+  deleteWireframe(id: ID!): WireframeListItem! # Returns the deleted wireframe item
+
+  # --- NEW PROMPT MUTATIONS ---
+  createPrompt(input: CreatePromptInput!): Prompt!
+  updatePrompt(input: UpdatePromptInput!): Prompt!
+  deletePrompt(id: ID!): Prompt!
+  snapshotPrompt(input: SnapshotPromptInput!): Prompt!
+  restorePromptVersion(input: RestorePromptVersionInput!): Prompt!
+  updateVersionDescription(input: UpdateVersionDescriptionInput!): Prompt! # NEW: Update a version's description
+}
+
+
+
+
+
+# ----------------------------------
+# Scalars
+# ----------------------------------
+scalar JSON
+```
+
+**4. `hooks/usePromptDetails.ts`**
+
+```typescript
+// hooks/usePromptDetails.ts
+'use client';
+
+import { useState, useEffect, useCallback, useRef } from "react";
+import { useQuery, useMutation } from "@apollo/client";
+
+import { GET_PROMPT_DETAILS_QUERY } from "@/graphql/queries/promptRelatedQueries";
+import {
+  UPDATE_PROMPT_MUTATION,
+  SNAPSHOT_PROMPT_MUTATION,
+  RESTORE_PROMPT_VERSION_MUTATION,
+  UPDATE_VERSION_DESCRIPTION_MUTATION, // NEW: Import new mutation
+} from "@/graphql/mutations/promptRelatedMutations";
+import { Prompt, PromptVariable, Block, Version as PromptVersionType } from '@/components/prompt-lab/store'; // Renamed Version to PromptVersionType to avoid conflict
+
+// Minimal cuid for client-side use if needed for new local vars/versions
 function cuid(prefix: string = ''): string {
-  const chars = '0123456789abcdefghijklmnopqrstuvwxyz';
+  const chars = '01234789abcdefghijklmnopqrstuvwxyz';
   let result = prefix + 'c';
   for (let i = 0; i < 24; i++) {
     result += chars[Math.floor(Math.random() * chars.length)];
@@ -75,1322 +1894,314 @@ function cuid(prefix: string = ''): string {
   return result;
 }
 
-/* Utility to render prompt by substituting placeholder text */
-async function renderPrompt(
-  contentBlocks: Block[],
-  context: string,
-  variables: PromptVariable[],
-  variableValues: Record<string, string>,
-  projectId?: string
-): Promise<string> {
-  let renderedContent = '';
-  
-  renderedContent = contentBlocks.map(block => {
-    if (block.type === 'text') {
-      return block.value;
-    } else if (block.type === 'variable') {
-      const matchingVariable = variables.find(v => v.id === block.varId);
-      const displayValue = variableValues[block.placeholder] || (matchingVariable?.defaultValue || '');
-
-      if (matchingVariable?.source && (!variableValues[block.placeholder] || variableValues[block.placeholder] === 'N/A')) {
-        return `[${matchingVariable.name} (dynamic)]`;
-      }
-      return displayValue || block.placeholder;
-    }
-    return '';
-  }).join('');
-
-  let renderedContext = context;
-
-  for (const variable of variables) {
-    let valueToSubstitute = variableValues[variable.placeholder] || variable.defaultValue || '';
-
-    if (variable.source && (!variableValues[variable.placeholder] || variableValues[variable.placeholder] === 'N/A')) {
-       valueToSubstitute = `[${variable.name} (dynamic)]`;
-    }
-
-    const highlightedValue = `[[${valueToSubstitute}]]`;
-    const regex = new RegExp(variable.placeholder.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&'), 'g');
-    
-    if (renderedContext.includes(variable.placeholder)) {
-        renderedContext = renderedContext.replace(regex, highlightedValue);
-    }
-  }
-
-  const lines = [
-    "System role:",
-    "You are an expert assistant for this project.",
-    "",
-    "Context:",
-    renderedContext || "(none)",
-    "",
-    "Prompt:",
-    renderedContent || "(empty)",
-  ];
-  return lines.join("\n");
+interface UsePromptDetailsHook {
+  selectedPromptDetails: Prompt | null;
+  loadingDetails: boolean;
+  detailsError: string | null;
+  // Modified: updatePromptDetails now accepts promptId as its first argument
+  updatePromptDetails: (
+    promptId: string, // <-- Added promptId parameter
+    updates: Partial<Omit<Prompt, 'id' | 'createdAt' | 'updatedAt' | 'user' | 'project' | 'versions'>>
+  ) => void;
+  // Snapshot and restore continue to use the hook's selectedPromptId internally
+  snapshotPrompt: (notes?: string) => void;
+  restorePromptVersion: (versionId: string) => void;
+  updateVersionDescription: (promptId: string, versionId: string, description: string) => void; // NEW: Add to hook interface
+  refetchPromptDetails: () => Promise<any>;
 }
 
-/* ---------- MAIN COMPONENT ---------- */
-export function PromptLab({ prompt, onBack, projectId }: { prompt: Prompt; onBack: () => void; projectId?: string }) {
-  const {
+export function usePromptDetails(selectedPromptId: string | null, projectId: string | undefined): UsePromptDetailsHook {
+  const [selectedPromptDetails, setSelectedPromptDetails] = useState<Prompt | null>(null);
+  const [localDetailsError, setLocalDetailsError] = useState<string | null>(null);
+  const lastFetchedPromptData = useRef<Prompt | null>(null); // To help maintain details locally
+
+  const { data: promptDetailsData, loading: apolloDetailsLoading, error: apolloDetailsError, refetch: apolloRefetchPromptDetails } = useQuery(
+    GET_PROMPT_DETAILS_QUERY,
+    {
+      variables: { id: selectedPromptId },
+      skip: !selectedPromptId,
+      fetchPolicy: "network-only",
+      onCompleted: (data) => {
+        if (data?.getPromptDetails) {
+          console.log('[usePromptDetails] [Trace: QueryDetailsComplete] GET_PROMPT_DETAILS_QUERY onCompleted. Details for ID:', data.getPromptDetails.id);
+          setLocalDetailsError(null);
+          const detailedPrompt: Prompt = {
+            id: data.getPromptDetails.id,
+            title: data.getPromptDetails.title,
+            content: (data.getPromptDetails.content && Array.isArray(data.getPromptDetails.content) ? data.getPromptDetails.content : []) as Block[],
+            context: data.getPromptDetails.context,
+            description: data.getPromptDetails.description,
+            category: data.getPromptDetails.category,
+            tags: data.getPromptDetails.tags,
+            isPublic: data.getPromptDetails.isPublic,
+            createdAt: data.getPromptDetails.createdAt,
+            updatedAt: data.getPromptDetails.updatedAt,
+            model: data.getPromptDetails.model,
+            projectId: data.getPromptDetails.projectId,
+            variables: data.getPromptDetails.variables.map((v: PromptVariable) => ({ ...v, id: v.id || cuid('db-var-') })),
+            versions: data.getPromptDetails.versions.map((v: any) => ({
+               ...v,
+               id: v.id || cuid('db-ver-'),
+               content: (v.content && Array.isArray(v.content) ? v.content : []) as Block[],
+               description: v.description || '', // ADDED: Map description
+            })),
+          };
+          lastFetchedPromptData.current = detailedPrompt;
+          setSelectedPromptDetails(detailedPrompt);
+        } else {
+            setSelectedPromptDetails(null); // Clear details if no data found
+            lastFetchedPromptData.current = null;
+        }
+      },
+      onError: (err) => {
+        console.error("[usePromptDetails] [Error: QueryDetails] Error fetching prompt details:", err);
+        setLocalDetailsError("Failed to load prompt details.");
+        setSelectedPromptDetails(null); // Clear details on error
+        lastFetchedPromptData.current = null;
+      },
+    }
+  );
+
+  // Clear selectedPromptDetails if selectedPromptId becomes null
+  useEffect(() => {
+    if (!selectedPromptId) {
+      setSelectedPromptDetails(null);
+      lastFetchedPromptData.current = null;
+      setLocalDetailsError(null);
+    }
+  }, [selectedPromptId]);
+
+  const [updatePromptMutation] = useMutation(UPDATE_PROMPT_MUTATION, {
+    onCompleted: (data) => {
+      if (data?.updatePrompt) {
+        console.log('[usePromptDetails] [Trace: MutationUpdateComplete] UPDATE_PROMPT_MUTATION onCompleted. Updated prompt ID:', data.updatePrompt.id, 'Title:', data.updatePrompt.title);
+        // Only update basic fields from mutation result, rely on re-fetch for full details if needed
+        setSelectedPromptDetails(prev => prev ? {
+            ...prev,
+            title: data.updatePrompt.title,
+            description: data.updatePrompt.description,
+            tags: data.updatePrompt.tags,
+            isPublic: data.updatePrompt.isPublic,
+            model: data.updatePrompt.model,
+            updatedAt: data.updatePrompt.updatedAt,
+        } : null);
+      }
+    },
+    onError: (err) => {
+      console.error("[usePromptDetails] [Error: MutationUpdate] Mutation Error: Update Prompt", err);
+      setLocalDetailsError("Failed to update prompt.");
+      apolloRefetchPromptDetails(); // Refetch details on error to resync
+    },
+  });
+
+  const [snapshotPromptMutation] = useMutation(SNAPSHOT_PROMPT_MUTATION, {
+    onCompleted: (data) => {
+      if (data?.snapshotPrompt) {
+        console.log('[usePromptDetails] [Trace: MutationSnapshotComplete] SNAPSHOT_PROMPT_MUTATION onCompleted. Prompt ID:', data.snapshotPrompt.id);
+        apolloRefetchPromptDetails(); // Refetch details to get the new version in the list
+      }
+    },
+    onError: (err) => {
+      console.error("[usePromptDetails] [Error: MutationSnapshot] Mutation Error: Snapshot Prompt", err);
+      setLocalDetailsError("Failed to save version.");
+      apolloRefetchPromptDetails(); // Refetch on error
+    },
+  });
+
+  const [restorePromptVersionMutation] = useMutation(RESTORE_PROMPT_VERSION_MUTATION, {
+    onCompleted: (data) => {
+      if (data?.restorePromptVersion) {
+        console.log('[usePromptDetails] [Trace: MutationRestoreComplete] RESTORE_PROMPT_VERSION_MUTATION onCompleted. Prompt ID:', data.restorePromptVersion.id);
+        apolloRefetchPromptDetails(); // Refetch details to show the restored content
+      }
+    },
+    onError: (err) => {
+      console.error("[usePromptDetails] [Error: MutationRestore] Mutation Error: Restore Prompt Version", err);
+      setLocalDetailsError("Failed to restore version.");
+      apolloRefetchPromptDetails(); // Refetch on error
+    },
+  });
+
+  // NEW: Mutation for updating version description
+  const [updateVersionDescriptionMutation] = useMutation(UPDATE_VERSION_DESCRIPTION_MUTATION, {
+    onCompleted: (data) => {
+      if (data?.updateVersionDescription) {
+        console.log('[usePromptDetails] [Trace: MutationUpdateVersionDescriptionComplete] UPDATE_VERSION_DESCRIPTION_MUTATION onCompleted. Prompt ID:', data.updateVersionDescription.id);
+        // Optimistically update the selected prompt details (only versions array)
+        setSelectedPromptDetails(prev => {
+          if (!prev) return null;
+          return {
+            ...prev,
+            versions: data.updateVersionDescription.versions.map((v: any) => ({
+              ...v,
+              content: (v.content && Array.isArray(v.content) ? v.content : []) as Block[], // Ensure content is Block[] if the mutation result includes it (though we only asked for id, notes, description)
+              description: v.description || '',
+            })),
+            updatedAt: new Date().toISOString(), // Mark prompt as updated
+          };
+        });
+      }
+    },
+    onError: (err) => {
+      console.error("[usePromptDetails] [Error: MutationUpdateVersionDescription] Mutation Error: Update Version Description", err);
+      setLocalDetailsError("Failed to update version description.");
+      apolloRefetchPromptDetails(); // Refetch on error to resync
+    },
+  });
+
+
+  const updatePromptDetails = useCallback(
+    (
+      promptId: string, // <-- Now explicitly accepts the promptId to update
+      updates: Partial<Omit<Prompt, 'id' | 'createdAt' | 'updatedAt' | 'user' | 'project' | 'versions'>>
+    ) => {
+      // Ensure the provided promptId is valid
+      if (!promptId) {
+        console.warn('[usePromptDetails] [Trace: Update] updatePromptDetails called with an invalid promptId.');
+        setLocalDetailsError('Cannot update prompt: invalid prompt ID provided.');
+        return;
+      }
+      setLocalDetailsError(null);
+      console.log('[usePromptDetails] [Trace: Update] updatePromptDetails: Optimistically updating prompt ID:', promptId, 'with keys:', Object.keys(updates));
+
+      // Optimistic UI update: ONLY update if the 'promptId' being updated
+      // matches the 'selectedPromptId' of this particular hook instance.
+      // If the hook is managing details for ID 'X' and an update comes for ID 'Y',
+      // we don't want to optimistically apply 'Y's changes to 'X's display.
+      if (promptId === selectedPromptId) {
+        setSelectedPromptDetails((prev) => {
+          if (!prev) return null;
+          return {
+            ...prev,
+            ...updates,
+            updatedAt: new Date().toISOString(), // Optimistic update timestamp
+            content: updates.content !== undefined ? (updates.content as Block[]) : prev.content,
+            variables: updates.variables !== undefined ? (updates.variables.map((v: Partial<PromptVariable>) => ({...v, id: v.id || cuid('patch-var-')})) as PromptVariable[]) : prev.variables,
+          };
+        });
+      }
+
+
+      const filteredUpdates: Record<string, any> = {};
+      for (const key in updates) {
+        if (updates[key] !== undefined) {
+          filteredUpdates[key] = updates[key];
+        }
+      }
+
+      updatePromptMutation({
+        variables: {
+          input: {
+            id: promptId, // Use the provided promptId here
+            ...filteredUpdates,
+          },
+        },
+      }).catch((err) => {
+        console.error("[usePromptDetails] [Error: UpdateGraphQL] Error updating prompt details via GraphQL:", err);
+        setLocalDetailsError("Failed to update prompt details.");
+        // If an update fails for the *currently selected* prompt, refetch its details to revert optimistic UI.
+        // Otherwise, if it's an update for a different prompt (shouldn't happen often for this hook),
+        // we might not need to refetch the *current* selected details.
+        if (promptId === selectedPromptId) {
+          apolloRefetchPromptDetails(); // Revert optimistic update by refetching actual state
+        }
+      });
+    },
+    [selectedPromptId, updatePromptMutation, apolloRefetchPromptDetails]
+  );
+
+  const snapshotPrompt = useCallback(
+    (notes?: string) => {
+      // This function still uses the hook's selectedPromptId
+      if (!selectedPromptId) {
+        console.warn('[usePromptDetails] [Trace: Snapshot] snapshotPrompt called with no selectedPromptId.');
+        setLocalDetailsError('Cannot snapshot prompt: no prompt selected.');
+        return;
+      }
+      setLocalDetailsError(null);
+      console.log('[usePromptDetails] [Trace: Snapshot] snapshotPrompt: Initiating snapshot for prompt ID:', selectedPromptId);
+      snapshotPromptMutation({
+        variables: {
+          input: { promptId: selectedPromptId, notes: notes || `Version saved at ${new Date().toLocaleString()}` },
+        },
+      }).catch((err) => {
+        console.error("[usePromptDetails] [Error: SnapshotGraphQL] Error creating prompt snapshot via GraphQL:", err);
+        setLocalDetailsError("Failed to save version.");
+        apolloRefetchPromptDetails();
+      });
+    },
+    [selectedPromptId, snapshotPromptMutation, apolloRefetchPromptDetails]
+  );
+
+  const restorePromptVersion = useCallback(
+    (versionId: string) => {
+      // This function still uses the hook's selectedPromptId
+      if (!selectedPromptId) {
+        console.warn('[usePromptDetails] [Trace: Restore] restorePromptVersion called with no selectedPromptId.');
+        setLocalDetailsError('Cannot restore version: no prompt selected.');
+        return;
+      }
+      setLocalDetailsError(null);
+      console.log('[usePromptDetails] [Trace: Restore] restorePromptVersion: Initiating restore for prompt ID:', selectedPromptId, 'version ID:', versionId);
+      restorePromptVersionMutation({
+        variables: {
+          input: { promptId: selectedPromptId, versionId },
+        },
+      }).catch((err) => {
+        console.error("[usePromptDetails] [Error: RestoreGraphQL] Error restoring prompt version via GraphQL:", err);
+        setLocalDetailsError("Failed to restore version.");
+        apolloRefetchPromptDetails();
+      });
+    },
+    [selectedPromptId, restorePromptVersionMutation, apolloRefetchPromptDetails]
+  );
+
+  // NEW: Callback for updating version description
+  const updateVersionDescription = useCallback(
+    (promptId: string, versionId: string, description: string) => {
+      if (!promptId || !versionId) {
+        console.warn('[usePromptDetails] [Trace: UpdateVersionDesc] updateVersionDescription called with invalid IDs.');
+        setLocalDetailsError('Cannot update version description: invalid prompt or version ID.');
+        return;
+      }
+      setLocalDetailsError(null);
+      console.log('[usePromptDetails] [Trace: UpdateVersionDesc] Updating description for prompt ID:', promptId, 'version ID:', versionId);
+
+      // Optimistic UI update
+      if (promptId === selectedPromptId) {
+        setSelectedPromptDetails(prev => {
+          if (!prev) return null;
+          const updatedVersions = prev.versions.map(v => 
+            v.id === versionId ? { ...v, description: description } : v
+          ) as PromptVersionType[]; // Cast back to PromptVersionType[]
+          return { ...prev, versions: updatedVersions, updatedAt: new Date().toISOString() };
+        });
+      }
+
+      updateVersionDescriptionMutation({
+        variables: {
+          input: { promptId, versionId, description },
+        },
+      }).catch((err) => {
+        console.error("[usePromptDetails] [Error: UpdateVersionDescGraphQL] Error updating version description via GraphQL:", err);
+        setLocalDetailsError("Failed to update version description.");
+        if (promptId === selectedPromptId) {
+          apolloRefetchPromptDetails(); // Revert optimistic update
+        }
+      });
+    },
+    [selectedPromptId, updateVersionDescriptionMutation, apolloRefetchPromptDetails]
+  );
+
+  return {
+    selectedPromptDetails,
+    loadingDetails: apolloDetailsLoading,
+    detailsError: localDetailsError || apolloDetailsError?.message || null,
     updatePromptDetails,
     snapshotPrompt,
     restorePromptVersion,
-  } = usePromptDetails(prompt.id, projectId);
-
-  const [selectedVersionId, setSelectedVersionId] = useState<string | null>(null)
-  const [rightTab, setRightTab] = useState<"editor" | "version-details" | "preview">("editor")
-  const [leftTab, setLeftTab] = useState<"versions" | "variables">("variables")
-  const [showVariableBuilder, setShowVariableBuilder] = useState(false);
-  const [previewVariableValues, setPreviewVariableValues] = useState<Record<string, string>>({})
-  const [renderedPreview, setRenderedPreview] = useState("");
-  const [pendingNotes, setPendingNotes] = useState("");
-  
-  const [isSnapshotting, setIsSnapshotting] = useState(false);
-  const [isRestoring, setIsRestoring] = useState(false);
-
-
-  useEffect(() => {
-    console.log('[PromptLab] [Trace: RootEffect] prompt prop changed. Prompt ID:', prompt.id, 'Title:', prompt.title, 'Content length:', prompt.content.length, 'Versions:', prompt.versions.length);
-    if (prompt) {
-      if (prompt.versions.length > 0) {
-        if (!selectedVersionId || !prompt.versions.some((v) => v.id === selectedVersionId)) {
-          console.log('[PromptLab] [Trace: RootEffect] No selected version or selected version not found, selecting latest:', prompt.versions[0].id);
-          setSelectedVersionId(prompt.versions[0].id)
-        }
-      } else if (selectedVersionId) {
-        console.log('[PromptLab] [Trace: RootEffect] No versions available, deselecting version.');
-        setSelectedVersionId(null)
-      }
-      
-      const initialPreviewValues: Record<string, string> = {};
-      prompt.variables.forEach(v => {
-        if (!v.source) {
-          initialPreviewValues[v.placeholder] = v.defaultValue || '';
-        } else {
-          initialPreviewValues[v.placeholder] = `[${v.name} (dynamic)]`;
-        }
-      });
-      console.log('[PromptLab] [Trace: RootEffect] Updating previewVariableValues based on prompt.variables. Count:', prompt.variables.length);
-      setPreviewVariableValues(initialPreviewValues);
-    }
-  }, [prompt, selectedVersionId]);
-
-
-  useEffect(() => {
-    if (prompt) {
-      console.log('[PromptLab] [Trace: PreviewEffect] Generating preview based on prompt and previewVariableValues.');
-      const generatePreview = async () => {
-        const preview = await renderPrompt(prompt.content, prompt.context || '', prompt.variables, previewVariableValues, projectId);
-        setRenderedPreview(preview);
-      };
-      generatePreview();
-    }
-  }, [prompt, previewVariableValues, projectId]);
-
-
-  const selectedVersion = useMemo(() => prompt?.versions.find((v) => v.id === selectedVersionId) || null, [prompt, selectedVersionId])
-
-  function copy(text: string) {
-    navigator.clipboard.writeText(text).catch(() => {})
-  }
-
-  const handleUpdatePrompt = useCallback((patch: Partial<Prompt>) => {
-    console.log('[PromptLab] [Trace: HandleUpdate] handleUpdatePrompt called with patch keys:', Object.keys(patch));
-    if (patch.variables) {
-      patch.variables = patch.variables.map(v => ({...v, id: v.id || cuid('patch-var-')})) as PromptVariable[];
-      console.log('[PromptLab] [Trace: HandleUpdate] Variables in patch adjusted with client-side IDs. New count:', patch.variables.length);
-    }
-    if (patch.content && Array.isArray(patch.content)) {
-        console.log('[PromptLab] [Trace: HandleUpdate] Content patch is an array of blocks, ensuring correct type.');
-    }
-    updatePromptDetails(prompt.id, patch);
-  }, [prompt.id, updatePromptDetails]);
-
-  const handleSnapshot = useCallback(async (notes?: string) => {
-    setIsSnapshotting(true);
-    console.log('[PromptLab] [Trace: HandleSnapshot] Attempting to snapshot prompt', prompt.id, 'with notes:', notes);
-    try {
-      await snapshotPrompt(prompt.id, notes);
-      toast.success("Prompt version saved!");
-      setPendingNotes('');
-    } catch (error) {
-      console.error(`[PromptLab] [Error: HandleSnapshot] Failed to snapshot prompt ${prompt.id}:`, error);
-      toast.error("Failed to save version", { description: (error as any).message || 'An unknown error occurred.' });
-    } finally {
-      setIsSnapshotting(false);
-      console.log('[PromptLab] [Trace: HandleSnapshot] Snapshot operation finished.');
-    }
-  }, [prompt.id, snapshotPrompt]);
-
-  const handleRestoreVersion = useCallback(async (versionId: string) => {
-    setIsRestoring(true);
-    console.log('[PromptLab] [Trace: HandleRestore] Attempting to restore prompt', prompt.id, 'from version', versionId);
-    try {
-      await restorePromptVersion(prompt.id, versionId);
-      toast.success("Prompt restored from version!");
-    } catch (error) {
-      console.error(`[PromptLab] [Error: HandleRestore] Failed to restore prompt ${prompt.id} from version ${versionId}:`, error);
-      toast.error("Failed to restore version", { description: (error as any).message || 'An unknown error occurred.' });
-    } finally {
-      setIsRestoring(false);
-      console.log('[PromptLab] [Trace: HandleRestore] Restore operation finished.');
-    }
-  }, [prompt.id, restorePromptVersion]);
-
-  const handleCreateVariable = useCallback((newVariable: Omit<PromptVariable, 'id'>) => {
-    console.log('[PromptLab] [Trace: HandleCreateVar] Creating new variable:', newVariable.name);
-    const variableWithId: PromptVariable = {
-      ...newVariable,
-      id: cuid('p-var-'),
-    };
-    const updatedVariables = [...prompt.variables, variableWithId];
-    console.log('[PromptLab] [Trace: HandleCreateVar] Calling handleUpdatePrompt with updated variables count:', updatedVariables.length);
-    handleUpdatePrompt({ variables: updatedVariables });
-    setShowVariableBuilder(false);
-  }, [prompt.variables, handleUpdatePrompt]);
-
-  const handleRemoveVariable = useCallback((variableId: string) => {
-    console.log('[PromptLab] [Trace: HandleRemoveVar] Removing variable with ID:', variableId);
-    const updatedVariables = prompt.variables.filter(v => v.id !== variableId);
-    console.log('[PromptLab] [Trace: HandleRemoveVar] Calling handleUpdatePrompt with updated variables count:', updatedVariables.length);
-    handleUpdatePrompt({ variables: updatedVariables });
-  }, [prompt.variables, handleUpdatePrompt]);
-
-  return (
-    <DndProvider backend={HTML5Backend}>
-      <div className="page-scroller pt-0 p-1 pb-0 h-full min-h-0">
-        <div className="h-[85vh] overflow-hidden">
-          <div className="grid h-full min-h-0 grid-cols-1 gap-4 p-4 pb-0 md:grid-cols-[320px_1fr]">
-
-            {/* Left side */}
-            <div className="saas-card h-full min-h-0 flex flex-col">
-              <Tab.Group
-                selectedIndex={leftTab === "versions" ? 0 : 1}
-                onChange={(index) => {
-                    setLeftTab(index === 0 ? "versions" : "variables");
-                    console.log('[PromptLab] [Trace: LeftTabChange] Left Tab changed to:', index === 0 ? "Versions" : "Variables");
-                }}
-                className="flex-1 min-h-0 flex flex-col"
-              >
-                <div className="border-b flex flex-col pt-4 pb-2 px-3" style={{ borderColor: "var(--border)" }}>
-                  <Button variant="ghost" onClick={onBack} className="mb-2 self-start text-sm px-2 -ml-2">Back to Prompt Library</Button>
-                  <Tab.List className="flex h-11 bg-transparent">
-                    <Tab className="px-3 py-2 ui-selected:border-b-2 ui-selected:font-semibold">Versions</Tab>
-                    <Tab className="px-3 py-2 ui-selected:border-b-2 ui-selected:font-semibold">Variables</Tab>
-                  </Tab.List>
-                </div>
-
-                <Tab.Panels className="flex-1 min-h-0 flex flex-col overflow-y-auto">
-                  {/* Versions tab */}
-                  <Tab.Panel className="flex-1 min-h-0 flex flex-col overflow-y-auto">
-                    <div className="flex items-center gap-2 border-b p-3"
-                     style={{ borderColor: "var(--border)", background: "var(--muted-bg)" }}
-                     >
-                      <h3 className="font-semibold">Versions</h3>
-                      <Button className="ml-auto h-9 btn-primary" onClick={() => handleSnapshot(pendingNotes || 'New version')} disabled={isSnapshotting}>
-                        {isSnapshotting ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Plus className="mr-1 h-4 w-4" />} New
-                      </Button>
-                    </div>
-                    <div className="flex-1 min-h-0 overflow-y-auto p-3">
-                      {prompt.versions.length === 0 ? (
-                        <div className="text-sm text-slate-500">No versions yet. Make changes and save a snapshot to create one.</div>
-                      ) : (
-                        <ul className="space-y-2">
-                          {prompt.versions.map((v) => (
-                            <li key={v.id} className="rounded-lg border p-3 hover:bg-slate-50 transition">
-                              <div className="flex items-start gap-2">
-                                <button className="flex-1 text-left" onClick={() => setSelectedVersionId(v.id)} title={v.notes}>
-                                  <div className={`line-clamp-1 text-sm font-medium ${selectedVersionId === v.id ? 'font-bold' : ''}`}>{v.notes}</div>
-                                  <div className="mt-1 text-xs text-slate-500">{new Date(v.createdAt).toLocaleString()}</div>
-                                </button>
-                                {selectedVersionId !== v.id && (
-                                  <Button variant="ghost" size="sm" onClick={() => handleRestoreVersion(v.id)} className="h-7 px-2" disabled={isRestoring}>
-                                     {isRestoring ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : 'Restore'}
-                                  </Button>
-                                )}
-                              </div>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
-                  </Tab.Panel>
-
-                  {/* Variables tab */}
-                  <Tab.Panel className="flex-1 min-h-0 flex flex-col overflow-y-auto">
-                    <div className="flex flex-col gap-2 border-b p-3" style={{ borderColor: "var(--border)", background: "var(--muted-bg)" }}>
-                      <h3 className="font-semibold">Variables</h3>
-                      <Button className="w-full h-9 btn-primary" onClick={() => {
-                        console.log('[PromptLab] [Trace: VarTab] Variables tab: Create New Variable button clicked.');
-                        setShowVariableBuilder(true);
-                      }}>
-                        <Plus className="mr-1 h-4 w-4" /> Create New Variable
-                      </Button>
-                    </div>
-                    <div className="flex-1 min-h-0 overflow-y-auto p-3">
-                      {prompt.variables.length === 0 ? (
-                        <div className="text-sm text-slate-500">No variables yet. Click "Create New Variable" to get started.</div>
-                      ) : (
-                        <ul className="space-y-2">
-                          {prompt.variables.map((v) => (
-                            <VariableItem key={v.id} variable={v} onRemove={handleRemoveVariable} />
-                          ))}
-                        </ul>
-                      )}
-                    </div>
-                  </Tab.Panel>
-                </Tab.Panels>
-              </Tab.Group>
-            </div>
-
-            {/* Right side */}
-            <div className="saas-card h-full min-h-0 flex flex-col overflow-hidden">
-              <div className="flex-1 min-h-0 overflow-y-auto">
-                <Tabs value={rightTab} onValueChange={(v) => {
-                    setRightTab(v as any);
-                    console.log('[PromptLab] [Trace: RightTabChange] Right Tab changed to:', v);
-                }} className="flex h-full flex-col">
-                  <div className="border-b" style={{ borderColor: "var(--border)" }}>
-                    <TabsList className="h-11 bg-transparent">
-                      <TabsTrigger value="editor">Editor</TabsTrigger>
-                      <TabsTrigger value="version-details">Version Details</TabsTrigger>
-                      <TabsTrigger value="preview">Preview</TabsTrigger>
-                    </TabsList>
-                  </div>
-
-                  <div className="min-h-0 flex-1 overflow-y-auto">
-                    <TabsContent value="editor" className="m-0 outline-none flex-1 overflow-y-auto">
-                      <EditorPanel
-                          prompt={prompt}
-                          onUpdate={handleUpdatePrompt}
-                          onSnapshot={handleSnapshot}
-                          pendingNotes={pendingNotes}
-                          setPendingNotes={setPendingNotes}
-                          isSnapshotting={isSnapshotting}
-                        />
-                    </TabsContent>
-
-                    <TabsContent value="version-details" className="m-0 outline-none p-4 flex-1 overflow-y-auto">
-                      <VersionsPanel
-                        versions={prompt.versions || []}
-                        selectedVersionId={selectedVersionId}
-                        onSelectVersion={setSelectedVersionId}
-                        onRestoreVersion={handleRestoreVersion}
-                        isRestoring={isRestoring}
-                      />
-                    </TabsContent>
-
-                    <TabsContent value="preview" className="m-0 outline-none p-4 flex-1 overflow-y-auto">
-                      <div className="mb-2 flex items-center justify-between">
-                        <div className="text-sm font-medium">Preview</div>
-                        <Button size="sm" onClick={() => copy(renderedPreview)} className="h-8 btn-primary">
-                          <Copy className="mr-1 h-4 w-4" />
-                          Copy
-                        </Button>
-                      </div>
-                      <Textarea
-                        readOnly
-                        value={renderedPreview}
-                        className="min-h-[300px] font-mono overflow-y-auto"
-                        style={{ background: '#f8f8f8', color: '#333', borderColor: '#e0e0e0', lineHeight: '1.5' }}
-                      />
-                      <p className="text-xs text-muted-foreground mt-2">
-                        Note: Text wrapped in `[[...]]` indicates a substituted variable.
-                      </p>
-                    </TabsContent>
-                  </div>
-                </Tabs>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <VariableDiscoveryBuilder
-          open={showVariableBuilder}
-          onOpenChange={setShowVariableBuilder}
-          onCreate={handleCreateVariable}
-          projectId={projectId}
-        />
-      </div>
-      <CustomDragLayer />
-    </DndProvider>
-  )
-}
-
-/* ---------- Variable Item (Sidebar) ---------- */
-
-function VariableItem({ variable, onRemove }: { variable: PromptVariable; onRemove: (id: string) => void }) {
-  const [{ isDragging }, drag, preview] = useDrag(() => ({
-    type: ItemTypes.VARIABLE,
-    item: { id: variable.id, placeholder: variable.placeholder, name: variable.name },
-    collect: (monitor) => {
-      const dragging = monitor.isDragging();
-      return { isDragging: dragging };
-    },
-  }), [variable]);
-
-  useEffect(() => {
-    if (preview) {
-        preview(getEmptyImage(), { captureDraggingState: true });
-    }
-    const dragSourceElement = document.getElementById(variable.id + '-drag-source');
-    if (dragSourceElement) {
-        drag(dragSourceElement);
-    }
-  }, [drag, preview, variable.id, variable.name]);
-
-  return (
-    <div
-      id={variable.id + '-drag-source'}
-      className={`cursor-grab rounded px-2 py-1 mb-2 border ${
-        isDragging ? 'opacity-0' : 'bg-gray-100'
-      } flex items-center justify-between group`}
-    >
-      <div>
-        <span className="font-semibold">{variable.name}</span>
-        <span className="text-xs text-gray-500 ml-2">({variable.placeholder})</span>
-      </div>
-      <button
-        onClick={() => onRemove(variable.id)}
-        className="ml-2 p-1 rounded-full text-gray-400 hover:bg-gray-200 hover:text-red-600 transition-opacity opacity-0 group-hover:opacity-100"
-        aria-label={`Remove variable ${variable.name}`}
-      >
-        <Trash2 className="h-3 w-3" />
-      </button>
-    </div>
-  )
-}
-
-
-/* ---------- BLOCK-BASED EDITOR ---------- */
-
-type Block =
-  | { type: 'text'; id: string; value: string }
-  | { type: 'variable'; id: string; varId: string; placeholder: string; name: string }
-
-/* ---------- EditorPanel: Enhanced Prompt Creation ---------- */
-function EditorPanel({
-  prompt,
-  onUpdate,
-  onSnapshot,
-  pendingNotes,
-  setPendingNotes,
-  isSnapshotting,
-}: {
-  prompt: Prompt
-  onUpdate: (patch: Partial<Prompt>) => void
-  onSnapshot: (notes?: string) => void
-  pendingNotes: string;
-  setPendingNotes: (notes: string) => void;
-  isSnapshotting: boolean;
-}) {
-  console.log(`[EditorPanel ${prompt.id}] [Trace: Render] Rendered with prompt ID: ${prompt.id}, Title: "${prompt.title}", Content length: ${prompt.content.length}`);
-
-  const [blocks, setBlocks] = useState<Block[]>([]);
-  const [localTitle, setLocalTitle] = useState('');
-  const [localContext, setLocalContext] = useState('');
-  const [localModel, setLocalModel] = useState('');
-
-  // Using refs to prevent initial unwanted mutations and redundant updates
-  const isInitialMount = useRef(true);
-  const lastKnownPropValues = useRef({
-    id: '',
-    title: '',
-    context: '',
-    model: '',
-    content: [] as Block[],
-  });
-
-  // Effect to synchronize local state with prompt prop when prompt.id changes
-  // or on initial mount.
-  useEffect(() => {
-    console.log(`[EditorPanel ${prompt.id}] [Trace: Effect_PromptSync] Syncing local states with prompt prop. Prompt ID: ${prompt.id}.`);
-    
-    // Only update local states if the prompt ID has truly changed or it's the very first mount
-    // for this specific prompt ID.
-    if (prompt.id !== lastKnownPropValues.current.id || isInitialMount.current) {
-      console.log(`[EditorPanel ${prompt.id}] [Trace: Effect_PromptSync] New prompt ID detected or initial mount. Resetting all local states.`);
-      
-      const initialBlocksFromProp: Block[] = (prompt.content && Array.isArray(prompt.content) ? prompt.content : []) as Block[];
-      const normalizedInitialBlocks = initialBlocksFromProp.filter(b => !(b.type === 'text' && b.value === '')).length > 0
-                                      ? initialBlocksFromProp
-                                      : [{ type: 'text', id: cuid('t-initial-empty'), value: '' }];
-      
-      setBlocks(normalizedInitialBlocks);
-      setLocalTitle(prompt.title);
-      setLocalContext(prompt.context);
-      setLocalModel(prompt.model);
-      setPendingNotes('');
-
-      // Update ref to track current prop values
-      lastKnownPropValues.current = {
-        id: prompt.id,
-        title: prompt.title,
-        context: prompt.context,
-        model: prompt.model,
-        content: normalizedInitialBlocks, // Store normalized content for comparison
-      };
-
-      if (isInitialMount.current) {
-        isInitialMount.current = false;
-      }
-    } else {
-      console.log(`[EditorPanel ${prompt.id}] [Trace: Effect_PromptSync] Prompt ID has not changed. Skipping full state reset.`);
-      // If prompt ID hasn't changed but other prompt properties might have (e.g., from restore/snapshot),
-      // we need to update local states if they diverge from the prop and are not already optimistically applied.
-      if (prompt.title !== localTitle && prompt.title !== lastKnownPropValues.current.title) {
-        console.log(`[EditorPanel ${prompt.id}] [Trace: Effect_PromptSync] Prop title updated to "${prompt.title}", updating localTitle.`);
-        setLocalTitle(prompt.title);
-        lastKnownPropValues.current.title = prompt.title;
-      }
-      if (prompt.context !== localContext && prompt.context !== lastKnownPropValues.current.context) {
-        console.log(`[EditorPanel ${prompt.id}] [Trace: Effect_PromptSync] Prop context updated, updating localContext.`);
-        setLocalContext(prompt.context);
-        lastKnownPropValues.current.context = prompt.context;
-      }
-      if (prompt.model !== localModel && prompt.model !== lastKnownPropValues.current.model) {
-        console.log(`[EditorPanel ${prompt.id}] [Trace: Effect_PromptSync] Prop model updated to "${prompt.model}", updating localModel.`);
-        setLocalModel(prompt.model);
-        lastKnownPropValues.current.model = prompt.model;
-      }
-
-      const currentPropContent = (prompt.content && Array.isArray(prompt.content) ? prompt.content : []) as Block[];
-      const normalizedCurrentPropContent = currentPropContent.filter(b => !(b.type === 'text' && b.value === '')).length > 0
-                                            ? currentPropContent
-                                            : [{ type: 'text', id: cuid('t-normalized-empty-sync'), value: '' }];
-
-      if (!deepCompareBlocks(blocks, normalizedCurrentPropContent) && !deepCompareBlocks(lastKnownPropValues.current.content, normalizedCurrentPropContent)) {
-        console.log(`[EditorPanel ${prompt.id}] [Trace: Effect_PromptSync] Prop content updated, updating blocks state.`);
-        setBlocks(normalizedCurrentPropContent);
-        lastKnownPropValues.current.content = normalizedCurrentPropContent;
-      }
-    }
-  }, [prompt.id, prompt.title, prompt.context, prompt.model, prompt.content]); // Include all relevant prompt fields
-
-  const logBlocks = useCallback((message: string, currentBlocks: Block[]) => {
-    const formattedBlocks = currentBlocks.map(b =>
-      b.type === 'text' ? `[TEXT:"${b.value.substring(0, Math.min(b.value.length, 30))}..."] (id:${b.id})` : `[VAR:${b.name || b.placeholder} (varId: ${b.varId}, id:${b.id})]`
-    ).join(' | ');
-    console.log(`[EditorPanel ${prompt.id}] --- BLOCKS STATE UPDATE --- ${message}\nCURRENT BLOCKS: ${formattedBlocks}`);
-  }, [prompt.id]);
-
-  // Debounce the content update to the backend
-  const [debouncedBlocks] = useDebounce(blocks, 500);
-
-  useEffect(() => {
-    console.log(`[EditorPanel ${prompt.id}] [Trace: Effect_DebouncedBlocks] debouncedBlocks changed.`);
-    const currentPropContent = (prompt.content && Array.isArray(prompt.content) ? prompt.content : []) as Block[];
-    const normalizedCurrentPropContent = currentPropContent.filter(b => !(b.type === 'text' && b.value === '')).length > 0
-                                            ? currentPropContent
-                                            : [{ type: 'text', id: cuid('t-normalized-empty-debounced'), value: '' }];
-
-    if (!deepCompareBlocks(normalizedCurrentPropContent, debouncedBlocks) && !deepCompareBlocks(lastKnownPropValues.current.content, debouncedBlocks)) {
-      console.log(`[EditorPanel ${prompt.id}] [Trace: Effect_DebouncedBlocks] Debounced blocks differ from prop content AND last known sent value. Calling onUpdate.`);
-      onUpdate({ content: debouncedBlocks });
-      lastKnownPropValues.current.content = debouncedBlocks; // Optimistically update ref after sending
-    } else {
-      console.log(`[EditorPanel ${prompt.id}] [Trace: Effect_DebouncedBlocks] Debounced blocks match prop content OR last known sent value. No update needed.`);
-    }
-  }, [debouncedBlocks, onUpdate, prompt.content, prompt.id]);
-
-
-  // Debounce for title, context, model updates
-  const [debouncedLocalTitle] = useDebounce(localTitle, 300);
-  const [debouncedLocalContext] = useDebounce(localContext, 300);
-  const [debouncedLocalModel] = useDebounce(localModel, 300);
-
-  useEffect(() => {
-    // Only call onUpdate if the debounced value actually differs from the *current* prompt prop
-    // AND if it's also different from the last value we sent to the server (or what was initially loaded).
-    // This helps avoid redundant updates if the prop itself changes to a value we just optimistically applied.
-    if (debouncedLocalTitle !== prompt.title && debouncedLocalTitle !== lastKnownPropValues.current.title) {
-      console.log(`[EditorPanel ${prompt.id}] [Trace: Effect_DebouncedTitle] Debounced title "${debouncedLocalTitle}" differs from prop title "${prompt.title}" AND last sent "${lastKnownPropValues.current.title}". Calling onUpdate.`);
-      onUpdate({ title: debouncedLocalTitle }); // FIX APPLIED HERE: Removed "Untitled Prompt" fallback
-      lastKnownPropValues.current.title = debouncedLocalTitle; // Update ref after sending
-    } else {
-      console.log(`[EditorPanel ${prompt.id}] [Trace: Effect_DebouncedTitle] Debounced title "${debouncedLocalTitle}" matches prop title "${prompt.title}" OR last sent value. No update needed.`);
-    }
-  }, [debouncedLocalTitle, prompt.title, onUpdate, prompt.id]);
-
-  useEffect(() => {
-    if (debouncedLocalContext !== prompt.context && debouncedLocalContext !== lastKnownPropValues.current.context) {
-      console.log(`[EditorPanel ${prompt.id}] [Trace: Effect_DebouncedContext] Debounced context "${debouncedLocalContext.substring(0, Math.min(debouncedLocalContext.length, 50))}..." differs from prop context AND last sent. Calling onUpdate.`);
-      onUpdate({ context: debouncedLocalContext });
-      lastKnownPropValues.current.context = debouncedLocalContext; // Update ref after sending
-    } else {
-      console.log(`[EditorPanel ${prompt.id}] [Trace: Effect_DebouncedContext] Debounced context matches prop context OR last sent value. No update needed.`);
-    }
-  }, [debouncedLocalContext, prompt.context, onUpdate, prompt.id]);
-
-  useEffect(() => {
-    if (debouncedLocalModel !== prompt.model && debouncedLocalModel !== lastKnownPropValues.current.model) {
-      console.log(`[EditorPanel ${prompt.id}] [Trace: Effect_DebouncedModel] Debounced model "${debouncedLocalModel}" differs from prop model "${prompt.model}" AND last sent. Calling onUpdate.`);
-      onUpdate({ model: debouncedLocalModel });
-      lastKnownPropValues.current.model = debouncedLocalModel; // Update ref after sending
-    } else {
-      console.log(`[EditorPanel ${prompt.id}] [Trace: Effect_DebouncedModel] Debounced model matches prop model OR last sent value. No update needed.`);
-    }
-  }, [debouncedLocalModel, prompt.model, onUpdate, prompt.id]);
-
-
-  const insertVariableAt = useCallback((index: number, variable: { placeholder: string; id: string; name: string }) => {
-    setBlocks(prev => {
-      let copy = [...prev];
-      const newVarBlock: Block = { type: 'variable', id: cuid('v-'), varId: variable.id, placeholder: variable.placeholder, name: variable.name };
-      
-      copy.splice(index, 0, newVarBlock);
-      logBlocks(`After directly inserting variable "${variable.placeholder}" at index ${index}`, copy);
-      return copy;
-    });
-  }, [logBlocks]);
-
-
-  const insertTextAt = useCallback((index: number, text = '') => {
-    setBlocks(prev => {
-      let copy = [...prev];
-      const newBlock: Block = { type: 'text', id: cuid('t-'), value: text }
-
-      copy.splice(index, 0, newBlock)
-      logBlocks(`After directly inserting text block at index ${index}`, copy);
-      return copy
-    })
-  }, [logBlocks]);
-
-  const updateTextBlock = useCallback((id: string, value: string) => {
-    console.log(`[EditorPanel ${prompt.id}] [Trace: UpdateTextBlock] updateTextBlock called for block ID: ${id}, new value: "${value}". Propagating to blocks state.`);
-    setBlocks(prev => {
-        let updated = prev.map(b => b.type === 'text' && b.id === id ? { ...b, value } : b);
-        
-        // Logic to remove empty text blocks, but ensure at least one text block remains if no variables
-        const nonTextBlocksExist = updated.some(b => b.type === 'variable');
-        const currentTextBlocksCount = updated.filter(b => b.type === 'text').length;
-
-        if (value === '' && !nonTextBlocksExist && currentTextBlocksCount === 1 && updated.find(b => b.id === id) === updated[0]) {
-             // If this is the only block and it becomes empty, keep it
-             console.log(`[EditorPanel ${prompt.id}] [Trace: UpdateTextBlock] Only text block and it became empty, keeping it.`);
-        } else if (value === '' && updated.length > 1) {
-             // If a text block becomes empty and there are other blocks, remove it
-             console.log(`[EditorPanel ${prompt.id}] [Trace: UpdateTextBlock] Removing empty text block ${id} as there are other blocks.`);
-             updated = updated.filter(b => !(b.type === 'text' && b.id === id));
-             if (updated.length === 0) {
-                console.log('[EditorPanel] [Trace: UpdateTextBlock] All blocks removed, adding empty fallback after text block update.');
-                updated.push({ type: 'text', id: cuid('t-empty-fallback-after-update'), value: '' });
-             }
-        }
-        // If after update, all blocks are gone (e.g., removing the last variable block), add an empty text block
-        else if (updated.length === 0) {
-            console.log('[EditorPanel] [Trace: UpdateTextBlock] All blocks removed, adding empty fallback (safeguard).');
-            updated.push({ type: 'text', id: cuid('t-empty-fallback-safeguard'), value: '' });
-        }
-
-
-        logBlocks(`After updating text block ${id} to "${value.substring(0, Math.min(value.length, 30))}..."`, updated);
-        return updated;
-    });
-  }, [logBlocks, prompt.id]);
-
-  const removeBlock = useCallback((index: number) => {
-    console.log(`[EditorPanel ${prompt.id}] [Trace: RemoveBlock] removeBlock called for index: ${index}`);
-    setBlocks(prev => {
-      let copy = [...prev];
-      if (index < 0 || index >= copy.length) {
-          console.warn(`[EditorPanel ${prompt.id}] [Trace: RemoveBlock] Invalid index ${index}.`);
-          return prev;
-      }
-
-      copy.splice(index, 1); 
-      console.log(`[EditorPanel ${prompt.id}] [Trace: RemoveBlock] Removed block at index ${index}.`);
-      
-      // Ensure there's always at least one text block if the list becomes empty
-      if (copy.length === 0) {
-        console.log('[EditorPanel] [Trace: RemoveBlock] No blocks left, adding empty fallback.');
-        copy.push({ type: 'text', id: cuid('t-empty-after-remove'), value: '' });
-      }
-
-      logBlocks(`After removing block at index ${index}`, copy);
-      return copy
-    })
-  }, [logBlocks, prompt.id]);
-
-  const moveBlock = useCallback((from: number, to: number) => {
-    console.log(`[EditorPanel ${prompt.id}] [Trace: MoveBlock] moveBlock called from index: ${from} to index: ${to}`);
-    setBlocks(prev => {
-      let copy = [...prev];
-      if (from < 0 || from >= copy.length || to < 0 || to > copy.length) {
-          console.warn(`[EditorPanel ${prompt.id}] [Trace: MoveBlock] Invalid indices from ${from} to ${to}.`);
-          return prev;
-      }
-
-      const [item] = copy.splice(from, 1);
-      copy.splice(to, 0, item);
-
-      logBlocks(`After moving block from ${from} to ${to}`, copy);
-      return copy;
-    });
-  }, [logBlocks, prompt.id]);
-
-  const { isDragging: isDraggingSomething } = useDragLayer((monitor) => ({
-    isDragging: monitor.isDragging(),
-  }));
-
-  const [{ isOverBlockContainer, canDropBlockContainer }, dropBlockContainer] = useDrop(() => ({
-    accept: [ItemTypes.VARIABLE, ItemTypes.BLOCK],
-    drop: (item: any, monitor) => {
-      if (monitor.didDrop()) {
-        console.log('[EditorPanel][DropContainer] Drop handled by a nested target, ignoring.');
-        return;
-      }
-      console.log(`[EditorPanel ${prompt.id}][DropContainer] Item dropped into container.`, item);
-
-      let targetIndex = blocks.length;
-      if (blocks.length === 0) {
-        targetIndex = 0;
-      }
-
-      if (monitor.getItemType() === ItemTypes.VARIABLE) {
-        console.log(`[EditorPanel ${prompt.id}][DropContainer] Inserting variable at index ${targetIndex}.`);
-        insertVariableAt(targetIndex, item);
-      } else if (monitor.getItemType() === ItemTypes.BLOCK) {
-        const dragIndex = item.index;
-        const isNoRealMove = (dragIndex === targetIndex) ||
-                             (dragIndex + 1 === targetIndex && dragIndex < targetIndex) ||
-                             (dragIndex === targetIndex + 1 && targetIndex < dragIndex);
-
-        if (isNoRealMove) {
-          console.log('[EditorPanel][DropContainer] No real move detected, ignoring block drop.');
-          return;
-        }
-
-        console.log(`[EditorPanel ${prompt.id}][DropContainer] Moving block from ${dragIndex} to ${targetIndex}.`);
-        moveBlock(dragIndex, targetIndex);
-        item.index = targetIndex; // Update the index of the dragged item for subsequent drops
-      }
-    },
-    collect: (monitor) => {
-        const isOver = monitor.isOver({ shallow: true });
-        const canDrop = monitor.canDrop();
-        return {
-            isOverBlockContainer: isOver,
-            canDropBlockContainer: canDrop,
-        };
-    },
-  }), [blocks.length, insertVariableAt, moveBlock, isDraggingSomething, prompt.id]);
-
-
-  return (
-    <div className="flex h-full min-h-0 flex-col">
-      <div className="saas-section-header rounded-t-lg">
-        <div className="grid flex-1 grid-cols-1 gap-3 md:grid-cols-2">
-          <Input
-            value={localTitle}
-            onChange={(e) => {
-              console.log(`[EditorPanel ${prompt.id}] [Trace: InputTitle] Title input changed (local state):`, e.target.value);
-              setLocalTitle(e.target.value);
-            }}
-            className="h-10 text-sm font-medium"
-            placeholder="Untitled Prompt" // Added placeholder for visual hint
-          />
-          <select
-            className="h-10 rounded-md border bg-background px-3 text-sm"
-            value={localModel}
-            onChange={(e) => {
-              console.log(`[EditorPanel ${prompt.id}] [Trace: SelectModel] Model select changed (local state):`, e.target.value);
-              setLocalModel(e.target.value);
-            }}
-            title="Target model"
-          >
-            <option value="gpt-4o">OpenAI GPT-4o</option>
-            <option value="gpt-4o-mini">OpenAI GPT-4o-mini</option>
-            <option value="grok-3">xAI Grok-3</option>
-            <option value="llama3.1-70b">Llama 3.1 70B</option>
-            <option value="mixtral-8x7b">Mixtral 8x7B</option>
-          </select>
-        </div>
-      </div>
-
-      <div className="flex-1 overflow-auto p-4">
-        <section className="rounded-lg border p-4 mb-4">
-          <div className="mb-2 text-sm font-medium">Project context</div>
-          <Textarea
-            value={localContext}
-            onChange={(e) => {
-              console.log(`[EditorPanel ${prompt.id}] [Trace: InputContext] Context textarea changed (local state):`, e.target.value.substring(0, Math.min(e.target.value.length, 50)) + '...');
-              setLocalContext(e.target.value);
-            }}
-            rows={6}
-            className="overflow-y-auto"
-            placeholder="Add domain, audience, constraints, style guides, and examples. Use {{variables}} if needed."
-          />
-        </section>
-
-        <section className="rounded-lg border p-4 mb-4">
-          <div className="mb-2 text-sm font-medium">Prompt content</div>
-          <div
-            ref={dropBlockContainer}
-            className={`flex flex-col gap-2 min-h-[300px] border rounded p-3
-                        ${isOverBlockContainer && canDropBlockContainer && isDraggingSomething ? 'bg-indigo-50 border-indigo-300' : 'bg-gray-50'}`}
-          >
-            {blocks.length === 0 && !isDraggingSomething ? (
-                <div className="flex-1 text-center py-12 text-gray-400">
-                    Drag variables or click "+ Add text" to start building your prompt.
-                    <button
-                      onClick={() => {
-                        console.log(`[EditorPanel ${prompt.id}] [Trace: EmptyStateAddText] Add text button clicked (empty state).`);
-                        insertTextAt(0, '');
-                      }}
-                      className="mt-4 px-3 py-1 border rounded-md text-sm text-gray-700 bg-white hover:bg-gray-100 flex items-center justify-center mx-auto"
-                    >
-                      <Text className="mr-1 h-4 w-4" /> Add text
-                    </button>
-                </div>
-            ) : (
-                blocks.map((b, i) => (
-                    <React.Fragment key={`block-fragment-${b.id}`}>
-                        {i === 0 && (
-                          <HoverAddTextBlock
-                              key={`hover-insert-before-first`}
-                              index={0}
-                              insertTextAt={insertTextAt}
-                          />
-                        )}
-                        <BlockRenderer
-                            key={b.id}
-                            block={b}
-                            index={i}
-                            allBlocks={blocks}
-                            updateTextBlock={updateTextBlock}
-                            removeBlock={removeBlock}
-                            moveBlock={moveBlock}
-                            insertVariableAt={insertVariableAt}
-                            isDraggingSomething={isDraggingSomething}
-                            insertTextAt={insertTextAt}
-                        />
-                        <HoverAddTextBlock
-                            key={`hover-insert-after-${b.id}`}
-                            index={i + 1}
-                            insertTextAt={insertTextAt}
-                        />
-                    </React.Fragment>
-                ))
-            )}
-            
-            {blocks.length === 0 && isOverBlockContainer && canDropBlockContainer && isDraggingSomething && (
-                <div className="flex-1 flex items-center justify-center border-2 border-dashed border-indigo-400 rounded-md bg-indigo-50 text-indigo-700 h-24">
-                    Drop item here
-                </div>
-            )}
-          </div>
-        </section>
-
-        <section className="flex items-center gap-2">
-          <Input
-            placeholder="Notes for this version"
-            value={pendingNotes}
-            onChange={(e) => setPendingNotes(e.target.value)}
-            className="flex-1"
-          />
-          <Button
-            onClick={() => {
-              console.log(`[EditorPanel ${prompt.id}] [Trace: SaveButton] Save button clicked.`);
-              onSnapshot(pendingNotes || 'New version');
-            }}
-            className="btn-primary"
-            disabled={isSnapshotting}
-          >
-            {isSnapshotting ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <GitCommit className="mr-1 h-4 w-4" />}
-            Save
-          </Button>
-        </section>
-      </div>
-    </div>
-  )
-}
-
-
-/* ---------- Block Renderer: Puzzle-style variable/text blocks ---------- */
-function BlockRenderer({
-  block,
-  index,
-  allBlocks,
-  updateTextBlock,
-  removeBlock,
-  moveBlock,
-  insertVariableAt,
-  isDraggingSomething,
-  insertTextAt,
-}: {
-  block: Block
-  index: number
-  allBlocks: Block[];
-  updateTextBlock: (id: string, value: string) => void
-  removeBlock: (index: number) => void
-  moveBlock: (from: number, to: number) => void
-  insertVariableAt: (index: number, variable: { placeholder: string; id: string; name: string }) => void
-  isDraggingSomething: boolean;
-  insertTextAt: (index: number, text?: string) => void;
-}) {
-  const contentEditableRef = useRef<HTMLDivElement | null>(null);
-  const wrapperRef = useRef<HTMLDivElement | null>(null);
-
-  console.log(`[BlockRenderer ${block.id}] [Trace: Render] Rendered. Type: ${block.type}, Value: "${block.type === 'text' ? block.value.substring(0,20) : 'N/A'}"`);
-
-
-  useEffect(() => {
-    if (block.type === 'text') {
-      console.log(`[BlockRenderer ${block.id}] [Trace: TextBlockEffect] block.value changed to "${block.value}".`);
-      // Only update DOM if the block is not actively being edited AND the DOM value differs
-      if (contentEditableRef.current && contentEditableRef.current.innerText !== block.value && document.activeElement !== contentEditableRef.current) {
-        console.log(`[BlockRenderer ${block.id}] [Trace: TextBlockEffect] DOM innerText differs from block.value and not active. Setting innerText.`);
-        contentEditableRef.current.innerText = block.value;
-      } else if (contentEditableRef.current && document.activeElement === contentEditableRef.current) {
-        console.log(`[BlockRenderer ${block.id}] [Trace: TextBlockEffect] Component is active, avoiding DOM update to prevent disrupting user input.`);
-      }
-    }
-  }, [block.type, block.value]);
-
-
-  const [{ isDragging, canDrag }, dragRef, preview] = useDrag(() => ({
-    type: ItemTypes.BLOCK,
-    item: {
-      id: block.id,
-      index,
-      type: block.type,
-      value: block.type === 'text' ? block.value : block.placeholder,
-      name: block.type === 'variable' ? block.name : undefined,
-      varId: block.type === 'variable' ? block.varId : undefined,
-      originalBlock: block,
-    },
-    canDrag: (monitor) => {
-      console.log(`[BlockRenderer ${block.id}] [Trace: DragCanDrag] Can drag check. Item: ${block.type}.`);
-      return true; // Always allow dragging
-    },
-    collect: (m) => {
-        const dragging = m.isDragging();
-        const currentCanDrag = m.canDrag();
-        console.log(`[BlockRenderer ${block.id}] [Trace: DragCollect] isDragging: ${dragging}, canDrag: ${currentCanDrag}`);
-        return { isDragging: dragging, canDrag: currentCanDrag };
-    },
-  }), [block.id, index, block.type, block.value, block.placeholder, block.name, block.varId]);
-
-  const connectDragSource = useCallback((node: HTMLElement | null) => {
-    dragRef(node);
-  }, [dragRef]);
-
-  useEffect(() => {
-    // Hide the default HTML5 drag preview
-    preview(getEmptyImage(), { captureDraggingState: true });
-  }, [preview]);
-
-
-  const [localDropTargetPosition, setLocalDropTargetPosition] = useState<'before' | 'after' | null>(null);
-
-  const [{ isOver, canDrop }, dropRef] = useDrop(() => ({
-    accept: [ItemTypes.VARIABLE, ItemTypes.BLOCK],
-    hover(item: { id?: string; index?: number; placeholder?: string }, monitor) {
-      if (!wrapperRef.current) {
-        return;
-      }
-      if (!monitor.isOver({ shallow: true })) {
-        if (localDropTargetPosition !== null) {
-            console.log(`[BlockRenderer ${block.id}] [Trace: DropHover] Monitor not shallow over, clearing localDropTargetPosition.`);
-            setLocalDropTargetPosition(null);
-        }
-        return;
-      }
-
-      const hoverBoundingRect = wrapperRef.current.getBoundingClientRect();
-      const hoverMiddleY = (hoverBoundingRect.bottom - hoverBoundingRect.top) / 2;
-      const clientOffset = monitor.getClientOffset();
-      if (!clientOffset) {
-        return;
-      }
-      const hoverClientY = clientOffset.y - hoverBoundingRect.top;
-
-      let newDropPosition: 'before' | 'after' | null = null;
-      const draggingItemType = monitor.getItemType();
-
-      // Prevent dropping a block onto itself
-      if (draggingItemType === ItemTypes.BLOCK && (item as { id: string }).id === block.id) {
-        if (localDropTargetPosition !== null) {
-            console.log(`[BlockRenderer ${block.id}] [Trace: DropHover] Dragging block onto itself, clearing localDropTargetPosition.`);
-            setLocalDropTargetPosition(null);
-        }
-        return;
-      }
-
-      if (draggingItemType === ItemTypes.BLOCK || draggingItemType === ItemTypes.VARIABLE) {
-        newDropPosition = hoverClientY < hoverMiddleY ? 'before' : 'after';
-      }
-
-      if (localDropTargetPosition !== newDropPosition) {
-        console.log(`[BlockRenderer ${block.id}] [Trace: DropHover] Updating localDropTargetPosition from ${localDropTargetPosition} to ${newDropPosition}.`);
-        setLocalDropTargetPosition(newDropPosition);
-      }
-    },
-    drop(item: any, monitor) {
-      const dragItemType = monitor.getItemType();
-      
-      console.log(`[BlockRenderer ${block.id}] [Trace: DropDrop] Item dropped. Type: ${String(dragItemType)}, Item ID: ${item.id}.`);
-      setLocalDropTargetPosition(null); // Clear highlight on drop
-
-      if (monitor.didDrop()) {
-        console.log(`[BlockRenderer ${block.id}] [Trace: DropDrop] Drop already handled by another target, skipping.`);
-        return;
-      }
-
-      let targetIndex = localDropTargetPosition === 'after' ? index + 1 : index;
-
-      if (dragItemType === ItemTypes.VARIABLE) {
-          console.log(`[BlockRenderer ${block.id}][DropDrop] Inserting variable at index ${targetIndex}.`);
-          insertVariableAt(targetIndex, item);
-      } else if (dragItemType === ItemTypes.BLOCK) {
-        const dragIndex = item.index;
-
-        // Condition to check if it's a "no real move" for Block type
-        // This is crucial to prevent unnecessary state updates
-        const isNoRealMove = (dragIndex === targetIndex) ||
-                             (dragIndex + 1 === targetIndex && dragIndex < targetIndex) || // moving down 1 position to immediately after self
-                             (dragIndex === targetIndex + 1 && targetIndex < dragIndex); // moving up 1 position to immediately before self
-        
-        console.log(`[BlockRenderer ${block.id}][DropDrop] DragIndex: ${dragIndex}, TargetIndex: ${targetIndex}, IsNoRealMove: ${isNoRealMove}`);
-
-        if (isNoRealMove) {
-          console.log(`[BlockRenderer ${block.id}][DropDrop] No real move detected, ignoring block drop.`);
-          return;
-        }
-
-        console.log(`[BlockRenderer ${block.id}][DropDrop] Moving block from ${dragIndex} to ${targetIndex}.`);
-        moveBlock(dragIndex, targetIndex);
-        item.index = targetIndex; // Update the index of the dragged item for subsequent drops
-      }
-    },
-    collect: (monitor) => {
-        const isOverVal = monitor.isOver({ shallow: true });
-        const canDropVal = monitor.canDrop();
-        console.log(`[BlockRenderer ${block.id}] [Trace: DropCollect] isOver: ${isOverVal}, canDrop: ${canDropVal}`);
-        return {
-            isOver: isOverVal,
-            canDrop: canDropVal,
-        };
-    },
-  }), [index, insertVariableAt, moveBlock, localDropTargetPosition, block.id, allBlocks.length]);
-
-  const blockRootRef = mergeRefs(wrapperRef, dropRef); 
-
-  const showPlaceholderAbove = isOver && canDrop && localDropTargetPosition === 'before' && isDraggingSomething;
-  const showPlaceholderBelow = isOver && canDrop && localDropTargetPosition === 'after' && isDraggingSomething;
-
-  const commonClasses = `relative w-full rounded-md shadow-sm transition-all duration-100 ease-in-out`;
-
-  if (block.type === 'variable') {
-    return (
-      <div
-        ref={blockRootRef}
-        className={`${commonClasses} ${isDragging ? 'opacity-50' : ''} flex items-center gap-2 pr-2 group`}
-      >
-        {showPlaceholderAbove && <div className="absolute -top-1.5 left-0 right-0 h-1 bg-blue-500 rounded-sm z-10" />}
-        
-        <div
-          ref={connectDragSource}
-          className="cursor-grab shrink-0 flex items-center justify-center w-10 h-10 bg-blue-100 border border-blue-200 rounded-md text-blue-600 shadow-md transition-opacity duration-100 opacity-100 group-hover:opacity-100"
-        >
-          <GripVertical className="h-6 w-6" />
-        </div>
-
-        <div
-          className={`flex-1 flex items-center justify-between p-2 bg-blue-50 border border-blue-200 rounded-md `}
-        >
-          <div className="text-sm font-medium">{block.name || block.placeholder}</div>
-        </div>
-        {showPlaceholderBelow && <div className="absolute -bottom-1.5 left-0 right-0 h-1 bg-blue-500 rounded-sm z-10" />}
-      </div>
-    )
-  } else {
-    const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-      console.log(`[BlockRenderer ${block.id}] [Trace: TextKeyDown] Key down: ${e.key}`);
-      if (e.key === 'Enter' && !e.shiftKey) {
-        console.log(`[BlockRenderer ${block.id}] [Trace: TextKeyDown] Enter pressed, preventing default.`);
-        e.preventDefault();
-        return;
-      }
-      if (e.key === 'Backspace' && contentEditableRef.current?.innerText === '' && window.getSelection()?.anchorOffset === 0) {
-          e.preventDefault();
-          console.log(`[BlockRenderer ${block.id}] [Trace: TextKeyDown] Backspace on empty block with cursor at start.`);
-          if (allBlocks.length === 1 && allBlocks[0].id === block.id) {
-              console.log(`[BlockRenderer ${block.id}] [Trace: TextKeyDown] Only block left, preventing removal.`);
-              updateTextBlock(block.id, ''); 
-          } else {
-              console.log(`[BlockRenderer ${block.id}] [Trace: TextKeyDown] Removing block at index ${index}.`);
-              removeBlock(index);
-          }
-      }
-    }
-
-    const onInput = (e: React.FormEvent<HTMLDivElement>) => {
-      const newText = e.currentTarget.innerText;
-      console.log(`[BlockRenderer ${block.id}] [Trace: TextOnInput] Current innerText: "${newText.substring(0, Math.min(newText.length, 50))}...". Calling updateTextBlock.`);
-      updateTextBlock(block.id, newText);
-    }
-
-    const onBlur = () => {
-      const text = contentEditableRef.current?.innerText ?? ''
-      console.log(`[BlockRenderer ${block.id}] [Trace: TextOnBlur] Final text: "${text.substring(0, Math.min(text.length, 50))}...". Block.value: "${block.value.substring(0, Math.min(block.value.length, 50))}...".`);
-      if (text === '' && allBlocks.length > 1) {
-          console.log(`[BlockRenderer ${block.id}] [Trace: TextOnBlur] Empty text block and not the only block, removing.`);
-          removeBlock(index);
-      }
-    }
-
-    return (
-      <div
-        ref={blockRootRef}
-        className={`${commonClasses} ${isDragging ? 'opacity-50' : ''} flex items-center gap-2 pr-2 group`}
-      >
-        {showPlaceholderAbove && <div className="absolute -top-1.5 left-0 right-0 h-1 bg-blue-500 rounded-sm z-10" />}
-        <div
-          className={`relative flex-1 p-2 bg-white border border-gray-300 rounded-md flex items-center group`}
-        >
-            <div
-              ref={connectDragSource}
-              className="cursor-grab shrink-0 flex items-center justify-center w-10 h-10 -ml-3 mr-2 text-gray-700 bg-gray-100 border border-gray-300 rounded-md shadow-md transition-opacity duration-100 opacity-100 group-hover:opacity-100"
-              style={{ position: 'relative', left: '0', top: '0', transform: 'none' }}
-            >
-              <GripVertical className="h-6 w-6" />
-            </div>
-            <div
-                contentEditable
-                suppressContentEditableWarning
-                onKeyDown={onKeyDown}
-                onInput={onInput}
-                onBlur={onBlur}
-                className="flex-1 min-h-[40px] text-sm outline-none w-full whitespace-pre-wrap py-2"
-                style={{ wordBreak: 'break-word' }}
-                ref={contentEditableRef}
-            >
-            </div>
-            {(allBlocks.length > 1) || (block.type === 'text' && block.value !== '') ? ( // Show remove button if more than 1 block or if this text block has content
-                <button
-                    onClick={() => {
-                        console.log(`[BlockRenderer ${block.id}] [Trace: RemoveButton] Remove button clicked.`);
-                        removeBlock(index);
-                    }}
-                    className="ml-2 p-1 rounded-full text-gray-400 hover:bg-gray-200 hover:text-red-600 transition-opacity"
-                    aria-label={`Remove text block`}
-                >
-                    <Trash2 className="h-4 w-4" />
-                </button>
-            ) : null}
-        </div>
-        {showPlaceholderBelow && <div className="absolute -bottom-1.5 left-0 right-0 h-1 bg-blue-500 rounded-sm z-10" />}
-      </div>
-    )
-  }
-}
-
-const getEmptyImage = () => {
-    if (typeof window === 'undefined') return new Image();
-    const img = new Image();
-    img.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
-    return img;
-};
-
-
-// NEW: HoverAddTextBlock component for interstitial "Add text" buttons
-function HoverAddTextBlock({
-  index,
-  insertTextAt,
-}: {
-  index: number;
-  insertTextAt: (index: number, text?: string) => void;
-}) {
-  const [isHovering, setIsHovering] = useState(false);
-
-  return (
-    <div
-      key={`hover-add-text-${index}`}
-      className="relative h-6 w-full flex justify-center items-center py-1 transition-all duration-100 ease-in-out group"
-      onMouseEnter={() => setIsHovering(true)}
-      onMouseLeave={() => setIsHovering(false)}
-    >
-      <div className={`absolute top-0 w-full h-full bg-transparent transition-all duration-100 ease-in-out
-                      ${isHovering ? 'bg-gray-100/50' : 'bg-transparent'}`}></div>
-
-      {isHovering && (
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={(e) => {
-            e.stopPropagation();
-            console.log(`[HoverAddTextBlock] [Trace: ButtonClick] Add text button clicked at index ${index}.`);
-            insertTextAt(index);
-            setIsHovering(false);
-          }}
-          className="relative z-10 h-6 px-2 py-1 text-xs bg-gray-200 text-gray-700 hover:bg-gray-300 focus:ring-2 focus:ring-gray-400 focus:ring-offset-2 transition-all duration-100 ease-in-out transform scale-90 group-hover:scale-100"
-        >
-          <Text className="mr-1 h-3 w-3" /> Add text
-        </Button>
-      )}
-    </div>
-  );
-}
-
-
-function CustomDragLayer() {
-  const {
-    itemType,
-    isDragging,
-    item,
-    currentOffset,
-  } = useDragLayer((monitor) => ({
-    item: monitor.getItem(),
-    itemType: monitor.getItemType(),
-    currentOffset: monitor.getClientOffset(),
-    isDragging: monitor.isDragging(),
-  }));
-
-
-  if (!isDragging || !currentOffset || !item) {
-    return null;
-  }
-
-  const layerStyles: React.CSSProperties = {
-    position: 'fixed',
-    pointerEvents: 'none',
-    zIndex: 9999,
-    left: 0,
-    top: 0,
-    transform: `translate(${currentOffset.x}px, ${currentOffset.y}px)`,
+    updateVersionDescription, // NEW: Expose new function
+    refetchPromptDetails: apolloRefetchPromptDetails,
   };
-
-  const renderItem = () => {
-    switch (itemType) {
-      case ItemTypes.VARIABLE:
-        const variableItem = item as { id: string; placeholder: string; name?: string };
-        return (
-          <div className="bg-blue-200 border border-blue-400 rounded-md px-3 py-1 shadow-md opacity-90">
-            <span className="font-semibold">{variableItem.name || variableItem.placeholder}</span>
-            <span className="text-xs text-blue-700 ml-2">(Drag Variable)</span>
-          </div>
-        );
-      case ItemTypes.BLOCK:
-        const blockItem = item as { originalBlock: Block };
-        const blockToRender = blockItem.originalBlock;
-
-        if (blockToRender.type === 'variable') {
-          return (
-            <div className="flex items-center justify-between p-2 bg-blue-50 border border-blue-200 rounded-md shadow-md opacity-90">
-              <div className="text-sm font-medium">{blockToRender.name || blockToRender.placeholder}</div>
-            </div>
-          );
-        } else { // Text block
-          return (
-            <div className="relative p-2 bg-white border border-gray-300 rounded-md flex items-center shadow-md opacity-90">
-              <div
-                  className="flex-1 min-h-[40px] text-sm w-full whitespace-pre-wrap"
-                  style={{ minWidth: '100px', maxWidth: '300px' }}
-              >
-                  {blockToRender.value.substring(0, Math.min(blockToRender.value.length, 100)) + (blockToRender.value.length > 100 ? '...' : '')}
-              </div>
-            </div>
-          );
-        }
-      case '__NATIVE_HTML__':
-        return (
-            <div className="bg-red-200 border border-red-400 rounded-md px-3 py-1 shadow-md opacity-90">
-                <span className="font-semibold text-red-800">Dragging HTML Element</span>
-                <span className="text-xs text-red-700 ml-2">(Native Drag)</span>
-            </div>
-        );
-      default:
-        return null;
-    }
-  };
-
-  return (
-    <div style={layerStyles}>
-      {renderItem()}
-    </div>
-  );
 }
-
-
-/* ---------- VersionsPanel ---------- */
-
-function VersionsPanel({
-  versions,
-  selectedVersionId,
-  onSelectVersion,
-  onRestoreVersion,
-  isRestoring,
-}: {
-  versions: Version[]
-  selectedVersionId: string | null
-  onSelectVersion: (id: string) => void
-  onRestoreVersion: (versionId: string) => void
-  isRestoring: boolean;
-}) {
-  const selectedVersion = versions.find(v => v.id === selectedVersionId);
-
-  useEffect(() => {
-    console.log('[VersionsPanel] [Trace: Effect] versions or selectedVersionId changed.');
-    if (!selectedVersionId && versions.length > 0) {
-      console.log('[VersionsPanel] [Trace: Effect] No version selected, defaulting to latest.');
-      onSelectVersion(versions[0].id);
-    }
-  }, [selectedVersionId, versions, onSelectVersion]);
-
-  if (!selectedVersion) {
-    console.log('[VersionsPanel] [Trace: Render] No selected version to display.');
-    return (
-      <div className="grid h-full place-items-center text-sm text-slate-500">
-        No version selected.
-      </div>
-    );
-  }
-
-  console.log('[VersionsPanel] [Trace: Render] Displaying selected version:', selectedVersion.id, selectedVersion.notes);
-  return (
-    <div className="flex h-full min-h-0 flex-col p-4">
-        <h3 className="font-semibold text-lg mb-2">{selectedVersion?.notes || 'No Notes'}</h3>
-        <p className="text-sm text-gray-500 mb-4">Last Edited: {new Date(selectedVersion?.createdAt || '').toLocaleString()}</p>
-
-        <div className="mb-4">
-            <label className="block text-sm font-medium mb-1">Version Content</label>
-            <Textarea
-                readOnly
-                value={JSON.stringify(selectedVersion.content, null, 2) || ''} // Pretty print for debugging
-                rows={10}
-                className="font-mono overflow-y-auto bg-gray-50 dark:bg-gray-800"
-                placeholder="No content available for this version."
-            />
-        </div>
-        <div className="mb-4">
-            <label className="block text-sm font-medium mb-1">Version Context</label>
-            <Textarea
-                readOnly
-                value={selectedVersion?.context || ''}
-                rows={5}
-                className="font-mono overflow-y-auto bg-gray-50 dark:bg-gray-800"
-                placeholder="No context available for this version."
-            />
-        </div>
-
-        <div className="mb-4">
-            <label className="block text-sm font-medium mb-1">Variables in this Version</label>
-            {selectedVersion?.variables && selectedVersion.variables.length > 0 ? (
-                <ul className="space-y-1">
-                    {selectedVersion.variables.map(v => (
-                        <li key={v.id} className="text-sm bg-gray-100 dark:bg-gray-700 p-2 rounded flex items-center justify-between">
-                            <span className="font-semibold">{v.name}</span>
-                            <span className="text-xs text-gray-600 dark:text-gray-400">({v.placeholder})</span>
-                        </li>
-                    ))}
-                </ul>
-            ) : (
-                <p className="text-sm text-gray-500">No variables for this version.</p>
-            )}
-        </div>
-    </div>
-  )
-}
+```

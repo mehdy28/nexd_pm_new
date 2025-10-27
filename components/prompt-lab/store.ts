@@ -6,38 +6,75 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 export enum PromptVariableType {
   STRING = 'STRING',
   NUMBER = 'NUMBER',
+  BOOLEAN = 'BOOLEAN', // Explicitly added BOOLEAN here, was in schema but not this enum
   DATE = 'DATE',
-  LIST_OF_STRINGS = 'LIST_OF_STRINGS',
   RICH_TEXT = 'RICH_TEXT',
-  BOOLEAN = 'BOOLEAN',
+  LIST_OF_STRINGS = 'LIST_OF_STRINGS',
+}
+
+// NEW: Aggregation types
+export enum AggregationType {
+  COUNT = 'COUNT',
+  SUM = 'SUM',
+  AVERAGE = 'AVERAGE',
+  LIST_FIELD_VALUES = 'LIST_FIELD_VALUES',
+  LAST_UPDATED_FIELD_VALUE = 'LAST_UPDATED_FIELD_VALUE',
+  FIRST_CREATED_FIELD_VALUE = 'FIRST_CREATED_FIELD_VALUE', // Added based on your previous schema
+  MOST_COMMON_FIELD_VALUE = 'MOST_COMMON_FIELD_VALUE', // Added based on your previous schema
+}
+
+// NEW: Format types
+export enum FormatType {
+  BULLET_POINTS = 'BULLET_POINTS',
+  COMMA_SEPARATED = 'COMMA_SEPARATED',
+  PLAIN_TEXT = 'PLAIN_TEXT',
+  JSON_ARRAY = 'JSON_ARRAY', // Added based on your previous schema
+}
+
+// NEW: Filter Operators
+export enum FilterOperator {
+    EQ = 'EQ', // Equals
+    NEQ = 'NEQ', // Not Equals
+    GT = 'GT', // Greater Than
+    GTE = 'GTE', // Greater Than or Equal To
+    LT = 'LT', // Less Than
+    LTE = 'LTE', // Less Than or Equal To
+    CONTAINS = 'CONTAINS', // String contains (case-insensitive)
+    STARTS_WITH = 'STARTS_WITH', // String starts with (case-insensitive)
+    ENDS_WITH = 'ENDS_WITH', // String ends with (case-insensitive)
+    IN = 'IN', // Value is in a list of values (e.g., status IN ['TODO', 'IN_PROGRESS'])
+    NOT_IN = 'NOT_IN', // Value is not in a list of values
+    // Special operators that hint at backend-resolved values
+    SPECIAL_CURRENT_USER = 'SPECIAL_CURRENT_USER', // Represents context.user.id
+    SPECIAL_ACTIVE_SPRINT = 'SPECIAL_ACTIVE_SPRINT', // Represents an active sprint (e.g., status='ACTIVE' and current date falls within range)
+}
+
+// Defines a single filter condition
+export interface FilterCondition {
+    field: string; // The field to filter on, e.g., 'status', 'assigneeId'
+    operator: FilterOperator;
+    value?: string | number | boolean | string[] | number[]; // The value to compare against (if not specialValue)
+    type?: PromptVariableType; // Hint for type conversion in frontend/backend
 }
 
 // NEW: Refined PromptVariableSource to be more generic and Power BI-like
-export type PromptVariableSource = {
+export interface PromptVariableSource { // Changed from type to interface for consistency with class-like structure of other types
   entityType: 'PROJECT' | 'TASK' | 'SPRINT' | 'DOCUMENT' | 'MEMBER' | 'WORKSPACE' | 'USER' | 'DATE_FUNCTION'; // The base entity type
   
   field?: string; // The specific field to extract (e.g., 'name', 'title', 'dueDate', 'content', 'email')
                  // For DATE_FUNCTION, this might be 'today'
 
-  // Filter conditions, applicable to TASKS, SPRINTS, DOCUMENTS, MEMBERS
-  filter?: {
-    // Generic filter for a field. Example: { field: 'status', operator: 'EQ', value: 'DONE' }
-    // More complex filters (AND/OR, nested) can be added later
-    field?: string; // The field to filter by (e.g., 'status', 'isCompleted', 'assigneeId', 'role')
-    operator?: 'EQ' | 'NEQ' | 'GT' | 'LT' | 'GTE' | 'LTE' | 'CONTAINS' | 'STARTS_WITH' | 'ENDS_WITH' | 'IN_LIST'; // Comparison operator
-    value?: string | number | boolean | string[]; // The value to compare against
-    specialValue?: 'CURRENT_USER_ID' | 'CURRENT_PROJECT_ID' | 'ACTIVE_SPRINT'; // Placeholder for dynamic values
-  };
+  filters?: FilterCondition[]; // CHANGED: Array of filter conditions for more flexibility
 
   // Aggregation, applicable if `entityType` can return multiple records (e.g., TASKS, MEMBERS, DOCUMENTS)
-  aggregation?: 'COUNT' | 'SUM' | 'AVERAGE' | 'LIST_FIELD_VALUES' | 'LAST_UPDATED_FIELD_VALUE' | 'FIRST_CREATED_FIELD_VALUE' | 'MOST_COMMON_FIELD_VALUE'; 
+  aggregation?: AggregationType; 
   
   // What field to aggregate if aggregation is LIST_FIELD_VALUES, SUM, AVERAGE, etc.
   aggregationField?: string; // e.g., 'title' for LIST_FIELD_VALUES, 'points' for SUM/AVERAGE
 
   // Format for aggregated lists
-  format?: 'BULLET_POINTS' | 'COMMA_SEPARATED' | 'PLAIN_TEXT' | 'JSON_ARRAY'; 
-};
+  format?: FormatType; 
+}
 
 
 export type PromptVariable = {

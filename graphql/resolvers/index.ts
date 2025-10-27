@@ -8,8 +8,8 @@ import { sprintResolvers } from "./sprintResolver"
 import documentResolvers from "./documentResolver"
 import wireframeResolvers from "./wireframeResolver"
 import promptResolvers from "./promptResolver"
-
-
+import promptVariableResolver from "./promptVariableResolver"
+import lookupResolvers from "./lookupResolvers"
 
 export const resolvers = {
   Query: {
@@ -19,7 +19,8 @@ export const resolvers = {
     ...documentResolvers.Query, // NEW
     ...wireframeResolvers.Query,
     ...promptResolvers.Query,
-
+    ...promptVariableResolver.Query,
+    ...lookupResolvers.Query,
 
 
   },

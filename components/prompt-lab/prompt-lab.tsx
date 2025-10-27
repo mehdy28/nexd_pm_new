@@ -202,15 +202,23 @@ export function PromptLab({ prompt, onBack, projectId }: { prompt: Prompt; onBac
 
   const handleUpdatePrompt = useCallback((patch: Partial<Prompt>) => {
     console.log('[PromptLab] [Trace: HandleUpdate] handleUpdatePrompt called with patch keys:', Object.keys(patch));
+    
+    // FIX: Process patch.variables to strip __typename before sending to backend
     if (patch.variables) {
-      // Ensure variables have IDs if newly created client-side
-      patch.variables = patch.variables.map(v => ({...v, id: v.id || cuid('patch-var-')})) as PromptVariable[];
-      console.log('[PromptLab] [Trace: HandleUpdate] Variables in patch adjusted with client-side IDs. New count:', patch.variables.length);
+      patch.variables = patch.variables.map(v => {
+        // Explicitly cast to include __typename as it might be present from Apollo's cache
+        const { __typename, ...variableWithoutTypename } = v as PromptVariable & { __typename?: string };
+        // Ensure ID is present (cuid for new client-side vars, existing ID for others)
+        return { ...variableWithoutTypename, id: variableWithoutTypename.id || cuid('patch-var-') };
+      }) as PromptVariable[]; // Cast back for type safety
+      console.log('[PromptLab] [Trace: HandleUpdate] Variables in patch adjusted (IDs ensured, __typename removed). New count:', patch.variables.length);
     }
+
+    // Existing logic for content blocks (which already strips __typename)
     if (patch.content && Array.isArray(patch.content)) {
         console.log('[PromptLab] [Trace: HandleUpdate] Content patch is an array of blocks, ensuring correct type.');
         
-        // NEW FIX: Filter out null/undefined fields AND __typename before sending
+        // Filter out null/undefined fields AND __typename before sending
         const cleanedContent = patch.content.map(block => {
           // Destructure __typename out of the block, and then conditionally omit other fields
           const { __typename, ...blockWithoutTypename } = block;
@@ -477,7 +485,7 @@ function VariableItem({ variable, onRemove }: { variable: PromptVariable; onRemo
       </div>
       <button
         onClick={() => onRemove(variable.id)}
-        className="ml-2 p-1 rounded-full text-gray-400 hover:bg-gray-200 hover:text-red-600 transition-opacity opacity-0 group-hover:opacity-100"
+        className="ml-2 p-1 rounded-full text-gray-400 hover:bg-gray-200 hover:text-red-600 transition-opacity"
         aria-label={`Remove variable ${variable.name}`}
       >
         <Trash2 className="h-3 w-3" />
@@ -600,7 +608,7 @@ function EditorPanel({
                                                     ? currentPropContent.map(b => ({ ...b, __typename: 'ContentBlock' })) as Block[] // Ensure __typename is added
                                                     : [{ type: 'text', id: cuid('t-normalized-empty-sync'), value: '', __typename: 'ContentBlock' }]; // Add __typename here too
 
-            if (!deepCompareBlocks(blocks, normalizedCurrentPropContent) && !deepCompareBlocks(lastKnownPropValues.current.content, normalizedCurrentCurrentPromptContent)) {
+            if (!deepCompareBlocks(blocks, normalizedCurrentPropContent) && !deepCompareBlocks(lastKnownPropValues.current.content, normalizedCurrentPropContent)) { // FIX: Changed `normalizedCurrentCurrentPromptContent` to `normalizedCurrentPropContent`
                 console.log(`[EditorPanel ${componentId}] [Trace: Effect_PromptSync] Prop content updated, updating blocks state.`);
                 setBlocks(normalizedCurrentPropContent);
                 lastKnownPropValues.current.content = normalizedCurrentPropContent;
@@ -651,7 +659,7 @@ function EditorPanel({
       onUpdate({ content: debouncedBlocks });
       lastKnownPropValues.current.content = debouncedBlocks; // Optimistically update ref after sending
     } else {
-      console.log(`[EditorPanel ${componentId}] [Trace: Effect_DebouncedBlocks] Debounced blocks match prop content OR last known sent value. No update needed. Debounced:`, debouncedBlocks, "Prop:", normalizedCurrentPropContent, "LastSent:", lastKnownPropValues.current.content);
+      console.log(`[EditorPanel ${componentId}] [Trace: Effect_DebouncedBlocks] Debounced blocks match prop content OR last sent value. No update needed. Debounced:`, debouncedBlocks, "Prop:", normalizedCurrentPropContent, "LastSent:", lastKnownPropValues.current.content);
     }
   }, [debouncedBlocks, onUpdate, prompt.content, prompt.id, componentId]);
 
@@ -1200,6 +1208,18 @@ function BlockRenderer({
           className={`flex-1 flex items-center justify-between p-2 bg-blue-50 border border-blue-200 rounded-md `}
         >
           <div className="text-sm font-medium">{block.name || block.placeholder}</div>
+          {(allBlocks.length > 1) ? ( // Show remove button if more than 1 block
+                <button
+                    onClick={() => {
+                        console.log(`[BlockRenderer ${block.id}] [Trace: RemoveButton] Remove variable button clicked.`);
+                        removeBlock(index);
+                    }}
+                    className="ml-2 p-1 rounded-full text-gray-400 hover:bg-gray-200 hover:text-red-600 transition-opacity"
+                    aria-label={`Remove variable block`}
+                >
+                    <Trash2 className="h-4 w-4" />
+                </button>
+            ) : null}
         </div>
         {showPlaceholderBelow && <div className="absolute -bottom-1.5 left-0 right-0 h-1 bg-blue-500 rounded-sm z-10" />}
       </div>
@@ -1208,8 +1228,8 @@ function BlockRenderer({
     const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
       console.log(`[BlockRenderer ${block.id}] [Trace: TextKeyDown] Key down: ${e.key}`);
       if (e.key === 'Enter' && !e.shiftKey) {
-        console.log(`[BlockRenderer ${block.id}] [Trace: TextKeyDown] Enter pressed, preventing default.`);
-        e.preventDefault();
+        console.log(`[BlockRenderer ${block.id}] [Trace: TextKeyDown] Enter pressed, allowing default for new line.`);
+        // Allow default behavior for new line
         return;
       }
       if (e.key === 'Backspace' && contentEditableRef.current?.innerText === '' && window.getSelection()?.anchorOffset === 0) {

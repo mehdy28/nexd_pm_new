@@ -14,7 +14,7 @@ export const CREATE_PROMPT_MUTATION = gql`
         varId
         placeholder
         name
-        # __typename 
+          
       }
       context
       description
@@ -53,7 +53,7 @@ export const UPDATE_PROMPT_MUTATION = gql`
         varId
         placeholder
         name
-        # __typename 
+          
       }
       context
       description
@@ -94,7 +94,6 @@ export const SNAPSHOT_PROMPT_MUTATION = gql`
           varId
           placeholder
           name
-          # __typename
         }
         context
         variables {
@@ -123,7 +122,6 @@ export const RESTORE_PROMPT_VERSION_MUTATION = gql`
         varId
         placeholder
         name
-        # __typename
       }
       context
       variables { # Return updated content and variables
