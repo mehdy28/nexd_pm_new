@@ -362,7 +362,7 @@ const promptResolvers = {
     ): Promise<Prompt> => {
       const newPromptData = {
         title: input.title,
-        content: input.content || '',
+        content: input.content || '[]', // Ensure JSON string format for content
         context: input.context || '',
         description: input.description,
         category: input.category,
@@ -376,7 +376,7 @@ const promptResolvers = {
       };
 
       const newPrompt = await prisma.prompt.create({
-        data: newPromptData,
+        data: newPromptData as any, // Cast to any to handle Json type directly
       });
 
       return newPrompt as unknown as Prompt;
@@ -387,7 +387,7 @@ const promptResolvers = {
       { input }: { input: {
         id: string;
         title?: string;
-        content?: string;
+        content?: any; // Allow `any` for Json type
         context?: string;
         description?: string;
         category?: string;
@@ -460,10 +460,12 @@ const promptResolvers = {
         throw new Error("Prompt not found.");
       }
 
-      const currentContent = prompt.content as string || '';
+      const currentContent = prompt.content as any || []; // Expecting JSON array
       const currentContext = prompt.context as string || '';
       const currentVariables = (prompt.variables as PromptVariable[]) || [];
 
+      // Notes from input become the version's title
+      // Description is optional and defaults to empty string
       const newVersion: Version = {
         id: generateUniqueId(),
         content: currentContent,
@@ -471,6 +473,7 @@ const promptResolvers = {
         variables: currentVariables.map(v => ({ ...v, id: v.id || generateUniqueId() })),
         createdAt: new Date().toISOString(),
         notes: input.notes || `Version saved on ${new Date().toLocaleString()}`,
+        description: "", // ADDED: Initialize description as empty
       };
 
       const updatedVersions = [newVersion, ...(prompt.versions as Version[] || [])];
@@ -512,6 +515,45 @@ const promptResolvers = {
           content: versionToRestore.content,
           context: versionToRestore.context,
           variables: versionToRestore.variables.map(v => ({ ...v, id: v.id || generateUniqueId() })),
+          updatedAt: new Date(),
+        },
+      });
+
+      return updatedPrompt as unknown as Prompt;
+    },
+
+    // NEW: Mutation to update a specific version's description
+    updateVersionDescription: async (
+      _parent: any,
+      { input }: { input: { promptId: string; versionId: string; description: string } },
+      context: GraphQLContext
+    ): Promise<Prompt> => {
+      const prompt = await prisma.prompt.findUnique({
+        where: { id: input.promptId },
+      });
+
+      if (!prompt) {
+        throw new Error("Prompt not found.");
+      }
+
+      let versions = (prompt.versions as Version[]) || [];
+      const versionIndex = versions.findIndex((v) => v.id === input.versionId);
+
+      if (versionIndex === -1) {
+        throw new Error("Version not found.");
+      }
+
+      // Create a shallow copy to modify immutably
+      const updatedVersions = [...versions];
+      updatedVersions[versionIndex] = {
+        ...updatedVersions[versionIndex],
+        description: input.description,
+      };
+
+      const updatedPrompt = await prisma.prompt.update({
+        where: { id: input.promptId },
+        data: {
+          versions: updatedVersions,
           updatedAt: new Date(),
         },
       });

@@ -441,6 +441,7 @@ type Version {
   variables: [PromptVariable!]!
   createdAt: String!
   notes: String
+  description: String # ADDED: Description for the version
 }
 
 type Prompt {
@@ -938,6 +939,7 @@ input CreateVersionInput { # For initial versions on prompt creation
   variables: [CreatePromptVariableInput!]!
   createdAt: String # Will be Date.toISOString()
   notes: String
+  description: String # ADDED: Description for the version
 }
 
 input SnapshotPromptInput {
@@ -948,6 +950,13 @@ input SnapshotPromptInput {
 input RestorePromptVersionInput {
   promptId: ID!
   versionId: ID!
+}
+
+# NEW: Input for updating a version's description
+input UpdateVersionDescriptionInput {
+  promptId: ID!
+  versionId: ID!
+  description: String!
 }
 
 # ----------------------------------
@@ -1049,6 +1058,7 @@ type Mutation {
   deletePrompt(id: ID!): Prompt!
   snapshotPrompt(input: SnapshotPromptInput!): Prompt!
   restorePromptVersion(input: RestorePromptVersionInput!): Prompt!
+  updateVersionDescription(input: UpdateVersionDescriptionInput!): Prompt! # NEW: Update a version's description
 }
 
 

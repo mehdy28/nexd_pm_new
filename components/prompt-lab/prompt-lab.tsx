@@ -141,7 +141,13 @@ export function PromptLab({ prompt, onBack, projectId }: { prompt: Prompt; onBac
     updatePromptDetails,
     snapshotPrompt,
     restorePromptVersion,
+    updateVersionDescription, // NEW: Destructure new function from hook
+    selectedPromptDetails // Access selectedPromptDetails from hook
   } = usePromptDetails(prompt.id, projectId);
+
+  // Use selectedPromptDetails from hook, as it's the source of truth
+  const currentPrompt = selectedPromptDetails || prompt;
+
 
   const [selectedVersionId, setSelectedVersionId] = useState<string | null>(null)
   const [rightTab, setRightTab] = useState<"editor" | "version-details" | "preview">("editor")
@@ -149,19 +155,19 @@ export function PromptLab({ prompt, onBack, projectId }: { prompt: Prompt; onBac
   const [showVariableBuilder, setShowVariableBuilder] = useState(false);
   const [previewVariableValues, setPreviewVariableValues] = useState<Record<string, string>>({})
   const [renderedPreview, setRenderedPreview] = useState("");
-  const [pendingNotes, setPendingNotes] = useState("");
+  const [pendingNotes, setPendingNotes] = useState(""); // This will be the title for new versions
   
   const [isSnapshotting, setIsSnapshotting] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
 
 
   useEffect(() => {
-    console.log('[PromptLab] [Trace: RootEffect] prompt prop changed. Prompt ID:', prompt.id, 'Title:', prompt.title, 'Content length:', prompt.content.length, 'Versions:', prompt.versions.length);
-    if (prompt) {
-      if (prompt.versions.length > 0) {
-        if (!selectedVersionId || !prompt.versions.some((v) => v.id === selectedVersionId)) {
-          console.log('[PromptLab] [Trace: RootEffect] No selected version or selected version not found, selecting latest:', prompt.versions[0].id);
-          setSelectedVersionId(prompt.versions[0].id)
+    console.log('[PromptLab] [Trace: RootEffect] prompt prop changed. Prompt ID:', currentPrompt.id, 'Title:', currentPrompt.title, 'Content length:', currentPrompt.content.length, 'Versions:', currentPrompt.versions.length);
+    if (currentPrompt) {
+      if (currentPrompt.versions.length > 0) {
+        if (!selectedVersionId || !currentPrompt.versions.some((v) => v.id === selectedVersionId)) {
+          console.log('[PromptLab] [Trace: RootEffect] No selected version or selected version not found, selecting latest:', currentPrompt.versions[0].id);
+          setSelectedVersionId(currentPrompt.versions[0].id)
         }
       } else if (selectedVersionId) {
         console.log('[PromptLab] [Trace: RootEffect] No versions available, deselecting version.');
@@ -169,32 +175,32 @@ export function PromptLab({ prompt, onBack, projectId }: { prompt: Prompt; onBac
       }
       
       const initialPreviewValues: Record<string, string> = {};
-      prompt.variables.forEach(v => {
+      currentPrompt.variables.forEach(v => {
         if (!v.source) {
           initialPreviewValues[v.placeholder] = v.defaultValue || '';
         } else {
           initialPreviewValues[v.placeholder] = `[${v.name} (dynamic)]`;
         }
       });
-      console.log('[PromptLab] [Trace: RootEffect] Updating previewVariableValues based on prompt.variables. Count:', prompt.variables.length);
+      console.log('[PromptLab] [Trace: RootEffect] Updating previewVariableValues based on prompt.variables. Count:', currentPrompt.variables.length);
       setPreviewVariableValues(initialPreviewValues);
     }
-  }, [prompt, selectedVersionId]);
+  }, [currentPrompt, selectedVersionId]);
 
 
   useEffect(() => {
-    if (prompt) {
+    if (currentPrompt) {
       console.log('[PromptLab] [Trace: PreviewEffect] Generating preview based on prompt and previewVariableValues.');
       const generatePreview = async () => {
-        const preview = await renderPrompt(prompt.content, prompt.context || '', prompt.variables, previewVariableValues, projectId);
+        const preview = await renderPrompt(currentPrompt.content, currentPrompt.context || '', currentPrompt.variables, previewVariableValues, projectId);
         setRenderedPreview(preview);
       };
       generatePreview();
     }
-  }, [prompt, previewVariableValues, projectId]);
+  }, [currentPrompt, previewVariableValues, projectId]);
 
 
-  const selectedVersion = useMemo(() => prompt?.versions.find((v) => v.id === selectedVersionId) || null, [prompt, selectedVersionId])
+  const selectedVersion = useMemo(() => currentPrompt?.versions.find((v) => v.id === selectedVersionId) || null, [currentPrompt, selectedVersionId])
 
   function copy(text: string) {
     navigator.clipboard.writeText(text).catch(() => {})
@@ -236,39 +242,39 @@ export function PromptLab({ prompt, onBack, projectId }: { prompt: Prompt; onBac
         console.log('[PromptLab] [Trace: HandleUpdate] Sending cleaned content payload:', JSON.stringify(cleanedContent, null, 2)); // Log actual content payload
         patch.content = cleanedContent as unknown as Block[]; // Cast back, as Block type still expects __typename
     }
-    updatePromptDetails(prompt.id, patch);
-  }, [prompt.id, updatePromptDetails]);
+    updatePromptDetails(currentPrompt.id, patch); // Use currentPrompt.id
+  }, [currentPrompt.id, updatePromptDetails]);
 
   const handleSnapshot = useCallback(async (notes?: string) => {
     setIsSnapshotting(true);
-    console.log('[PromptLab] [Trace: HandleSnapshot] Attempting to snapshot prompt', prompt.id, 'with notes:', notes);
+    console.log('[PromptLab] [Trace: HandleSnapshot] Attempting to snapshot prompt', currentPrompt.id, 'with notes:', notes);
     try {
-      await snapshotPrompt(prompt.id, notes);
+      await snapshotPrompt(notes); // Pass notes (pendingNotes) as the version title
       toast.success("Prompt version saved!");
       setPendingNotes('');
     } catch (error) {
-      console.error(`[PromptLab] [Error: HandleSnapshot] Failed to snapshot prompt ${prompt.id}:`, error);
+      console.error(`[PromptLab] [Error: HandleSnapshot] Failed to snapshot prompt ${currentPrompt.id}:`, error);
       toast.error("Failed to save version", { description: (error as any).message || 'An unknown error occurred.' });
     } finally {
       setIsSnapshotting(false);
       console.log('[PromptLab] [Trace: HandleSnapshot] Snapshot operation finished.');
     }
-  }, [prompt.id, snapshotPrompt]);
+  }, [currentPrompt.id, snapshotPrompt]);
 
   const handleRestoreVersion = useCallback(async (versionId: string) => {
     setIsRestoring(true);
-    console.log('[PromptLab] [Trace: HandleRestore] Attempting to restore prompt', prompt.id, 'from version', versionId);
+    console.log('[PromptLab] [Trace: HandleRestore] Attempting to restore prompt', currentPrompt.id, 'from version', versionId);
     try {
-      await restorePromptVersion(prompt.id, versionId);
+      await restorePromptVersion(versionId);
       toast.success("Prompt restored from version!");
     } catch (error) {
-      console.error(`[PromptLab] [Error: HandleRestore] Failed to restore prompt ${prompt.id} from version ${versionId}:`, error);
+      console.error(`[PromptLab] [Error: HandleRestore] Failed to restore prompt ${currentPrompt.id} from version ${versionId}:`, error);
       toast.error("Failed to restore version", { description: (error as any).message || 'An unknown error occurred.' });
     } finally {
       setIsRestoring(false);
       console.log('[PromptLab] [Trace: HandleRestore] Restore operation finished.');
     }
-  }, [prompt.id, restorePromptVersion]);
+  }, [currentPrompt.id, restorePromptVersion]);
 
   const handleCreateVariable = useCallback((newVariable: Omit<PromptVariable, 'id'>) => {
     console.log('[PromptLab] [Trace: HandleCreateVar] Creating new variable:', newVariable.name);
@@ -276,18 +282,18 @@ export function PromptLab({ prompt, onBack, projectId }: { prompt: Prompt; onBac
       ...newVariable,
       id: cuid('p-var-'),
     };
-    const updatedVariables = [...prompt.variables, variableWithId];
+    const updatedVariables = [...currentPrompt.variables, variableWithId];
     console.log('[PromptLab] [Trace: HandleCreateVar] Calling handleUpdatePrompt with updated variables count:', updatedVariables.length);
     handleUpdatePrompt({ variables: updatedVariables });
     setShowVariableBuilder(false);
-  }, [prompt.variables, handleUpdatePrompt]);
+  }, [currentPrompt.variables, handleUpdatePrompt]);
 
   const handleRemoveVariable = useCallback((variableId: string) => {
     console.log('[PromptLab] [Trace: HandleRemoveVar] Removing variable with ID:', variableId);
-    const updatedVariables = prompt.variables.filter(v => v.id !== variableId);
+    const updatedVariables = currentPrompt.variables.filter(v => v.id !== variableId);
     console.log('[PromptLab] [Trace: HandleRemoveVar] Calling handleUpdatePrompt with updated variables count:', updatedVariables.length);
     handleUpdatePrompt({ variables: updatedVariables });
-  }, [prompt.variables, handleUpdatePrompt]);
+  }, [currentPrompt.variables, handleUpdatePrompt]);
 
   return (
     <DndProvider backend={HTML5Backend}>
@@ -320,16 +326,16 @@ export function PromptLab({ prompt, onBack, projectId }: { prompt: Prompt; onBac
                      style={{ borderColor: "var(--border)", background: "var(--muted-bg)" }}
                      >
                       <h3 className="font-semibold">Versions</h3>
-                      <Button className="ml-auto h-9 btn-primary" onClick={() => handleSnapshot(pendingNotes || 'New version')} disabled={isSnapshotting}>
+                      <Button className="ml-auto h-9 btn-primary" onClick={() => handleSnapshot(pendingNotes || `Version saved on ${new Date().toLocaleString()}`)} disabled={isSnapshotting}>
                         {isSnapshotting ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Plus className="mr-1 h-4 w-4" />} New
                       </Button>
                     </div>
                     <div className="flex-1 min-h-0 overflow-y-auto p-3">
-                      {prompt.versions.length === 0 ? (
+                      {currentPrompt.versions.length === 0 ? (
                         <div className="text-sm text-slate-500">No versions yet. Make changes and save a snapshot to create one.</div>
                       ) : (
                         <ul className="space-y-2">
-                          {prompt.versions.map((v) => (
+                          {currentPrompt.versions.map((v) => (
                             <li key={v.id} className="rounded-lg border p-3 hover:bg-slate-50 transition">
                               <div className="flex items-start gap-2">
                                 <button className="flex-1 text-left" onClick={() => setSelectedVersionId(v.id)} title={v.notes}>
@@ -361,11 +367,11 @@ export function PromptLab({ prompt, onBack, projectId }: { prompt: Prompt; onBac
                       </Button>
                     </div>
                     <div className="flex-1 min-h-0 overflow-y-auto p-3">
-                      {prompt.variables.length === 0 ? (
+                      {currentPrompt.variables.length === 0 ? (
                         <div className="text-sm text-slate-500">No variables yet. Click "Create New Variable" to get started.</div>
                       ) : (
                         <ul className="space-y-2">
-                          {prompt.variables.map((v) => (
+                          {currentPrompt.variables.map((v) => (
                             <VariableItem key={v.id} variable={v} onRemove={handleRemoveVariable} />
                           ))}
                         </ul>
@@ -394,7 +400,7 @@ export function PromptLab({ prompt, onBack, projectId }: { prompt: Prompt; onBac
                   <div className="min-h-0 flex-1 overflow-y-auto">
                     <TabsContent value="editor" className="m-0 outline-none flex-1 overflow-y-auto">
                       <EditorPanel
-                          prompt={prompt}
+                          prompt={currentPrompt} // Pass currentPrompt
                           onUpdate={handleUpdatePrompt}
                           onSnapshot={handleSnapshot}
                           pendingNotes={pendingNotes}
@@ -405,10 +411,12 @@ export function PromptLab({ prompt, onBack, projectId }: { prompt: Prompt; onBac
 
                     <TabsContent value="version-details" className="m-0 outline-none p-4 flex-1 overflow-y-auto">
                       <VersionsPanel
-                        versions={prompt.versions || []}
+                        promptId={currentPrompt.id}
+                        versions={currentPrompt.versions || []}
                         selectedVersionId={selectedVersionId}
                         onSelectVersion={setSelectedVersionId}
                         onRestoreVersion={handleRestoreVersion}
+                        updateVersionDescription={updateVersionDescription} // NEW: Pass the update function
                         isRestoring={isRestoring}
                       />
                     </TabsContent>
@@ -483,6 +491,7 @@ function VariableItem({ variable, onRemove }: { variable: PromptVariable; onRemo
         <span className="font-semibold">{variable.name}</span>
         <span className="text-xs text-gray-500 ml-2">({variable.placeholder})</span>
       </div>
+      {/* MODIFIED: Delete icon is always present, but opacity transitions on group-hover */}
       <button
         onClick={() => onRemove(variable.id)}
         className="ml-2 p-1 rounded-full text-gray-400 hover:bg-gray-200 hover:text-red-600 transition-opacity"
@@ -993,7 +1002,7 @@ function EditorPanel({
           <Button
             onClick={() => {
               console.log(`[EditorPanel ${componentId}] [Trace: SaveButton] Save button clicked.`);
-              onSnapshot(pendingNotes || 'New version');
+              onSnapshot(pendingNotes || `Version saved on ${new Date().toLocaleString()}`); // Use pendingNotes as title
             }}
             className="btn-primary"
             disabled={isSnapshotting}
@@ -1156,13 +1165,11 @@ function BlockRenderer({
         // Condition to check if it's a "no real move" for Block type
         // This is crucial to prevent unnecessary state updates
         const isNoRealMove = (dragIndex === targetIndex) ||
-                             (dragIndex + 1 === targetIndex && dragIndex < targetIndex) || // moving down 1 position to immediately after self
-                             (dragIndex === targetIndex + 1 && targetIndex < dragIndex); // moving up 1 position to immediately before self
-        
-        console.log(`[BlockRenderer ${block.id}][DropDrop] DragIndex: ${dragIndex}, TargetIndex: ${targetIndex}, IsNoRealMove: ${isNoRealMove}`);
+                             (dragIndex + 1 === targetIndex && dragIndex < targetIndex) ||
+                             (dragIndex === targetIndex + 1 && targetIndex < dragIndex);
 
         if (isNoRealMove) {
-          console.log(`[BlockRenderer ${block.id}][DropDrop] No real move detected, ignoring block drop.`);
+          console.log('[BlockRenderer][DropDrop] No real move detected, ignoring block drop.');
           return;
         }
 
@@ -1229,7 +1236,7 @@ function BlockRenderer({
       console.log(`[BlockRenderer ${block.id}] [Trace: TextKeyDown] Key down: ${e.key}`);
       if (e.key === 'Enter' && !e.shiftKey) {
         console.log(`[BlockRenderer ${block.id}] [Trace: TextKeyDown] Enter pressed, allowing default for new line.`);
-        // Allow default behavior for new line
+        // Allow default behavior for new line in contentEditable
         return;
       }
       if (e.key === 'Backspace' && contentEditableRef.current?.innerText === '' && window.getSelection()?.anchorOffset === 0) {
@@ -1439,19 +1446,61 @@ function CustomDragLayer() {
 /* ---------- VersionsPanel ---------- */
 
 function VersionsPanel({
+  promptId, // NEW: Added promptId to props
   versions,
   selectedVersionId,
   onSelectVersion,
   onRestoreVersion,
+  updateVersionDescription, // NEW: Add to props
   isRestoring,
 }: {
+  promptId: string; // NEW: Required for updating description
   versions: Version[]
   selectedVersionId: string | null
   onSelectVersion: (id: string) => void
   onRestoreVersion: (versionId: string) => void
+  updateVersionDescription: (promptId: string, versionId: string, description: string) => void; // NEW
   isRestoring: boolean;
 }) {
   const selectedVersion = versions.find(v => v.id === selectedVersionId);
+
+  // NEW: State for local description editing and debounced save
+  const [localVersionDescription, setLocalVersionDescription] = useState<string>('');
+  const [debouncedVersionDescription] = useDebounce(localVersionDescription, 500);
+  const textAreaRef = useRef<HTMLTextAreaElement>(null); // Ref for description textarea
+
+  // Sync local description when selectedVersion changes
+  useEffect(() => {
+    if (selectedVersion) {
+      setLocalVersionDescription(selectedVersion.description || '');
+      // Auto-adjust height when content changes
+      if (textAreaRef.current) {
+        textAreaRef.current.style.height = 'auto';
+        textAreaRef.current.style.height = textAreaRef.current.scrollHeight + 'px';
+      }
+    } else {
+      setLocalVersionDescription('');
+    }
+  }, [selectedVersion]);
+
+  // Effect to save debounced description
+  useEffect(() => {
+    if (selectedVersion && debouncedVersionDescription !== selectedVersion.description) {
+      console.log(`[VersionsPanel] [Trace: DebounceDescEffect] Saving debounced description for version ${selectedVersion.id}`);
+      updateVersionDescription(promptId, selectedVersion.id, debouncedVersionDescription);
+    }
+  }, [debouncedVersionDescription, selectedVersion, promptId, updateVersionDescription]);
+
+
+  // Effect for dynamic textarea height adjustment on input
+  const handleDescriptionChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setLocalVersionDescription(e.target.value);
+    // Adjust height automatically
+    if (textAreaRef.current) {
+      textAreaRef.current.style.height = 'auto'; // Reset height to recalculate
+      textAreaRef.current.style.height = textAreaRef.current.scrollHeight + 'px';
+    }
+  }, []);
 
   useEffect(() => {
     console.log('[VersionsPanel] [Trace: Effect] versions or selectedVersionId changed.');
@@ -1476,6 +1525,20 @@ function VersionsPanel({
         <h3 className="font-semibold text-lg mb-2">{selectedVersion?.notes || 'No Notes'}</h3>
         <p className="text-sm text-gray-500 mb-4">Last Edited: {new Date(selectedVersion?.createdAt || '').toLocaleString()}</p>
 
+        {/* NEW: Version Description - Dynamic height, no scrollbar, transparent background */}
+        <div className="mb-4">
+            <label className="block text-sm font-medium mb-1">Version Description</label>
+            <Textarea
+                ref={textAreaRef} // Attach ref here
+                value={localVersionDescription}
+                onChange={handleDescriptionChange} // Use the new handler
+                placeholder="Add a detailed description for this version..."
+                className="resize-none border border-gray-300 rounded-md p-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" // Styled for transparent bg
+                style={{ minHeight: '100px', height: 'auto', overflowY: 'hidden', background: 'transparent' }} // auto height, hide scrollbar, transparent bg
+            />
+        </div>
+
+        {/* Version Content - Dynamic height, no scrollbar, transparent background */}
         <div className="mb-4">
             <label className="block text-sm font-medium mb-1">Version Content</label>
             <Textarea
@@ -1485,28 +1548,31 @@ function VersionsPanel({
                   const { __typename, ...rest } = b;
                   return rest;
                 }), null, 2) || ''} // Pretty print for debugging
-                rows={10}
-                className="font-mono overflow-y-auto bg-gray-50 dark:bg-gray-800"
+                className="font-mono border border-gray-300 rounded-md p-2 text-sm resize-none" // Updated styling, removed bg-color
+                style={{ minHeight: '150px', height: 'auto', overflowY: 'hidden', background: 'transparent' }} // Dynamic height, hide scrollbar, transparent bg
                 placeholder="No content available for this version."
             />
         </div>
+
+        {/* Version Context - Dynamic height, no scrollbar, transparent background */}
         <div className="mb-4">
             <label className="block text-sm font-medium mb-1">Version Context</label>
             <Textarea
                 readOnly
                 value={selectedVersion?.context || ''}
-                rows={5}
-                className="font-mono overflow-y-auto bg-gray-50 dark:bg-gray-800"
+                className="font-mono border border-gray-300 rounded-md p-2 text-sm resize-none" // Updated styling, removed bg-color
+                style={{ minHeight: '100px', height: 'auto', overflowY: 'hidden', background: 'transparent' }} // Dynamic height, hide scrollbar, transparent bg
                 placeholder="No context available for this version."
             />
         </div>
 
+        {/* Variables in this Version - Transparent background for list items */}
         <div className="mb-4">
             <label className="block text-sm font-medium mb-1">Variables in this Version</label>
             {selectedVersion?.variables && selectedVersion.variables.length > 0 ? (
                 <ul className="space-y-1">
                     {selectedVersion.variables.map(v => (
-                        <li key={v.id} className="text-sm bg-gray-100 dark:bg-gray-700 p-2 rounded flex items-center justify-between">
+                        <li key={v.id} className="text-sm p-2 rounded flex items-center justify-between border border-gray-200" style={{ background: 'transparent' }}> {/* Removed bg-color, added border for definition */}
                             <span className="font-semibold">{v.name}</span>
                             <span className="text-xs text-gray-600 dark:text-gray-400">({v.placeholder})</span>
                         </li>
@@ -1519,4 +1585,3 @@ function VersionsPanel({
     </div>
   )
 }
-

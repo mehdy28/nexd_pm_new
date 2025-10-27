@@ -1,6 +1,6 @@
-// lib/graphql/queries.ts
+// graphql/queries/promptRelatedQueries.ts
  
-import { gql } from 'graphql-tag'; // Or your equivalent for GQL queries
+import { gql } from 'graphql-tag'; // Or your equivalent for GQL mutations
  
 // --- Prompt Queries ---
 
@@ -79,6 +79,7 @@ export const GET_PROMPT_DETAILS_QUERY = gql`
         }
         createdAt
         notes
+        description # ADDED: Request the new description field for versions
       }
     }
   }
@@ -90,3 +91,5 @@ export const RESOLVE_PROMPT_VARIABLE_QUERY = gql`
     resolvePromptVariable(projectId: $projectId, variableSource: $variableSource, promptVariableId: $promptVariableId)
   }
 `;
+
+

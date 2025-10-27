@@ -1,3 +1,4 @@
+// graphql/mutations/promptRelatedMutations.ts
 import { gql } from 'graphql-tag'; // Or your equivalent for GQL mutations
 
 // --- Prompt Mutations ---
@@ -18,6 +19,7 @@ export const CREATE_PROMPT_MUTATION = gql`
       }
       context
       description
+      category
       tags
       isPublic
       createdAt
@@ -36,6 +38,7 @@ export const CREATE_PROMPT_MUTATION = gql`
         id
         createdAt
         notes
+        description # ADDED: Request description for new versions
       }
     }
   }
@@ -106,6 +109,7 @@ export const SNAPSHOT_PROMPT_MUTATION = gql`
         }
         createdAt
         notes
+        description # ADDED: Request description for snapped versions
       }
     }
   }
@@ -131,6 +135,21 @@ export const RESTORE_PROMPT_VERSION_MUTATION = gql`
         type
         defaultValue
         source
+      }
+    }
+  }
+`;
+
+// NEW: Mutation for updating a specific version's description
+export const UPDATE_VERSION_DESCRIPTION_MUTATION = gql`
+  mutation UpdateVersionDescription($input: UpdateVersionDescriptionInput!) {
+    updateVersionDescription(input: $input) {
+      id
+      versions {
+        id
+        notes
+        description # ADDED: Ensure description is returned
+        createdAt
       }
     }
   }
