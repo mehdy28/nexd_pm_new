@@ -97,41 +97,82 @@ async function renderPrompt(
       const matchingVariable = variables.find(v => v.id === block.varId);
       const displayValue = variableValues[block.placeholder] || (matchingVariable?.defaultValue || '');
 
-      if (matchingVariable?.source && (!variableValues[block.placeholder] || variableValues[block.placeholder] === 'N/A')) {
-        return `[${matchingVariable.name} (dynamic)]`;
+      // Rule 1: Render actual content, name (dynamic), or placeholder, all bold
+      if (displayValue) {
+        return `**${displayValue}**`; // Render actual content
+      } else if (matchingVariable?.source) {
+        return `**${matchingVariable.name} (dynamic)**`; // Dynamic with no value
       }
-      return displayValue || block.placeholder;
+      return `**${block.placeholder}**`; // No content, not dynamic, render placeholder
     }
     return '';
-  }).join('');
+  }).join(''); // No line breaks here, let the final join handle block separation
 
   let renderedContext = context;
 
   for (const variable of variables) {
     let valueToSubstitute = variableValues[variable.placeholder] || variable.defaultValue || '';
 
-    if (variable.source && (!variableValues[variable.placeholder] || variableValues[variable.placeholder] === 'N/A')) {
-       valueToSubstitute = `[${variable.name} (dynamic)]`;
+    // Rule 1 applied to context substitution - ensure all are bold
+    if (valueToSubstitute) {
+      valueToSubstitute = `**${valueToSubstitute}**`; // Render actual content
+    } else if (variable.source) {
+       valueToSubstitute = `**${variable.name} (dynamic)**`; // Dynamic with no value
+    } else {
+      valueToSubstitute = `**${variable.placeholder}**`; // No content, not dynamic, render placeholder
     }
 
-    const highlightedValue = `[[${valueToSubstitute}]]`;
     const regex = new RegExp(variable.placeholder.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&'), 'g');
     
     if (renderedContext.includes(variable.placeholder)) {
-        renderedContext = renderedContext.replace(regex, highlightedValue);
+        renderedContext = renderedContext.replace(regex, valueToSubstitute);
     }
   }
 
-  const lines = [
-    "System role:",
-    "You are an expert assistant for this project.",
-    "",
-    "Context:",
-    renderedContext || "(none)",
-    "",
-    "Prompt:",
-    renderedContent || "(empty)",
-  ];
+  const lines = [];
+
+  // Rule 2: Ensure consistent line breaks. Each block should be on its own line if it's a variable,
+  // or if it's a text block that inherently contains newlines.
+  // The join('') above means multiple blocks would be concatenated without newlines.
+  // To ensure each block essentially "acts" as if it ends with a newline unless explicitly designed otherwise,
+  // we can re-process blocks to force a newline *between* distinct blocks.
+
+  // Let's rebuild the content with forced newlines between blocks,
+  // while still allowing multi-line text blocks to preserve their internal newlines.
+  const contentPartsWithNewlines = contentBlocks.map(block => {
+    if (block.type === 'text') {
+      return block.value; // Text block content (preserves internal newlines)
+    } else if (block.type === 'variable') {
+      const matchingVariable = variables.find(v => v.id === block.varId);
+      const displayValue = variableValues[block.placeholder] || (matchingVariable?.defaultValue || '');
+
+      // Render as before, ensuring bold
+      if (displayValue) {
+        return `**${displayValue}**`;
+      } else if (matchingVariable?.source) {
+        return `**${matchingVariable.name} (dynamic)**`;
+      }
+      return `**${block.placeholder}**`;
+    }
+    return '';
+  });
+
+  // Join the content parts with a newline, but filter out empty parts to avoid excessive blank lines
+  const finalRenderedContent = contentPartsWithNewlines.filter(part => part.trim() !== '').join('\n');
+
+
+  if (finalRenderedContent) {
+    lines.push(finalRenderedContent);
+  }
+
+  if (renderedContext) {
+    // Add a single line break between finalRenderedContent and renderedContext if both exist
+    if (finalRenderedContent) {
+      lines.push("\n"); 
+    }
+    lines.push(renderedContext);
+  }
+
   return lines.join("\n");
 }
 
@@ -421,24 +462,28 @@ export function PromptLab({ prompt, onBack, projectId }: { prompt: Prompt; onBac
                       />
                     </TabsContent>
 
-                    <TabsContent value="preview" className="m-0 outline-none p-4 flex-1 overflow-y-auto">
-                      <div className="mb-2 flex items-center justify-between">
-                        <div className="text-sm font-medium">Preview</div>
-                        <Button size="sm" onClick={() => copy(renderedPreview)} className="h-8 btn-primary">
-                          <Copy className="mr-1 h-4 w-4" />
-                          Copy
-                        </Button>
-                      </div>
-                      <Textarea
-                        readOnly
-                        value={renderedPreview}
-                        className="min-h-[300px] font-mono overflow-y-auto"
-                        style={{ background: '#f8f8f8', color: '#333', borderColor: '#e0e0e0', lineHeight: '1.5' }}
-                      />
-                      <p className="text-xs text-muted-foreground mt-2">
-                        Note: Text wrapped in `[[...]]` indicates a substituted variable.
-                      </p>
-                    </TabsContent>
+                    <TabsContent value="preview" className="m-0 outline-none p-4 flex-1 flex flex-col">
+  <div className="mb-2 flex items-center justify-between">
+    <div className="text-sm font-medium">Preview</div>
+    <Button size="sm" onClick={() => copy(renderedPreview)} className="h-8 btn-primary">
+      <Copy className="mr-1 h-4 w-4" />
+      Copy
+    </Button>
+  </div>
+
+  <pre
+    className="font-mono whitespace-pre-wrap bg-[#f8f8f8] text-[#333] border border-[#e0e0e0] rounded-md p-2 w-full"
+    style={{
+      lineHeight: "1.5",
+      whiteSpace: "pre-wrap",
+      wordWrap: "break-word",
+    }}
+  >
+    {renderedPreview}
+  </pre>
+
+</TabsContent>
+
                   </div>
                 </Tabs>
               </div>
@@ -567,7 +612,7 @@ function EditorPanel({
             // Ensure there's at least one empty text block if content is initially empty, and add __typename
             const normalizedInitialBlocks = initialBlocksFromProp.length > 0
                                             ? initialBlocksFromProp.map(b => ({ ...b, __typename: 'ContentBlock' })) as Block[] // Ensure __typename is added
-                                            : [{ type: 'text', id: cuid('t-initial-empty'), value: '', __typename: 'ContentBlock' }]; // Add __typename here too
+                                            : [{ type: 'text', id: cuid('t-initial-empty'), value: '', __typename: 'ContentBlock' }];
             
             setBlocks(normalizedInitialBlocks);
             setLocalTitle(prompt.title);
@@ -615,7 +660,7 @@ function EditorPanel({
             const currentPropContent = (prompt.content && Array.isArray(prompt.content) ? prompt.content : []) as Block[];
             const normalizedCurrentPropContent = currentPropContent.length > 0
                                                     ? currentPropContent.map(b => ({ ...b, __typename: 'ContentBlock' })) as Block[] // Ensure __typename is added
-                                                    : [{ type: 'text', id: cuid('t-normalized-empty-sync'), value: '', __typename: 'ContentBlock' }]; // Add __typename here too
+                                                    : [{ type: 'text', id: cuid('t-normalized-empty-sync'), value: '', __typename: 'ContentBlock' }];
 
             if (!deepCompareBlocks(blocks, normalizedCurrentPropContent) && !deepCompareBlocks(lastKnownPropValues.current.content, normalizedCurrentPropContent)) { // FIX: Changed `normalizedCurrentCurrentPromptContent` to `normalizedCurrentPropContent`
                 console.log(`[EditorPanel ${componentId}] [Trace: Effect_PromptSync] Prop content updated, updating blocks state.`);
@@ -661,7 +706,7 @@ function EditorPanel({
     const currentPropContent = (prompt.content && Array.isArray(prompt.content) ? prompt.content : []) as Block[];
     const normalizedCurrentPropContent = currentPropContent.length > 0
                                             ? currentPropContent.map(b => ({ ...b, __typename: 'ContentBlock' })) as Block[] // Ensure __typename is added
-                                            : [{ type: 'text', id: cuid('t-normalized-empty-debounced'), value: '', __typename: 'ContentBlock' }]; // Add __typename here too
+                                            : [{ type: 'text', id: cuid('t-normalized-empty-debounced'), value: '', __typename: 'ContentBlock' }];
 
     if (!deepCompareBlocks(normalizedCurrentPropContent, debouncedBlocks) && !deepCompareBlocks(lastKnownPropValues.current.content, debouncedBlocks)) {
       console.log(`[EditorPanel ${componentId}] [Trace: Effect_DebouncedBlocks] Debounced blocks differ from prop content AND last known sent value. Calling onUpdate. Debounced:`, debouncedBlocks, "Prop:", normalizedCurrentPropContent, "LastSent:", lastKnownPropValues.current.content);
@@ -783,13 +828,13 @@ function EditorPanel({
              updated = updated.filter(b => !(b.type === 'text' && b.id === id));
              if (updated.length === 0) {
                 console.log('[EditorPanel] [Trace: UpdateTextBlock] All blocks removed, adding empty fallback after text block update.');
-                updated.push({ type: 'text', id: cuid('t-empty-fallback-after-update'), value: '', __typename: 'ContentBlock' }); // Added __typename
+                updated.push({ type: 'text', id: cuid('t-empty-fallback-after-update'), value: '', __typename: 'ContentBlock' });
              }
         }
         // If after update, all blocks are gone (e.g., removing the last variable block), add an empty text block
         else if (updated.length === 0) {
             console.log('[EditorPanel] [Trace: UpdateTextBlock] All blocks removed, adding empty fallback (safeguard).');
-            updated.push({ type: 'text', id: cuid('t-empty-fallback-safeguard'), value: '', __typename: 'ContentBlock' }); // Added __typename
+            updated.push({ type: 'text', id: cuid('t-empty-fallback-safeguard'), value: '', __typename: 'ContentBlock' });
         }
 
 
@@ -813,7 +858,7 @@ function EditorPanel({
       // Ensure there's always at least one text block if the list becomes empty
       if (copy.length === 0) {
         console.log('[EditorPanel] [Trace: RemoveBlock] No blocks left, adding empty fallback.');
-        copy.push({ type: 'text', id: cuid('t-empty-after-remove'), value: '', __typename: 'ContentBlock' }); // Added __typename
+        copy.push({ type: 'text', id: cuid('t-empty-after-remove'), value: '', __typename: 'ContentBlock' });
       }
 
       logBlocks(`After removing block at index ${index}`, copy);
