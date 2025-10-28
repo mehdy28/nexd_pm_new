@@ -1,1 +1,2 @@
-I want when I switch the versions in the version panel . to see a scroller in the editor panel and to trigger a querry
+when I switch between versions the querry is executing and the data is here.
+but the components of the editor panel is stuck freesing and it has like a transparent layer and the cursor is shown as the icon circle crossed by a line 

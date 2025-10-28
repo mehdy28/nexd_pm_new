@@ -36,13 +36,13 @@ enum ProjectStatus {
   CANCELLED
 }
 
-# Consolidated TaskStatus 
+# Consolidated TaskStatus
 enum TaskStatus {
   TODO
   DONE
 }
 
-# Consolidated Priority 
+# Consolidated Priority
 enum Priority {
   LOW
   MEDIUM
@@ -751,7 +751,7 @@ type TaskLookupItem {
 
 # Minimal Document type for list view (consolidated to one definition)
 # Renaming DocumentLookupItem to DocumentListItem as per your existing usage
-type DocumentListItem { 
+type DocumentListItem {
   id: ID!
   title: String!
   updatedAt: String! # For sorting/display
@@ -985,6 +985,8 @@ type Query {
   # --- NEW PROMPT QUERIES ---
   getProjectPrompts(projectId: ID): [Prompt!]! # Added `projectId` as optional for personal prompts
   getPromptDetails(id: ID!): Prompt
+  # NEW: Query to get specific version's content, context, and variables
+  getPromptVersionContent(promptId: ID!, versionId: ID!): Version! # Returns only content relevant to a version
   # UPDATED: Added workspaceId to resolvePromptVariable query
   resolvePromptVariable(projectId: ID, workspaceId: ID, variableSource: JSON!, promptVariableId: ID): String
 

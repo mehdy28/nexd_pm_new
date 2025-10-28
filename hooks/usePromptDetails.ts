@@ -1,19 +1,17 @@
-// hooks/usePromptDetails.ts
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useQuery, useMutation } from "@apollo/client";
+import { useQuery, useMutation, useLazyQuery } from "@apollo/client";
 
-import { GET_PROMPT_DETAILS_QUERY } from "@/graphql/queries/promptRelatedQueries";
+import { GET_PROMPT_DETAILS_QUERY, GET_PROMPT_VERSION_CONTENT_QUERY } from "@/graphql/queries/promptRelatedQueries";
 import {
   UPDATE_PROMPT_MUTATION,
   SNAPSHOT_PROMPT_MUTATION,
   RESTORE_PROMPT_VERSION_MUTATION,
-  UPDATE_VERSION_DESCRIPTION_MUTATION, // NEW: Import new mutation
+  UPDATE_VERSION_DESCRIPTION_MUTATION,
 } from "@/graphql/mutations/promptRelatedMutations";
-import { Prompt, PromptVariable, Block, Version as PromptVersionType } from '@/components/prompt-lab/store'; // Renamed Version to PromptVersionType to avoid conflict
+import { Prompt, PromptVariable, Block, Version as PromptVersionType } from '@/components/prompt-lab/store';
 
-// Minimal cuid for client-side use if needed for new local vars/versions
 function cuid(prefix: string = ''): string {
   const chars = '01234789abcdefghijklmnopqrstuvwxyz';
   let result = prefix + 'c';
@@ -23,26 +21,40 @@ function cuid(prefix: string = ''): string {
   return result;
 }
 
+interface VersionContent {
+  id: string; // The version ID itself
+  content: Block[];
+  context: string;
+  variables: PromptVariable[];
+}
+
 interface UsePromptDetailsHook {
   selectedPromptDetails: Prompt | null;
   loadingDetails: boolean;
   detailsError: string | null;
-  // Modified: updatePromptDetails now accepts promptId as its first argument
   updatePromptDetails: (
-    promptId: string, // <-- Added promptId parameter
+    promptId: string,
     updates: Partial<Omit<Prompt, 'id' | 'createdAt' | 'updatedAt' | 'user' | 'project' | 'versions'>>
   ) => void;
-  // Snapshot and restore continue to use the hook's selectedPromptId internally
   snapshotPrompt: (notes?: string) => void;
   restorePromptVersion: (versionId: string) => void;
-  updateVersionDescription: (promptId: string, versionId: string, description: string) => void; // NEW: Add to hook interface
+  updateVersionDescription: (promptId: string, versionId: string, description: string) => void;
   refetchPromptDetails: () => Promise<any>;
+
+  // NEW: Version-specific content loading state and function
+  fetchVersionContent: (versionId: string) => void;
+  loadingVersionContent: boolean;
+  versionContentError: string | null;
+  currentLoadedVersionContent: VersionContent | null; // Stores the content of the currently selected version
 }
 
 export function usePromptDetails(selectedPromptId: string | null, projectId: string | undefined): UsePromptDetailsHook {
   const [selectedPromptDetails, setSelectedPromptDetails] = useState<Prompt | null>(null);
   const [localDetailsError, setLocalDetailsError] = useState<string | null>(null);
-  const lastFetchedPromptData = useRef<Prompt | null>(null); // To help maintain details locally
+  const lastFetchedPromptData = useRef<Prompt | null>(null);
+
+  // NEW: State for currently loaded version content
+  const [currentLoadedVersionContent, setCurrentLoadedVersionContent] = useState<VersionContent | null>(null);
 
   const { data: promptDetailsData, loading: apolloDetailsLoading, error: apolloDetailsError, refetch: apolloRefetchPromptDetails } = useQuery(
     GET_PROMPT_DETAILS_QUERY,
@@ -57,8 +69,11 @@ export function usePromptDetails(selectedPromptId: string | null, projectId: str
           const detailedPrompt: Prompt = {
             id: data.getPromptDetails.id,
             title: data.getPromptDetails.title,
+            // Main prompt content, context, variables are fetched here
             content: (data.getPromptDetails.content && Array.isArray(data.getPromptDetails.content) ? data.getPromptDetails.content : []) as Block[],
             context: data.getPromptDetails.context,
+            variables: data.getPromptDetails.variables.map((v: PromptVariable) => ({ ...v, id: v.id || cuid('db-var-') })),
+
             description: data.getPromptDetails.description,
             category: data.getPromptDetails.category,
             tags: data.getPromptDetails.tags,
@@ -67,36 +82,77 @@ export function usePromptDetails(selectedPromptId: string | null, projectId: str
             updatedAt: data.getPromptDetails.updatedAt,
             model: data.getPromptDetails.model,
             projectId: data.getPromptDetails.projectId,
-            variables: data.getPromptDetails.variables.map((v: PromptVariable) => ({ ...v, id: v.id || cuid('db-var-') })),
+            // Versions now only contain metadata (id, createdAt, notes, description)
             versions: data.getPromptDetails.versions.map((v: any) => ({
                ...v,
                id: v.id || cuid('db-ver-'),
-               content: (v.content && Array.isArray(v.content) ? v.content : []) as Block[],
-               description: v.description || '', // ADDED: Map description
+               description: v.description || '',
+               // content, context, variables are *not* included here for versions
             })),
           };
           lastFetchedPromptData.current = detailedPrompt;
           setSelectedPromptDetails(detailedPrompt);
+          // When the main prompt details load, clear any previously loaded version content
+          setCurrentLoadedVersionContent(null);
         } else {
-            setSelectedPromptDetails(null); // Clear details if no data found
+            setSelectedPromptDetails(null);
             lastFetchedPromptData.current = null;
+            setCurrentLoadedVersionContent(null);
         }
       },
       onError: (err) => {
         console.error("[usePromptDetails] [Error: QueryDetails] Error fetching prompt details:", err);
         setLocalDetailsError("Failed to load prompt details.");
-        setSelectedPromptDetails(null); // Clear details on error
+        setSelectedPromptDetails(null);
         lastFetchedPromptData.current = null;
+        setCurrentLoadedVersionContent(null);
       },
     }
   );
 
-  // Clear selectedPromptDetails if selectedPromptId becomes null
+  // NEW: useLazyQuery for fetching specific version content
+  const [
+    triggerFetchVersionContent,
+    { data: versionContentData, loading: apolloLoadingVersionContent, error: apolloVersionContentError }
+  ] = useLazyQuery(GET_PROMPT_VERSION_CONTENT_QUERY, {
+    fetchPolicy: "network-only", // Always fetch fresh data for a version
+    onCompleted: (data) => {
+      if (data?.getPromptVersionContent) {
+        console.log('[usePromptDetails] [Trace: QueryVersionContentComplete] GET_PROMPT_VERSION_CONTENT_QUERY onCompleted. Version ID:', data.getPromptVersionContent.id);
+        setCurrentLoadedVersionContent({
+          id: data.getPromptVersionContent.id,
+          content: (data.getPromptVersionContent.content && Array.isArray(data.getPromptVersionContent.content) ? data.getPromptVersionContent.content : []) as Block[],
+          context: data.getPromptVersionContent.context || '',
+          variables: data.getPromptVersionContent.variables.map((v: PromptVariable) => ({ ...v, id: v.id || cuid('db-var-') })),
+        });
+      } else {
+        setCurrentLoadedVersionContent(null);
+      }
+    },
+    onError: (err) => {
+      console.error("[usePromptDetails] [Error: QueryVersionContent] Error fetching version content:", err);
+      // setLocalDetailsError is for the main prompt, maybe add a specific error for version content if needed
+      setCurrentLoadedVersionContent(null);
+    },
+  });
+
+  const fetchVersionContent = useCallback((versionId: string) => {
+    if (!selectedPromptId || !versionId) {
+      console.warn('[usePromptDetails] [Trace: FetchVersionContent] fetchVersionContent called with invalid promptId or versionId.');
+      setCurrentLoadedVersionContent(null); // Clear previous content
+      return;
+    }
+    console.log('[usePromptDetails] [Trace: FetchVersionContent] Triggering fetch for version content. Prompt ID:', selectedPromptId, 'Version ID:', versionId);
+    triggerFetchVersionContent({ variables: { promptId: selectedPromptId, versionId } });
+  }, [selectedPromptId, triggerFetchVersionContent]);
+
+
   useEffect(() => {
     if (!selectedPromptId) {
       setSelectedPromptDetails(null);
       lastFetchedPromptData.current = null;
       setLocalDetailsError(null);
+      setCurrentLoadedVersionContent(null); // Clear version content if no prompt is selected
     }
   }, [selectedPromptId]);
 
@@ -104,7 +160,6 @@ export function usePromptDetails(selectedPromptId: string | null, projectId: str
     onCompleted: (data) => {
       if (data?.updatePrompt) {
         console.log('[usePromptDetails] [Trace: MutationUpdateComplete] UPDATE_PROMPT_MUTATION onCompleted. Updated prompt ID:', data.updatePrompt.id, 'Title:', data.updatePrompt.title);
-        // Only update basic fields from mutation result, rely on re-fetch for full details if needed
         setSelectedPromptDetails(prev => prev ? {
             ...prev,
             title: data.updatePrompt.title,
@@ -113,13 +168,17 @@ export function usePromptDetails(selectedPromptId: string | null, projectId: str
             isPublic: data.updatePrompt.isPublic,
             model: data.updatePrompt.model,
             updatedAt: data.updatePrompt.updatedAt,
+            // Content and variables are updated directly by the mutation, no need to refetch full prompt for these specific fields
+            content: (data.updatePrompt.content && Array.isArray(data.updatePrompt.content) ? data.updatePrompt.content : []) as Block[],
+            context: data.updatePrompt.context, // Added context update
+            variables: data.updatePrompt.variables.map((v: PromptVariable) => ({ ...v, id: v.id || cuid('db-var-') })),
         } : null);
       }
     },
     onError: (err) => {
       console.error("[usePromptDetails] [Error: MutationUpdate] Mutation Error: Update Prompt", err);
       setLocalDetailsError("Failed to update prompt.");
-      apolloRefetchPromptDetails(); // Refetch details on error to resync
+      apolloRefetchPromptDetails();
     },
   });
 
@@ -127,13 +186,28 @@ export function usePromptDetails(selectedPromptId: string | null, projectId: str
     onCompleted: (data) => {
       if (data?.snapshotPrompt) {
         console.log('[usePromptDetails] [Trace: MutationSnapshotComplete] SNAPSHOT_PROMPT_MUTATION onCompleted. Prompt ID:', data.snapshotPrompt.id);
-        apolloRefetchPromptDetails(); // Refetch details to get the new version in the list
+        // Optimistically update versions list
+        setSelectedPromptDetails(prev => {
+          if (!prev) return null;
+          return {
+            ...prev,
+            versions: data.snapshotPrompt.versions.map((v: any) => ({
+              ...v,
+              id: v.id || cuid('db-ver-'),
+              description: v.description || '',
+            })),
+            updatedAt: new Date().toISOString(),
+          };
+        });
+        // Refetch the full prompt details (including active content, context, variables)
+        // This will update selectedPromptDetails
+        apolloRefetchPromptDetails();
       }
     },
     onError: (err) => {
       console.error("[usePromptDetails] [Error: MutationSnapshot] Mutation Error: Snapshot Prompt", err);
       setLocalDetailsError("Failed to save version.");
-      apolloRefetchPromptDetails(); // Refetch on error
+      apolloRefetchPromptDetails();
     },
   });
 
@@ -141,32 +215,32 @@ export function usePromptDetails(selectedPromptId: string | null, projectId: str
     onCompleted: (data) => {
       if (data?.restorePromptVersion) {
         console.log('[usePromptDetails] [Trace: MutationRestoreComplete] RESTORE_PROMPT_VERSION_MUTATION onCompleted. Prompt ID:', data.restorePromptVersion.id);
-        apolloRefetchPromptDetails(); // Refetch details to show the restored content
+        // After restoring, the main prompt's content, context, variables are updated.
+        // We need to refetch the main prompt details to reflect this change in UI.
+        apolloRefetchPromptDetails();
       }
     },
     onError: (err) => {
       console.error("[usePromptDetails] [Error: MutationRestore] Mutation Error: Restore Prompt Version", err);
       setLocalDetailsError("Failed to restore version.");
-      apolloRefetchPromptDetails(); // Refetch on error
+      apolloRefetchPromptDetails();
     },
   });
 
-  // NEW: Mutation for updating version description
   const [updateVersionDescriptionMutation] = useMutation(UPDATE_VERSION_DESCRIPTION_MUTATION, {
     onCompleted: (data) => {
       if (data?.updateVersionDescription) {
         console.log('[usePromptDetails] [Trace: MutationUpdateVersionDescriptionComplete] UPDATE_VERSION_DESCRIPTION_MUTATION onCompleted. Prompt ID:', data.updateVersionDescription.id);
-        // Optimistically update the selected prompt details (only versions array)
         setSelectedPromptDetails(prev => {
           if (!prev) return null;
           return {
             ...prev,
             versions: data.updateVersionDescription.versions.map((v: any) => ({
               ...v,
-              content: (v.content && Array.isArray(v.content) ? v.content : []) as Block[], // Ensure content is Block[] if the mutation result includes it (though we only asked for id, notes, description)
+              id: v.id || cuid('db-ver-'),
               description: v.description || '',
             })),
-            updatedAt: new Date().toISOString(), // Mark prompt as updated
+            updatedAt: new Date().toISOString(),
           };
         });
       }
@@ -174,17 +248,16 @@ export function usePromptDetails(selectedPromptId: string | null, projectId: str
     onError: (err) => {
       console.error("[usePromptDetails] [Error: MutationUpdateVersionDescription] Mutation Error: Update Version Description", err);
       setLocalDetailsError("Failed to update version description.");
-      apolloRefetchPromptDetails(); // Refetch on error to resync
+      apolloRefetchPromptDetails();
     },
   });
 
 
   const updatePromptDetails = useCallback(
     (
-      promptId: string, // <-- Now explicitly accepts the promptId to update
+      promptId: string,
       updates: Partial<Omit<Prompt, 'id' | 'createdAt' | 'updatedAt' | 'user' | 'project' | 'versions'>>
     ) => {
-      // Ensure the provided promptId is valid
       if (!promptId) {
         console.warn('[usePromptDetails] [Trace: Update] updatePromptDetails called with an invalid promptId.');
         setLocalDetailsError('Cannot update prompt: invalid prompt ID provided.');
@@ -193,23 +266,19 @@ export function usePromptDetails(selectedPromptId: string | null, projectId: str
       setLocalDetailsError(null);
       console.log('[usePromptDetails] [Trace: Update] updatePromptDetails: Optimistically updating prompt ID:', promptId, 'with keys:', Object.keys(updates));
 
-      // Optimistic UI update: ONLY update if the 'promptId' being updated
-      // matches the 'selectedPromptId' of this particular hook instance.
-      // If the hook is managing details for ID 'X' and an update comes for ID 'Y',
-      // we don't want to optimistically apply 'Y's changes to 'X's display.
       if (promptId === selectedPromptId) {
         setSelectedPromptDetails((prev) => {
           if (!prev) return null;
           return {
             ...prev,
             ...updates,
-            updatedAt: new Date().toISOString(), // Optimistic update timestamp
+            updatedAt: new Date().toISOString(),
             content: updates.content !== undefined ? (updates.content as Block[]) : prev.content,
+            context: updates.context !== undefined ? (updates.context as string) : prev.context, // Optimistic update for context
             variables: updates.variables !== undefined ? (updates.variables.map((v: Partial<PromptVariable>) => ({...v, id: v.id || cuid('patch-var-')})) as PromptVariable[]) : prev.variables,
           };
         });
       }
-
 
       const filteredUpdates: Record<string, any> = {};
       for (const key in updates) {
@@ -221,18 +290,15 @@ export function usePromptDetails(selectedPromptId: string | null, projectId: str
       updatePromptMutation({
         variables: {
           input: {
-            id: promptId, // Use the provided promptId here
+            id: promptId,
             ...filteredUpdates,
           },
         },
       }).catch((err) => {
         console.error("[usePromptDetails] [Error: UpdateGraphQL] Error updating prompt details via GraphQL:", err);
         setLocalDetailsError("Failed to update prompt details.");
-        // If an update fails for the *currently selected* prompt, refetch its details to revert optimistic UI.
-        // Otherwise, if it's an update for a different prompt (shouldn't happen often for this hook),
-        // we might not need to refetch the *current* selected details.
         if (promptId === selectedPromptId) {
-          apolloRefetchPromptDetails(); // Revert optimistic update by refetching actual state
+          apolloRefetchPromptDetails();
         }
       });
     },
@@ -241,7 +307,6 @@ export function usePromptDetails(selectedPromptId: string | null, projectId: str
 
   const snapshotPrompt = useCallback(
     (notes?: string) => {
-      // This function still uses the hook's selectedPromptId
       if (!selectedPromptId) {
         console.warn('[usePromptDetails] [Trace: Snapshot] snapshotPrompt called with no selectedPromptId.');
         setLocalDetailsError('Cannot snapshot prompt: no prompt selected.');
@@ -264,7 +329,6 @@ export function usePromptDetails(selectedPromptId: string | null, projectId: str
 
   const restorePromptVersion = useCallback(
     (versionId: string) => {
-      // This function still uses the hook's selectedPromptId
       if (!selectedPromptId) {
         console.warn('[usePromptDetails] [Trace: Restore] restorePromptVersion called with no selectedPromptId.');
         setLocalDetailsError('Cannot restore version: no prompt selected.');
@@ -285,7 +349,6 @@ export function usePromptDetails(selectedPromptId: string | null, projectId: str
     [selectedPromptId, restorePromptVersionMutation, apolloRefetchPromptDetails]
   );
 
-  // NEW: Callback for updating version description
   const updateVersionDescription = useCallback(
     (promptId: string, versionId: string, description: string) => {
       if (!promptId || !versionId) {
@@ -296,13 +359,12 @@ export function usePromptDetails(selectedPromptId: string | null, projectId: str
       setLocalDetailsError(null);
       console.log('[usePromptDetails] [Trace: UpdateVersionDesc] Updating description for prompt ID:', promptId, 'version ID:', versionId);
 
-      // Optimistic UI update
       if (promptId === selectedPromptId) {
         setSelectedPromptDetails(prev => {
           if (!prev) return null;
-          const updatedVersions = prev.versions.map(v => 
+          const updatedVersions = prev.versions.map(v =>
             v.id === versionId ? { ...v, description: description } : v
-          ) as PromptVersionType[]; // Cast back to PromptVersionType[]
+          ) as PromptVersionType[];
           return { ...prev, versions: updatedVersions, updatedAt: new Date().toISOString() };
         });
       }
@@ -315,7 +377,7 @@ export function usePromptDetails(selectedPromptId: string | null, projectId: str
         console.error("[usePromptDetails] [Error: UpdateVersionDescGraphQL] Error updating version description via GraphQL:", err);
         setLocalDetailsError("Failed to update version description.");
         if (promptId === selectedPromptId) {
-          apolloRefetchPromptDetails(); // Revert optimistic update
+          apolloRefetchPromptDetails();
         }
       });
     },
@@ -329,7 +391,13 @@ export function usePromptDetails(selectedPromptId: string | null, projectId: str
     updatePromptDetails,
     snapshotPrompt,
     restorePromptVersion,
-    updateVersionDescription, // NEW: Expose new function
+    updateVersionDescription,
     refetchPromptDetails: apolloRefetchPromptDetails,
+
+    // NEW: Expose version content loading state and functions
+    fetchVersionContent,
+    loadingVersionContent: apolloLoadingVersionContent,
+    versionContentError: apolloVersionContentError?.message || null,
+    currentLoadedVersionContent,
   };
 }
