@@ -166,10 +166,30 @@ const promptResolvers = {
           updatedAt: true,
           model: true,
           projectId: true,
+          // When fetching for a list, we don't need full content/variables/versions by default
+          // These will be fetched via getPromptDetails or getPromptVersionContent
         },
       });
 
-      return prompts as unknown as Prompt[];
+      // Map to ensure content, context, variables, and versions are present, even if empty
+      return prompts.map(p => ({
+        ...p,
+        content: p.content as any || [],
+        context: p.context as string || '',
+        variables: p.variables as PromptVariable[] || [],
+        versions: (p.versions as Version[] || []).map(v => ({
+          id: v.id,
+          createdAt: v.createdAt,
+          notes: v.notes,
+          description: v.description || '',
+          // For list items or partial views, we still need content, context, and variables
+          // even if they are empty arrays/strings to match the schema's non-nullable fields.
+          // This ensures the type contract is met without fetching full data unless needed.
+          content: v.content || [],
+          context: v.context || '',
+          variables: v.variables || [],
+        }))
+      })) as unknown as Prompt[];
     },
 
     getPromptDetails: async (
@@ -198,8 +218,10 @@ const promptResolvers = {
           createdAt: v.createdAt,
           notes: v.notes,
           description: v.description || '',
-          // REMOVED: content, context, variables for versions in the main prompt details payload
-          // They will be fetched by GET_PROMPT_VERSION_CONTENT_QUERY
+          // For getPromptDetails, we include the full version data
+          content: v.content || [],
+          context: v.context || '',
+          variables: v.variables || [],
         }));
       }
       return prompt as unknown as Prompt;
@@ -234,7 +256,10 @@ const promptResolvers = {
         content: version.content || [],
         context: version.context || '',
         variables: version.variables || [],
-      } as Version; // Cast to Version (though it's a partial Version structure matching the query)
+        createdAt: version.createdAt, // Ensure all non-nullable fields are included
+        notes: version.notes,
+        description: version.description || '',
+      } as Version;
     },
 
 
@@ -371,7 +396,7 @@ const promptResolvers = {
       { input }: { input: {
         projectId?: string;
         title: string;
-        content?: string;
+        content?: any; // Changed to 'any' to match schema type and input
         context?: string;
         description?: string;
         category?: string;
@@ -385,7 +410,7 @@ const promptResolvers = {
     ): Promise<Prompt> => {
       const newPromptData = {
         title: input.title,
-        content: input.content || '[]',
+        content: input.content || [], // Ensure it's an array if not provided
         context: input.context || '',
         description: input.description,
         category: input.category,
@@ -402,6 +427,20 @@ const promptResolvers = {
         data: newPromptData as any,
       });
 
+      // After creation, ensure all non-nullable fields are present for the return type
+      newPrompt.content = newPrompt.content || [];
+      newPrompt.context = newPrompt.context || '';
+      newPrompt.variables = newPrompt.variables || [];
+      newPrompt.versions = (newPrompt.versions as Version[] || []).map(v => ({
+        id: v.id,
+        createdAt: v.createdAt,
+        notes: v.notes,
+        description: v.description || '',
+        content: v.content || [],
+        context: v.context || '',
+        variables: v.variables || [],
+      }));
+
       return newPrompt as unknown as Prompt;
     },
 
@@ -410,7 +449,7 @@ const promptResolvers = {
       { input }: { input: {
         id: string;
         title?: string;
-        content?: any;
+        content?: any; // Changed to 'any'
         context?: string;
         description?: string;
         category?: string;
@@ -447,6 +486,20 @@ const promptResolvers = {
         data: updateData,
       });
 
+      // After update, ensure all non-nullable fields are present for the return type
+      updatedPrompt.content = updatedPrompt.content || [];
+      updatedPrompt.context = updatedPrompt.context || '';
+      updatedPrompt.variables = updatedPrompt.variables || [];
+      updatedPrompt.versions = (updatedPrompt.versions as Version[] || []).map(v => ({
+        id: v.id,
+        createdAt: v.createdAt,
+        notes: v.notes,
+        description: v.description || '',
+        content: v.content || [],
+        context: v.context || '',
+        variables: v.variables || [],
+      }));
+
       return updatedPrompt as unknown as Prompt;
     },
 
@@ -466,6 +519,20 @@ const promptResolvers = {
       const deletedPrompt = await prisma.prompt.delete({
         where: { id },
       });
+
+      // After deletion, ensure all non-nullable fields are present for the return type
+      deletedPrompt.content = deletedPrompt.content || [];
+      deletedPrompt.context = deletedPrompt.context || '';
+      deletedPrompt.variables = deletedPrompt.variables || [];
+      deletedPrompt.versions = (deletedPrompt.versions as Version[] || []).map(v => ({
+        id: v.id,
+        createdAt: v.createdAt,
+        notes: v.notes,
+        description: v.description || '',
+        content: v.content || [],
+        context: v.context || '',
+        variables: v.variables || [],
+      }));
 
       return deletedPrompt as unknown as Prompt;
     },
@@ -489,9 +556,9 @@ const promptResolvers = {
 
       const newVersion: Version = {
         id: generateUniqueId(),
-        content: currentContent,
-        context: currentContext,
-        variables: currentVariables.map(v => ({ ...v, id: v.id || generateUniqueId() })),
+        content: currentContent, // This is correct, it captures the current content
+        context: currentContext, // This is correct, it captures the current context
+        variables: currentVariables.map(v => ({ ...v, id: v.id || generateUniqueId() })), // This is correct
         createdAt: new Date().toISOString(),
         notes: input.notes || `Version saved on ${new Date().toLocaleString()}`,
         description: "",
@@ -507,19 +574,26 @@ const promptResolvers = {
         },
       });
 
-      // To simplify the return and reduce payload, we'll only return the versions metadata
-      // The full prompt details (including active content) will be refetched by the client
-      // or specific version content will be fetched on demand.
-      return {
-        ...updatedPrompt,
-        versions: updatedVersions.map(v => ({
-          id: v.id,
-          createdAt: v.createdAt,
-          notes: v.notes,
-          description: v.description,
-          // Exclude content, context, variables for snapshot return
-        }))
-      } as unknown as Prompt;
+      // The schema requires a full Prompt object with complete Version objects in its 'versions' array.
+      // We must ensure that all non-nullable fields of Prompt and Version are present.
+      // Prisma typically returns all fields, but if 'content', 'context', 'variables' for versions
+      // are not explicitly stored/retrieved, they might be missing.
+      // We explicitly map the versions to ensure they conform to the schema.
+
+      updatedPrompt.content = updatedPrompt.content || [];
+      updatedPrompt.context = updatedPrompt.context || '';
+      updatedPrompt.variables = updatedPrompt.variables || [];
+      updatedPrompt.versions = (updatedPrompt.versions as Version[] || []).map(v => ({
+        id: v.id,
+        createdAt: v.createdAt,
+        notes: v.notes,
+        description: v.description || '',
+        content: v.content || [],      // Ensure content is present (empty array if null)
+        context: v.context || '',      // Ensure context is present (empty string if null)
+        variables: v.variables || [],  // Ensure variables is present (empty array if null)
+      }));
+
+      return updatedPrompt as unknown as Prompt;
     },
 
     restorePromptVersion: async (
@@ -551,6 +625,20 @@ const promptResolvers = {
           updatedAt: new Date(),
         },
       });
+
+      // After update, ensure all non-nullable fields are present for the return type
+      updatedPrompt.content = updatedPrompt.content || [];
+      updatedPrompt.context = updatedPrompt.context || '';
+      updatedPrompt.variables = updatedPrompt.variables || [];
+      updatedPrompt.versions = (updatedPrompt.versions as Version[] || []).map(v => ({
+        id: v.id,
+        createdAt: v.createdAt,
+        notes: v.notes,
+        description: v.description || '',
+        content: v.content || [],
+        context: v.context || '',
+        variables: v.variables || [],
+      }));
 
       return updatedPrompt as unknown as Prompt;
     },
@@ -589,17 +677,21 @@ const promptResolvers = {
         },
       });
 
-      // Only return updated versions metadata
-      return {
-        ...updatedPrompt,
-        versions: updatedVersions.map(v => ({
-          id: v.id,
-          createdAt: v.createdAt,
-          notes: v.notes,
-          description: v.description,
-          // Exclude content, context, variables
-        }))
-      } as unknown as Prompt;
+      // Ensure all non-nullable fields are present for the return type
+      updatedPrompt.content = updatedPrompt.content || [];
+      updatedPrompt.context = updatedPrompt.context || '';
+      updatedPrompt.variables = updatedPrompt.variables || [];
+      updatedPrompt.versions = updatedVersions.map(v => ({ // Use updatedVersions directly
+        id: v.id,
+        createdAt: v.createdAt,
+        notes: v.notes,
+        description: v.description || '',
+        content: v.content || [],
+        context: v.context || '',
+        variables: v.variables || [],
+      }));
+
+      return updatedPrompt as unknown as Prompt;
     },
   },
 

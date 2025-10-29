@@ -1,7 +1,6 @@
 'use client'
 
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react"
-// Assuming Prompt and Version from store.ts are also updated to include __typename if necessary
 import { PromptVariableType, type Prompt, type Version, type PromptVariable, type PromptVariableSource } from '@/components/prompt-lab/store';
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -32,16 +31,12 @@ function deepCompareBlocks(arr1: Block[], arr2: Block[]): boolean {
     }
 
     if (b1.type === 'text') {
-      // @ts-ignore
-      if (b1.value !== b2.value) {
-        // @ts-ignore
+      if ((b1.value ?? '') !== (b2.value ?? '')) {
         console.log(`[deepCompareBlocks] Block ${i} (text): Different values`, b1.value, b2.value);
         return false;
       }
     } else if (b1.type === 'variable') {
-      // @ts-ignore
       if (b1.varId !== b2.varId || b1.placeholder !== b2.placeholder || b1.name !== b2.name) {
-        // @ts-ignore
         console.log(`[deepCompareBlocks] Block ${i} (variable): Different identity`, {b1_varId: b1.varId, b1_ph: b1.placeholder, b1_name: b1.name}, {b2_varId: b2.varId, b2_ph: b2.placeholder, b2_name: b2.name});
         return false;
       }
@@ -83,7 +78,7 @@ async function renderPrompt(
 
   renderedContent = contentBlocks.map(block => {
     if (block.type === 'text') {
-      return block.value;
+      return block.value ?? '';
     } else if (block.type === 'variable') {
       const matchingVariable = variables.find(v => v.id === block.varId);
       const displayValue = variableValues[block.placeholder] || (matchingVariable?.defaultValue || '');
@@ -98,7 +93,7 @@ async function renderPrompt(
     return '';
   }).join('');
 
-  let renderedContext = context;
+  let renderedContext = context ?? '';
 
   for (const variable of variables) {
     let valueToSubstitute = variableValues[variable.placeholder] || variable.defaultValue || '';
@@ -122,7 +117,7 @@ async function renderPrompt(
 
   const contentPartsWithNewlines = contentBlocks.map(block => {
     if (block.type === 'text') {
-      return block.value;
+      return block.value ?? '';
     } else if (block.type === 'variable') {
       const matchingVariable = variables.find(v => v.id === block.varId);
       const displayValue = variableValues[block.placeholder] || (matchingVariable?.defaultValue || '');
@@ -161,13 +156,13 @@ export function PromptLab({ prompt, onBack, projectId }: { prompt: Prompt; onBac
     snapshotPrompt,
     restorePromptVersion,
     updateVersionDescription,
-    selectedPromptDetails, // This now contains version metadata, and active prompt content
-    fetchVersionContent, // NEW: Function to load version-specific content
-    loadingVersionContent, // NEW: Loading state for version content
-    currentLoadedVersionContent, // NEW: Stores the content of the currently selected version
+    selectedPromptDetails,
+    fetchVersionContent,
+    loadingVersionContent,
+    currentLoadedVersionContent,
+    loadingDetails
   } = usePromptDetails(prompt.id, projectId);
 
-  // Ensure currentPrompt is never null for its basic properties, use the initial `prompt` prop as fallback
   const currentPrompt = selectedPromptDetails || prompt;
 
 
@@ -182,36 +177,49 @@ export function PromptLab({ prompt, onBack, projectId }: { prompt: Prompt; onBac
   const [isSnapshotting, setIsSnapshotting] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
 
-  // Memoize the content, context, and variables that should be displayed in the editor/preview.
-  // This will either be the active prompt's data or the loaded version's data.
+
+  // Memoized content, context, and variables for the editor.
   const editorContent = useMemo(() => {
-    if (selectedVersionId && currentLoadedVersionContent?.id === selectedVersionId) {
-      console.log('[PromptLab] [Trace: EditorContentMemo] Using loaded version content.');
+    if (selectedVersionId !== null && currentLoadedVersionContent?.id === selectedVersionId) {
+      console.log('[PromptLab] [Trace: EditorContentMemo] Using loaded version content for editor.');
       return currentLoadedVersionContent.content;
     }
-    console.log('[PromptLab] [Trace: EditorContentMemo] Using active prompt content.');
+    console.log('[PromptLab] [Trace: EditorContentMemo] Using active prompt content for editor.');
     return currentPrompt.content;
   }, [currentPrompt.content, selectedVersionId, currentLoadedVersionContent]);
 
   const editorContext = useMemo(() => {
-    if (selectedVersionId && currentLoadedVersionContent?.id === selectedVersionId) {
-      console.log('[PromptLab] [Trace: EditorContextMemo] Using loaded version context.');
-      // Ensure currentLoadedVersionContent.context is a string, even if empty
+    if (selectedVersionId !== null && currentLoadedVersionContent?.id === selectedVersionId) {
+      console.log('[PromptLab] [Trace: EditorContextMemo] Using loaded version context for editor.');
       return currentLoadedVersionContent.context ?? '';
     }
     console.log('[PromptLab] [Trace: EditorContextMemo] Using active prompt context.');
-    // Ensure currentPrompt.context is a string, even if empty
     return currentPrompt.context ?? '';
   }, [currentPrompt.context, selectedVersionId, currentLoadedVersionContent]);
 
   const editorVariables = useMemo(() => {
-    if (selectedVersionId && currentLoadedVersionContent?.id === selectedVersionId) {
-      console.log('[PromptLab] [Trace: EditorVariablesMemo] Using loaded version variables.');
+    if (selectedVersionId !== null && currentLoadedVersionContent?.id === selectedVersionId) {
+      console.log('[PromptLab] [Trace: EditorVariablesMemo] Using loaded version variables for editor.');
       return currentLoadedVersionContent.variables;
     }
     console.log('[PromptLab] [Trace: EditorVariablesMemo] Using active prompt variables.');
     return currentPrompt.variables;
   }, [currentPrompt.variables, selectedVersionId, currentLoadedVersionContent]);
+
+  // Determine the name of the currently displayed version
+  const currentVersionName = useMemo(() => {
+    // If selectedVersionId is null, it implicitly means the currently active prompt state.
+    // The name of this "active" state should be derived from the main prompt's title.
+    if (selectedVersionId === null) {
+      return currentPrompt.title || "Untitled Prompt (Active)"; // Use main prompt title
+    }
+    const version = currentPrompt.versions.find(v => v.id === selectedVersionId);
+    return version?.notes || "Untitled Version";
+  }, [selectedVersionId, currentPrompt.title, currentPrompt.versions]);
+
+
+  // Combined loading state for the EditorPanel's actual content.
+  const isLoadingEditorContent = loadingDetails || (selectedVersionId !== null && loadingVersionContent);
 
 
   // Effect to manage selected version and trigger content fetch
@@ -221,42 +229,31 @@ export function PromptLab({ prompt, onBack, projectId }: { prompt: Prompt; onBac
       const versions = currentPrompt.versions || [];
       const hasVersions = versions.length > 0;
 
-      if (hasVersions) {
-        // If no version is selected or the selected one is no longer in the list (e.g., after a refetch cleared it)
-        if (!selectedVersionId || !versions.some((v) => v.id === selectedVersionId)) {
-          console.log('[PromptLab] [Trace: RootEffect] No selected version or selected version not found, selecting latest (active prompt).');
-          // Select the "active prompt" as the default. Its content is already in currentPrompt.
-          setSelectedVersionId(null); // Explicitly indicate the "active prompt" is selected
-        }
-      } else if (selectedVersionId) {
-        console.log('[PromptLab] [Trace: RootEffect] No versions available, deselecting version.');
+      // Ensure a version is always selected (either a historical one or implied "Active Prompt")
+      if (selectedVersionId === undefined) { // Initial load, default to active
+        console.log('[PromptLab] [Trace: RootEffect] Initial load, defaulting to Active Prompt (null).');
+        setSelectedVersionId(null);
+      } else if (selectedVersionId !== null && !versions.some(v => v.id === selectedVersionId)) {
+        // A historical version was selected, but it's no longer in the list (e.g., deleted or refetched with old ID)
+        console.log('[PromptLab] [Trace: RootEffect] Selected historical version not found, defaulting to Active Prompt (null).');
         setSelectedVersionId(null);
       }
 
-      // If the selectedVersionId IS NOT null (meaning a specific historical version is selected)
-      // and its content is not already loaded or it's a different version than currently loaded,
-      // trigger the fetch.
-      if (selectedVersionId !== null && currentLoadedVersionContent?.id !== selectedVersionId) {
-        console.log('[PromptLab] [Trace: RootEffect] Selected specific version, triggering fetchVersionContent for:', selectedVersionId);
-        fetchVersionContent(selectedVersionId);
+      // Logic to trigger fetching content for a selected historical version
+      if (selectedVersionId !== null && currentPrompt.id && currentLoadedVersionContent?.id !== selectedVersionId) {
+        console.log(`[PromptLab] [Trace: RootEffect] Historical version ${selectedVersionId} selected, and its content is not yet loaded. Triggering fetch.`);
+        // --- FIX IS HERE ---
+        // fetchVersionContent(currentPrompt.id, selectedVersionId); // ORIGINAL: Passed two args
+        fetchVersionContent(selectedVersionId); // CORRECTED: Pass only versionId, as the hook closes over prompt.id
       } else if (selectedVersionId === null) {
-        // If "active prompt" is selected, clear any previously loaded historical version content
-        if (currentLoadedVersionContent) {
-          console.log('[PromptLab] [Trace: RootEffect] Active prompt selected, clearing currentLoadedVersionContent.');
-          // Setting currentLoadedVersionContent to null will cause editorContent/Context/Variables
-          // to revert to currentPrompt.content/context/variables.
-          // currentLoadedVersionContent.id = ""; // This line will not clear it, need to set the state
-          // No need to explicitly set currentLoadedVersionContent = null here, as it's handled by usePromptDetails
-          // on initial fetch or when selectedPromptId becomes null.
-          // For a more immediate UI switch, we could call setCurrentLoadedVersionContent(null) here directly.
-        }
+        console.log('[PromptLab] [Trace: RootEffect] Active Prompt selected, editor will show active content.');
       }
 
-
+      // Update preview variables when main prompt variables change
       const initialPreviewValues: Record<string, string> = {};
       currentPrompt.variables.forEach(v => {
         if (!v.source) {
-          initialPreviewValues[v.placeholder] = v.defaultValue || '';
+          initialPreviewValues[v.placeholder] = v.defaultValue ?? '';
         } else {
           initialPreviewValues[v.placeholder] = `[${v.name} (dynamic)]`;
         }
@@ -264,20 +261,21 @@ export function PromptLab({ prompt, onBack, projectId }: { prompt: Prompt; onBac
       console.log('[PromptLab] [Trace: RootEffect] Updating previewVariableValues based on prompt.variables. Count:', currentPrompt.variables.length);
       setPreviewVariableValues(initialPreviewValues);
     }
-  }, [currentPrompt, selectedVersionId, fetchVersionContent, currentLoadedVersionContent]); // Added currentLoadedVersionContent to deps
+  }, [currentPrompt, selectedVersionId, fetchVersionContent, currentLoadedVersionContent, loadingDetails]);
 
 
   useEffect(() => {
     if (currentPrompt) {
       console.log('[PromptLab] [Trace: PreviewEffect] Generating preview based on editorContent, editorContext, editorVariables, and previewVariableValues.');
       const generatePreview = async () => {
-        const preview = await renderPrompt(editorContent, editorContext || '', editorVariables, previewVariableValues, projectId);
+        const preview = await renderPrompt(editorContent, editorContext, editorVariables, previewVariableValues, projectId);
         setRenderedPreview(preview);
       };
       generatePreview();
     }
-  }, [currentPrompt, editorContent, editorContext, editorVariables, previewVariableValues, projectId]); // Adjusted dependencies
+  }, [currentPrompt, editorContent, editorContext, editorVariables, previewVariableValues, projectId]);
 
+  // selectedVersionMetadata is only for the metadata of the selected historical version
   const selectedVersionMetadata = useMemo(() => currentPrompt?.versions.find((v) => v.id === selectedVersionId) || null, [currentPrompt, selectedVersionId])
 
   function copy(text: string) {
@@ -303,7 +301,7 @@ export function PromptLab({ prompt, onBack, projectId }: { prompt: Prompt; onBac
 
           if (blockWithoutTypename.type === 'text') {
             const { varId, placeholder, name, ...rest } = blockWithoutTypename;
-            return rest;
+            return { ...rest, value: rest.value ?? '' };
           } else if (blockWithoutTypename.type === 'variable') {
             const { value, ...rest } = blockWithoutTypename;
             return rest;
@@ -324,7 +322,7 @@ export function PromptLab({ prompt, onBack, projectId }: { prompt: Prompt; onBac
       await snapshotPrompt(notes);
       toast.success("Prompt version saved!");
       setPendingNotes('');
-      setSelectedVersionId(null); // After snapshot, implicitly select the active prompt
+      setSelectedVersionId(null); // After snapshot, the new snapshot becomes the 'active' one.
     } catch (error) {
       console.error(`[PromptLab] [Error: HandleSnapshot] Failed to snapshot prompt ${currentPrompt.id}:`, error);
       toast.error("Failed to save version", { description: (error as any).message || 'An unknown error occurred.' });
@@ -340,7 +338,7 @@ export function PromptLab({ prompt, onBack, projectId }: { prompt: Prompt; onBac
     try {
       await restorePromptVersion(versionId);
       toast.success("Prompt restored from version!");
-      setSelectedVersionId(null); // After restore, implicitly select the active prompt
+      setSelectedVersionId(null); // After restore, the main prompt is active
     } catch (error) {
       console.error(`[PromptLab] [Error: HandleRestore] Failed to restore prompt ${currentPrompt.id} from version ${versionId}:`, error);
       toast.error("Failed to restore version", { description: (error as any).message || 'An unknown error occurred.' });
@@ -405,20 +403,21 @@ export function PromptLab({ prompt, onBack, projectId }: { prompt: Prompt; onBac
                       </Button>
                     </div>
                     <div className="flex-1 min-h-0 overflow-y-auto p-3">
-                      {currentPrompt.versions.length === 0 && selectedVersionId === null ? (
+                      {currentPrompt.versions.length === 0 ? (
                         <div className="text-sm text-slate-500">No versions yet. Make changes and save a snapshot to create one.</div>
                       ) : (
                         <ul className="space-y-2">
-                            {/* NEW: Option to select the "Active Prompt" */}
+                          {/* Entry for the currently active (main) prompt state */}
                             <li className="rounded-lg border p-3 hover:bg-slate-50 transition">
                                 <div className="flex items-start gap-2">
                                     <button
-                                        className="flex-1 text-left"
+                                        className={`flex-1 text-left rounded-md p-2 -m-2
+                                                  ${selectedVersionId === null ? 'bg-blue-100 border-blue-300' : ''}`}
                                         onClick={() => setSelectedVersionId(null)}
-                                        title="Current active prompt"
+                                        title={currentPrompt.title || "Active Prompt"}
                                     >
-                                        <div className={`line-clamp-1 text-sm font-medium ${selectedVersionId === null ? 'font-bold' : ''}`}>
-                                            Active Prompt
+                                        <div className="text-sm font-medium overflow-hidden whitespace-nowrap text-ellipsis"> {/* Apply proper truncation */}
+                                            {currentPrompt.title || "Active Prompt"}
                                         </div>
                                         <div className="mt-1 text-xs text-slate-500">
                                             {new Date(currentPrompt.updatedAt).toLocaleString()}
@@ -426,14 +425,22 @@ export function PromptLab({ prompt, onBack, projectId }: { prompt: Prompt; onBac
                                     </button>
                                 </div>
                             </li>
+
                           {currentPrompt.versions.map((v) => (
                             <li key={v.id} className="rounded-lg border p-3 hover:bg-slate-50 transition">
                               <div className="flex items-start gap-2">
-                                <button className="flex-1 text-left" onClick={() => setSelectedVersionId(v.id)} title={v.notes}>
-                                  <div className={`line-clamp-1 text-sm font-medium ${selectedVersionId === v.id ? 'font-bold' : ''}`}>{v.notes}</div>
+                                <button
+                                    className={`flex-1 text-left rounded-md p-2 -m-2
+                                                  ${selectedVersionId === v.id ? 'bg-blue-100 border-blue-300' : ''}`}
+                                    onClick={() => setSelectedVersionId(v.id)}
+                                    title={v.notes}
+                                >
+                                  <div className="text-sm font-medium overflow-hidden whitespace-nowrap text-ellipsis"> {/* Apply proper truncation */}
+                                    {v.notes}
+                                  </div>
                                   <div className="mt-1 text-xs text-slate-500">{new Date(v.createdAt).toLocaleString()}</div>
                                 </button>
-                                {selectedVersionId !== v.id && (
+                                {selectedVersionId !== v.id && ( // Only show restore if not the currently selected version
                                   <Button variant="ghost" size="sm" onClick={() => handleRestoreVersion(v.id)} className="h-7 px-2" disabled={isRestoring}>
                                      {isRestoring ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : 'Restore'}
                                   </Button>
@@ -474,9 +481,9 @@ export function PromptLab({ prompt, onBack, projectId }: { prompt: Prompt; onBac
             </div>
 
             {/* Right side */}
-            <div className="saas-card h-full min-h-0 flex flex-col overflow-hidden relative"> {/* Added 'relative' for loader positioning */}
-                {/* NEW: Loader overlay for the right panel */}
-                {(loadingVersionContent || isRestoring) && selectedVersionId !== null && (
+            <div className="saas-card h-full min-h-0 flex flex-col overflow-hidden relative">
+                {/* Loader overlay for the right panel */}
+                {(isLoadingEditorContent) && (
                     <div className="absolute inset-0 z-20 flex items-center justify-center bg-background/80 backdrop-blur-sm rounded-lg">
                         <Loader2 className="h-10 w-10 animate-spin text-primary" />
                     </div>
@@ -503,11 +510,11 @@ export function PromptLab({ prompt, onBack, projectId }: { prompt: Prompt; onBac
                           pendingNotes={pendingNotes}
                           setPendingNotes={setPendingNotes}
                           isSnapshotting={isSnapshotting}
-                          // NEW: Pass the content, context, variables that should be displayed
                           contentToDisplay={editorContent}
                           contextToDisplay={editorContext}
                           variablesToDisplay={editorVariables}
-                          isViewingVersion={selectedVersionId !== null} // Indicate if a historical version is being viewed
+                          isEditingEnabled={!isLoadingEditorContent}
+                          currentVersionName={currentVersionName} // Pass version name to editor panel
                         />
                     </TabsContent>
 
@@ -520,11 +527,10 @@ export function PromptLab({ prompt, onBack, projectId }: { prompt: Prompt; onBac
                         onRestoreVersion={handleRestoreVersion}
                         updateVersionDescription={updateVersionDescription}
                         isRestoring={isRestoring}
-                        // NEW: Pass the content, context, variables that should be displayed
                         contentToDisplay={editorContent}
                         contextToDisplay={editorContext}
                         variablesToDisplay={editorVariables}
-                        loadingVersionContent={loadingVersionContent} // Pass loading state to indicate content being loaded for version-details
+                        loadingVersionContent={loadingVersionContent}
                       />
                     </TabsContent>
 
@@ -599,8 +605,8 @@ function VariableItem({ variable, onRemove }: { variable: PromptVariable; onRemo
       } flex items-center justify-between group`}
     >
       <div>
-        <span className="font-semibold">{variable.name}</span>
-        <span className="text-xs text-gray-500 ml-2">({variable.placeholder})</span>
+        <div className="font-semibold overflow-hidden whitespace-nowrap text-ellipsis">{variable.name}</div> {/* Truncate variable name */}
+        <div className="text-xs text-gray-500 mt-1">({variable.placeholder})</div> {/* Placeholder below name */}
       </div>
       <button
         onClick={() => onRemove(variable.id)}
@@ -628,23 +634,23 @@ function EditorPanel({
   pendingNotes,
   setPendingNotes,
   isSnapshotting,
-  // NEW PROPS for displaying specific content
   contentToDisplay,
   contextToDisplay,
   variablesToDisplay,
-  isViewingVersion, // New prop to indicate if a historical version is being viewed
+  isEditingEnabled,
+  currentVersionName, // NEW: Version name prop
 }: {
-  prompt: Prompt // This 'prompt' prop now only provides metadata (title, model, etc.)
+  prompt: Prompt
   onUpdate: (patch: Partial<Prompt>) => void
   onSnapshot: (notes?: string) => void
   pendingNotes: string;
   setPendingNotes: (notes: string) => void;
   isSnapshotting: boolean;
-  // NEW:
   contentToDisplay: Block[];
   contextToDisplay: string;
   variablesToDisplay: PromptVariable[];
-  isViewingVersion: boolean;
+  isEditingEnabled: boolean;
+  currentVersionName: string; // NEW
 }) {
   const componentId = useMemo(() => cuid('editor-'), []);
   console.log(`[EditorPanel ${componentId}] [Trace: Render] Rendered with prompt ID: ${prompt.id}, Title: "${prompt.title}", Content length: ${contentToDisplay.length}`);
@@ -670,29 +676,29 @@ function EditorPanel({
 
   // Effect to synchronize local state with *props* (prompt.title/model, and content/contextToDisplay)
   useEffect(() => {
-    console.log(`[EditorPanel ${componentId}] [Trace: Effect_SyncProps] Syncing local states with props. Prompt ID: ${prompt.id}. isViewingVersion: ${isViewingVersion}.`);
+    console.log(`[EditorPanel ${componentId}] [Trace: Effect_SyncProps] Syncing local states with props. Prompt ID: ${prompt.id}. isEditingEnabled: ${isEditingEnabled}.`);
 
     if (prompt.id) {
-        // Ensure that `contentToDisplay` and `contextToDisplay` are always initialized to prevent errors
         const currentContent = contentToDisplay ?? [];
         const currentContext = contextToDisplay ?? '';
 
-        const isNewPromptOrVersionSwitch = prompt.id !== lastKnownPropValues.current.id ||
-                                           !deepCompareBlocks(currentContent, lastKnownPropValues.current.content) ||
-                                           currentContext !== lastKnownPropValues.current.context;
+        // Check if prompt ID or the *displayed content/context* has truly changed,
+        const contentChanged = !deepCompareBlocks(currentContent, lastKnownPropValues.current.content);
+        const contextChanged = currentContext !== (lastKnownPropValues.current.context ?? '');
 
+        const isNewPromptOrMajorContentChange = prompt.id !== lastKnownPropValues.current.id || contentChanged || contextChanged;
 
-        if (isNewPromptOrVersionSwitch || !hasDataLoadedRef.current) {
-            console.log(`[EditorPanel ${componentId}] [Trace: Effect_SyncProps] New prompt/version switch or initial load. Resetting local states.`);
+        if (isNewPromptOrMajorContentChange || !hasDataLoadedRef.current) {
+            console.log(`[EditorPanel ${componentId}] [Trace: Effect_SyncProps] New prompt/major content change or initial load. Resetting local states.`);
 
             const normalizedInitialBlocks = currentContent.length > 0
                                             ? currentContent.map(b => ({ ...b, __typename: 'ContentBlock' })) as Block[]
                                             : [{ type: 'text', id: cuid('t-initial-empty'), value: '', __typename: 'ContentBlock' }];
 
             setBlocks(normalizedInitialBlocks);
-            setLocalTitle(prompt.title); // Prompt title always comes from the main prompt metadata
-            setLocalContext(currentContext); // Context comes from `contextToDisplay`
-            setLocalModel(prompt.model); // Prompt model always comes from the main prompt metadata
+            setLocalTitle(prompt.title);
+            setLocalContext(currentContext);
+            setLocalModel(prompt.model);
             setPendingNotes('');
 
             lastKnownPropValues.current = {
@@ -710,14 +716,14 @@ function EditorPanel({
 
             console.log(`[EditorPanel ${componentId}] [Trace: Effect_SyncProps] lastKnownPropValues updated. hasDataLoadedRef set to true. All isFirstDebounce flags reset.`);
         } else {
-            console.log(`[EditorPanel ${componentId}] [Trace: Effect_SyncProps] Prompt ID and version content/context have not changed. Performing granular updates.`);
+            console.log(`[EditorPanel ${componentId}] [Trace: Effect_SyncProps] Minor prop updates. Performing granular updates if local state is stale.`);
 
             if (prompt.title !== localTitle && prompt.title !== lastKnownPropValues.current.title) {
                 console.log(`[EditorPanel ${componentId}] [Trace: Effect_SyncProps] Prop title updated to "${prompt.title}", updating localTitle.`);
                 setLocalTitle(prompt.title);
                 lastKnownPropValues.current.title = prompt.title;
             }
-            if (currentContext !== localContext && currentContext !== lastKnownPropValues.current.context) {
+            if (currentContext !== localContext && currentContext !== (lastKnownPropValues.current.context ?? '')) {
                 console.log(`[EditorPanel ${componentId}] [Trace: Effect_SyncProps] Prop context updated, updating localContext.`);
                 setLocalContext(currentContext);
                 lastKnownPropValues.current.context = currentContext;
@@ -741,25 +747,22 @@ function EditorPanel({
     } else {
         console.log(`[EditorPanel ${componentId}] [Trace: Effect_SyncProps] Prompt ID is undefined/null. Skipping sync.`);
     }
-  }, [prompt.id, prompt.title, prompt.model, contentToDisplay, contextToDisplay, componentId]);
-
+  }, [prompt.id, prompt.title, prompt.model, contentToDisplay, contextToDisplay, componentId, isEditingEnabled]);
 
   const logBlocks = useCallback((message: string, currentBlocks: Block[]) => {
     const formattedBlocks = currentBlocks.map(b =>
-      b.type === 'text' ? `[TEXT:"${b.value.substring(0, Math.min(b.value.length, 30))}..."] (id:${b.id})` : `[VAR:${b.name || b.placeholder} (varId: ${b.varId}, id:${b.id})]`
+      b.type === 'text' ? `[TEXT:"${(b.value ?? '').substring(0, Math.min((b.value ?? '').length, 30))}..."] (id:${b.id})` : `[VAR:${b.name || b.placeholder} (varId: ${b.varId}, id:${b.id})]`
     ).join(' | ');
     console.log(`[EditorPanel ${componentId}] --- BLOCKS STATE UPDATE --- ${message}\nCURRENT BLOCKS: ${formattedBlocks}`);
   }, [componentId]);
 
-  // Debounce the content update to the backend
   const [debouncedBlocks] = useDebounce(blocks, 500);
 
   useEffect(() => {
     console.log(`[EditorPanel ${componentId}] [Trace: Effect_DebouncedBlocks] debouncedBlocks changed. Value: `, debouncedBlocks);
 
-    // Skip updates if viewing a historical version
-    if (isViewingVersion) {
-        console.log(`[EditorPanel ${componentId}] [Trace: Effect_DebouncedBlocks] Skipping update: isViewingVersion is true.`);
+    if (!isEditingEnabled) {
+        console.log(`[EditorPanel ${componentId}] [Trace: Effect_DebouncedBlocks] Skipping update: isEditingEnabled is false.`);
         return;
     }
 
@@ -774,7 +777,7 @@ function EditorPanel({
       return;
     }
 
-    const currentContentProp = (contentToDisplay ?? []) as Block[]; // Ensure it's an array
+    const currentContentProp = (contentToDisplay ?? []) as Block[];
     const normalizedCurrentPropContent = currentContentProp.length > 0
                                             ? currentContentProp.map(b => ({ ...b, __typename: 'ContentBlock' })) as Block[]
                                             : [{ type: 'text', id: cuid('t-normalized-empty-debounced'), value: '', __typename: 'ContentBlock' }];
@@ -786,18 +789,17 @@ function EditorPanel({
     } else {
       console.log(`[EditorPanel ${componentId}] [Trace: Effect_DebouncedBlocks] Debounced blocks match prop content OR last sent value. No update needed. Debounced:`, debouncedBlocks, "Prop:", normalizedCurrentPropContent, "LastSent:", lastKnownPropValues.current.content);
     }
-  }, [debouncedBlocks, onUpdate, contentToDisplay, prompt.id, componentId, isViewingVersion]);
+  }, [debouncedBlocks, onUpdate, contentToDisplay, prompt.id, componentId, isEditingEnabled]);
 
 
-  // Debounce for title, context, model updates
   const [debouncedLocalTitle] = useDebounce(localTitle, 300);
   const [debouncedLocalContext] = useDebounce(localContext, 300);
   const [debouncedLocalModel] = useDebounce(localModel, 300);
 
   useEffect(() => {
     console.log(`[EditorPanel ${componentId}] [Trace: Effect_DebouncedTitle] debouncedLocalTitle changed. Value: "${debouncedLocalTitle}"`);
-    if (isViewingVersion) {
-        console.log(`[EditorPanel ${componentId}] [Trace: Effect_DebouncedTitle] Skipping update: isViewingVersion is true.`);
+    if (!isEditingEnabled) {
+        console.log(`[EditorPanel ${componentId}] [Trace: Effect_DebouncedTitle] Skipping update: isEditingEnabled is false.`);
         return;
     }
     if (isFirstDebounceTitle.current) {
@@ -817,16 +819,15 @@ function EditorPanel({
     } else {
       console.log(`[EditorPanel ${componentId}] [Trace: Effect_DebouncedTitle] Debounced title "${debouncedLocalTitle}" matches prop title "${prompt.title}" OR last sent value "${lastKnownPropValues.current.title}". No update needed.`);
     }
-  }, [debouncedLocalTitle, prompt.title, onUpdate, componentId, isViewingVersion]);
+  }, [debouncedLocalTitle, prompt.title, onUpdate, componentId, isEditingEnabled]);
 
   useEffect(() => {
-    // Ensure both `debouncedLocalContext` and `contextToDisplay` are strings for `substring`
     const safeDebouncedLocalContext = debouncedLocalContext ?? '';
     const safeContextToDisplay = contextToDisplay ?? '';
 
     console.log(`[EditorPanel ${componentId}] [Trace: Effect_DebouncedContext] debouncedLocalContext changed. Value: "${safeDebouncedLocalContext.substring(0, Math.min(safeDebouncedLocalContext.length, 50))}..."`);
-    if (isViewingVersion) {
-        console.log(`[EditorPanel ${componentId}] [Trace: Effect_DebouncedContext] Skipping update: isViewingVersion is true.`);
+    if (!isEditingEnabled) {
+        console.log(`[EditorPanel ${componentId}] [Trace: Effect_DebouncedContext] Skipping update: isEditingEnabled is false.`);
         return;
     }
     if (isFirstDebounceContext.current) {
@@ -839,19 +840,19 @@ function EditorPanel({
         return;
     }
 
-    if (safeDebouncedLocalContext !== safeContextToDisplay && safeDebouncedLocalContext !== (lastKnownPropValues.current.context ?? '')) { // Compare against contextToDisplay
+    if (safeDebouncedLocalContext !== safeContextToDisplay && safeDebouncedLocalContext !== (lastKnownPropValues.current.context ?? '')) {
       console.log(`[EditorPanel ${componentId}] [Trace: Effect_DebouncedContext] Debounced context "${safeDebouncedLocalContext.substring(0, Math.min(safeDebouncedLocalContext.length, 50))}..." differs from prop context "${safeContextToDisplay.substring(0, Math.min(safeContextToDisplay.length, 50))}..." AND last sent. Calling onUpdate.`);
       onUpdate({ context: safeDebouncedLocalContext });
       lastKnownPropValues.current.context = safeDebouncedLocalContext;
     } else {
       console.log(`[EditorPanel ${componentId}] [Trace: Effect_DebouncedContext] Debounced context matches prop context OR last sent value. No update needed.`);
     }
-  }, [debouncedLocalContext, contextToDisplay, onUpdate, componentId, isViewingVersion]); // Added isViewingVersion to deps
+  }, [debouncedLocalContext, contextToDisplay, onUpdate, componentId, isEditingEnabled]);
 
   useEffect(() => {
     console.log(`[EditorPanel ${componentId}] [Trace: Effect_DebouncedModel] debouncedLocalModel changed. Value: "${debouncedLocalModel}"`);
-    if (isViewingVersion) {
-        console.log(`[EditorPanel ${componentId}] [Trace: Effect_DebouncedModel] Skipping update: isViewingVersion is true.`);
+    if (!isEditingEnabled) {
+        console.log(`[EditorPanel ${componentId}] [Trace: Effect_DebouncedModel] Skipping update: isEditingEnabled is false.`);
         return;
     }
     if (isFirstDebounceModel.current) {
@@ -871,7 +872,7 @@ function EditorPanel({
     } else {
       console.log(`[EditorPanel ${componentId}] [Trace: Effect_DebouncedModel] Debounced model matches prop model OR last sent value. No update needed.`);
     }
-  }, [debouncedLocalModel, prompt.model, onUpdate, componentId, isViewingVersion]); // Added isViewingVersion to deps
+  }, [debouncedLocalModel, prompt.model, onUpdate, componentId, isEditingEnabled]);
 
 
   const insertVariableAt = useCallback((index: number, variable: { placeholder: string; id: string; name: string }) => {
@@ -919,7 +920,7 @@ function EditorPanel({
         }
 
 
-        logBlocks(`After updating text block ${id} to "${value.substring(0, Math.min(value.length, 30))}..."`, updated);
+        logBlocks(`After updating text block ${id} to "${(value ?? '').substring(0, Math.min((value ?? '').length, 30))}..."`, updated);
         return updated;
     });
   }, [logBlocks, componentId]);
@@ -970,6 +971,8 @@ function EditorPanel({
   const [{ isOverBlockContainer, canDropBlockContainer }, dropBlockContainer] = useDrop(() => ({
     accept: [ItemTypes.VARIABLE, ItemTypes.BLOCK],
     drop: (item: any, monitor) => {
+      if (!isEditingEnabled) return;
+
       if (monitor.didDrop()) {
         console.log('[EditorPanel][DropContainer] Drop handled by a nested target, ignoring.');
         return;
@@ -1002,18 +1005,20 @@ function EditorPanel({
     },
     collect: (monitor) => {
         const isOver = monitor.isOver({ shallow: true });
-        const canDrop = monitor.canDrop();
+        const canDrop = monitor.canDrop() && isEditingEnabled;
         return {
             isOverBlockContainer: isOver,
             canDropBlockContainer: canDrop,
         };
     },
-  }), [blocks.length, insertVariableAt, moveBlock, isDraggingSomething, componentId]);
+  }), [blocks.length, insertVariableAt, moveBlock, isDraggingSomething, componentId, isEditingEnabled]);
 
 
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="saas-section-header rounded-t-lg">
+        {/* NEW: Display version name */}
+        <h2 className="text-xl font-bold mb-2 px-3 pt-2 overflow-hidden whitespace-nowrap text-ellipsis">{currentVersionName}</h2>
         <div className="grid flex-1 grid-cols-1 gap-3 md:grid-cols-2">
           <Input
             value={localTitle}
@@ -1023,17 +1028,17 @@ function EditorPanel({
             }}
             className="h-10 text-sm font-medium"
             placeholder="Untitled Prompt"
-            disabled={isViewingVersion} // Disable if viewing a historical version
+            disabled={!isEditingEnabled}
           />
           <select
-            className="h-10 rounded-md border bg-background px-3 text-sm"
+            className="h-10 rounded-md border bg-background px-3 p-4 text-sm"
             value={localModel}
             onChange={(e) => {
               console.log(`[EditorPanel ${componentId}] [Trace: SelectModel] Model select changed (local state):`, e.target.value);
               setLocalModel(e.target.value);
             }}
             title="Target model"
-            disabled={isViewingVersion} // Disable if viewing a historical version
+            disabled={!isEditingEnabled}
           >
             <option value="gpt-4o">OpenAI GPT-4o</option>
             <option value="gpt-4o-mini">OpenAI GPT-4o-mini</option>
@@ -1050,13 +1055,14 @@ function EditorPanel({
           <Textarea
             value={localContext}
             onChange={(e) => {
-              console.log(`[EditorPanel ${componentId}] [Trace: InputContext] Context textarea changed (local state):`, e.target.value.substring(0, Math.min(e.target.value.length, 50)) + '...');
-              setLocalContext(e.target.value);
+              const val = e.target.value ?? '';
+              console.log(`[EditorPanel ${componentId}] [Trace: InputContext] Context textarea changed (local state):`, val.substring(0, Math.min(val.length, 50)) + '...');
+              setLocalContext(val);
             }}
             rows={6}
             className="overflow-y-auto"
             placeholder="Add domain, audience, constraints, style guides, and examples. Use {{variables}} if needed."
-            disabled={isViewingVersion} // Disable if viewing a historical version
+            disabled={!isEditingEnabled}
           />
         </section>
 
@@ -1065,13 +1071,13 @@ function EditorPanel({
           <div
             ref={dropBlockContainer}
             className={`flex flex-col gap-2 min-h-[300px] border rounded p-3
-                        ${isOverBlockContainer && canDropBlockContainer && isDraggingSomething ? 'bg-indigo-50 border-indigo-300' : 'bg-gray-50'}
-                        ${isViewingVersion ? 'bg-gray-100/50 cursor-not-allowed' : ''}`}
+                        ${isOverBlockContainer && canDropBlockContainer && isDraggingSomething && isEditingEnabled ? 'bg-indigo-50 border-indigo-300' : 'bg-gray-50'}
+                        ${!isEditingEnabled ? 'bg-gray-100/50 cursor-not-allowed' : ''}`}
           >
             {blocks.length === 0 && !isDraggingSomething ? (
                 <div className="flex-1 text-center py-12 text-gray-400">
-                    {isViewingVersion ? (
-                        'This version has no content.'
+                    {!isEditingEnabled ? (
+                        'This version has no content and cannot be edited.'
                     ) : (
                         <>
                             Drag variables or click "+ Add text" to start building your prompt.
@@ -1090,7 +1096,7 @@ function EditorPanel({
             ) : (
                 blocks.map((b, i) => (
                     <React.Fragment key={`block-fragment-${b.id}`}>
-                        {i === 0 && !isViewingVersion && ( // Only show "Add text" if not viewing version
+                        {i === 0 && isEditingEnabled && (
                           <HoverAddTextBlock
                               key={`hover-insert-before-first`}
                               index={0}
@@ -1109,9 +1115,9 @@ function EditorPanel({
                             isDraggingSomething={isDraggingSomething}
                             insertTextAt={insertTextAt}
                             componentId={componentId}
-                            isViewingVersion={isViewingVersion} // Pass prop to disable editing
+                            isEditingEnabled={isEditingEnabled}
                         />
-                        {i + 1 === blocks.length && !isViewingVersion && ( // Only show "Add text" if not viewing version
+                        {i + 1 === blocks.length && isEditingEnabled && (
                           <HoverAddTextBlock
                               key={`hover-insert-after-${b.id}`}
                               index={i + 1}
@@ -1122,14 +1128,13 @@ function EditorPanel({
                 ))
             )}
 
-            {blocks.length === 0 && isOverBlockContainer && canDropBlockContainer && isDraggingSomething && !isViewingVersion && (
+            {blocks.length === 0 && isOverBlockContainer && canDropBlockContainer && isDraggingSomething && isEditingEnabled && (
                 <div className="flex-1 flex items-center justify-center border-2 border-dashed border-indigo-400 rounded-md bg-indigo-50 text-indigo-700 h-24">
                     Drop item here
                 </div>
             )}
-            {/* If there are no blocks and we're viewing a version, but it still shows the empty state, hide drag hint */}
-            {blocks.length === 0 && isViewingVersion && (
-                 <div className="flex-1 text-center py-12 text-gray-400">This version has no content.</div>
+            {blocks.length === 0 && !isEditingEnabled && (
+                 <div className="flex-1 text-center py-12 text-gray-400">This version has no content and cannot be edited.</div>
             )}
           </div>
         </section>
@@ -1140,7 +1145,7 @@ function EditorPanel({
             value={pendingNotes}
             onChange={(e) => setPendingNotes(e.target.value)}
             className="flex-1"
-            disabled={isViewingVersion} // Disable if viewing a historical version
+            disabled={!isEditingEnabled}
           />
           <Button
             onClick={() => {
@@ -1148,7 +1153,7 @@ function EditorPanel({
               onSnapshot(pendingNotes || `Version saved on ${new Date().toLocaleString()}`);
             }}
             className="btn-primary"
-            disabled={isSnapshotting || isViewingVersion} // Disable if viewing a historical version
+            disabled={isSnapshotting || !isEditingEnabled}
           >
             {isSnapshotting ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <GitCommit className="mr-1 h-4 w-4" />}
             Save
@@ -1172,7 +1177,7 @@ function BlockRenderer({
   isDraggingSomething,
   insertTextAt,
   componentId,
-  isViewingVersion, // NEW: Prop to disable editing
+  isEditingEnabled,
 }: {
   block: Block
   index: number
@@ -1184,13 +1189,12 @@ function BlockRenderer({
   isDraggingSomething: boolean;
   insertTextAt: (index: number, text?: string) => void;
   componentId: string;
-  isViewingVersion: boolean; // NEW
+  isEditingEnabled: boolean;
 }) {
   const contentEditableRef = useRef<HTMLDivElement | null>(null);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
 
-  console.log(`[BlockRenderer ${block.id}] [Trace: Render] Rendered. Type: ${block.type}, Value: "${block.type === 'text' ? (block.value ?? '').substring(0,20) : 'N/A'}"`);
-
+  console.log(`[BlockRenderer ${block.id}] [Trace: Render] Rendered. Type: ${block.type}, Value: "${(block.type === 'text' ? (block.value ?? '') : 'N/A').substring(0,20)}"`);
 
   useEffect(() => {
     if (block.type === 'text') {
@@ -1218,8 +1222,8 @@ function BlockRenderer({
       originalBlock: block,
     },
     canDrag: (monitor) => {
-      const can = !isViewingVersion; // Disable dragging if viewing historical version
-      console.log(`[BlockRenderer ${block.id}] [Trace: DragCanDrag] Can drag check. Item: ${block.type}. isViewingVersion: ${isViewingVersion}. Result: ${can}`);
+      const can = isEditingEnabled;
+      console.log(`[BlockRenderer ${block.id}] [Trace: DragCanDrag] Can drag check. Item: ${block.type}. isEditingEnabled: ${isEditingEnabled}. Result: ${can}`);
       return can;
     },
     collect: (m) => {
@@ -1228,7 +1232,7 @@ function BlockRenderer({
         console.log(`[BlockRenderer ${block.id}] [Trace: DragCollect] isDragging: ${dragging}, canDrag: ${currentCanDrag}`);
         return { isDragging: dragging, canDrag: currentCanDrag };
     },
-  }), [block.id, index, block.type, block.value, block.placeholder, block.name, block.varId, isViewingVersion]);
+  }), [block.id, index, block.type, block.value, block.placeholder, block.name, block.varId, isEditingEnabled]);
 
   const connectDragSource = useCallback((node: HTMLElement | null) => {
     dragRef(node);
@@ -1244,7 +1248,7 @@ function BlockRenderer({
   const [{ isOver, canDrop }, dropRef] = useDrop(() => ({
     accept: [ItemTypes.VARIABLE, ItemTypes.BLOCK],
     hover(item: { id?: string; index?: number; placeholder?: string }, monitor) {
-      if (isViewingVersion) return; // Disable hover effects if viewing historical version
+      if (!isEditingEnabled) return;
 
       if (!wrapperRef.current) {
         return;
@@ -1286,7 +1290,7 @@ function BlockRenderer({
       }
     },
     drop(item: any, monitor) {
-      if (isViewingVersion) return; // Disable dropping if viewing historical version
+      if (!isEditingEnabled) return;
 
       const dragItemType = monitor.getItemType();
 
@@ -1322,14 +1326,14 @@ function BlockRenderer({
     },
     collect: (monitor) => {
         const isOverVal = monitor.isOver({ shallow: true });
-        const canDropVal = monitor.canDrop() && !isViewingVersion; // Disable dropping if viewing historical version
+        const canDropVal = monitor.canDrop() && isEditingEnabled;
         console.log(`[BlockRenderer ${block.id}] [Trace: DropCollect] isOver: ${isOverVal}, canDrop: ${canDropVal}`);
         return {
             isOver: isOverVal,
             canDrop: canDropVal,
         };
     },
-  }), [index, insertVariableAt, moveBlock, localDropTargetPosition, block.id, allBlocks.length, isViewingVersion]);
+  }), [index, insertVariableAt, moveBlock, localDropTargetPosition, block.id, allBlocks.length, isEditingEnabled]);
 
   const blockRootRef = mergeRefs(wrapperRef, dropRef);
 
@@ -1342,13 +1346,13 @@ function BlockRenderer({
     return (
       <div
         ref={blockRootRef}
-        className={`${commonClasses} ${isDragging ? 'opacity-50' : ''} flex items-center gap-2 pr-2 group ${isViewingVersion ? 'opacity-70 cursor-not-allowed' : ''}`}
+        className={`${commonClasses} ${isDragging ? 'opacity-50' : ''} flex items-center gap-2 pr-2 group ${!isEditingEnabled ? 'opacity-70 cursor-not-allowed' : ''}`}
       >
         {showPlaceholderAbove && <div className="absolute -top-1.5 left-0 right-0 h-1 bg-blue-500 rounded-sm z-10" />}
 
         <div
           ref={connectDragSource}
-          className={`cursor-grab shrink-0 flex items-center justify-center w-10 h-10 bg-blue-100 border border-blue-200 rounded-md text-blue-600 shadow-md transition-opacity duration-100 opacity-100 group-hover:opacity-100 ${isViewingVersion ? 'cursor-not-allowed opacity-50' : ''}`}
+          className={`cursor-grab shrink-0 flex items-center justify-center w-10 h-10 bg-blue-100 border border-blue-200 rounded-md text-blue-600 shadow-md transition-opacity duration-100 opacity-100 group-hover:opacity-100 ${!isEditingEnabled ? 'cursor-not-allowed opacity-50' : ''}`}
         >
           <GripVertical className="h-6 w-6" />
         </div>
@@ -1357,7 +1361,7 @@ function BlockRenderer({
           className={`flex-1 flex items-center justify-between p-2 bg-blue-50 border border-blue-200 rounded-md `}
         >
           <div className="text-sm font-medium">{block.name || block.placeholder}</div>
-          {(allBlocks.length > 1 && !isViewingVersion) ? (
+          {(allBlocks.length > 1 && isEditingEnabled) ? (
                 <button
                     onClick={() => {
                         console.log(`[BlockRenderer ${block.id}] [Trace: RemoveButton] Remove variable button clicked.`);
@@ -1375,7 +1379,7 @@ function BlockRenderer({
     )
   } else {
     const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-      if (isViewingVersion) { // Prevent input if viewing historical version
+      if (!isEditingEnabled) {
           e.preventDefault();
           return;
       }
@@ -1398,16 +1402,16 @@ function BlockRenderer({
     }
 
     const onInput = (e: React.FormEvent<HTMLDivElement>) => {
-      if (isViewingVersion) return; // Prevent input if viewing historical version
+      if (!isEditingEnabled) return;
       const newText = e.currentTarget.innerText;
-      console.log(`[BlockRenderer ${block.id}] [Trace: TextOnInput] Current innerText: "${newText.substring(0, Math.min(newText.length, 50))}...". Calling updateTextBlock.`);
+      console.log(`[BlockRenderer ${block.id}] [Trace: TextOnInput] Current innerText: "${(newText ?? '').substring(0, Math.min((newText ?? '').length, 50))}...". Calling updateTextBlock.`);
       updateTextBlock(block.id, newText);
     }
 
     const onBlur = () => {
-      if (isViewingVersion) return; // Prevent blur logic if viewing historical version
+      if (!isEditingEnabled) return;
       const text = contentEditableRef.current?.innerText ?? ''
-      console.log(`[BlockRenderer ${block.id}] [Trace: TextOnBlur] Final text: "${text.substring(0, Math.min(text.length, 50))}...". Block.value: "${(block.value ?? '').substring(0, Math.min((block.value ?? '').length, 50))}...".`);
+      console.log(`[BlockRenderer ${block.id}] [Trace: TextOnBlur] Final text: "${(text ?? '').substring(0, Math.min((text ?? '').length, 50))}...". Block.value: "${(block.value ?? '').substring(0, Math.min((block.value ?? '').length, 50))}...".`);
       if (text === '' && allBlocks.length > 1) {
           console.log(`[BlockRenderer ${block.id}] [Trace: TextOnBlur] Empty text block and not the only block, removing.`);
           removeBlock(index);
@@ -1417,31 +1421,31 @@ function BlockRenderer({
     return (
       <div
         ref={blockRootRef}
-        className={`${commonClasses} ${isDragging ? 'opacity-50' : ''} flex items-center gap-2 pr-2 group ${isViewingVersion ? 'opacity-70' : ''}`}
+        className={`${commonClasses} ${isDragging ? 'opacity-50' : ''} flex items-center gap-2 pr-2 group ${!isEditingEnabled ? 'opacity-70' : ''}`}
       >
         {showPlaceholderAbove && <div className="absolute -top-1.5 left-0 right-0 h-1 bg-blue-500 rounded-sm z-10" />}
         <div
-          className={`relative flex-1 p-2 bg-white border border-gray-300 rounded-md flex items-center group ${isViewingVersion ? 'bg-gray-50' : ''}`}
+          className={`relative flex-1 p-2 bg-white border border-gray-300 rounded-md flex items-center group ${!isEditingEnabled ? 'bg-gray-50' : ''}`}
         >
             <div
               ref={connectDragSource}
-              className={`cursor-grab shrink-0 flex items-center justify-center w-10 h-10 -ml-3 mr-2 text-gray-700 bg-gray-100 border border-gray-300 rounded-md shadow-md transition-opacity duration-100 opacity-100 group-hover:opacity-100 ${isViewingVersion ? 'cursor-not-allowed opacity-50' : ''}`}
+              className={`cursor-grab shrink-0 flex items-center justify-center w-10 h-10 -ml-3 mr-2 text-gray-700 bg-gray-100 border border-gray-300 rounded-md shadow-md transition-opacity duration-100 opacity-100 group-hover:opacity-100 ${!isEditingEnabled ? 'cursor-not-allowed opacity-50' : ''}`}
               style={{ position: 'relative', left: '0', top: '0', transform: 'none' }}
             >
               <GripVertical className="h-6 w-6" />
             </div>
             <div
-                contentEditable={!isViewingVersion} // Disable contentEditable if viewing historical version
+                contentEditable={isEditingEnabled}
                 suppressContentEditableWarning
                 onKeyDown={onKeyDown}
                 onInput={onInput}
                 onBlur={onBlur}
-                className={`flex-1 min-h-[40px] text-sm outline-none w-full whitespace-pre-wrap py-2 ${isViewingVersion ? 'text-gray-700' : ''}`}
+                className={`flex-1 min-h-[40px] text-sm outline-none w-full whitespace-pre-wrap py-2 ${!isEditingEnabled ? 'text-gray-700' : ''}`}
                 style={{ wordBreak: 'break-word' }}
                 ref={contentEditableRef}
             >
             </div>
-            {( (allBlocks.length > 1) || (block.type === 'text' && (block.value ?? '') !== '') ) && !isViewingVersion ? (
+            {( (allBlocks.length > 1) || (block.type === 'text' && (block.value ?? '') !== '') ) && isEditingEnabled ? (
                 <button
                     onClick={() => {
                         console.log(`[BlockRenderer ${block.id}] [Trace: RemoveButton] Remove button clicked.`);
@@ -1598,11 +1602,10 @@ function VersionsPanel({
   onRestoreVersion,
   updateVersionDescription,
   isRestoring,
-  // NEW PROPS for displaying specific content
   contentToDisplay,
   contextToDisplay,
   variablesToDisplay,
-  loadingVersionContent, // NEW: Loading state passed from parent
+  loadingVersionContent,
 }: {
   promptId: string;
   versions: Version[]
@@ -1611,7 +1614,6 @@ function VersionsPanel({
   onRestoreVersion: (versionId: string) => void
   updateVersionDescription: (promptId: string, versionId: string, description: string) => void;
   isRestoring: boolean;
-  // NEW:
   contentToDisplay: Block[];
   contextToDisplay: string;
   variablesToDisplay: PromptVariable[];
@@ -1625,7 +1627,7 @@ function VersionsPanel({
 
   useEffect(() => {
     if (selectedVersionMetadata) {
-      setLocalVersionDescription(selectedVersionMetadata.description || '');
+      setLocalVersionDescription(selectedVersionMetadata.description ?? '');
       if (textAreaRef.current) {
         textAreaRef.current.style.height = 'auto';
         textAreaRef.current.style.height = textAreaRef.current.scrollHeight + 'px';
@@ -1636,7 +1638,7 @@ function VersionsPanel({
   }, [selectedVersionMetadata]);
 
   useEffect(() => {
-    if (selectedVersionMetadata && debouncedVersionDescription !== selectedVersionMetadata.description) {
+    if (selectedVersionMetadata && debouncedVersionDescription !== (selectedVersionMetadata.description ?? '')) {
       console.log(`[VersionsPanel] [Trace: DebounceDescEffect] Saving debounced description for version ${selectedVersionMetadata.id}`);
       updateVersionDescription(promptId, selectedVersionMetadata.id, debouncedVersionDescription);
     }
@@ -1644,7 +1646,8 @@ function VersionsPanel({
 
 
   const handleDescriptionChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setLocalVersionDescription(e.target.value);
+    const val = e.target.value ?? '';
+    setLocalVersionDescription(val);
     if (textAreaRef.current) {
       textAreaRef.current.style.height = 'auto';
       textAreaRef.current.style.height = textAreaRef.current.scrollHeight + 'px';
@@ -1653,85 +1656,38 @@ function VersionsPanel({
 
   useEffect(() => {
     console.log('[VersionsPanel] [Trace: Effect] versions or selectedVersionId changed.');
-    // Keep this logic for initial selection of "Active Prompt" if no version is explicitly selected
-    if (selectedVersionId === undefined && versions.length > 0) { // If undefined, it means initial load
-      console.log('[VersionsPanel] [Trace: Effect] No version explicitly selected, defaulting to active prompt.');
-      onSelectVersion(null); // Explicitly set to null for active prompt
-    }
+    // The parent PromptLab component now handles the initial selection of null/active
+    // This panel just reflects the selectedVersionId from parent
   }, [selectedVersionId, versions, onSelectVersion]);
 
-  // Determine which content to show based on selectedVersionId
-  // If selectedVersionId is null, show placeholder. Otherwise, show contentToDisplay.
-  const displayContentForPanel = selectedVersionId !== null ? contentToDisplay : [];
-  const displayContextForPanel = selectedVersionId !== null ? contextToDisplay : '';
-  const displayVariablesForPanel = selectedVersionId !== null ? variablesToDisplay : [];
+  const displayContentForPanel = contentToDisplay;
+  const displayContextForPanel = contextToDisplay;
+  const displayVariablesForPanel = variablesToDisplay;
 
-
-  if (selectedVersionId === null) {
-      console.log('[VersionsPanel] [Trace: Render] Showing details for Active Prompt.');
-      return (
-          <div className="flex h-full min-h-0 flex-col p-4">
-              <h3 className="font-semibold text-lg mb-2">Active Prompt</h3>
-              <p className="text-sm text-gray-500 mb-4">Last Updated: {new Date().toLocaleString()}</p>
-
-              <div className="mb-4">
-                  <label className="block text-sm font-medium mb-1">Current Content</label>
-                  <Textarea
-                      readOnly
-                      value={JSON.stringify(displayContentForPanel.map(b => {
-                        const { __typename, ...rest } = b;
-                        return rest;
-                      }), null, 2) || ''}
-                      className="font-mono border border-gray-300 rounded-md p-2 text-sm resize-none"
-                      style={{ minHeight: '150px', height: 'auto', overflowY: 'hidden', background: 'transparent' }}
-                      placeholder="No content available for the active prompt."
-                  />
-              </div>
-
-              <div className="mb-4">
-                  <label className="block text-sm font-medium mb-1">Current Context</label>
-                  <Textarea
-                      readOnly
-                      value={displayContextForPanel || ''}
-                      className="font-mono border border-gray-300 rounded-md p-2 text-sm resize-none"
-                      style={{ minHeight: '100px', height: 'auto', overflowY: 'hidden', background: 'transparent' }}
-                      placeholder="No context available for the active prompt."
-                  />
-              </div>
-
-              <div className="mb-4">
-                  <label className="block text-sm font-medium mb-1">Current Variables</label>
-                  {displayVariablesForPanel && displayVariablesForPanel.length > 0 ? (
-                      <ul className="space-y-1">
-                          {displayVariablesForPanel.map(v => (
-                              <li key={v.id} className="text-sm p-2 rounded flex items-center justify-between border border-gray-200" style={{ background: 'transparent' }}>
-                                  <span className="font-semibold">{v.name}</span>
-                                  <span className="text-xs text-gray-600 dark:text-gray-400">({v.placeholder})</span>
-                              </li>
-                          ))}
-                      </ul>
-                  ) : (
-                      <p className="text-sm text-gray-500">No variables for the active prompt.</p>
-                  )}
-              </div>
-          </div>
-      );
-  }
-
-
-  if (!selectedVersionMetadata) {
-    console.log('[VersionsPanel] [Trace: Render] No selected version metadata to display.');
+  if (!selectedVersionMetadata && selectedVersionId !== null) { // This case means selectedVersionId is not null but no metadata found (e.g. initial load before content fetch)
     return (
-      <div className="grid h-full place-items-center text-sm text-slate-500">
-        Select a version from the left panel.
-      </div>
+        <div className="grid h-full place-items-center text-sm text-slate-500">
+            {loadingVersionContent ? (
+                <>
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                    <p>Loading version details...</p>
+                </>
+            ) : (
+                <p>Select a version from the left panel.</p> // Or handle error if version ID doesn't exist
+            )}
+        </div>
     );
   }
 
-  console.log('[VersionsPanel] [Trace: Render] Displaying selected version:', selectedVersionId, selectedVersionMetadata.notes);
+  // Determine the name to display in the header of the details panel
+  const panelVersionName = selectedVersionId === null
+      ? "Active Prompt"
+      : selectedVersionMetadata?.notes || "Untitled Version";
+
+
   return (
     <div className="flex h-full min-h-0 flex-col p-4">
-        <h3 className="font-semibold text-lg mb-2">{selectedVersionMetadata?.notes || 'No Notes'}</h3>
+        <h3 className="font-semibold text-lg mb-2">{panelVersionName}</h3>
         <p className="text-sm text-gray-500 mb-4">Last Edited: {new Date(selectedVersionMetadata?.createdAt || '').toLocaleString()}</p>
 
         <div className="mb-4">
