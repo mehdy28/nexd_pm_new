@@ -292,7 +292,7 @@ export const taskResolver = {
             id: updatedTask.assignee.id,
             firstName: updatedTask.assignee.firstName,
             lastName: updatedTask.assignee.lastName,
-            avatar: newTask.assignee.avatar, // Fixed: use newTask.assignee.avatar
+            avatar: updatedTask.assignee.avatar, // Fixed: use newTask.assignee.avatar
           } : null,
           sectionId: updatedTask.sectionId,
           sprintId: updatedTask.sprintId,

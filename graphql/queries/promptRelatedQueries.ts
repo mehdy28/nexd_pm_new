@@ -1,17 +1,23 @@
+// graphql/queries/promptRelatedQueries.ts
 import { gql } from 'graphql-tag';
 
 // --- Prompt Queries ---
 
 export const GET_PROJECT_PROMPTS_QUERY = gql`
-  query GetProjectPrompts($projectId: ID) {
-    getProjectPrompts(projectId: $projectId) {
-      id
-      title
-      description
-      tags
-      updatedAt
-      isPublic
-      projectId
+  query GetProjectPrompts($projectId: ID, $skip: Int, $take: Int) { # ADDED: $skip, $take
+    getProjectPrompts(projectId: $projectId, skip: $skip, take: $take) { # ADDED: skip, take
+      prompts { # CHANGED: Now returns an object with prompts and totalCount
+        id
+        title
+        description
+        tags
+        updatedAt
+        isPublic
+        projectId
+        model # Added for card display
+        # No content/context/variables/versions here for list view
+      }
+      totalCount # ADDED: Return total count for pagination
     }
   }
 `;
@@ -48,7 +54,6 @@ export const GET_PROMPT_DETAILS_QUERY = gql`
         createdAt
         notes
         description
-        # REMOVED: content, context, variables from initial prompt details fetch
       }
     }
   }

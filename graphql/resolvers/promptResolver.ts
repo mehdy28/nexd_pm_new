@@ -1,3 +1,4 @@
+// graphql/resolvers/promptResolver.ts
 import { GraphQLResolveInfo } from 'graphql';
 import { prisma } from "@/lib/prisma";
 import { type Prompt, type PromptVariable, type Version, PromptVariableType, PromptVariableSource } from '@/components/prompt-lab/store';
@@ -138,9 +139,9 @@ const promptResolvers = {
   Query: {
     getProjectPrompts: async (
       _parent: any,
-      { projectId }: { projectId?: string },
+      { projectId, skip = 0, take = 10 }: { projectId?: string, skip?: number, take?: number }, // ADDED: skip, take with defaults
       context: GraphQLContext
-    ): Promise<Prompt[]> => {
+    ): Promise<{ prompts: Prompt[], totalCount: number }> => { // CHANGED: Return object with prompts and totalCount
       let finalWhereClause: any = {};
       if (projectId) {
           finalWhereClause = { projectId };
@@ -153,43 +154,46 @@ const promptResolvers = {
           };
       }
 
-      const prompts = await prisma.prompt.findMany({
-        where: finalWhereClause,
-        orderBy: { updatedAt: 'desc' },
-        select: {
-          id: true,
-          title: true,
-          description: true,
-          tags: true,
-          isPublic: true,
-          createdAt: true,
-          updatedAt: true,
-          model: true,
-          projectId: true,
-          // When fetching for a list, we don't need full content/variables/versions by default
-          // These will be fetched via getPromptDetails or getPromptVersionContent
-        },
-      });
+      const [prompts, totalCount] = await prisma.$transaction([ // Use $transaction to count and find in one go
+        prisma.prompt.findMany({
+          where: finalWhereClause,
+          orderBy: { updatedAt: 'desc' },
+          skip, // ADDED: skip
+          take, // ADDED: take
+          select: {
+            id: true,
+            title: true,
+            description: true,
+            tags: true,
+            isPublic: true,
+            createdAt: true,
+            updatedAt: true,
+            model: true, // Added for card display
+            projectId: true,
+            // When fetching for a list, we don't need full content/variables/versions by default
+          },
+        }),
+        prisma.prompt.count({ where: finalWhereClause }), // Get total count
+      ]);
 
       // Map to ensure content, context, variables, and versions are present, even if empty
-      return prompts.map(p => ({
+      const mappedPrompts = prompts.map(p => ({
         ...p,
         content: p.content as any || [],
         context: p.context as string || '',
         variables: p.variables as PromptVariable[] || [],
-        versions: (p.versions as Version[] || []).map(v => ({
+        versions: (p.versions as Version[] || []).map(v => ({ // Still map versions for type compatibility if schema expects it, even if empty array for list view
           id: v.id,
           createdAt: v.createdAt,
           notes: v.notes,
           description: v.description || '',
-          // For list items or partial views, we still need content, context, and variables
-          // even if they are empty arrays/strings to match the schema's non-nullable fields.
-          // This ensures the type contract is met without fetching full data unless needed.
           content: v.content || [],
           context: v.context || '',
           variables: v.variables || [],
         }))
       })) as unknown as Prompt[];
+
+      return { prompts: mappedPrompts, totalCount }; // RETURN: object
     },
 
     getPromptDetails: async (
@@ -281,12 +285,12 @@ const promptResolvers = {
 
       if (source.entityType === 'USER') {
         const userWhere = buildPrismaWhereClause(source.filter, projectId || '', currentUserId, source.entityType);
-        const currentUser = await context.prisma.user.findUnique({ where: userWhere });
+        const currentUser = await prisma.user.findUnique({ where: userWhere });
         if (!currentUser) return 'N/A (Current user data not found)';
         return extractFieldValue(currentUser, source.field || '') || 'N/A';
       }
 
-      const project = await context.prisma.project.findUnique({
+      const project = await prisma.project.findUnique({
         where: { id: projectId },
         include: {
             workspace: true,
@@ -315,7 +319,7 @@ const promptResolvers = {
           return extractFieldValue(project.workspace, source.field) || 'N/A';
         }
         case 'TASK': {
-          prismaModel = context.prisma.task;
+          prismaModel = prisma.task;
           const where = buildPrismaWhereClause(source.filter, projectId!, currentUserId, source.entityType);
           include = { assignee: true, creator: true };
           orderBy = { updatedAt: 'desc' };
@@ -330,7 +334,7 @@ const promptResolvers = {
           }
         }
         case 'SPRINT': {
-          prismaModel = context.prisma.sprint;
+          prismaModel = prisma.sprint;
           const where = buildPrismaWhereClause(source.filter, projectId!, currentUserId, source.entityType);
           orderBy = { startDate: 'desc' };
 
@@ -344,7 +348,7 @@ const promptResolvers = {
           }
         }
         case 'DOCUMENT': {
-          prismaModel = context.prisma.document;
+          prismaModel = prisma.document;
           const where = buildPrismaWhereClause(source.filter, projectId!, currentUserId, source.entityType);
           orderBy = { updatedAt: 'desc' };
 
@@ -361,7 +365,7 @@ const promptResolvers = {
           }
         }
         case 'MEMBER': {
-            prismaModel = context.prisma.projectMember;
+            prismaModel = prisma.projectMember;
             const where = buildPrismaWhereClause(source.filter, projectId!, currentUserId, source.entityType);
             include = { user: true };
             orderBy = { joinedAt: 'asc' };
@@ -698,11 +702,11 @@ const promptResolvers = {
   Project: {
     totalTaskCount: async (parent: any, _args: any, context: GraphQLContext) => {
       if (!parent.id) return 0;
-      return context.prisma.task.count({ where: { projectId: parent.id } });
+      return prisma.task.count({ where: { projectId: parent.id } });
     },
     completedTaskCount: async (parent: any, _args: any, context: GraphQLContext) => {
       if (!parent.id) return 0;
-      return context.prisma.task.count({ where: { projectId: parent.id, status: 'DONE' } });
+      return prisma.task.count({ where: { projectId: parent.id, status: 'DONE' } });
     },
   },
 

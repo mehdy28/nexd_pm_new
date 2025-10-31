@@ -93,7 +93,42 @@ enum PromptVariableType {
   DATE
   RICH_TEXT # For BlockNote content
   LIST_OF_STRINGS
+  SELECT # ADDED: From store.ts
+  DYNAMIC # ADDED: From store.ts
 }
+
+# ADDED: Enums for PromptVariableSource (AggregationType, FormatType, FilterOperator)
+enum AggregationType {
+  COUNT
+  SUM
+  AVERAGE
+  LIST_FIELD_VALUES
+  LAST_UPDATED_FIELD_VALUE
+  FIRST_CREATED_FIELD_VALUE
+  MOST_COMMON_FIELD_VALUE
+}
+
+enum FormatType {
+  BULLET_POINTS
+  COMMA_SEPARATED
+  PLAIN_TEXT
+  JSON_ARRAY
+}
+
+enum FilterOperator {
+    EQ
+    NEQ
+    GT
+    GTE
+    LT
+    LTE
+    CONTAINS
+    STARTS_WITH
+    ENDS_WITH
+    IN_LIST # Changed from IN to IN_LIST for consistency with store.ts
+    NOT_IN
+}
+
 
 # ----------------------------------
 # Models
@@ -107,7 +142,6 @@ type User {
   lastName: String
   avatar: String
   firebaseUid: String
-  # password: String # Not typically exposed in GraphQL output types
   role: UserRole!
   createdAt: String!
   updatedAt: String!
@@ -300,7 +334,6 @@ type Label {
   id: ID!
   name: String!
   color: String!
-  # workspaceId: String! # Typically exposed via the workspace object itself
   workspace: Workspace! # Relation to Workspace
   tasks: [TaskLabel!]!
 }
@@ -438,9 +471,9 @@ type Version {
   id: ID!
   content: [ContentBlock!]! # CHANGED: From String to [ContentBlock!]! for version content
   context: String!
-  variables: [PromptVariable!]!
+  variables: [PromptVariable!]! # ADDED: variables to version
   createdAt: String!
-  notes: String
+  notes: String # Made non-nullable as per resolver (it's always defaulted)
   description: String # ADDED: Description for the version
 }
 
@@ -837,15 +870,6 @@ input UpdateGanttTaskInput {
 
 # --- NEW TYPES FOR DOCUMENTS ---
 
-# The original DocumentListItem type is now used for lookups too.
-# type DocumentListItem {
-#   id: ID!
-#   title: String!
-#   updatedAt: String! # For sorting/display
-#   type: String! # "doc" or "pdf" (derived, if content is null assume PDF, else doc)
-#   projectId: ID # To filter by project
-# }
-
 input CreateDocumentInput {
   projectId: ID!
   title: String!
@@ -865,6 +889,26 @@ input UpdateDocumentInput {
 # NEW: PROMPT LAB INPUTS
 # ----------------------------------
 
+# ADDED: FilterConditionInput to match store.ts FilterCondition
+input FilterConditionInput {
+    field: String!
+    operator: FilterOperator!
+    value: JSON # Can be String, Number, Boolean, or array of these
+    specialValue: String # CURRENT_USER_ID, CURRENT_PROJECT_ID, ACTIVE_SPRINT
+    type: PromptVariableType
+}
+
+# ADDED: PromptVariableSourceInput to match store.ts PromptVariableSource
+input PromptVariableSourceInput {
+  entityType: String! # 'PROJECT' | 'TASK' | ...
+  field: String
+  filter: FilterConditionInput # CHANGED: Single FilterConditionInput
+  aggregation: AggregationType
+  aggregationField: String
+  format: FormatType
+}
+
+
 input CreatePromptVariableInput {
   id: ID # Client-generated ID is fine for embedded JSON
   name: String!
@@ -872,7 +916,7 @@ input CreatePromptVariableInput {
   description: String
   type: PromptVariableType!
   defaultValue: String
-  source: JSON
+  source: PromptVariableSourceInput # CHANGED: Use PromptVariableSourceInput
 }
 
 input UpdatePromptVariableInput {
@@ -882,7 +926,7 @@ input UpdatePromptVariableInput {
   description: String
   type: PromptVariableType
   defaultValue: String
-  source: JSON
+  source: PromptVariableSourceInput # CHANGED: Use PromptVariableSourceInput
 }
 
 # NEW Input types for Content Blocks
@@ -906,10 +950,9 @@ input UpdateContentBlockInput {
 
 input CreatePromptInput {
   projectId: ID
-  # userId: ID # Will be derived from context
   title: String!
   content: [CreateContentBlockInput!] # CHANGED: From String to [CreateContentBlockInput!]
-  context: String
+  context: String # Made optional if not required for new prompt
   description: String
   category: String
   tags: [String!]
@@ -936,7 +979,7 @@ input CreateVersionInput { # For initial versions on prompt creation
   id: ID
   content: [CreateContentBlockInput!]! # CHANGED: From String to [CreateContentBlockInput!]!
   context: String!
-  variables: [CreatePromptVariableInput!]!
+  variables: [CreatePromptVariableInput!]! # ADDED: variables to CreateVersionInput
   createdAt: String # Will be Date.toISOString()
   notes: String
   description: String # ADDED: Description for the version
@@ -983,7 +1026,8 @@ type Query {
   getWireframeDetails(id: ID!): Wireframe # Get full details of a single wireframe
 
   # --- NEW PROMPT QUERIES ---
-  getProjectPrompts(projectId: ID): [Prompt!]! # Added `projectId` as optional for personal prompts
+  # UPDATED: getProjectPrompts to return PromptsListResponse
+  getProjectPrompts(projectId: ID, skip: Int, take: Int): PromptsListResponse!
   getPromptDetails(id: ID!): Prompt
   # NEW: Query to get specific version's content, context, and variables
   getPromptVersionContent(promptId: ID!, versionId: ID!): Version! # Returns only content relevant to a version
@@ -998,6 +1042,23 @@ type Query {
   getWorkspaceDataLookup(workspaceId: ID!): WorkspaceLookupData
 }
 
+# ADDED: Type for getProjectPrompts response
+type PromptsListResponse {
+  prompts: [PromptListItem!]! # A simplified Prompt type for the list view
+  totalCount: Int!
+}
+
+# ADDED: Simplified Prompt type for list view (matches what GET_PROJECT_PROMPTS_QUERY returns)
+type PromptListItem {
+  id: ID!
+  title: String!
+  description: String
+  tags: [String!]!
+  updatedAt: String!
+  isPublic: Boolean!
+  projectId: ID
+  model: String # Added for card display
+}
 
 
 # ----------------------------------
