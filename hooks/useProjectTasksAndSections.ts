@@ -71,7 +71,7 @@ interface ProjectTasksAndSectionsResponse {
 // ... (existing mutation response/variables types for sections) ...
 
 // Helper to convert Prisma Priority enum to UI string
-const mapPriorityToUI = (priority: "LOW" | "MEDIUM" | "HIGH"): PriorityUI => {
+export const mapPriorityToUI = (priority: "LOW" | "MEDIUM" | "HIGH"): PriorityUI => {
   switch (priority) {
     case "LOW": return "Low";
     case "MEDIUM": return "Medium";
@@ -79,7 +79,7 @@ const mapPriorityToUI = (priority: "LOW" | "MEDIUM" | "HIGH"): PriorityUI => {
   }
 };
 
-const mapTaskStatusToUI = (status: TaskStatus): boolean => {
+export const mapTaskStatusToUI = (status: TaskStatus): boolean => {
   return status === 'DONE';
 };
 

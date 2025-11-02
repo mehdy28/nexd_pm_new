@@ -1,3 +1,5 @@
+// prisma/schema.prisma
+
 // ---------------- Generator & Datasource ----------------
 generator client {
   provider = "prisma-client-js"
@@ -49,7 +51,7 @@ enum Priority {
   HIGH
 }
 
-enum SprintStatus { // NEW: Add SprintStatus enum to Prisma
+enum SprintStatus {
   PLANNING
   ACTIVE
   COMPLETED
@@ -89,6 +91,13 @@ enum ActivityType {
   COMMENT_ADDED
   MEMBER_ADDED
   MEMBER_REMOVED
+  STATUS_UPDATED
+  PRIORITY_UPDATED
+  DUE_DATE_UPDATED
+  POINTS_UPDATED
+  DESCRIPTION_UPDATED
+  ATTACHMENT_ADDED
+  ATTACHMENT_REMOVED
 }
 
 // ---------------- Core Models ----------------
@@ -96,7 +105,7 @@ enum ActivityType {
 model User {
   id          String   @id @default(cuid())
   email       String   @unique
-  password    String?  // Added password field, made nullable for existing users or social logins
+  password    String?
   firstName   String?
   lastName    String?
   avatar      String?
@@ -105,26 +114,23 @@ model User {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  // Workspace relationships
   workspaceMembers WorkspaceMember[]
   ownedWorkspaces  Workspace[]       @relation("WorkspaceOwner")
 
-  // Project relationships
   projectMembers ProjectMember[]
   assignedTasks  Task[]          @relation("TaskAssignee")
   createdTasks   Task[]          @relation("TaskCreator")
 
-  // Personal items
   personalTasks      Task[]      @relation("UserPersonalTasks")
   personalDocuments  Document[]  @relation("UserPersonalDocuments")
   personalWireframes Wireframe[] @relation("UserPersonalWireframes")
   personalPrompts    Prompt[]    @relation("UserPersonalPrompts")
-  personalSections   PersonalSection[] // Added for personal sections
+  personalSections   PersonalSection[]
 
-  // Activity & collaboration
-  activities Activity[]
-  comments   Comment[]
-  mentions   Mention[]
+  activities          Activity[]
+  comments            Comment[]
+  mentions            Mention[]
+  uploadedAttachments Attachment[]
 
   @@map("users")
 }
@@ -140,16 +146,14 @@ model Workspace {
   updatedAt   DateTime @updatedAt
   ownerId     String
   owner       User     @relation("WorkspaceOwner", fields: [ownerId], references: [id], onDelete: Cascade)
-  // New fields for Workspace
   industry    String?
   teamSize    String?
-  workFields  String[] // List of strings for work fields
+  workFields  String[]
 
   members     WorkspaceMember[]
   projects    Project[]
   subscription Subscription?
   settings     WorkspaceSettings?
-  // New: personal tasks can also be associated with a workspace (for context)
   personalTasks Task[] @relation("WorkspacePersonalTasks")
 
   @@map("workspaces")
@@ -197,13 +201,8 @@ model Project {
   wireframes Wireframe[] @relation("ProjectWireframes")
   prompts    Prompt[]   @relation("ProjectPrompts")
   activities Activity[]
-  // New: Sprints and Sections for the project
   sprints   Sprint[]
   sections  Section[]
-
-  // Computed fields (via queries)
-  // taskCount Int? @default(0)
-  // doneTaskCount Int? @default(0)
 
   @@map("projects")
 }
@@ -221,7 +220,6 @@ model ProjectMember {
   @@map("project_members")
 }
 
-// New model: Sprint for a project
 model Sprint {
   id          String     @id @default(cuid())
   name        String
@@ -229,13 +227,13 @@ model Sprint {
   startDate   DateTime
   endDate     DateTime
   isCompleted Boolean    @default(false)
-  status      SprintStatus @default(PLANNING) // NEW: Add status field
+  status      SprintStatus @default(PLANNING)
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
   projectId   String
   project     Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
-  tasks Task[] // Tasks belonging to this sprint
+  tasks Task[]
   milestones Milestone[]
 
   @@map("sprints")
@@ -256,24 +254,20 @@ model Milestone {
   @@map("milestones")
 }
 
-
-
-// New model: Section for a project
 model Section {
   id          String   @id @default(cuid())
   name        String
-  order       Int      @default(0) // To define the order of sections (e.g., TODO, IN_PROGRESS)
+  order       Int      @default(0)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   projectId   String
   project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
-  tasks Task[] // Tasks belonging to this section
+  tasks Task[]
 
   @@map("sections")
 }
 
-// New model: PersonalSection for a user's personal tasks
 model PersonalSection {
   id        String   @id @default(cuid())
   name      String
@@ -283,9 +277,9 @@ model PersonalSection {
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  tasks Task[] // Personal tasks belonging to this section
+  tasks Task[]
 
-  @@unique([userId, name]) // Personal section names must be unique for a user
+  @@unique([userId, name])
   @@map("personal_sections")
 }
 
@@ -293,60 +287,68 @@ model Task {
   id                   String           @id @default(cuid())
   title                String
   description          String?
-  status               TaskStatus       @default(TODO) // Keep TaskStatus, but actual section dictates visibility
+  status               TaskStatus       @default(TODO)
   priority             Priority         @default(MEDIUM)
   dueDate              DateTime?
   startDate            DateTime?
   endDate              DateTime?
   createdAt            DateTime         @default(now())
   updatedAt            DateTime         @updatedAt
-  completed            Boolean         @default(false) // New field: indicates if the task is completed
+  completed            Boolean         @default(false)
 
-  // New fields for points and completion percentage
-  points               Int?             // Optional field for points, e.g., for Scrum stories or epics
-  completionPercentage Float?           // Optional field for tracking progress, 0.0 to 100.0
+  points               Int?
+  completionPercentage Float?
 
-  // Relationships for project tasks
   projectId            String?
-  sprintId             String?          // New: for project tasks, nullable
-  sectionId            String?          // New: for project tasks, nullable
+  sprintId             String?
+  sectionId            String?
   project              Project?         @relation("ProjectTasks", fields: [projectId], references: [id], onDelete: Cascade)
-  sprint               Sprint?          @relation(fields: [sprintId], references: [id], onDelete: SetNull) // If sprint is deleted, tasks remain but lose sprint
-  section              Section?         @relation(fields: [sectionId], references: [id], onDelete: SetNull) // If section is deleted, tasks remain but lose section
+  sprint               Sprint?          @relation(fields: [sprintId], references: [id], onDelete: SetNull)
+  section              Section?         @relation(fields: [sectionId], references: [id], onDelete: SetNull)
 
-  // Relationships for personal tasks
-  personalUserId       String?          // Original userId renamed for clarity for personal tasks
-  personalWorkspaceId  String?          // New: Workspace for personal tasks
-  personalSectionId    String?          // New: for personal tasks, nullable
+  personalUserId       String?
+  personalWorkspaceId  String?
+  personalSectionId    String?
   personalUser         User?            @relation("UserPersonalTasks", fields: [personalUserId], references: [id], onDelete: Cascade)
-  personalWorkspace    Workspace?       @relation("WorkspacePersonalTasks", fields: [personalWorkspaceId], references: [id], onDelete: SetNull) // Link personal task to workspace
-  personalSection      PersonalSection? @relation(fields: [personalSectionId], references: [id], onDelete: SetNull) // Link personal task to personal section
+  personalWorkspace    Workspace?       @relation("WorkspacePersonalTasks", fields: [personalWorkspaceId], references: [id], onDelete: SetNull)
+  personalSection      PersonalSection? @relation(fields: [personalSectionId], references: [id], onDelete: SetNull)
 
-  // Common relationships (assignee, creator, subtasks, dependencies)
   assigneeId           String?
   creatorId            String
   assignee             User?            @relation("TaskAssignee", fields: [assigneeId], references: [id])
   creator              User             @relation("TaskCreator", fields: [creatorId], references: [id])
 
-  // Subtasks
   parentId             String?
   parent               Task?            @relation("TaskSubtasks", fields: [parentId], references: [id])
   subtasks             Task[]           @relation("TaskSubtasks")
 
-  // Dependencies
   dependencies         TaskDependency[] @relation("DependentTask")
   dependents           TaskDependency[] @relation("PrecedingTask")
 
-  // Collaboration
   comments             Comment[]
   activities           Activity[]
   labels               TaskLabel[]
-
-  // Ensure either it's a project task OR a personal task, but not both or neither
-  // This cannot be enforced directly in Prisma schema, but will be enforced via application logic
-  // @check((projectId != null AND personalUserId IS NULL) OR (projectId IS NULL AND personalUserId != null))
+  attachments          Attachment[]
 
   @@map("tasks")
+}
+
+model Attachment {
+  id        String   @id @default(cuid())
+  publicId  String   @unique // NEW: Cloudinary's unique identifier for the asset
+  fileName  String
+  fileType  String
+  fileSize  Int      
+  url       String   
+  createdAt DateTime @default(now())
+
+  taskId    String
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  uploaderId String
+  uploader   User     @relation(fields: [uploaderId], references: [id], onDelete: Cascade)
+
+  @@map("attachments")
 }
 
 model Label {
@@ -373,8 +375,8 @@ model TaskLabel {
 model Document {
   id        String       @id @default(cuid())
   title     String
-  content     Json?    // Make sure this is 'Json?' for optional content (e.g., for PDFs)
-  dataUrl     String?  // Keep this for PDFs
+  content     Json?
+  dataUrl     String?
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt
 
@@ -418,7 +420,6 @@ model Comment {
   authorId  String
   author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
 
-  // Polymorphic
   taskId      String?
   documentId  String?
   wireframeId String?
@@ -452,7 +453,6 @@ model Activity {
   userId    String
   user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  // Polymorphic
   projectId   String?
   taskId      String?
   documentId  String?
@@ -486,17 +486,17 @@ model Subscription {
 model Prompt {
   id          String   @id @default(cuid())
   title       String
-  content     Json     @default("[]") // CHANGED: From String to Json, default to empty array JSON
-  context     String   @default("") // Added context field
+  content     Json     @default("[]")
+  context     String   @default("")
   description String?
   category    String?
   tags        String[]
   isPublic    Boolean  @default(false)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-  model       String?  @default("gpt-4o") // Added model field, assuming it's a string with a default
-  variables   Json     @default("[]") // Added variables field as Json
-  versions    Json     @default("[]") // Added versions field as Json
+  model       String?  @default("gpt-4o")
+  variables   Json     @default("[]")
+  versions    Json     @default("[]")
 
   projectId String?
   userId    String?

@@ -13,16 +13,15 @@ import lookupResolvers from "./lookupResolvers"
 
 export const resolvers = {
   Query: {
+    ...taskResolver.Query, // ADD THIS LINE
     ...workspaceResolver.Query,
     ...userResolver.Query,
     ...projectResolver.Query,
-    ...documentResolvers.Query, // NEW
+    ...documentResolvers.Query,
     ...wireframeResolvers.Query,
     ...promptResolvers.Query,
     ...promptVariableResolver.Query,
     ...lookupResolvers.Query,
-
-
   },
   Mutation: {
     ...setupResolver.Mutation,
@@ -31,13 +30,12 @@ export const resolvers = {
     ...projectSectionResolver.Mutation,
     ...taskResolver.Mutation,
     ...sprintResolvers.Mutation,
-    ...documentResolvers.Mutation, // NEW
+    ...documentResolvers.Mutation,
     ...wireframeResolvers.Mutation,
     ...promptResolvers.Mutation,
-
-
-
   },
-  Document: documentResolvers.Document, // NEW: Include the Document type resolver
-
+  // You may also need to add the Task field resolvers from taskResolver
+  Task: taskResolver.Task,
+  TaskListView: taskResolver.TaskListView,
+  Document: documentResolvers.Document,
 }

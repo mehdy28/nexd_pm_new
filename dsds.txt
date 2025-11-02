@@ -1,4 +1,4 @@
-npx prisma migrate dev --name 5666582
+npx prisma migrate dev --name dsdszzfffezeffffzzzzz
 npx prisma db push
 npx prisma migrate deploy
 npx prisma generate

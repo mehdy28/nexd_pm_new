@@ -1,7 +1,16 @@
 // graphql/resolvers/taskResolver.ts
 
 import { prisma } from "@/lib/prisma";
-import { TaskStatus, Priority } from "@prisma/client"; // Import Prisma enums
+import { TaskStatus, Priority, ActivityType } from "@prisma/client";
+import { v2 as cloudinary } from 'cloudinary';
+
+// Configure Cloudinary with environment variables
+cloudinary.config({ 
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME, 
+  api_key: process.env.CLOUDINARY_API_KEY, 
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+  secure: true
+});
 
 function log(prefix: string, message: string, data?: any) {
   const timestamp = new Date().toISOString();
@@ -17,7 +26,7 @@ interface GraphQLContext {
   user?: { id: string; email: string; role: string };
 }
 
-// Input types for mutations (matching GraphQL SDL and allowing null for optional fields)
+// Input types for mutations
 interface CreateProjectTaskInput {
   projectId: string;
   sectionId: string;
@@ -51,590 +60,454 @@ interface UpdateProjectTaskInput {
   sectionId?: string | null;
 }
 
-// NEW: Input for creating a task or milestone from Gantt
+interface ConfirmAttachmentInput {
+    publicId: string;
+    url: string;
+    fileName: string;
+    fileType: string;
+    fileSize: number;
+    taskId: string;
+}
+
 interface CreateGanttTaskInput {
   projectId: string;
   sprintId: string;
   name: string;
   description?: string | null;
-  startDate: string; // ISO string
-  endDate: string;   // ISO string
-  assigneeId?: string | null; // Only for tasks
-  progress?: number | null; // Only for tasks
-  type: "task" | "milestone"; // Differentiates what to create
+  startDate: string;
+  endDate: string;
+  assigneeId?: string | null;
+  progress?: number | null;
+  type: "task" | "milestone";
 }
 
-// NEW: Input for updating a task or milestone from Gantt
 interface UpdateGanttTaskInput {
-  id: string; // ID of the original Task or Milestone
-  type: "TASK" | "MILESTONE"; // Differentiates which model to update (Prisma model name)
+  id: string;
+  type: "TASK" | "MILESTONE";
   name?: string | null;
   description?: string | null;
   startDate?: string | null;
-  endDate?: string | null; // For task (maps to Task.endDate) or milestone (maps to Milestone.dueDate)
-  assigneeId?: string | null; // For task only
-  progress?: number | null; // For task only
+  endDate?: string | null;
+  assigneeId?: string | null;
+  progress?: number | null;
 }
 
+// Helper function to check if a user is a member of a project
+const checkProjectMembership = async (userId: string, projectId: string) => {
+  const member = await prisma.projectMember.findUnique({
+    where: { projectId_userId: { projectId, userId } },
+  });
+  if (!member) {
+    throw new Error("Access Denied: You are not a member of this project.");
+  }
+};
+
+const toISODateString = (date: Date | null | undefined): string | null => {
+    return date ? date.toISOString().split('T')[0] : null;
+};
 
 export const taskResolver = {
-  Mutation: {
-    createProjectTask: async (_parent: unknown, args: { input: CreateProjectTaskInput }, context: GraphQLContext) => {
-      log("[createProjectTask Mutation]", "called with input:", args.input);
-
+  Query: {
+    task: async (_parent: unknown, args: { id: string }, context: GraphQLContext) => {
+      log("[Task Query]", `Fetching details for task ID: ${args.id}`);
       if (!context.user?.id) {
-        log("[createProjectTask Mutation]", "No authenticated user found in context.");
-        throw new Error("Authentication required: No user ID found in context.");
+        throw new Error("Authentication required.");
       }
-
       const userId = context.user.id;
-      const {
-        projectId,
-        sectionId,
-        title,
-        description,
-        status,
-        priority,
-        dueDate,
-        startDate,
-        endDate,
-        assigneeId,
-        sprintId,
-        points,
-        parentId
-      } = args.input;
-
-      try {
-        const project = await prisma.project.findUnique({
-          where: { id: projectId },
-          select: { id: true, members: { where: { userId: userId }, select: { userId: true } } },
-        });
-        if (!project || project.members.length === 0) {
-          log("[createProjectTask Mutation]", `User ${userId} is not a member of project ${projectId}. Access denied.`);
-          throw new Error("Access Denied: You are not a member of this project.");
-        }
-
-        const section = await prisma.section.findUnique({ where: { id: sectionId } });
-        if (!section || section.projectId !== projectId) {
-          log("[createProjectTask Mutation]", `Section ${sectionId} not found or doesn't belong to project ${projectId}.`);
-          throw new Error("Invalid section provided.");
-        }
-
-        if (sprintId !== null && sprintId !== undefined) {
-          const sprint = await prisma.sprint.findUnique({ where: { id: sprintId } });
-          if (!sprint || sprint.projectId !== projectId) {
-            log("[createProjectTask Mutation]", `Sprint ${sprintId} not found or doesn't belong to project ${projectId}.`);
-            throw new Error("Invalid sprint provided.");
-          }
-        }
-
-        if (assigneeId !== null && assigneeId !== undefined) {
-          const assigneeMember = await prisma.projectMember.findUnique({
-            where: {
-              projectId_userId: { projectId: projectId, userId: assigneeId }
-            },
-          });
-          if (!assigneeMember) {
-            log("[createProjectTask Mutation]", `Assignee ${assigneeId} is not a member of project ${projectId}.`);
-            throw new Error("Assignee is not a member of this project.");
-          }
-        }
-        log("[createProjectTask Mutation]", `Validation passed for task creation in project ${projectId}.`);
-
-        const newTask = await prisma.task.create({
-          data: {
-            title,
-            description: description ?? null,
-            status: status || 'TODO',
-            priority: priority || 'MEDIUM',
-            dueDate: dueDate ? new Date(dueDate) : null,
-            startDate: startDate ? new Date(startDate) : null,
-            endDate: endDate ? new Date(endDate) : null,
-            projectId: projectId,
-            sectionId: sectionId,
-            sprintId: sprintId ?? null,
-            assigneeId: assigneeId ?? null,
-            creatorId: userId,
-            points: points ?? 0,
-            parentId: parentId ?? null,
-            completed: (status || 'TODO') === 'DONE',
-          },
-          include: {
-            assignee: {
-              select: { id: true, firstName: true, lastName: true, avatar: true },
+      
+      const task = await prisma.task.findFirst({
+        where: {
+          id: args.id,
+          project: {
+            members: {
+              some: {
+                userId: userId,
+              },
             },
           },
-        });
-        log("[createProjectTask Mutation]", "Task created successfully:", { id: newTask.id, title: newTask.title });
+        },
+        include: {
+          assignee: { select: { id: true, firstName: true, lastName: true, avatar: true } },
+          creator: { select: { id: true, firstName: true, lastName: true, avatar: true } },
+          sprint: { select: { id: true, name: true } },
+          section: { select: { id: true, name: true } },
+          comments: {
+            include: { author: { select: { id: true, firstName: true, lastName: true, avatar: true } } },
+            orderBy: { createdAt: 'asc' }
+          },
+          attachments: {
+            include: { uploader: { select: { id: true, firstName: true, lastName: true, avatar: true } } },
+            orderBy: { createdAt: 'asc' }
+          },
+          activities: {
+            include: { user: { select: { id: true, firstName: true, lastName: true, avatar: true } } },
+            orderBy: { createdAt: 'desc' }
+          },
+        },
+      });
 
-        return {
-          id: newTask.id,
-          title: newTask.title,
-          description: newTask.description,
-          status: newTask.status,
-          priority: newTask.priority,
-          dueDate: newTask.dueDate?.toISOString().split('T')[0] || null,
-          points: newTask.points,
-          completed: newTask.completed,
-          assignee: newTask.assignee ? {
-            id: newTask.assignee.id,
-            firstName: newTask.assignee.firstName,
-            lastName: newTask.assignee.lastName,
-            avatar: newTask.assignee.avatar,
-          } : null,
-          sectionId: newTask.sectionId,
-          sprintId: newTask.sprintId,
-        };
+      return task;
+    }
+  },
 
-      } catch (error) {
-        log("[createProjectTask Mutation]", "Error creating project task:", error);
-        throw error;
-      }
+  Mutation: {
+    createProjectTask: async (_parent: unknown, { input }: { input: CreateProjectTaskInput }, context: GraphQLContext) => {
+      log("[createProjectTask Mutation]", "called with input:", input);
+      if (!context.user?.id) throw new Error("Authentication required.");
+      const userId = context.user.id;
+      const { projectId, ...taskData } = input;
+  
+      await checkProjectMembership(userId, projectId);
+  
+      const newTask = await prisma.task.create({
+        data: {
+          ...taskData,
+          creatorId: userId,
+          projectId,
+          dueDate: taskData.dueDate ? new Date(taskData.dueDate) : null,
+          startDate: taskData.startDate ? new Date(taskData.startDate) : null,
+          endDate: taskData.endDate ? new Date(taskData.endDate) : null,
+        },
+        include: { assignee: { select: { id: true, firstName: true, lastName: true, avatar: true } } },
+      });
+  
+      await prisma.activity.create({
+        data: {
+          type: 'TASK_CREATED',
+          data: { title: newTask.title },
+          userId: userId,
+          taskId: newTask.id,
+          projectId: projectId,
+        },
+      });
+  
+      log("[createProjectTask Mutation]", "Task created successfully:", { id: newTask.id });
+      return {
+        ...newTask,
+        dueDate: toISODateString(newTask.dueDate),
+        startDate: toISODateString(newTask.startDate),
+        endDate: toISODateString(newTask.endDate),
+      };
     },
 
     updateProjectTask: async (_parent: unknown, args: { input: UpdateProjectTaskInput }, context: GraphQLContext) => {
       log("[updateProjectTask Mutation]", "called with input:", args.input);
 
-      if (!context.user?.id) {
-        log("[updateProjectTask Mutation]", "No authenticated user found in context.");
-        throw new Error("Authentication required: No user ID found in context.");
-      }
-
+      if (!context.user?.id) throw new Error("Authentication required.");
       const userId = context.user.id;
-      const { id: taskId, isCompleted, ...updates } = args.input;
+      const { id: taskId, ...updates } = args.input;
 
-      try {
-        const existingTask = await prisma.task.findUnique({
-          where: { id: taskId },
-          select: {
-            id: true,
-            projectId: true,
-            project: { select: { members: { where: { userId: userId }, select: { userId: true } } } },
-          },
-        });
+      const existingTask = await prisma.task.findUnique({
+        where: { id: taskId },
+        include: { assignee: true, sprint: true, section: true },
+      });
 
-        if (!existingTask) {
-          log("[updateProjectTask Mutation]", `Task with ID ${taskId} not found.`);
-          throw new Error(`Task with ID ${taskId} not found.`);
-        }
-        if (!existingTask.project || existingTask.project.members.length === 0) {
-          log("[updateProjectTask Mutation]", `User ${userId} is not a member of the project owning task ${taskId}. Access denied.`);
-          throw new Error("Access Denied: You are not authorized to update this task.");
-        }
-        log("[updateProjectTask Mutation]", `Access granted for user ${userId} to update task ${taskId}.`);
+      if (!existingTask || !existingTask.projectId) throw new Error("Task not found.");
+      await checkProjectMembership(userId, existingTask.projectId);
 
-        if (updates.sectionId !== undefined && updates.sectionId !== null) {
-          const section = await prisma.section.findUnique({ where: { id: updates.sectionId } });
-          if (!section || section.projectId !== existingTask.projectId) {
-            log("[updateProjectTask Mutation]", `Updated section ${updates.sectionId} not found or doesn't belong to project ${existingTask.projectId}.`);
-            throw new Error("Invalid section provided for update.");
-          }
-        }
-        if (updates.sprintId !== undefined && updates.sprintId !== null) {
-          const sprint = await prisma.sprint.findUnique({ where: { id: updates.sprintId } });
-          if (!sprint || sprint.projectId !== existingTask.projectId) {
-            log("[updateProjectTask Mutation]", `Updated sprint ${updates.sprintId} not found or doesn't belong to project ${existingTask.projectId}.`);
-            throw new Error("Invalid sprint provided for update.");
-          }
-        }
-        if (updates.assigneeId !== undefined && updates.assigneeId !== null) {
-          const assigneeMember = await prisma.projectMember.findUnique({
-            where: {
-              projectId_userId: { projectId: existingTask.projectId, userId: updates.assigneeId }
-            },
-          });
-          if (!assigneeMember) {
-            log("[updateProjectTask Mutation]", `Updated assignee ${updates.assigneeId} is not a member of project ${existingTask.projectId}.`);
-            throw new Error("Assignee is not a member of this project.");
-          }
-        }
+      const activitiesToCreate: { type: ActivityType; data: any; userId: string; taskId: string, projectId: string }[] = [];
+      const commonActivityData = { userId, taskId, projectId: existingTask.projectId };
 
-        const dataToUpdate: any = {};
-        for (const key in updates) {
-          if (Object.prototype.hasOwnProperty.call(updates, key)) {
-            const value = (updates as any)[key];
-            if (value !== undefined) {
-              if (key === 'dueDate' || key === 'startDate' || key === 'endDate') {
-                dataToUpdate[key] = value ? new Date(value) : null;
-              } else {
-                dataToUpdate[key] = value;
-              }
-            }
-          }
-        }
-
-        if (isCompleted !== undefined) {
-          dataToUpdate.completed = isCompleted;
-          dataToUpdate.status = isCompleted ? 'DONE' : 'TODO';
-        }
-
-        const updatedTask = await prisma.task.update({
-          where: { id: taskId },
-          data: dataToUpdate,
-          include: {
-            assignee: {
-              select: { id: true, firstName: true, lastName: true, avatar: true },
-            },
-          },
-        });
-        log("[updateProjectTask Mutation]", "Task updated successfully:", { id: updatedTask.id, title: updatedTask.title, updates: dataToUpdate });
-
-        return {
-          id: updatedTask.id,
-          title: updatedTask.title,
-          description: updatedTask.description,
-          status: updatedTask.status,
-          priority: updatedTask.priority,
-          dueDate: updatedTask.dueDate?.toISOString().split('T')[0] || null,
-          points: updatedTask.points,
-          completed: updatedTask.completed,
-          assignee: updatedTask.assignee ? {
-            id: updatedTask.assignee.id,
-            firstName: updatedTask.assignee.firstName,
-            lastName: updatedTask.assignee.lastName,
-            avatar: updatedTask.assignee.avatar, // Fixed: use newTask.assignee.avatar
-          } : null,
-          sectionId: updatedTask.sectionId,
-          sprintId: updatedTask.sprintId,
-        };
-
-      } catch (error) {
-        log("[updateProjectTask Mutation]", "Error updating project task:", error);
-        throw error;
+      if (updates.title && updates.title !== existingTask.title) {
+        activitiesToCreate.push({ type: 'TASK_UPDATED', data: { change: 'title', old: existingTask.title, new: updates.title }, ...commonActivityData });
       }
+      if (updates.priority && updates.priority !== existingTask.priority) {
+        activitiesToCreate.push({ type: 'PRIORITY_UPDATED', data: { old: existingTask.priority, new: updates.priority }, ...commonActivityData });
+      }
+      if (updates.status && updates.status !== existingTask.status) {
+        activitiesToCreate.push({ type: 'STATUS_UPDATED', data: { old: existingTask.status, new: updates.status }, ...commonActivityData });
+      }
+      if (updates.points !== undefined && updates.points !== existingTask.points) {
+        activitiesToCreate.push({ type: 'POINTS_UPDATED', data: { old: existingTask.points, new: updates.points }, ...commonActivityData });
+      }
+      if (updates.dueDate !== undefined && toISODateString(updates.dueDate ? new Date(updates.dueDate) : null) !== toISODateString(existingTask.dueDate)) {
+        activitiesToCreate.push({ type: 'DUE_DATE_UPDATED', data: { old: toISODateString(existingTask.dueDate), new: toISODateString(updates.dueDate ? new Date(updates.dueDate) : null) }, ...commonActivityData });
+      }
+      if (updates.startDate !== undefined && toISODateString(updates.startDate ? new Date(updates.startDate) : null) !== toISODateString(existingTask.startDate)) {
+        activitiesToCreate.push({ type: 'TASK_UPDATED', data: { change: 'start date', old: toISODateString(existingTask.startDate), new: toISODateString(updates.startDate ? new Date(updates.startDate) : null) }, ...commonActivityData });
+      }
+      if (updates.endDate !== undefined && toISODateString(updates.endDate ? new Date(updates.endDate) : null) !== toISODateString(existingTask.endDate)) {
+        activitiesToCreate.push({ type: 'TASK_UPDATED', data: { change: 'end date', old: toISODateString(existingTask.endDate), new: toISODateString(updates.endDate ? new Date(updates.endDate) : null) }, ...commonActivityData });
+      }
+      if (updates.description !== undefined && updates.description !== existingTask.description) {
+        activitiesToCreate.push({ type: 'DESCRIPTION_UPDATED', data: { change: 'description' }, ...commonActivityData });
+      }
+      if (updates.assigneeId !== undefined && updates.assigneeId !== existingTask.assigneeId) {
+        const newAssignee = updates.assigneeId ? await prisma.user.findUnique({ where: { id: updates.assigneeId } }) : null;
+        activitiesToCreate.push({
+          type: 'TASK_ASSIGNED',
+          data: {
+            old: existingTask.assignee ? `${existingTask.assignee.firstName} ${existingTask.assignee.lastName}` : 'Unassigned',
+            new: newAssignee ? `${newAssignee.firstName} ${newAssignee.lastName}` : 'Unassigned'
+          },
+          ...commonActivityData
+        });
+      }
+      if (updates.sprintId !== undefined && updates.sprintId !== existingTask.sprintId) {
+        const newSprint = updates.sprintId ? await prisma.sprint.findUnique({ where: { id: updates.sprintId } }) : null;
+        activitiesToCreate.push({ type: 'TASK_UPDATED', data: { change: 'sprint', old: existingTask.sprint?.name || 'None', new: newSprint?.name || 'None' }, ...commonActivityData });
+      }
+      if (updates.sectionId !== undefined && updates.sectionId !== existingTask.sectionId) {
+        const newSection = updates.sectionId ? await prisma.section.findUnique({ where: { id: updates.sectionId } }) : null;
+        activitiesToCreate.push({ type: 'TASK_UPDATED', data: { change: 'section', old: existingTask.section?.name || 'None', new: newSection?.name || 'None' }, ...commonActivityData });
+      }
+
+      const [, updatedTask] = await prisma.$transaction([
+        prisma.activity.createMany({ data: activitiesToCreate }),
+        prisma.task.update({
+          where: { id: taskId },
+          data: {
+            title: updates.title,
+            description: updates.description,
+            status: updates.status,
+            priority: updates.priority,
+            dueDate: updates.dueDate ? new Date(updates.dueDate) : (updates.dueDate === null ? null : undefined),
+            startDate: updates.startDate ? new Date(updates.startDate) : (updates.startDate === null ? null : undefined),
+            endDate: updates.endDate ? new Date(updates.endDate) : (updates.endDate === null ? null : undefined),
+            points: updates.points,
+            assigneeId: updates.assigneeId,
+            sectionId: updates.sectionId,
+            sprintId: updates.sprintId,
+            completed: updates.isCompleted !== undefined ? updates.isCompleted : (updates.status === 'DONE'),
+          },
+          include: { assignee: { select: { id: true, firstName: true, lastName: true, avatar: true } } },
+        })
+      ]);
+
+      log("[updateProjectTask Mutation]", "Task updated and activities logged successfully:", { id: updatedTask.id });
+      return {
+        ...updatedTask,
+        dueDate: toISODateString(updatedTask.dueDate),
+        startDate: toISODateString(updatedTask.startDate),
+        endDate: toISODateString(updatedTask.endDate),
+      };
     },
 
     deleteProjectTask: async (_parent: unknown, args: { id: string }, context: GraphQLContext) => {
-      log("[deleteProjectTask Mutation]", "called with ID:", args.id);
-
-      if (!context.user?.id) {
-        log("[deleteProjectTask Mutation]", "No authenticated user found in context.");
-        throw new Error("Authentication required: No user ID found in context.");
-      }
-
-      const userId = context.user.id;
-      const taskId = args.id;
-
-      try {
-        const existingTask = await prisma.task.findUnique({
-          where: { id: taskId },
-          select: {
-            id: true,
-            projectId: true,
-            project: { select: { members: { where: { userId: userId }, select: { userId: true } } } },
-          },
-        });
-
-        if (!existingTask) {
-          log("[deleteProjectTask Mutation]", `Task with ID ${taskId} not found.`);
-          throw new Error(`Task with ID ${taskId} not found.`);
-        }
-        if (!existingTask.project || existingTask.project.members.length === 0) {
-          log("[deleteProjectTask Mutation]", `User ${userId} is not a member of the project owning task ${taskId}. Access denied.`);
-          throw new Error("Access Denied: You are not authorized to delete this task.");
-        }
-        log("[deleteProjectTask Mutation]", `Access granted for user ${userId} to delete task ${taskId}.`);
-
-        const deletedTask = await prisma.task.delete({
-          where: { id: taskId },
-          select: {
-            id: true,
-            title: true,
-            description: true,
-            status: true,
-            priority: true,
-            dueDate: true,
-            points: true,
-            completed: true,
-            assignee: { select: { id: true, firstName: true, lastName: true, avatar: true } },
-            sectionId: true,
-            sprintId: true,
-          }
-        });
-        log("[deleteProjectTask Mutation]", "Task deleted successfully:", { id: deletedTask.id, title: deletedTask.title });
-
+        log("[deleteProjectTask Mutation]", `called for task ID: ${args.id}`);
+        if (!context.user?.id) throw new Error("Authentication required.");
+        const userId = context.user.id;
+    
+        const task = await prisma.task.findUnique({ where: { id: args.id } });
+        if (!task || !task.projectId) throw new Error("Task not found.");
+        
+        await checkProjectMembership(userId, task.projectId);
+    
+        // NOTE: No specific 'TASK_DELETED' ActivityType exists in the schema.
+        // A 'TASK_UPDATED' activity could be created here before deletion if required,
+        // but it would be semantically incorrect.
+    
+        const deletedTask = await prisma.task.delete({ where: { id: args.id } });
+    
+        log("[deleteProjectTask Mutation]", "Task deleted successfully:", deletedTask);
         return {
-          id: deletedTask.id,
-          title: deletedTask.title,
-          description: deletedTask.description,
-          status: deletedTask.status,
-          priority: deletedTask.priority,
-          dueDate: deletedTask.dueDate?.toISOString().split('T')[0] || null,
-          points: deletedTask.points,
-          completed: deletedTask.completed,
-          assignee: deletedTask.assignee ? {
-            id: deletedTask.assignee.id,
-            firstName: deletedTask.assignee.firstName,
-            lastName: deletedTask.assignee.lastName,
-            avatar: deletedTask.assignee.avatar,
-          } : null,
-          sectionId: deletedTask.sectionId,
-          sprintId: deletedTask.sprintId,
+          ...deletedTask,
+          dueDate: toISODateString(deletedTask.dueDate),
+          startDate: toISODateString(deletedTask.startDate),
+          endDate: toISODateString(deletedTask.endDate),
         };
-
-      } catch (error) {
-        log("[deleteProjectTask Mutation]", "Error deleting project task:", error);
-        throw error;
-      }
     },
 
-    // NEW: createGanttTask Mutation
-    createGanttTask: async (_parent: unknown, args: { input: CreateGanttTaskInput }, context: GraphQLContext) => {
-      log("[createGanttTask Mutation]", "called with input:", args.input);
+    createTaskComment: async (_parent: unknown, args: { taskId: string; content: string }, context: GraphQLContext) => {
+      log("[createTaskComment Mutation]", "called with input:", args);
+      if (!context.user?.id) throw new Error("Authentication required.");
+      const { taskId, content } = args;
+      const authorId = context.user.id;
 
-      if (!context.user?.id) {
-        log("[createGanttTask Mutation]", "No authenticated user found in context.");
-        throw new Error("Authentication required: No user ID found in context.");
-      }
+      const task = await prisma.task.findUnique({ where: { id: taskId }, select: { projectId: true } });
+      if (!task || !task.projectId) throw new Error("Task not found.");
+      await checkProjectMembership(authorId, task.projectId);
 
-      const userId = context.user.id;
-      const { projectId, sprintId, name, description, startDate, endDate, assigneeId, progress, type } = args.input;
-
-      try {
-        // 1. Validate Project/Sprint/Assignee
-        const project = await prisma.project.findUnique({
-          where: { id: projectId },
-          select: { id: true, members: { where: { userId: userId }, select: { userId: true } } },
-        });
-        if (!project || project.members.length === 0) {
-          log("[createGanttTask Mutation]", `User ${userId} is not a member of project ${projectId}. Access denied.`);
-          throw new Error("Access Denied: You are not a member of this project.");
-        }
-
-        const sprint = await prisma.sprint.findUnique({ where: { id: sprintId } });
-        if (!sprint || sprint.projectId !== projectId) {
-          log("[createGanttTask Mutation]", `Sprint ${sprintId} not found or doesn't belong to project ${projectId}.`);
-          throw new Error("Invalid sprint provided.");
-        }
-
-        if (assigneeId !== null && assigneeId !== undefined) {
-          const assigneeMember = await prisma.projectMember.findUnique({
-            where: {
-              projectId_userId: { projectId: projectId, userId: assigneeId }
-            },
-          });
-          if (!assigneeMember) {
-            log("[createGanttTask Mutation]", `Assignee ${assigneeId} is not a member of project ${projectId}.`);
-            throw new Error("Assignee is not a member of this project.");
-          }
-        }
-        log("[createGanttTask Mutation]", `Validation passed for creating Gantt item in project ${projectId}.`);
-
-        let createdItem: any; // Will hold either Task or Milestone
-        let originalType: "TASK" | "MILESTONE"; // Changed "SPRINT" to "MILESTONE" as per enum
-
-        if (type === "task") {
-          createdItem = await prisma.task.create({
-            data: {
-              title: name,
-              description: description ?? null,
-              startDate: new Date(startDate),
-              endDate: new Date(endDate),
-              dueDate: new Date(endDate), // Often dueDate is same as endDate for Gantt tasks
-              projectId: projectId,
-              sprintId: sprintId,
-              assigneeId: assigneeId ?? null,
-              creatorId: userId,
-              status: TaskStatus.TODO, // Default status for new task
-              priority: Priority.MEDIUM, // Default priority for new task
-              points: 0,
-              completed: false,
-              completionPercentage: progress ?? 0,
-            },
-            include: {
-              assignee: { select: { id: true, firstName: true, lastName: true, avatar: true } },
-            },
-          });
-          originalType = "TASK";
-          log("[createGanttTask Mutation]", "Gantt Task created successfully:", { id: createdItem.id, title: createdItem.title });
-        } else if (type === "milestone") {
-          createdItem = await prisma.milestone.create({
-            data: {
-              name: name,
-              description: description ?? null,
-              dueDate: new Date(endDate), // Milestone is a point in time, use endDate
-              sprintId: sprintId,
-              isCompleted: false,
-            },
-          });
-          originalType = "MILESTONE";
-          log("[createGanttTask Mutation]", "Gantt Milestone created successfully:", { id: createdItem.id, name: createdItem.name });
-        } else {
-          throw new Error("Invalid type for Gantt task creation. Must be 'task' or 'milestone'.");
-        }
-
-        // Return a GanttTaskData compatible object
-        return {
-          id: createdItem.id, // Use the ID of the created Task or Milestone
-          name: createdItem.title || createdItem.name,
-          start: (createdItem.startDate || createdItem.dueDate).toISOString(),
-          end: (createdItem.endDate || createdItem.dueDate).toISOString(),
-          progress: createdItem.completionPercentage ?? (createdItem.isCompleted ? 100 : 0),
-          type: type,
-          sprint: sprintId,
-          hideChildren: false,
-          displayOrder: 1, // Default, will be recalculated by Gantt library
-          description: createdItem.description,
-          assignee: createdItem.assignee ? {
-            id: createdItem.assignee.id, firstName: createdItem.assignee.firstName,
-            lastName: createdItem.assignee.lastName, avatar: createdItem.assignee.avatar,
-          } : null,
-          originalTaskId: createdItem.id,
-          originalType: originalType,
-        };
-
-      } catch (error) {
-        log("[createGanttTask Mutation]", "Error creating Gantt task/milestone:", error);
-        throw error;
-      }
+      const [newComment] = await prisma.$transaction([
+          prisma.comment.create({
+              data: { content, taskId, authorId },
+              include: { author: { select: { id: true, firstName: true, lastName: true, avatar: true } } },
+          }),
+          prisma.activity.create({
+              data: { type: 'COMMENT_ADDED', data: { content: content.substring(0, 50) + '...' }, userId: authorId, taskId, projectId: task.projectId }
+          })
+      ]);
+      
+      log("[createTaskComment Mutation]", "Comment created successfully:", newComment);
+      return newComment;
     },
 
-    // NEW: updateGanttTask Mutation
-    updateGanttTask: async (_parent: unknown, args: { input: UpdateGanttTaskInput }, context: GraphQLContext) => {
-      log("[updateGanttTask Mutation]", "called with input:", args.input);
-
-      if (!context.user?.id) {
-        log("[updateGanttTask Mutation]", "No authenticated user found in context.");
-        throw new Error("Authentication required: No user ID found in context.");
-      }
-
+    deleteTaskComment: async (_parent: unknown, args: { id: string }, context: GraphQLContext) => {
+      log("[deleteTaskComment Mutation]", `called for comment ID: ${args.id}`);
+      if (!context.user?.id) throw new Error("Authentication required.");
       const userId = context.user.id;
-      const { id: originalId, type: originalType, ...updates } = args.input;
 
-      try {
-        let updatedItem: any;
-        let project: any; // To hold project details for access validation
+      const comment = await prisma.comment.findUnique({ where: { id: args.id } });
+      if (!comment) throw new Error("Comment not found.");
+      if (comment.authorId !== userId) throw new Error("You can only delete your own comments.");
 
-        if (originalType === "TASK") {
-          // Fetch existing task to get its current dates before applying partial updates
-          const existingTask = await prisma.task.findUnique({
-            where: { id: originalId },
-            select: {
-                id: true, projectId: true, assigneeId: true, creatorId: true, sprintId: true,
-                startDate: true, endDate: true, dueDate: true, completionPercentage: true,
-                project: { select: { members: { where: { userId: userId }, select: { userId: true } } } }
-            },
-          });
+      const deletedComment = await prisma.comment.delete({ where: { id: args.id } });
+      log("[deleteTaskComment Mutation]", "Comment deleted successfully:", deletedComment);
+      return deletedComment;
+    },
 
-          if (!existingTask) {
-            log("[updateGanttTask Mutation]", `Task with ID ${originalId} not found.`);
-            throw new Error(`Task with ID ${originalId} not found.`);
-          }
-          if (!existingTask.project || existingTask.project.members.length === 0) {
-            log("[updateGanttTask Mutation]", `User ${userId} is not a member of the project owning task ${originalId}. Access denied.`);
-            throw new Error("Access Denied: You are not authorized to update this task.");
-          }
-          project = existingTask.project;
-          log("[updateGanttTask Mutation]", `Access granted for user ${userId} to update task ${originalId}.`);
+    getAttachmentUploadSignature: async (_parent: unknown, args: { taskId: string }, context: GraphQLContext) => {
+        log("[getAttachmentUploadSignature Mutation]", "called with input:", args);
+        if (!context.user?.id) throw new Error("Authentication required.");
+  
+        const task = await prisma.task.findUnique({ where: { id: args.taskId }, select: { projectId: true } });
+        if (!task || !task.projectId) throw new Error("Task not found.");
+        await checkProjectMembership(context.user.id, task.projectId);
+  
+        const timestamp = Math.round((new Date).getTime()/1000);
+        const signature = cloudinary.utils.api_sign_request({
+            timestamp: timestamp,
+            folder: `attachments/${args.taskId}`
+        }, process.env.CLOUDINARY_API_SECRET!);
+  
+        return {
+            signature,
+            timestamp,
+            apiKey: process.env.CLOUDINARY_API_KEY!,
+            cloudName: process.env.CLOUDINARY_CLOUD_NAME!,
+        };
+    },
+  
+    confirmAttachmentUpload: async (_parent: unknown, { input }: { input: ConfirmAttachmentInput }, context: GraphQLContext) => {
+        log("[confirmAttachmentUpload Mutation]", "called with input:", input);
+        if (!context.user?.id) throw new Error("Authentication required.");
+        const uploaderId = context.user.id;
+        const { taskId, publicId, url, fileName, fileType, fileSize } = input;
 
-          const dataToUpdate: any = {};
-          if (updates.name !== undefined) dataToUpdate.title = updates.name; // Map 'name' to 'title' for Task
-          if (updates.description !== undefined) dataToUpdate.description = updates.description;
-          if (updates.startDate !== undefined) dataToUpdate.startDate = updates.startDate ? new Date(updates.startDate) : null;
-          if (updates.endDate !== undefined) dataToUpdate.endDate = updates.endDate ? new Date(updates.endDate) : null;
-          if (updates.endDate !== undefined) dataToUpdate.dueDate = updates.endDate ? new Date(updates.endDate) : null; // Update dueDate when endDate changes
-          if (updates.assigneeId !== undefined) dataToUpdate.assigneeId = updates.assigneeId;
-          if (updates.progress !== undefined) {
-              dataToUpdate.completionPercentage = updates.progress;
-              dataToUpdate.completed = updates.progress === 100; // Auto-complete if 100% progress
-              dataToUpdate.status = updates.progress === 100 ? TaskStatus.DONE : TaskStatus.TODO;
-          }
+        const task = await prisma.task.findUnique({ where: { id: taskId }, select: { projectId: true } });
+        if (!task || !task.projectId) throw new Error("Task not found.");
+        await checkProjectMembership(uploaderId, task.projectId);
 
-          updatedItem = await prisma.task.update({
-            where: { id: originalId },
-            data: dataToUpdate,
-            include: {
-              assignee: { select: { id: true, firstName: true, lastName: true, avatar: true } },
-            },
-          });
-          log("[updateGanttTask Mutation]", "Task updated successfully:", { id: updatedItem.id, updates: dataToUpdate });
+        const [newAttachment] = await prisma.$transaction([
+            prisma.attachment.create({
+                data: { 
+                  url: url,
+                  publicId: publicId,
+                  fileName, fileType, fileSize, taskId, uploaderId 
+                },
+                include: { uploader: { select: { id: true, firstName: true, lastName: true, avatar: true } } },
+            }),
+            prisma.activity.create({
+                data: { type: 'ATTACHMENT_ADDED', data: { fileName }, userId: uploaderId, taskId, projectId: task.projectId }
+            })
+        ]);
 
-        } else if (originalType === "MILESTONE") {
-          // Fetch existing milestone to get its current dates before applying partial updates
-          const existingMilestone = await prisma.milestone.findUnique({
-            where: { id: originalId },
-            select: {
-                id: true, dueDate: true, isCompleted: true,
-                sprint: { select: { projectId: true, project: { select: { members: { where: { userId: userId }, select: { userId: true } } } } } }
-            },
-          });
+        log("[confirmAttachmentUpload Mutation]", "Attachment confirmed and created:", newAttachment);
+        return newAttachment;
+    },
 
-          if (!existingMilestone || !existingMilestone.sprint?.project) {
-            log("[updateGanttTask Mutation]", `Milestone with ID ${originalId} not found or project access denied.`);
-            throw new Error(`Milestone with ID ${originalId} not found or access denied.`);
-          }
-          if (!existingMilestone.sprint.project.members.length) {
-            log("[updateGanttTask Mutation]", `User ${userId} is not a member of the project owning milestone ${originalId}. Access denied.`);
-            throw new Error("Access Denied: You are not authorized to update this milestone.");
-          }
-          project = existingMilestone.sprint.project;
-          log("[updateGanttTask Mutation]", `Access granted for user ${userId} to update milestone ${originalId}.`);
+    deleteAttachment: async (_parent: unknown, args: { id: string }, context: GraphQLContext) => {
+        log("[deleteAttachment Mutation]", `called for attachment ID: ${args.id}`);
+        if (!context.user?.id) throw new Error("Authentication required.");
+        const userId = context.user.id;
 
-          const dataToUpdate: any = {};
-          if (updates.name !== undefined) dataToUpdate.name = updates.name;
-          if (updates.description !== undefined) dataToUpdate.description = updates.description;
-          if (updates.endDate !== undefined) dataToUpdate.dueDate = updates.endDate ? new Date(updates.endDate) : null; // Map endDate to dueDate for Milestones
+        const attachment = await prisma.attachment.findUnique({
+            where: { id: args.id },
+            include: { task: { select: { projectId: true } } },
+        });
 
-          updatedItem = await prisma.milestone.update({
-            where: { id: originalId },
-            data: dataToUpdate,
-          });
-          log("[updateGanttTask Mutation]", "Milestone updated successfully:", { id: updatedItem.id, updates: dataToUpdate });
+        if (!attachment || !attachment.task.projectId) throw new Error("Attachment not found.");
+        await checkProjectMembership(userId, attachment.task.projectId);
+        if (!attachment.publicId) throw new Error("Attachment metadata is invalid (missing publicId).");
+        
+        await cloudinary.uploader.destroy(attachment.publicId);
 
-        } else {
-          throw new Error("Invalid type for Gantt task update. Must be 'TASK' or 'MILESTONE'.");
-        }
-
-        // --- ENSURE NON-NULLABLE DATES FOR GANTTTASKDATA RETURN ---
-        // For tasks:
-        const taskStartDate = (originalType === "TASK" && updatedItem.startDate) ? updatedItem.startDate :
-                              (originalType === "TASK" && updatedItem.dueDate) ? updatedItem.dueDate :
-                              (originalType === "MILESTONE" && updatedItem.dueDate) ? updatedItem.dueDate : new Date(); // Fallback
-        const taskEndDate = (originalType === "TASK" && updatedItem.endDate) ? updatedItem.endDate :
-                            (originalType === "TASK" && updatedItem.dueDate) ? updatedItem.dueDate :
-                            (originalType === "MILESTONE" && updatedItem.dueDate) ? updatedItem.dueDate : new Date(); // Fallback
-
-        const ganttStart = taskStartDate.toISOString();
-        const ganttEnd = taskEndDate.toISOString();
-        // --- END NON-NULLABLE DATES ---
+        const [deletedAttachment] = await prisma.$transaction([
+            prisma.attachment.delete({ where: { id: args.id } }),
+            prisma.activity.create({
+                data: { type: 'ATTACHMENT_REMOVED', data: { fileName: attachment.fileName }, userId: userId, taskId: attachment.taskId, projectId: attachment.task.projectId }
+            })
+        ]);
+        
+        log("[deleteAttachment Mutation]", "Attachment deleted from Cloudinary and DB:", deletedAttachment);
+        return deletedAttachment;
+    },
+    
+    createGanttTask: async (_parent: unknown, { input }: { input: CreateGanttTaskInput }, context: GraphQLContext) => { 
+        // This is a specialized task creation. It maps to the main task model.
+        if (!context.user?.id) throw new Error("Authentication required.");
+        await checkProjectMembership(context.user.id, input.projectId);
+        
+        const newGanttTask = await prisma.task.create({
+            data: {
+                title: input.name,
+                description: input.description,
+                startDate: new Date(input.startDate),
+                endDate: new Date(input.endDate),
+                assigneeId: input.assigneeId,
+                completionPercentage: input.progress,
+                projectId: input.projectId,
+                sprintId: input.sprintId,
+                creatorId: context.user.id,
+                // Gantt tasks often don't belong to a board section initially
+                sectionId: null, 
+            }
+        });
 
         return {
-          id: updatedItem.id, // ID of the original Task or Milestone
-          name: updatedItem.title || updatedItem.name,
-          start: ganttStart,
-          end: ganttEnd,
-          progress: updatedItem.completionPercentage ?? (updatedItem.isCompleted ? 100 : 0),
-          type: originalType === "TASK" ? "task" : "milestone", // Return Gantt chart type
-          sprint: updatedItem.sprintId,
-          hideChildren: false,
-          displayOrder: 1, // Default
-          description: updatedItem.description,
-          assignee: updatedItem.assignee ? {
-            id: updatedItem.assignee.id, firstName: updatedItem.assignee.firstName,
-            lastName: updatedItem.assignee.lastName, avatar: updatedItem.assignee.avatar,
-          } : null,
-          originalTaskId: updatedItem.id,
-          originalType: originalType,
-        };
+            ...newGanttTask,
+            name: newGanttTask.title,
+            start: newGanttTask.startDate?.toISOString(),
+            end: newGanttTask.endDate?.toISOString(),
+            progress: newGanttTask.completionPercentage,
+        }
+    },
+    updateGanttTask: async (_parent: unknown, { input }: { input: UpdateGanttTaskInput }, context: GraphQLContext) => { 
+        // This is a specialized task update. It maps to the main task model.
+        if (!context.user?.id) throw new Error("Authentication required.");
+        const { id, type, name, ...updates } = input;
 
-      } catch (error) {
-        log("[updateGanttTask Mutation]", "Error updating Gantt task/milestone:", error);
-        throw error;
-      }
+        const task = await prisma.task.findUnique({ where: { id: id } });
+        if (!task || !task.projectId) throw new Error("Task not found.");
+        await checkProjectMembership(context.user.id, task.projectId);
+
+        const updatedGanttTask = await prisma.task.update({
+            where: { id },
+            data: {
+                title: name,
+                description: updates.description,
+                startDate: updates.startDate ? new Date(updates.startDate) : undefined,
+                endDate: updates.endDate ? new Date(updates.endDate) : undefined,
+                assigneeId: updates.assigneeId,
+                completionPercentage: updates.progress,
+            }
+        });
+
+        return {
+            ...updatedGanttTask,
+            name: updatedGanttTask.title,
+            start: updatedGanttTask.startDate?.toISOString(),
+            end: updatedGanttTask.endDate?.toISOString(),
+            progress: updatedGanttTask.completionPercentage,
+        };
     },
   },
+  
+  Task: {
+    commentCount: (parent: { id: string }) => {
+      return prisma.comment.count({ where: { taskId: parent.id } });
+    },
+    attachmentCount: (parent: { id: string }) => {
+      return prisma.attachment.count({ where: { taskId: parent.id } });
+    },
+  },
+
   TaskListView: {
     completed: (parent: { status: TaskStatus }) => parent.status === 'DONE',
-    dueDate: (parent: { dueDate: Date | null }) => parent.dueDate ? parent.dueDate.toISOString().split('T')[0] : null,
-    assignee: async (parent: { assigneeId: string | null; assignee?: UserAvatarPartial | null }, _args: unknown, context: GraphQLContext) => {
-      if (parent.assignee) return parent.assignee;
-      if (!parent.assigneeId) return null;
-      const user = await context.prisma.user.findUnique({
-        where: { id: parent.assigneeId },
-        select: { id: true, firstName: true, lastName: true, avatar: true },
-      });
-      return user;
+    dueDate: (parent: { dueDate: Date | string | null }) => {
+      if (!parent.dueDate) return null;
+      const date = new Date(parent.dueDate);
+      if (isNaN(date.getTime())) return null;
+      return date.toISOString().split('T')[0];
     },
+    assignee: async (parent: { assigneeId: string | null; assignee?: any }, _args: unknown, context: GraphQLContext) => {
+        if (parent.assignee) return parent.assignee;
+        if (!parent.assigneeId) return null;
+        return context.prisma.user.findUnique({
+          where: { id: parent.assigneeId },
+          select: { id: true, firstName: true, lastName: true, avatar: true },
+        });
+      },
   },
 };
 
