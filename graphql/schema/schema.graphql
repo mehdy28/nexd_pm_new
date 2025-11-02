@@ -1,3 +1,4 @@
+# graphql/schema/schema.graphql
 # ----------------------------------
 # Enums
 # ----------------------------------
@@ -683,6 +684,50 @@ type PromptListItem {
 }
 
 # ----------------------------------
+# NEW: Dashboard Types
+# ----------------------------------
+type KpiMetrics {
+  totalTasks: Int!
+  completedTasks: Int!
+  inProgressTasks: Int!
+  overdueTasks: Int!
+  totalPoints: Int!
+  completedPoints: Int!
+  completionPercentage: Float!
+  velocity: Float!
+}
+
+type ChartDataPoint {
+  name: String!
+  value: Float!
+}
+
+type BurnChartDataPoint {
+  date: String!
+  ideal: Float
+  actual: Float
+  scope: Float
+}
+
+type MemberWorkload {
+  assigneeName: String!
+  taskCount: Int!
+  totalPoints: Int!
+  assigneeAvatar: String
+  assigneeId: ID!
+}
+
+type ProjectDashboardData {
+  kpis: KpiMetrics!
+  priorityDistribution: [ChartDataPoint!]!
+  statusDistribution: [ChartDataPoint!]!
+  burnupChart: [BurnChartDataPoint!]!
+  burndownChart: [BurnChartDataPoint!]!
+  memberWorkload: [MemberWorkload!]!
+  sprints: [SprintNameId!]!
+}
+
+# ----------------------------------
 # Inputs
 # ----------------------------------
 
@@ -919,6 +964,9 @@ type Query {
   getProjectTasksLookup(projectId: ID!, sprintId: ID): [TaskLookupItem!]!
   getProjectDocumentsLookup(projectId: ID!): [DocumentListItem!]!
   getWorkspaceDataLookup(workspaceId: ID!): WorkspaceLookupData
+
+  # NEW
+  getProjectDashboardData(projectId: ID!, sprintId: ID): ProjectDashboardData
 }
 
 # ----------------------------------

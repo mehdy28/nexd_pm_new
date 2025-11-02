@@ -10,6 +10,8 @@ import wireframeResolvers from "./wireframeResolver"
 import promptResolvers from "./promptResolver"
 import promptVariableResolver from "./promptVariableResolver"
 import lookupResolvers from "./lookupResolvers"
+import { projectDashboardResolvers } from "./projectDashboardResolver"
+
 
 export const resolvers = {
   Query: {
@@ -22,6 +24,10 @@ export const resolvers = {
     ...promptResolvers.Query,
     ...promptVariableResolver.Query,
     ...lookupResolvers.Query,
+    ...projectDashboardResolvers.Query,
+
+
+    
   },
   Mutation: {
     ...setupResolver.Mutation,
