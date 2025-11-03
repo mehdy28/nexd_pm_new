@@ -1,32 +1,34 @@
 // graphql/queries/documents.ts
-import { gql } from "@apollo/client";
 
-// Minimal data for listing documents
+import { gql } from "@apollo/client"
+
 export const GET_PROJECT_DOCUMENTS = gql`
-  query GetProjectDocuments($projectId: ID!) {
-    getProjectDocuments(projectId: $projectId) {
-      id
-      title
-      updatedAt
-      type # "doc" or "pdf"
-      projectId
+  query GetProjectDocuments($projectId: ID!, $search: String, $skip: Int, $take: Int) {
+    getProjectDocuments(projectId: $projectId, search: $search, skip: $skip, take: $take) {
+      documents {
+        id
+        title
+        updatedAt
+        type
+        projectId
+      }
+      totalCount
     }
   }
-`;
+`
 
-// Full data for displaying a single document
+// GET_DOCUMENT_DETAILS remains the same
 export const GET_DOCUMENT_DETAILS = gql`
  query GetDocumentDetails($id: ID!) {
+
   getDocumentDetails(id: $id) {
     id
     title
     content
-    # dataUrl should be removed if you removed it from your schema
     createdAt
     updatedAt
-    project { # Query the 'project' field
-      id     # Select the 'id' from the Project object
-      # You can select other project fields here if needed, e.g., name
+    project {
+      id
       __typename
     }
     personalUser {
@@ -38,4 +40,4 @@ export const GET_DOCUMENT_DETAILS = gql`
     __typename
   }
 }
-`;
+`

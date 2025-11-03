@@ -3,13 +3,16 @@ import { gql } from "@apollo/client";
 
 // Query to get a list of wireframes for a specific project
 export const GET_PROJECT_WIREFRAMES = gql`
-  query GetProjectWireframes($projectId: ID!) {
-    getProjectWireframes(projectId: $projectId) {
-      id
-      title
-      updatedAt
-      thumbnail
-      projectId
+  query GetProjectWireframes($projectId: ID!, $search: String, $skip: Int, $take: Int) {
+    getProjectWireframes(projectId: $projectId, search: $search, skip: $skip, take: $take) {
+      wireframes {
+        id
+        title
+        updatedAt
+        thumbnail
+        projectId
+      }
+      totalCount
     }
   }
 `;
@@ -28,7 +31,7 @@ export const GET_WIREFRAME_DETAILS = gql`
         id
         name
       }
-      personalUser { # Include if personal wireframes are also fetched by this query
+      personalUser {
         id
         firstName
         lastName

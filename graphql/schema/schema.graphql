@@ -667,6 +667,16 @@ type WorkspaceMemberLookupItem {
   user: UserLookupPartial!
 }
 
+type DocumentsListResponse {
+  documents: [DocumentListItem!]!
+  totalCount: Int!
+}
+
+type WireframesListResponse {
+  wireframes: [WireframeListItem!]!
+  totalCount: Int!
+}
+
 type PromptsListResponse {
   prompts: [PromptListItem!]!
   totalCount: Int!
@@ -951,11 +961,11 @@ type Query {
   getProjectDetails(projectId: ID!): ProjectDetails
   getWorkspaceData: WorkspaceData
   me: User
-  getProjectDocuments(projectId: ID!): [DocumentListItem!]!
+  getProjectDocuments(projectId: ID!, search: String, skip: Int, take: Int): DocumentsListResponse!
   getDocumentDetails(id: ID!): Document
-  getProjectWireframes(projectId: ID!): [WireframeListItem!]!
+  getProjectWireframes(projectId: ID!, search: String, skip: Int, take: Int): WireframesListResponse!
   getWireframeDetails(id: ID!): Wireframe
-  getProjectPrompts(projectId: ID, skip: Int, take: Int): PromptsListResponse!
+  getProjectPrompts(projectId: ID, skip: Int, take: Int, q: String): PromptsListResponse!
   getPromptDetails(id: ID!): Prompt
   getPromptVersionContent(promptId: ID!, versionId: ID!): Version!
   resolvePromptVariable(projectId: ID, workspaceId: ID, variableSource: JSON!, promptVariableId: ID): String

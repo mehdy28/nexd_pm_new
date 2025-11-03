@@ -1,4 +1,3 @@
-// graphql/resolvers/promptResolver.ts
 import { GraphQLResolveInfo } from 'graphql';
 import { prisma } from "@/lib/prisma";
 import { type Prompt, type PromptVariable, type Version, PromptVariableType, PromptVariableSource } from '@/components/prompt-lab/store';
@@ -99,7 +98,6 @@ async function applyAggregation(
   switch (aggregation) {
     case 'COUNT':
       return String(records.length);
-
     case 'SUM':
     case 'AVERAGE': {
       if (!aggregationField) return 'N/A (Aggregation field not specified)';
@@ -108,7 +106,6 @@ async function applyAggregation(
       const sum = values.reduce((acc, val) => acc + val, 0);
       return aggregation === 'SUM' ? String(sum) : String(sum / values.length);
     }
-
     case 'LIST_FIELD_VALUES': {
       if (!aggregationField) return 'N/A (Aggregation field not specified)';
       const values = records.map(r => extractFieldValue(r, aggregationField)).filter(Boolean);
@@ -121,7 +118,6 @@ async function applyAggregation(
         default: return values.join('\n');
       }
     }
-
     case 'LAST_UPDATED_FIELD_VALUE':
     case 'FIRST_CREATED_FIELD_VALUE': {
       if (!aggregationField) return 'N/A (Aggregation field not specified)';
@@ -129,7 +125,6 @@ async function applyAggregation(
       const value = extractFieldValue(record, aggregationField);
       return value !== undefined ? String(value) : 'N/A';
     }
-
     default:
       return 'N/A (Unsupported aggregation)';
   }
@@ -139,27 +134,35 @@ const promptResolvers = {
   Query: {
     getProjectPrompts: async (
       _parent: any,
-      { projectId, skip = 0, take = 10 }: { projectId?: string, skip?: number, take?: number }, // ADDED: skip, take with defaults
+      { projectId, skip = 0, take = 10, q }: { projectId?: string, skip?: number, take?: number, q?: string }, // ADDED: q
       context: GraphQLContext
-    ): Promise<{ prompts: Prompt[], totalCount: number }> => { // CHANGED: Return object with prompts and totalCount
+    ): Promise<{ prompts: Prompt[], totalCount: number }> => {
       let finalWhereClause: any = {};
       if (projectId) {
-          finalWhereClause = { projectId };
+        finalWhereClause = { projectId };
       } else {
-          finalWhereClause = {
-              AND: [
-                { projectId: null },
-                { userId: context.user?.id || '' }
-              ]
-          };
+        finalWhereClause = {
+          AND: [
+            { projectId: null },
+            { userId: context.user?.id || '' }
+          ]
+        };
       }
 
-      const [prompts, totalCount] = await prisma.$transaction([ // Use $transaction to count and find in one go
+      // ADDED: Handle search query 'q'
+      if (q && q.trim() !== '') {
+        finalWhereClause.title = {
+          contains: q,
+          mode: 'insensitive',
+        };
+      }
+
+      const [prompts, totalCount] = await prisma.$transaction([
         prisma.prompt.findMany({
           where: finalWhereClause,
           orderBy: { updatedAt: 'desc' },
-          skip, // ADDED: skip
-          take, // ADDED: take
+          skip,
+          take,
           select: {
             id: true,
             title: true,
@@ -168,32 +171,22 @@ const promptResolvers = {
             isPublic: true,
             createdAt: true,
             updatedAt: true,
-            model: true, // Added for card display
+            model: true,
             projectId: true,
-            // When fetching for a list, we don't need full content/variables/versions by default
           },
         }),
-        prisma.prompt.count({ where: finalWhereClause }), // Get total count
+        prisma.prompt.count({ where: finalWhereClause }),
       ]);
 
-      // Map to ensure content, context, variables, and versions are present, even if empty
       const mappedPrompts = prompts.map(p => ({
         ...p,
-        content: p.content as any || [],
-        context: p.context as string || '',
-        variables: p.variables as PromptVariable[] || [],
-        versions: (p.versions as Version[] || []).map(v => ({ // Still map versions for type compatibility if schema expects it, even if empty array for list view
-          id: v.id,
-          createdAt: v.createdAt,
-          notes: v.notes,
-          description: v.description || '',
-          content: v.content || [],
-          context: v.context || '',
-          variables: v.variables || [],
-        }))
+        content: [],
+        context: '',
+        variables: [],
+        versions: [],
       })) as unknown as Prompt[];
 
-      return { prompts: mappedPrompts, totalCount }; // RETURN: object
+      return { prompts: mappedPrompts, totalCount };
     },
 
     getPromptDetails: async (
@@ -212,7 +205,6 @@ const promptResolvers = {
           },
         },
       });
-      // Ensure content, context, and variables are always present for the *active* prompt
       if (prompt) {
         prompt.content = prompt.content || [];
         prompt.context = prompt.context || '';
@@ -222,7 +214,6 @@ const promptResolvers = {
           createdAt: v.createdAt,
           notes: v.notes,
           description: v.description || '',
-          // For getPromptDetails, we include the full version data
           content: v.content || [],
           context: v.context || '',
           variables: v.variables || [],
@@ -231,7 +222,6 @@ const promptResolvers = {
       return prompt as unknown as Prompt;
     },
 
-    // NEW: Resolver for GetPromptVersionContent
     getPromptVersionContent: async (
       _parent: any,
       { promptId, versionId }: { promptId: string; versionId: string },
@@ -252,15 +242,12 @@ const promptResolvers = {
       if (!version) {
         throw new Error("Version not found within this prompt.");
       }
-
-      // Return only the content, context, and variables of the found version,
-      // along with its ID to match the query's return type.
       return {
         id: version.id,
         content: version.content || [],
         context: version.context || '',
         variables: version.variables || [],
-        createdAt: version.createdAt, // Ensure all non-nullable fields are included
+        createdAt: version.createdAt,
         notes: version.notes,
         description: version.description || '',
       } as Version;
@@ -302,11 +289,9 @@ const promptResolvers = {
       if (!project) return 'N/A (Project not found)';
 
 
-      let result: any;
       let prismaModel: any;
       let include: any;
       let orderBy: any;
-      let fieldToSelect: string | undefined = source.field;
 
       switch (source.entityType) {
         case 'PROJECT': {
@@ -400,7 +385,7 @@ const promptResolvers = {
       { input }: { input: {
         projectId?: string;
         title: string;
-        content?: any; // Changed to 'any' to match schema type and input
+        content?: any;
         context?: string;
         description?: string;
         category?: string;
@@ -414,7 +399,7 @@ const promptResolvers = {
     ): Promise<Prompt> => {
       const newPromptData = {
         title: input.title,
-        content: input.content || [], // Ensure it's an array if not provided
+        content: input.content || [],
         context: input.context || '',
         description: input.description,
         category: input.category,
@@ -431,7 +416,6 @@ const promptResolvers = {
         data: newPromptData as any,
       });
 
-      // After creation, ensure all non-nullable fields are present for the return type
       newPrompt.content = newPrompt.content || [];
       newPrompt.context = newPrompt.context || '';
       newPrompt.variables = newPrompt.variables || [];
@@ -453,7 +437,7 @@ const promptResolvers = {
       { input }: { input: {
         id: string;
         title?: string;
-        content?: any; // Changed to 'any'
+        content?: any;
         context?: string;
         description?: string;
         category?: string;
@@ -490,7 +474,6 @@ const promptResolvers = {
         data: updateData,
       });
 
-      // After update, ensure all non-nullable fields are present for the return type
       updatedPrompt.content = updatedPrompt.content || [];
       updatedPrompt.context = updatedPrompt.context || '';
       updatedPrompt.variables = updatedPrompt.variables || [];
@@ -524,7 +507,6 @@ const promptResolvers = {
         where: { id },
       });
 
-      // After deletion, ensure all non-nullable fields are present for the return type
       deletedPrompt.content = deletedPrompt.content || [];
       deletedPrompt.context = deletedPrompt.context || '';
       deletedPrompt.variables = deletedPrompt.variables || [];
@@ -560,9 +542,9 @@ const promptResolvers = {
 
       const newVersion: Version = {
         id: generateUniqueId(),
-        content: currentContent, // This is correct, it captures the current content
-        context: currentContext, // This is correct, it captures the current context
-        variables: currentVariables.map(v => ({ ...v, id: v.id || generateUniqueId() })), // This is correct
+        content: currentContent,
+        context: currentContext,
+        variables: currentVariables.map(v => ({ ...v, id: v.id || generateUniqueId() })),
         createdAt: new Date().toISOString(),
         notes: input.notes || `Version saved on ${new Date().toLocaleString()}`,
         description: "",
@@ -578,12 +560,6 @@ const promptResolvers = {
         },
       });
 
-      // The schema requires a full Prompt object with complete Version objects in its 'versions' array.
-      // We must ensure that all non-nullable fields of Prompt and Version are present.
-      // Prisma typically returns all fields, but if 'content', 'context', 'variables' for versions
-      // are not explicitly stored/retrieved, they might be missing.
-      // We explicitly map the versions to ensure they conform to the schema.
-
       updatedPrompt.content = updatedPrompt.content || [];
       updatedPrompt.context = updatedPrompt.context || '';
       updatedPrompt.variables = updatedPrompt.variables || [];
@@ -592,9 +568,9 @@ const promptResolvers = {
         createdAt: v.createdAt,
         notes: v.notes,
         description: v.description || '',
-        content: v.content || [],      // Ensure content is present (empty array if null)
-        context: v.context || '',      // Ensure context is present (empty string if null)
-        variables: v.variables || [],  // Ensure variables is present (empty array if null)
+        content: v.content || [],
+        context: v.context || '',
+        variables: v.variables || [],
       }));
 
       return updatedPrompt as unknown as Prompt;
@@ -630,7 +606,6 @@ const promptResolvers = {
         },
       });
 
-      // After update, ensure all non-nullable fields are present for the return type
       updatedPrompt.content = updatedPrompt.content || [];
       updatedPrompt.context = updatedPrompt.context || '';
       updatedPrompt.variables = updatedPrompt.variables || [];
@@ -681,11 +656,10 @@ const promptResolvers = {
         },
       });
 
-      // Ensure all non-nullable fields are present for the return type
       updatedPrompt.content = updatedPrompt.content || [];
       updatedPrompt.context = updatedPrompt.context || '';
       updatedPrompt.variables = updatedPrompt.variables || [];
-      updatedPrompt.versions = updatedVersions.map(v => ({ // Use updatedVersions directly
+      updatedPrompt.versions = updatedVersions.map(v => ({
         id: v.id,
         createdAt: v.createdAt,
         notes: v.notes,
@@ -697,6 +671,7 @@ const promptResolvers = {
 
       return updatedPrompt as unknown as Prompt;
     },
+
   },
 
   Project: {
@@ -711,7 +686,7 @@ const promptResolvers = {
   },
 
   User: {
-      fullName: (parent: any) => `${parent.firstName || ''} ${parent.lastName || ''}`.trim(),
+    fullName: (parent: any) => `${parent.firstName || ''} ${parent.lastName || ''}`.trim(),
   },
 };
 

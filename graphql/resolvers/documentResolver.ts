@@ -1,87 +1,100 @@
-import { GraphQLError } from "graphql";
-import { prisma } from "@/lib/prisma";
-import type { Prisma } from "@prisma/client";
-import type { Block } from "@blocknote/core"; // NEW IMPORT: Block type from BlockNote
+// graphql/resolvers/documentResolver.ts
 
-// --- REMOVED dataUrl from interfaces ---
+import { GraphQLError } from "graphql"
+import { prisma } from "@/lib/prisma"
+import type { Prisma } from "@prisma/client"
+import type { Block } from "@blocknote/core"
+
+// Interfaces remain largely the same, but the resolver's return type changes.
 interface DocumentListItem {
-  id: string;
-  title: string;
-  updatedAt: string;
-  type: "doc"; // Only 'doc' type now
-  projectId: string;
+  id: string
+  title: string
+  updatedAt: string
+  type: "doc" | "pdf"
+  projectId: string
+}
+
+interface DocumentsResponse {
+  documents: DocumentListItem[]
+  totalCount: number
 }
 
 interface CreateDocumentInput {
-  projectId: string;
-  title: string;
-  content: Block[] | null; // UPDATED: Content is now Block[] | null
-  dataUrl?: string | null; // ADDED: dataUrl for PDF creation
+  projectId: string
+  title: string
+  content: Block[] | null
+  dataUrl?: string | null
 }
 
 interface UpdateDocumentInput {
-  id: string;
-  title?: string;
-  content?: Block[] | null; // UPDATED: Content is now Block[] | null
-  dataUrl?: string | null; // ADDED: dataUrl for PDF update
+  id: string
+  title?: string
+  content?: Block[] | null
+  dataUrl?: string | null
 }
 
 interface GraphQLContext {
-  prisma: typeof prisma;
-  user?: { id: string; email: string; role: string };
+  prisma: typeof prisma
+  user?: { id: string; email: string; role: string }
 }
 
 const documentResolvers = {
   Query: {
     getProjectDocuments: async (
       _parent: any,
-      { projectId }: { projectId: string },
-      context: GraphQLContext
-    ): Promise<DocumentListItem[]> => {
-      console.log("[getProjectDocuments Query] called with projectId:", projectId);
-      const { user } = context;
-
+      {
+        projectId,
+        search,
+        skip = 0,
+        take = 12,
+      }: { projectId: string; search?: string; skip?: number; take?: number },
+      context: GraphQLContext,
+    ): Promise<DocumentsResponse> => {
+      const { user } = context
       if (!user?.id) {
-        console.log("[getProjectDocuments Query] Authentication required: No user ID found.");
-        throw new GraphQLError("Authentication required", {
-          extensions: { code: "UNAUTHENTICATED" },
-        });
+        throw new GraphQLError("Authentication required", { extensions: { code: "UNAUTHENTICATED" } })
       }
-      console.log("[getProjectDocuments Query] User authenticated:", user.id);
+
+      const where: Prisma.DocumentWhereInput = {
+        projectId: projectId,
+        ...(search && {
+          title: {
+            contains: search,
+            mode: "insensitive",
+          },
+        }),
+      }
 
       try {
-        const documents = await prisma.document.findMany({
-          where: {
-            projectId: projectId,
-          },
-          orderBy: {
-            updatedAt: "desc",
-          },
-          select: {
-            id: true,
-            title: true,
-            updatedAt: true,
-            content: true,
-            dataUrl: true, // ADDED: Select dataUrl
-          },
-        });
-        console.log(`[getProjectDocuments Query] Found ${documents.length} documents for projectId: ${projectId}`);
+        const [documents, totalCount] = await prisma.$transaction([
+          prisma.document.findMany({
+            where,
+            skip,
+            take,
+            orderBy: { updatedAt: "desc" },
+            select: { id: true, title: true, updatedAt: true, dataUrl: true },
+          }),
+          prisma.document.count({ where }),
+        ])
 
-        const result = documents.map((doc) => ({
+        const mappedDocuments = documents.map(doc => ({
           id: doc.id,
           title: doc.title,
           updatedAt: doc.updatedAt.toISOString(),
-          type: doc.dataUrl ? "pdf" : "doc", // UPDATED: Determine type based on dataUrl
+          type: doc.dataUrl ? "pdf" : "doc",
           projectId: projectId,
-        }));
-        console.log("[getProjectDocuments Query] Successfully transformed documents. Returning list.");
-        return result;
+        }))
+
+        return {
+          documents: mappedDocuments,
+          totalCount,
+        }
       } catch (error) {
-        console.error("[getProjectDocuments Query] Error fetching documents:", error);
-        throw error;
+        console.error("[getProjectDocuments Query] Error fetching documents:", error)
+        throw error
       }
     },
-
+    // ... getDocumentDetails remains the same
     getDocumentDetails: async (
       _parent: any,
       { id }: { id: string },
@@ -158,8 +171,8 @@ const documentResolvers = {
       }
     },
   },
-
   Mutation: {
+    // ... createDocument, updateDocument, deleteDocument remain the same
     createDocument: async (
       _parent: any,
       { input }: { input: CreateDocumentInput },
@@ -368,20 +381,19 @@ const documentResolvers = {
     },
   },
   Document: {
-      // No custom field resolvers needed, but the type itself must be an object
-      // This acts as a pass-through resolver for the Document type.
+    // This remains as a pass-through
   },
-};
+}
 
-export default documentResolvers;
+export default documentResolvers
 
 type PrismaDocumentType = Prisma.DocumentGetPayload<{
   include: {
     project: {
-      select: { id: true, name: true, workspaceId: true };
-    };
+      select: { id: true; name: true; workspaceId: true }
+    }
     personalUser: {
-      select: { id: true, firstName: true, lastName: true };
-    };
-  };
-}>;
+      select: { id: true; firstName: true; lastName: true }
+    }
+  }
+}>

@@ -1,12 +1,11 @@
-// graphql/queries/promptRelatedQueries.ts
 import { gql } from 'graphql-tag';
 
 // --- Prompt Queries ---
 
 export const GET_PROJECT_PROMPTS_QUERY = gql`
-  query GetProjectPrompts($projectId: ID, $skip: Int, $take: Int) { # ADDED: $skip, $take
-    getProjectPrompts(projectId: $projectId, skip: $skip, take: $take) { # ADDED: skip, take
-      prompts { # CHANGED: Now returns an object with prompts and totalCount
+  query GetProjectPrompts($projectId: ID, $skip: Int, $take: Int, $q: String) { # ADDED: $q
+    getProjectPrompts(projectId: $projectId, skip: $skip, take: $take, q: $q) { # ADDED: q
+      prompts {
         id
         title
         description
@@ -14,10 +13,9 @@ export const GET_PROJECT_PROMPTS_QUERY = gql`
         updatedAt
         isPublic
         projectId
-        model # Added for card display
-        # No content/context/variables/versions here for list view
+        model
       }
-      totalCount # ADDED: Return total count for pagination
+      totalCount
     }
   }
 `;
@@ -89,6 +87,10 @@ export const GET_PROMPT_VERSION_CONTENT_QUERY = gql`
 // --- Variable Resolver Query ---
 export const RESOLVE_PROMPT_VARIABLE_QUERY = gql`
   query ResolvePromptVariable($projectId: ID, $variableSource: JSON!, $promptVariableId: ID) {
-    resolvePromptVariable(projectId: $projectId, variableSource: $variableSource, promptVariableId: $promptVariableId)
+    resolvePromptVariable(
+      projectId: $projectId
+      variableSource: $variableSource
+      promptVariableId: $promptVariableId
+    )
   }
 `;

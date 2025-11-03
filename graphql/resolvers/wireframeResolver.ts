@@ -47,6 +47,12 @@ interface WireframeListItemOutput {
   __typename: "WireframeListItem";
 }
 
+// NEW: Response shape for the paginated query
+interface WireframesResponse {
+  wireframes: WireframeListItemOutput[];
+  totalCount: number;
+}
+
 // Helper for consistent logging
 const log = (level: "info" | "warn" | "error", message: string, context?: Record<string, any>) => {
   const timestamp = new Date().toISOString();
@@ -60,11 +66,16 @@ const wireframeResolvers = {
   Query: {
     getProjectWireframes: async (
       _parent: any,
-      { projectId }: { projectId: string },
+      {
+        projectId,
+        search,
+        skip = 0,
+        take = 12,
+      }: { projectId: string; search?: string; skip?: number; take?: number },
       context: GraphQLContext,
-    ): Promise<WireframeListItemOutput[]> => { // Use WireframeListItemOutput
+    ): Promise<WireframesResponse> => {
       const operation = "getProjectWireframes";
-      log("info", `${operation} called.`, { projectId });
+      log("info", `${operation} called.`, { projectId, search, skip, take });
 
       const { user } = context;
       if (!user?.id) {
@@ -75,55 +86,56 @@ const wireframeResolvers = {
       }
       log("info", `${operation}: User ${user.id} authenticated.`, { userId: user.id, projectId });
 
+      const where: Prisma.WireframeWhereInput = {
+        projectId: projectId,
+        ...(search && {
+          title: {
+            contains: search,
+            mode: "insensitive",
+          },
+        }),
+      };
+
       try {
-        const wireframes = await prisma.wireframe.findMany({
-          where: {
-            projectId: projectId,
-            // Ensure only project-linked wireframes are returned, which should have projectId not null
-          },
-          orderBy: {
-            updatedAt: "desc",
-          },
-          select: {
-            id: true,
-            title: true,
-            updatedAt: true,
-            thumbnail: true,
-            projectId: true, // This will be a string (or null if DB schema allows it for this field)
-          },
+        const [wireframes, totalCount] = await prisma.$transaction([
+          prisma.wireframe.findMany({
+            where,
+            skip,
+            take,
+            orderBy: { updatedAt: "desc" },
+            select: {
+              id: true,
+              title: true,
+              updatedAt: true,
+              thumbnail: true,
+              projectId: true,
+            },
+          }),
+          prisma.wireframe.count({ where }),
+        ]);
+
+        log("info", `${operation}: Found ${wireframes.length} wireframes, total count is ${totalCount}.`, {
+          projectId,
         });
 
-        log("info", `${operation}: Raw Prisma wireframes data:`, { wireframes: JSON.stringify(wireframes.slice(0, Math.min(wireframes.length, 5))) });
+        const mappedWireframes = wireframes.map((wf) => ({
+          id: wf.id,
+          title: wf.title,
+          updatedAt: wf.updatedAt.toISOString(),
+          thumbnail: wf.thumbnail,
+          projectId: wf.projectId,
+          __typename: "WireframeListItem",
+        }));
 
-
-        log("info", `${operation}: Found ${wireframes.length} wireframes.`, { projectId, wireframeCount: wireframes.length });
-
-        // Explicitly map to WireframeListItemOutput and add __typename
-        const mappedWireframes = wireframes.map((wf) => {
-          // Defensive check against null/undefined results from Prisma (though unlikely for findMany)
-          if (!wf) {
-            log("warn", `${operation}: Encountered null/undefined wireframe in Prisma result. Skipping.`, { projectId });
-            return null;
-          }
-          return {
-            id: wf.id,
-            title: wf.title,
-            updatedAt: wf.updatedAt.toISOString(),
-            thumbnail: wf.thumbnail,
-            projectId: wf.projectId, // This will be a string since filtered by projectId, but for robustness
-            __typename: "WireframeListItem",
-          };
-        }).filter(Boolean) as WireframeListItemOutput[]; // Filter out any nulls
-
-        log("info", `${operation}: Successfully mapped ${mappedWireframes.length} wireframes.`, { projectId });
-        return mappedWireframes;
-
+        return {
+          wireframes: mappedWireframes,
+          totalCount,
+        };
       } catch (error: any) {
         log("error", `${operation}: Failed to fetch wireframes.`, {
           projectId,
           errorName: error.name,
           errorMessage: error.message,
-          stack: error.stack,
         });
         throw new GraphQLError(`Failed to retrieve wireframes: ${error.message}`, {
           extensions: { code: "DATABASE_ERROR" },
@@ -242,7 +254,7 @@ const wireframeResolvers = {
       _parent: any,
       { input }: { input: CreateWireframeInput },
       context: GraphQLContext,
-    ): Promise<WireframeListItemOutput> => { // Use WireframeListItemOutput
+    ): Promise<WireframeListItemOutput> => {
       const operation = "createWireframe";
       log("info", `${operation} called.`, { input: { ...input, data: "[REDACTED]" } });
 
@@ -345,7 +357,7 @@ const wireframeResolvers = {
       _parent: any,
       { input }: { input: UpdateWireframeInput },
       context: GraphQLContext,
-    ): Promise<WireframeListItemOutput> => { // Use WireframeListItemOutput
+    ): Promise<WireframeListItemOutput> => {
       const operation = "updateWireframe";
       log("info", `${operation} called.`, { input: { ...input, data: "[REDACTED]" } });
 
@@ -455,7 +467,7 @@ const wireframeResolvers = {
       _parent: any,
       { id }: { id: string },
       context: GraphQLContext,
-    ): Promise<WireframeListItemOutput> => { // Use WireframeListItemOutput
+    ): Promise<WireframeListItemOutput> => {
       const operation = "deleteWireframe";
       log("info", `${operation} called.`, { wireframeId: id });
 

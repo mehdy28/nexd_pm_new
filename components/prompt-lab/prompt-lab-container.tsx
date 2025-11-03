@@ -1,7 +1,6 @@
-
 'use client'
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 
 import { PromptList } from "./prompt-list";
@@ -11,24 +10,16 @@ import GlobalAppLoader from "@/components/global-app-loader";
 
 import { usePromptsList } from "@/hooks/usePromptsList";
 import { usePromptDetails } from "@/hooks/usePromptDetails";
-// REMOVED: import { usePromptLab } from "@/hooks/usePrompts"; 
-
-import { Prompt } from '@/components/prompt-lab/store';
-
 
 export function PromptLabContainer({ projectId: initialProjectId }: { projectId?: string }) {
   console.log('[PromptLabContainer] [Trace: Render] Component rendering.');
   const params = useParams();
   const projectId = initialProjectId || (params.id as string | undefined);
 
-  // REMOVED: usePromptLab hook
-  // const { prompts: promptLabPrompts, loading: loadingPromptLab, triggerInitialPromptsFetch } = usePromptLab(projectId);
-
-
   // 1. Manage the selection state centrally
   const [selectedPromptId, setSelectedPromptId] = useState<string | null>(null);
 
-  // 2. Consume usePromptsList hook for list operations
+  // 2. Consume usePromptsList hook for list operations, now including search and pagination
   const {
     prompts,
     loadingList,
@@ -36,8 +27,14 @@ export function PromptLabContainer({ projectId: initialProjectId }: { projectId?
     createPrompt: createPromptInList,
     deletePrompt: deletePromptFromList,
     triggerPromptsListFetch,
-    loadMorePrompts, // ADDED: from usePromptsList
-    hasMorePrompts,   // ADDED: from usePromptsList
+    q,
+    setQ,
+    page,
+    setPage,
+    pageSize,
+    setPageSize,
+    totalPages,
+    totalPromptsCount,
   } = usePromptsList(projectId, selectedPromptId);
 
   // 3. Consume usePromptDetails hook for detail operations
@@ -45,9 +42,6 @@ export function PromptLabContainer({ projectId: initialProjectId }: { projectId?
     selectedPromptDetails,
     loadingDetails,
     detailsError,
-    updatePromptDetails,
-    snapshotPrompt,
-    restorePromptVersion,
     refetchPromptDetails,
   } = usePromptDetails(selectedPromptId, projectId);
 
@@ -69,7 +63,6 @@ export function PromptLabContainer({ projectId: initialProjectId }: { projectId?
       if (newPrompt) {
         console.log('[PromptLabContainer] [Trace: HandleCreate] New prompt created:', newPrompt.id);
         selectPrompt(newPrompt.id); // Select the newly created prompt
-        // The list will be updated optimistically by usePromptsList, or refetched on deselect.
       }
     } catch (err) {
       console.error("[PromptLabContainer] [Error: Create] Failed to create new prompt:", err);
@@ -90,12 +83,10 @@ export function PromptLabContainer({ projectId: initialProjectId }: { projectId?
   const handleBack = () => {
     console.log('[PromptLabContainer] [Trace: HandleBack] handleBack: Deselecting prompt.');
     selectPrompt(null); // Deselect the prompt. This will trigger a list refetch via its useCallback.
-    // REMOVED: triggerInitialPromptsFetch(); // No longer needed as usePromptLab is removed
   };
 
   // Determine overall loading and error states
-  // UPDATED: Removed loadingPromptLab as usePromptsList now handles list loading
-  const isLoading = loadingList || loadingDetails; 
+  const isLoading = loadingList || loadingDetails;
   const error = listError || detailsError;
 
   // Determine message for global loader
@@ -107,7 +98,7 @@ export function PromptLabContainer({ projectId: initialProjectId }: { projectId?
   }
 
   // --- Global Loader Conditional Rendering ---
-  if (isLoading && prompts.length === 0) { // Only show global loader if no prompts in list yet
+  if (isLoading && prompts.length === 0 && !listError && !detailsError) { // Only show global loader if no prompts in list yet and no error
     console.log(`[PromptLabContainer] [Trace: Render] Rendering GLOBAL LOADER. Message: "${loaderMessage}".`);
     return <GlobalAppLoader message={loaderMessage} />;
   }
@@ -146,15 +137,21 @@ export function PromptLabContainer({ projectId: initialProjectId }: { projectId?
   console.log('[PromptLabContainer] [Trace: Render] Rendering PromptList component. Prompts count:', prompts.length);
   return (
     <PromptList
-      prompts={prompts} // Use prompts from usePromptsList directly
+      prompts={prompts}
       onSelectPrompt={selectPrompt}
       onCreatePrompt={handleCreateNewPrompt}
-      onDeletePrompt={handleDeletePrompt} // Pass delete handler
-      isLoading={loadingList} // Pass loading state for load more button logic
+      onDeletePrompt={handleDeletePrompt}
+      isLoading={loadingList}
       isError={!!listError}
-      loadMorePrompts={loadMorePrompts} // Pass load more function
-      hasMorePrompts={hasMorePrompts} // Pass hasMore flag
-      isFetchingMore={loadingList && prompts.length > 0} // isFetchingMore for load more button
+      // Search and Pagination Props
+      q={q}
+      setQ={setQ}
+      page={page}
+      setPage={setPage}
+      pageSize={pageSize}
+      setPageSize={setPageSize}
+      totalPages={totalPages}
+      totalPromptsCount={totalPromptsCount}
     />
   );
 }

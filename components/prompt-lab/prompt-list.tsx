@@ -1,8 +1,6 @@
-// components/prompt-lab/PromptList.tsx
-
 "use client"
 
-import { useMemo, useState, useCallback } from "react"
+import { useState } from "react"
 import PromptCard from "./prompt-card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -27,6 +25,15 @@ interface PromptListProps {
   onDeletePrompt: (id: string) => void
   isLoading?: boolean
   isError?: boolean
+  // Search and Pagination props
+  q: string
+  setQ: (q: string) => void
+  page: number
+  setPage: (page: number) => void
+  pageSize: number
+  setPageSize: (size: number) => void
+  totalPages: number
+  totalPromptsCount: number
 }
 
 export function PromptList({
@@ -36,27 +43,16 @@ export function PromptList({
   onDeletePrompt,
   isLoading,
   isError,
+  q,
+  setQ,
+  page,
+  setPage,
+  pageSize,
+  setPageSize,
+  totalPages,
+  totalPromptsCount,
 }: PromptListProps) {
-  const [q, setQ] = useState("")
-  const [pageSize, setPageSize] = useState<number>(9)
-  const [page, setPage] = useState<number>(1)
   const [promptToDelete, setPromptToDelete] = useState<Prompt | null>(null)
-
-  const filteredItems = useMemo(() => {
-    const query = q.trim().toLowerCase()
-    let arr = prompts
-    if (query) {
-      arr = arr.filter(p => p.title.toLowerCase().includes(query))
-    }
-    return arr.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
-  }, [prompts, q])
-
-  const total = filteredItems.length
-  const totalPages = Math.max(1, Math.ceil(total / pageSize))
-  const currentPage = Math.min(page, totalPages)
-  const start = (currentPage - 1) * pageSize
-  const end = start + pageSize
-  const pageItems = filteredItems.slice(start, end)
 
   const handleDeleteClick = (prompt: Prompt) => {
     setPromptToDelete(prompt)
@@ -69,13 +65,9 @@ export function PromptList({
     }
   }
 
-  if (isLoading) {
-    return (
-      <div className="grid h-full place-items-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    )
-  }
+  const startItem = totalPromptsCount > 0 ? (page - 1) * pageSize + 1 : 0;
+  const endItem = Math.min(page * pageSize, totalPromptsCount);
+
 
   if (isError) {
     return (
@@ -108,8 +100,13 @@ export function PromptList({
           </div>
 
           {/* Content */}
-          <div className="flex-1 overflow-y-auto">
-            {total === 0 ? (
+          <div className="relative flex-1 overflow-y-auto">
+            {isLoading && (
+              <div className="absolute inset-0 z-10 grid place-items-center bg-white/50 dark:bg-slate-900/50">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              </div>
+            )}
+            {totalPromptsCount === 0 && !isLoading ? (
               <div className="flex h-full items-center justify-center rounded-md border border-dashed text-center text-sm text-slate-500">
                 <div>
                   <p>No prompts found.</p>
@@ -118,7 +115,7 @@ export function PromptList({
               </div>
             ) : (
               <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                {pageItems.map(prompt => (
+                {prompts.map(prompt => (
                   <PromptCard
                     key={prompt.id}
                     prompt={prompt}
@@ -134,7 +131,7 @@ export function PromptList({
           <div className="mt-4 shrink-0 border-t pt-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="text-sm text-slate-600">
-                Showing {Math.min(total, start + 1)}–{Math.min(total, end)} of {total}
+                Showing {startItem}–{endItem} of {totalPromptsCount}
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-xs text-slate-500">Rows per page</span>
@@ -152,20 +149,20 @@ export function PromptList({
                 <Button
                   variant="outline"
                   className="h-8 bg-transparent"
-                  onClick={() => setPage(p => Math.max(1, p - 1))}
-                  disabled={currentPage <= 1}
+                  onClick={() => setPage(Math.max(1, page - 1))}
+                  disabled={page <= 1}
                   title="Previous"
                 >
                   <ArrowLeft className="h-4 w-4" />
                 </Button>
                 <div className="min-w-[80px] text-center text-sm">
-                  Page {currentPage} / {totalPages}
+                  Page {page} / {totalPages}
                 </div>
                 <Button
                   variant="outline"
                   className="h-8 bg-transparent"
-                  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                  disabled={currentPage >= totalPages}
+                  onClick={() => setPage(Math.min(totalPages, page + 1))}
+                  disabled={page >= totalPages}
                   title="Next"
                 >
                   <ArrowRight className="h-4 w-4" />
