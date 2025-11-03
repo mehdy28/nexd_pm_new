@@ -509,6 +509,7 @@ type GanttTaskData {
   progress: Int!
   type: String!
   sprint: ID
+  personalSectionId: ID
   hideChildren: Boolean
   displayOrder: Int
   description: String
@@ -519,6 +520,16 @@ type GanttTaskData {
 
 type GanttDataResponse {
   sprints: [SprintNameId!]!
+  tasks: [GanttTaskData!]!
+}
+
+type PersonalSectionNameId {
+  id: ID!
+  name: String!
+}
+
+type PersonalGanttDataResponse {
+  sections: [PersonalSectionNameId!]!
   tasks: [GanttTaskData!]!
 }
 
@@ -604,8 +615,11 @@ type PersonalSectionWithTasks {
 type ProjectTasksAndSectionsData {
   sprints: [SprintNameId!]!
   sections: [SectionWithTasks!]!
-  personalSections: [PersonalSectionWithTasks!]!
   projectMembers: [ProjectMemberFullDetails!]!
+}
+
+type UserTasksAndSectionsData {
+  personalSections: [PersonalSectionWithTasks!]!
 }
 
 type ProjectMemberFullDetails {
@@ -694,7 +708,7 @@ type PromptListItem {
 }
 
 # ----------------------------------
-# NEW: Dashboard Types
+# Dashboard Types
 # ----------------------------------
 type KpiMetrics {
   totalTasks: Int!
@@ -705,6 +719,13 @@ type KpiMetrics {
   completedPoints: Int!
   completionPercentage: Float!
   velocity: Float!
+}
+
+type UserKpiMetrics {
+  totalTasks: Int!
+  completedTasks: Int!
+  inProgressTasks: Int!
+  overdueTasks: Int!
 }
 
 type ChartDataPoint {
@@ -737,6 +758,12 @@ type ProjectDashboardData {
   sprints: [SprintNameId!]!
 }
 
+type UserDashboardData {
+  kpis: UserKpiMetrics!
+  priorityDistribution: [ChartDataPoint!]!
+  statusDistribution: [ChartDataPoint!]!
+}
+
 # ----------------------------------
 # Inputs
 # ----------------------------------
@@ -760,6 +787,18 @@ input CreateProjectTaskInput {
   points: Int
   parentId: ID
 }
+input CreatePersonalTaskInput {
+  personalSectionId: ID!
+  title: String!
+  description: String
+  status: TaskStatus
+  priority: Priority
+  dueDate: DateTime
+  startDate: DateTime
+  endDate: DateTime
+  points: Int
+  parentId: ID
+}
 input UpdateProjectTaskInput {
   id: ID!
   title: String
@@ -775,6 +814,20 @@ input UpdateProjectTaskInput {
   parentId: ID
   isCompleted: Boolean
   sectionId: ID
+}
+input UpdatePersonalTaskInput {
+  id: ID!
+  title: String
+  description: String
+  status: TaskStatus
+  priority: Priority
+  dueDate: DateTime
+  startDate: DateTime
+  endDate: DateTime
+  points: Int
+  parentId: ID
+  isCompleted: Boolean
+  personalSectionId: ID
 }
 input CreateSprintInput {
   projectId: ID!
@@ -795,6 +848,11 @@ input UpdateSprintInput {
 }
 input CreateWireframeInput {
   projectId: ID!
+  title: String!
+  data: JSON!
+  thumbnail: String
+}
+input CreatePersonalWireframeInput {
   title: String!
   data: JSON!
   thumbnail: String
@@ -826,8 +884,31 @@ input UpdateGanttTaskInput {
   assigneeId: ID
   progress: Int
 }
+input CreatePersonalGanttTaskInput {
+  personalSectionId: ID!
+  name: String!
+  description: String
+  startDate: DateTime!
+  endDate: DateTime!
+  progress: Int
+  type: String!
+}
+input UpdatePersonalGanttTaskInput {
+  id: ID!
+  type: String!
+  name: String
+  description: String
+  startDate: DateTime
+  endDate: DateTime
+  progress: Int
+}
 input CreateDocumentInput {
   projectId: ID!
+  title: String!
+  content: JSON
+  dataUrl: String
+}
+input CreatePersonalDocumentInput {
   title: String!
   content: JSON
   dataUrl: String
@@ -943,24 +1024,31 @@ type UploadSignatureResponse {
 }
 
 input ConfirmAttachmentInput {
-    publicId: String!
-    url: String!
-    fileName: String!
-    fileType: String!
-    fileSize: Int!
-    taskId: ID!
+  publicId: String!
+  url: String!
+  fileName: String!
+  fileType: String!
+  fileSize: Int!
+  taskId: ID!
 }
 
 # ----------------------------------
 # Root Queries
 # ----------------------------------
 type Query {
+  # General
+  me: User
   task(id: ID!): Task
+  personalTask(id: ID!): Task
+
+  # Workspace
+  getWorkspaceData: WorkspaceData
+  getWorkspaceDataLookup(workspaceId: ID!): WorkspaceLookupData
+
+  # Project
+  getProjectDetails(projectId: ID!): ProjectDetails
   getGanttData(projectId: ID!, sprintId: ID): GanttDataResponse
   getProjectTasksAndSections(projectId: ID!, sprintId: ID): ProjectTasksAndSectionsData
-  getProjectDetails(projectId: ID!): ProjectDetails
-  getWorkspaceData: WorkspaceData
-  me: User
   getProjectDocuments(projectId: ID!, search: String, skip: Int, take: Int): DocumentsListResponse!
   getDocumentDetails(id: ID!): Document
   getProjectWireframes(projectId: ID!, search: String, skip: Int, take: Int): WireframesListResponse!
@@ -968,27 +1056,29 @@ type Query {
   getProjectPrompts(projectId: ID, skip: Int, take: Int, q: String): PromptsListResponse!
   getPromptDetails(id: ID!): Prompt
   getPromptVersionContent(promptId: ID!, versionId: ID!): Version!
-  resolvePromptVariable(projectId: ID, workspaceId: ID, variableSource: JSON!, promptVariableId: ID): String
   getProjectSprintsLookup(projectId: ID!): [SprintLookupItem!]!
   getProjectMembersLookup(projectId: ID!): [ProjectMemberLookupItem!]!
   getProjectTasksLookup(projectId: ID!, sprintId: ID): [TaskLookupItem!]!
   getProjectDocumentsLookup(projectId: ID!): [DocumentListItem!]!
-  getWorkspaceDataLookup(workspaceId: ID!): WorkspaceLookupData
-
-  # NEW
   getProjectDashboardData(projectId: ID!, sprintId: ID): ProjectDashboardData
+
+  # User/Personal
+  getMyGanttData: PersonalGanttDataResponse
+  getMyTasksAndSections: UserTasksAndSectionsData!
+  getMyDocuments(search: String, skip: Int, take: Int): DocumentsListResponse!
+  getMyWireframes(search: String, skip: Int, take: Int): WireframesListResponse!
+  getMyPrompts(skip: Int, take: Int, q: String): PromptsListResponse!
+  getMyDashboardData: UserDashboardData!
+
+  # AI/Prompt
+  resolvePromptVariable(projectId: ID, workspaceId: ID, variableSource: JSON!, promptVariableId: ID): String
 }
 
 # ----------------------------------
 # Root Mutations
 # ----------------------------------
 type Mutation {
-  createProjectTask(input: CreateProjectTaskInput!): TaskListView!
-  updateProjectTask(input: UpdateProjectTaskInput!): TaskListView!
-  deleteProjectTask(id: ID!): TaskListView!
-  deleteProjectSection(id: ID!, options: DeleteSectionOptions): Section!
-  createProjectSection(projectId: ID!, name: String!, order: Int): Section!
-  updateProjectSection(id: ID!, name: String, order: Int): Section!
+  # User & Workspace Setup
   createUser(email: String!, password: String, firstName: String, lastName: String, role: UserRole): User!
   setupWorkspace(
     userId: ID!
@@ -1000,22 +1090,54 @@ type Mutation {
     teamSize: String
     workFields: [String!]
   ): Workspace!
-  createProject(
-    workspaceId: ID!
-    name: String!
-    description: String
-  ): Project!
+
+  # Project
+  createProject(workspaceId: ID!, name: String!, description: String): Project!
+
+  # Project Sections
+  createProjectSection(projectId: ID!, name: String!, order: Int): Section!
+  updateProjectSection(id: ID!, name: String, order: Int): Section!
+  deleteProjectSection(id: ID!, options: DeleteSectionOptions): Section!
+
+  # Personal Sections
+  createPersonalSection(name: String!, order: Int): PersonalSection!
+  updatePersonalSection(id: ID!, name: String, order: Int): PersonalSection!
+  deletePersonalSection(id: ID!, options: DeleteSectionOptions): PersonalSection!
+
+  # Project Tasks
+  createProjectTask(input: CreateProjectTaskInput!): TaskListView!
+  updateProjectTask(input: UpdateProjectTaskInput!): TaskListView!
+  deleteProjectTask(id: ID!): TaskListView!
+
+  # Personal Tasks
+  createPersonalTask(input: CreatePersonalTaskInput!): TaskListView!
+  updatePersonalTask(input: UpdatePersonalTaskInput!): TaskListView!
+  deletePersonalTask(id: ID!): TaskListView!
+
+  # Sprints
   createSprint(input: CreateSprintInput!): SprintDetails!
   updateSprint(input: UpdateSprintInput!): SprintDetails!
   deleteSprint(id: ID!): SprintDetails!
+
+  # Gantt
   createGanttTask(input: CreateGanttTaskInput!): GanttTaskData!
   updateGanttTask(input: UpdateGanttTaskInput!): GanttTaskData!
+  createPersonalGanttTask(input: CreatePersonalGanttTaskInput!): GanttTaskData!
+  updatePersonalGanttTask(input: UpdatePersonalGanttTaskInput!): GanttTaskData!
+
+  # Documents (Project & Personal)
   createDocument(input: CreateDocumentInput!): DocumentListItem!
+  createPersonalDocument(input: CreatePersonalDocumentInput!): DocumentListItem!
   updateDocument(input: UpdateDocumentInput!): DocumentListItem!
   deleteDocument(id: ID!): DocumentListItem!
+
+  # Wireframes (Project & Personal)
   createWireframe(input: CreateWireframeInput!): WireframeListItem!
+  createPersonalWireframe(input: CreatePersonalWireframeInput!): WireframeListItem!
   updateWireframe(input: UpdateWireframeInput!): WireframeListItem!
   deleteWireframe(id: ID!): WireframeListItem!
+
+  # Prompts (Project & Personal)
   createPrompt(input: CreatePromptInput!): Prompt!
   updatePrompt(input: UpdatePromptInput!): Prompt!
   deletePrompt(id: ID!): Prompt!

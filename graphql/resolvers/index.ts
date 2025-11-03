@@ -1,6 +1,9 @@
+// graphql/resolvers/index.ts
 import { userResolver } from "./userResolver"
 import setupResolver from "./setupResolver"
 import workspaceResolver from "./workspaceResolver"
+
+// Project-specific resolvers
 import projectResolver from "./projectResolver"
 import projectSectionResolver from "./projectSectionResolver"
 import taskResolver from "./taskResolver"
@@ -12,26 +15,45 @@ import promptVariableResolver from "./promptVariableResolver"
 import lookupResolvers from "./lookupResolvers"
 import { projectDashboardResolvers } from "./projectDashboardResolver"
 
+// Personal/User-specific resolvers
+import personalResolver from "./personal/personalResolver"
+import personalSectionResolver from "./personal/personalSectionResolver"
+import personalTaskResolver from "./personal/personalTaskResolver"
+import personalDocumentResolvers from "./personal/personalDocumentResolver"
+import personalWireframeResolvers from "./personal/personalWireframeResolver"
+import personalPromptResolvers from "./personal/personalPromptResolver"
 
 export const resolvers = {
   Query: {
-    ...taskResolver.Query, // ADD THIS LINE
+    // General & Workspace
     ...workspaceResolver.Query,
     ...userResolver.Query,
+    ...lookupResolvers.Query,
+
+    // Project
     ...projectResolver.Query,
+    ...taskResolver.Query,
     ...documentResolvers.Query,
     ...wireframeResolvers.Query,
     ...promptResolvers.Query,
     ...promptVariableResolver.Query,
-    ...lookupResolvers.Query,
     ...projectDashboardResolvers.Query,
 
+    // Personal
+    ...personalResolver.Query,
+    ...personalDocumentResolvers.Query,
+    ...personalWireframeResolvers.Query,
+    ...personalPromptResolvers.Query,
+    ...personalTaskResolver.Query,
 
     
   },
   Mutation: {
+    // Setup & User
     ...setupResolver.Mutation,
     ...userResolver.Mutation,
+
+    // Project
     ...projectResolver.Mutation,
     ...projectSectionResolver.Mutation,
     ...taskResolver.Mutation,
@@ -39,9 +61,22 @@ export const resolvers = {
     ...documentResolvers.Mutation,
     ...wireframeResolvers.Mutation,
     ...promptResolvers.Mutation,
+
+    // Personal
+    ...personalSectionResolver.Mutation,
+    ...personalTaskResolver.Mutation,
+    ...personalDocumentResolvers.Mutation,
+    ...personalWireframeResolvers.Mutation,
+    ...personalPromptResolvers.Mutation,
   },
-  // You may also need to add the Task field resolvers from taskResolver
+  // Field Resolvers for nested or computed fields
   Task: taskResolver.Task,
   TaskListView: taskResolver.TaskListView,
   Document: documentResolvers.Document,
+  Wireframe: wireframeResolvers.Wireframe,
+  Project: {
+    ...projectResolver.Project,
+    ...promptResolvers.Project,
+  },
+  User: promptResolvers.User,
 }

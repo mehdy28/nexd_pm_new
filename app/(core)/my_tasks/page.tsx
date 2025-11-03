@@ -2,20 +2,21 @@
 
 import { useSearchParams } from "next/navigation"
 import { useTopbar, useTopbarSetup } from "@/components/layout/topbar-store"
-import { BoardView } from "@/components/tasks/board-view"
-import { ListView } from "@/components/tasks/list-view"
-import { DocumentsView } from "@/components/documents/documents-view"
-import { CalendarView } from "@/components/tasks/calendar-view"
-import { DashboardView } from "@/components/tasks/dashboard-view"
-import { PromptLab } from "@/components/prompt-lab/prompt-lab"
-import { WireframesView } from "@/components/wireframes/wireframes-view"
-import GanttView  from "@/components/tasks/gantt-view"
+import { PersonalBoardView } from "@/components/personal/personal-board-view"
+import { PersonalListView } from "@/components/personal/personal-list-view"
+import { PersonalDocumentsView } from "@/components/personal/personal-documents-view"
+import { PersonalPromptLabContainer } from "@/components/personal/personal-prompt-lab-container"
+import { PersonalWireframesView } from "@/components/personal/PersonalWireframesView"
 import { ListChecks, SquareKanban, CalendarDays, FileText, Layers3, Gauge, Wand2, BarChart3 } from "lucide-react"
+import PersonalGanttView from "@/components/personal/personal-gantt-view"
+import { MyDashboardView } from "@/components/personal/MyDashboardView"
+
+
 
 const TABS = [
   { key: "list", label: "List", icon: <ListChecks className="h-4 w-4" /> },
   { key: "board", label: "Board", icon: <SquareKanban className="h-4 w-4" /> },
-  { key: "calendar", label: "Calendar", icon: <CalendarDays className="h-4 w-4" /> },
+  //{ key: "calendar", label: "Calendar", icon: <CalendarDays className="h-4 w-4" /> },
   { key: "gantt", label: "Gantt", icon: <BarChart3 className="h-4 w-4" /> },
   { key: "documents", label: "Documents", icon: <FileText className="h-4 w-4" /> },
   { key: "prompt-lab", label: "Prompt Lab", icon: <Wand2 className="h-4 w-4" /> },
@@ -39,14 +40,14 @@ export default function MyTasksPage() {
   const currentKey = activeKey || initialTab
 
   const renderContent = () => {
-    if (currentKey === "list") return <ListView />
-    if (currentKey === "board") return <BoardView />
-    if (currentKey === "calendar") return <CalendarView />
-    if (currentKey === "gantt") return <GanttView />
-    if (currentKey === "documents") return <DocumentsView />
-    if (currentKey === "prompt-lab") return <PromptLab />
-    if (currentKey === "wireframes") return <WireframesView />
-    if (currentKey === "dashboard") return <DashboardView />
+    if (currentKey === "list") return <PersonalListView />
+    if (currentKey === "board") return <PersonalBoardView />
+    //if (currentKey === "calendar") return <CalendarView />
+    if (currentKey === "gantt") return <PersonalGanttView />
+    if (currentKey === "documents") return <PersonalDocumentsView />
+    if (currentKey === "prompt-lab") return <PersonalPromptLabContainer />
+    if (currentKey === "wireframes") return <PersonalWireframesView />
+    if (currentKey === "dashboard") return <MyDashboardView />
     return (
       <div className="flex items-center justify-center h-full">
         <div className="text-center space-y-3">

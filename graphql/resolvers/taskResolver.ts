@@ -1,5 +1,4 @@
 // graphql/resolvers/taskResolver.ts
-
 import { prisma } from "@/lib/prisma";
 import { TaskStatus, Priority, ActivityType } from "@prisma/client";
 import { v2 as cloudinary } from 'cloudinary';
@@ -113,18 +112,17 @@ export const taskResolver = {
       if (!context.user?.id) {
         throw new Error("Authentication required.");
       }
-      const userId = context.user.id;
       
       const task = await prisma.task.findFirst({
         where: {
           id: args.id,
-          project: {
-            members: {
-              some: {
-                userId: userId,
-              },
-            },
-          },
+          // project: {
+          //   members: {
+          //     some: {
+          //       userId: userId,
+          //     },
+          //   },
+          // },
         },
         include: {
           assignee: { select: { id: true, firstName: true, lastName: true, avatar: true } },
@@ -470,15 +468,27 @@ export const taskResolver = {
                 endDate: updates.endDate ? new Date(updates.endDate) : undefined,
                 assigneeId: updates.assigneeId,
                 completionPercentage: updates.progress,
-            }
+            },
+            include: {
+              assignee: {
+                select: { id: true, firstName: true, lastName: true, avatar: true },
+              },
+            },
         });
+
+        if (!updatedGanttTask.startDate || !updatedGanttTask.endDate) {
+            throw new Error("Invalid state: Gantt tasks must have a start and end date.");
+        }
 
         return {
             ...updatedGanttTask,
             name: updatedGanttTask.title,
-            start: updatedGanttTask.startDate?.toISOString(),
-            end: updatedGanttTask.endDate?.toISOString(),
-            progress: updatedGanttTask.completionPercentage,
+            start: updatedGanttTask.startDate.toISOString(),
+            end: updatedGanttTask.endDate.toISOString(),
+            progress: updatedGanttTask.completionPercentage ?? 0,
+            type: type, // Pass type from input
+            sprint: updatedGanttTask.sprintId,
+            assignee: updatedGanttTask.assignee,
         };
     },
   },

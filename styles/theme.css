@@ -152,6 +152,8 @@ body {
   box-shadow: var(--shadow-md);
   display: flex;
   flex-direction: column;
+  margin-bottom:  40px;;
+
 }
 
 .column-header {
@@ -168,12 +170,14 @@ body {
 
 .column-body {
   padding: 10px;
+  margin-bottom:  10px;;
+
   height: 100%;
   overflow: auto;
   display: flex;
   flex-direction: column;
   gap: 12px;
-  background: transparent; /* transparent body */
+  background: green; /* transparent body */
 }
 
 .card {

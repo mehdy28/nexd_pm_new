@@ -285,14 +285,3 @@ export const projectSectionResolver = {
 };
 
 export default projectSectionResolver;
-
-
-
-
-
-
-
-
-
-
-
