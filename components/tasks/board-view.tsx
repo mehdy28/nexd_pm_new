@@ -1,3 +1,4 @@
+// components/tasks/board-view.tsx
 "use client"
 
 import { KanbanBoard } from "@/components/board/kanban-board"
@@ -96,7 +97,7 @@ export function BoardView({ projectId }: BoardViewProps) {
     deleteTask,
     isTaskMutating,
     taskMutationError,
-  } = useProjectTaskMutations(projectId || "");
+  } = useProjectTaskMutations(projectId || "", currentSprintId); // <-- ADJUSTMENT HERE: Pass currentSprintId
 
   const initialColumns = useMemo(() => {
     if (loading || error || !fetchedSections) {

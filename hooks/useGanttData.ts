@@ -57,7 +57,7 @@ export function useGanttData(projectId: string, selectedSprintIdFromProps?: stri
   const { data, loading, error, refetch } = useQuery<GanttDataResponse>(GET_GANTT_DATA_QUERY, {
     variables: { projectId, sprintId: selectedSprintIdFromProps || null }, // Pass selectedSprintId or null
     skip: !projectId,
-    fetchPolicy: "cache-and-network", // Changed to cache-and-network to leverage cache updates
+    fetchPolicy: "network-only", // Changed to cache-and-network to leverage cache updates
   });
 
   // Derived state from query data

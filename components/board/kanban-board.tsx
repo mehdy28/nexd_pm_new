@@ -661,6 +661,8 @@
 
 
 
+
+
 // components/board/kanban-board.tsx
 "use client"
 
@@ -717,6 +719,7 @@ interface KanbanBoardProps {
   currentSprintId?: string | null;
   onSprintChange: (sprintId: string | null) => void;
   availableAssignees: UserAvatarPartial[];
+  isMutating: boolean; // Added isMutating prop definition
 }
 
 export function KanbanBoard({
@@ -726,6 +729,7 @@ export function KanbanBoard({
   currentSprintId,
   onSprintChange,
   availableAssignees,
+  isMutating: isTaskMutating,
 }: KanbanBoardProps) {
   const [columns, setColumns] = useState<Column[]>(initialColumns);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -758,16 +762,11 @@ export function KanbanBoard({
     setSelected(null);
   }, []);
 
+  // START: MIMIC PERSONAL BOARD BEHAVIOR
   useEffect(() => {
-    const isSprintIdChanged = currentSprintId && columns.some(col => col.sprintId && col.sprintId !== currentSprintId);
-    const hasCoreStructuralChanges = columns.length !== initialColumns.length || columns.some((col, index) => !initialColumns[index] || col.id !== initialColumns[index].id);
-    const isEmptyInitialColumnsAndLocalHasData = initialColumns.length === 0 && columns.length > 0;
-    const isInitialLoad = columns.length === 0 && initialColumns.length > 0;
-
-    if (isSprintIdChanged || hasCoreStructuralChanges || isEmptyInitialColumnsAndLocalHasData || isInitialLoad) {
-      setColumns(initialColumns);
-    }
-  }, [initialColumns, currentSprintId]);
+    setColumns(initialColumns);
+  }, [initialColumns]);
+  // END: MIMIC PERSONAL BOARD BEHAVIOR
 
   useEffect(() => {
     if (taskDetails) {
@@ -889,7 +888,7 @@ export function KanbanBoard({
     setDrawerOpen(false);
   }, [deleteCard]);
   
-  const isMutating = isKanbanMutating || isTaskDetailsMutating;
+  const isMutating = isKanbanMutating || isTaskDetailsMutating || isTaskMutating;
 
   const sheetTaskProp = useMemo(() => {
     if (!selected) return null;

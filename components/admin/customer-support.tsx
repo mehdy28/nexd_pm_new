@@ -12,7 +12,9 @@ export function CustomerSupport() {
   const [searchQuery, setSearchQuery] = useState("")
 
   return (
-    <div className="space-y-6">
+<div className="h-full overflow-y-auto">
+<div className="p-6 pt-0 space-y-6">
+
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Customer Support</h1>
         <p className="text-gray-600">Manage customer inquiries and support tickets</p>
@@ -60,6 +62,7 @@ export function CustomerSupport() {
           )}
         </div>
       </div>
+    </div>
     </div>
   )
 }

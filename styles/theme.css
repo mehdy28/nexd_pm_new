@@ -153,6 +153,7 @@ body {
   display: flex;
   flex-direction: column;
   margin-bottom:  40px;;
+  padding-bottom: 30px;
 
 }
 
@@ -170,14 +171,12 @@ body {
 
 .column-body {
   padding: 10px;
-  margin-bottom:  10px;;
-
   height: 100%;
   overflow: auto;
   display: flex;
   flex-direction: column;
   gap: 12px;
-  background: green; /* transparent body */
+  background: transparent; /* transparent body */
 }
 
 .card {

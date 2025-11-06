@@ -83,7 +83,9 @@ export function UserManagement() {
   )
 
   return (
-    <div className="space-y-6">
+    <div className="h-full overflow-y-auto">
+    <div className="p-6 pt-0 space-y-6">
+
       <div>
         <h1 className="text-3xl font-bold text-gray-900">User Management</h1>
         <p className="text-gray-600">Manage user accounts, roles, and permissions</p>
@@ -228,5 +230,7 @@ export function UserManagement() {
         </div>
       </div>
     </div>
+    </div>
+
   )
 }

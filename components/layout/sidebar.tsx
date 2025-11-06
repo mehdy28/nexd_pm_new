@@ -3,7 +3,7 @@
 import type React from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { LayoutGrid, Home, Activity, Gauge, CreditCard, LogOut } from "lucide-react"
+import { LayoutGrid, Home, Activity, Gauge, CreditCard, LogOut, MessageSquare } from "lucide-react"
 import { cn } from "@/lib/utils"
 import Image from "next/image"
 import { useAuth } from "@/hooks/useAuth"
@@ -81,6 +81,12 @@ export function Sidebar() {
         <IconButton label="My Tasks" href="/my_tasks" isActive={pathname === "/my_tasks"}>
           <Home className={cn("h-5 w-5", pathname === "/my_tasks" ? "text-white" : "text-[#4ab5ae]")} />
         </IconButton>
+        
+        {/* New Messaging Icon */}
+        <IconButton label="Messaging" href="/messaging" isActive={pathname === "/messaging"}>
+          <MessageSquare className={cn("h-5 w-5", pathname === "/messaging" ? "text-white" : "text-[#4ab5ae]")} />
+        </IconButton>
+
         <IconButton label="Activity" href="/activity" isActive={pathname === "/activity"}>
           <Activity className={cn("h-5 w-5", pathname === "/activity" ? "text-white" : "text-[#4ab5ae]")} />
         </IconButton>

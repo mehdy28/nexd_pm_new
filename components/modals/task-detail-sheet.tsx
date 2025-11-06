@@ -438,7 +438,17 @@ export function TaskDetailSheet({
               </div>
             </div>
           </>
-        ) : ( <div className="flex items-center justify-center p-6 text-muted-foreground flex-1">No task selected or data loading...</div> )}
+        ) : (
+          <>
+            <SheetTitle className="sr-only">Task Details</SheetTitle>
+            <SheetDescription className="sr-only">
+              Loading task details or no task selected.
+            </SheetDescription>
+            <div className="flex items-center justify-center p-6 text-muted-foreground flex-1">
+              No task selected or data loading...
+            </div>
+          </>
+        )}
       </SheetContent>
     </Sheet>
   );

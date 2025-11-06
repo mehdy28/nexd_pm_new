@@ -9,7 +9,9 @@ import { SubscriptionBreakdown } from "./subscription-breakdown"
 
 export function AdminDashboard() {
   return (
-    <div className="space-y-6">
+
+<div className="h-full overflow-y-auto">
+<div className="p-6 pt-0 space-y-6">
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Dashboard Overview</h1>
         <p className="text-gray-600">Monitor your SaaS performance and key metrics</p>
@@ -79,5 +81,7 @@ export function AdminDashboard() {
         </TabsContent>
       </Tabs>
     </div>
+    </div>
+
   )
 }

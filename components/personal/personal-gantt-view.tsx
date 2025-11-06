@@ -448,3 +448,4 @@ const TaskForm: React.FC<TaskFormProps> = ({ onAddTask, onClose, availableSectio
 }
 
 export default PersonalGanttView
+

@@ -1580,15 +1580,15 @@ export function ListView({ projectId }: ListViewProps) {
   if (loading) return <div className="flex items-center justify-center min-h-[calc(100vh-64px)] bg-muted/30"><Loader2 className="h-10 w-10 animate-spin text-teal-500" /><p className="ml-4 text-lg text-slate-700">Loading tasks and sections...</p></div>;
   if (error) return <div className="flex items-center justify-center min-h-[calc(100vh-64px)] bg-red-100 text-red-700 p-4"><p className="text-lg">Error loading tasks: {error.message}</p></div>;
 
-  if (!sections || sections.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[calc(10vh-64px)] bg-muted/30 p-8 text-center">
-        <h2 className="text-3xl font-bold text-foreground mb-4">No Tasks in "{currentSprintName}"</h2>
-        <p className="text-muted-foreground leading-relaxed max-w-xl mb-8">The selected sprint "{currentSprintName}" has no tasks. Add a new task or select a different sprint.</p>
-        <Button onClick={addSection} disabled={isSectionMutating} className="bg-[#4ab5ae] text-white h-9 rounded-md">{isSectionMutating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}+ Add Section</Button>
-      </div>
-    );
-  }
+  // if (!sections || sections.length === 0) {
+  //   return (
+  //     <div className="flex flex-col items-center justify-center min-h-[calc(10vh-64px)] bg-muted/30 p-8 text-center">
+  //       <h2 className="text-3xl font-bold text-foreground mb-4">No Tasks in "{currentSprintName}"</h2>
+  //       <p className="text-muted-foreground leading-relaxed max-w-xl mb-8">The selected sprint "{currentSprintName}" has no tasks. Add a new task or select a different sprint.</p>
+  //       <Button onClick={addSection} disabled={isSectionMutating} className="bg-[#4ab5ae] text-white h-9 rounded-md">{isSectionMutating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}+ Add Section</Button>
+  //     </div>
+  //   );
+  // }
 
   return (
     <div className="p-6 pt-3">

@@ -47,7 +47,7 @@ export interface PersonalGanttDataResponse {
 // --- Main Hook ---
 export function usePersonalGanttData() {
   const { data, loading, error, refetch } = useQuery<PersonalGanttDataResponse>(GET_MY_GANTT_DATA_QUERY, {
-    fetchPolicy: "cache-and-network",
+    fetchPolicy: "network-only",
   })
 
   const transformedGanttData = data?.getMyGanttData
