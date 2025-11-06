@@ -120,6 +120,20 @@ enum FilterOperator {
 }
 
 # ----------------------------------
+# NEW MESSAGING ENUMS
+# ----------------------------------
+enum ConversationType {
+  DIRECT
+  GROUP
+}
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+# ----------------------------------
 # Models
 # ----------------------------------
 
@@ -147,6 +161,8 @@ type User {
   activities: [Activity]
   comments: [Comment]
   mentions: [Mention]
+  conversations: [Conversation] # NEW
+  tickets: [Ticket] # NEW
 }
 
 type Workspace {
@@ -167,6 +183,8 @@ type Workspace {
   subscription: Subscription
   settings: WorkspaceSettings
   personalTasks: [Task]
+  conversations: [Conversation] # NEW
+  tickets: [Ticket] # NEW
 }
 
 type WorkspaceMember {
@@ -681,6 +699,14 @@ type WorkspaceMemberLookupItem {
   user: UserLookupPartial!
 }
 
+
+type WorkspaceMemberDetails {
+  id: ID! # This is the ID of the WorkspaceMember record
+  role: WorkspaceRole!
+  user: UserLookupPartial!
+}
+
+
 type DocumentsListResponse {
   documents: [DocumentListItem!]!
   totalCount: Int!
@@ -762,6 +788,55 @@ type UserDashboardData {
   kpis: UserKpiMetrics!
   priorityDistribution: [ChartDataPoint!]!
   statusDistribution: [ChartDataPoint!]!
+}
+
+# ----------------------------------
+# NEW MESSAGING TYPES
+# ----------------------------------
+type Conversation {
+  id: ID!
+  type: ConversationType!
+  name: String # For group chats
+  participants: [UserAvatarPartial!]!
+  messages: [Message!]!
+  updatedAt: DateTime!
+}
+
+type Message {
+  id: ID!
+  content: String!
+  createdAt: DateTime!
+  sender: UserAvatarPartial!
+}
+
+type Ticket {
+  id: ID!
+  subject: String!
+  priority: Priority!
+  status: TicketStatus!
+  creator: UserAvatarPartial!
+  messages: [TicketMessage!]!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+type TicketMessage {
+  id: ID!
+  content: String!
+  createdAt: DateTime!
+  sender: UserAvatarPartial!
+  isSupport: Boolean! # To distinguish user vs admin/support replies
+}
+
+# This type matches the frontend component's expectation
+type CommunicationListItem {
+  id: ID!
+  type: String! # 'conversation' or 'ticket'
+  title: String!
+  lastMessage: String
+  participantInfo: String!
+  updatedAt: DateTime!
+  unreadCount: Int!
 }
 
 # ----------------------------------
@@ -1033,6 +1108,38 @@ input ConfirmAttachmentInput {
 }
 
 # ----------------------------------
+# NEW MESSAGING INPUTS
+# ----------------------------------
+input CreateDirectConversationInput {
+  workspaceId: ID!
+  participantId: ID!
+}
+
+input CreateGroupConversationInput {
+  workspaceId: ID!
+  name: String!
+  participantIds: [ID!]!
+}
+
+input SendMessageInput {
+  conversationId: ID!
+  content: String!
+}
+
+input CreateTicketInput {
+  workspaceId: ID!
+  subject: String!
+  priority: Priority!
+  message: String!
+}
+
+input SendTicketMessageInput {
+  ticketId: ID!
+  content: String!
+}
+
+
+# ----------------------------------
 # Root Queries
 # ----------------------------------
 type Query {
@@ -1072,6 +1179,16 @@ type Query {
 
   # AI/Prompt
   resolvePromptVariable(projectId: ID, workspaceId: ID, variableSource: JSON!, promptVariableId: ID): String
+
+
+
+  # NEW QUERY TO FETCH WORKSPACE MEMBERS
+  getWorkspaceMembers(workspaceId: ID!): [WorkspaceMemberDetails!]!
+
+  # Existing Messaging Queries
+  getCommunicationList(workspaceId: ID!): [CommunicationListItem!]!
+  getConversation(id: ID!): Conversation
+  getTicket(id: ID!): Ticket
 }
 
 # ----------------------------------
@@ -1153,6 +1270,29 @@ type Mutation {
   getAttachmentUploadSignature(taskId: ID!): UploadSignatureResponse!
   confirmAttachmentUpload(input: ConfirmAttachmentInput!): Attachment!
   deleteAttachment(id: ID!): Attachment!
+
+  # NEW MESSAGING MUTATIONS
+  createDirectConversation(input: CreateDirectConversationInput!): Conversation!
+  createGroupConversation(input: CreateGroupConversationInput!): Conversation!
+  sendMessage(input: SendMessageInput!): Message!
+  markConversationAsRead(conversationId: ID!): Boolean!
+  createTicket(input: CreateTicketInput!): Ticket!
+  sendTicketMessage(input: SendTicketMessageInput!): TicketMessage!
+  updateTicketStatus(ticketId: ID!, status: TicketStatus!): Ticket!
+}
+
+# ----------------------------------
+# NEW REAL-TIME SUBSCRIPTIONS
+# ----------------------------------
+type Subscription {
+  # Change this line
+  messageAdded(conversationId: ID!): Message
+
+  # And change this line
+  ticketMessageAdded(ticketId: ID!): TicketMessage
+
+  # This allows the server to handle empty/initial events without crashing.
+  communicationItemUpdated(workspaceId: ID!): CommunicationListItem
 }
 
 # ----------------------------------

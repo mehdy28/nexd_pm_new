@@ -23,6 +23,9 @@ import personalDocumentResolvers from "./personal/personalDocumentResolver"
 import personalWireframeResolvers from "./personal/personalWireframeResolver"
 import personalPromptResolvers from "./personal/personalPromptResolver"
 
+// Messaging and Ticketing resolvers
+import { messagingResolvers } from "./messagingResolver"
+
 export const resolvers = {
   Query: {
     // General & Workspace
@@ -45,8 +48,9 @@ export const resolvers = {
     ...personalWireframeResolvers.Query,
     ...personalPromptResolvers.Query,
     ...personalTaskResolver.Query,
-
     
+    // Messaging & Tickets
+    ...messagingResolvers.Query,
   },
   Mutation: {
     // Setup & User
@@ -68,6 +72,13 @@ export const resolvers = {
     ...personalDocumentResolvers.Mutation,
     ...personalWireframeResolvers.Mutation,
     ...personalPromptResolvers.Mutation,
+
+    // Messaging & Tickets
+    ...messagingResolvers.Mutation,
+  },
+  Subscription: {
+    // Real-time Messaging & Tickets
+    ...messagingResolvers.Subscription,
   },
   // Field Resolvers for nested or computed fields
   Task: taskResolver.Task,

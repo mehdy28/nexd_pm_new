@@ -24,10 +24,10 @@ export const workspaceResolver = { // Now a plain JavaScript object
     getWorkspaceData: async (_parent: unknown, _args: unknown, context: GraphQLContext) => {
       log("[getWorkspaceData Query]", "called");
 
-      if (!context.user?.id) {
-        log("[getWorkspaceData Query]", "No authenticated user found in context.");
-        throw new Error("Authentication required: No user ID found in context.");
-      }
+         if (!context.user?.id) {
+         log("[getWorkspaceData Query]", "No authenticated user found in context.");
+         throw new Error("Authentication required: No user ID found in context.");
+       }
 
       const userId = context.user.id;
       log("[getWorkspaceData Query]", `Fetching data for userId: ${userId}`);

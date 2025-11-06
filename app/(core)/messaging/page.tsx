@@ -1,12 +1,20 @@
 "use client";
 import React from 'react';
 import { UserCommunication } from '@/components/messaging/user-communication';
+import { useWorkspace } from '@/hooks/useWorkspace';
 
 const MessaginPage: React.FC = () => {
+  // Assuming a hook that provides the current workspace context, including its ID.
+  const { currentWorkspace, isLoading } = useWorkspace(); 
+
+  if (isLoading || !currentWorkspace) {
+    // You can render a loading skeleton or spinner here
+    return <div>Loading workspace...</div>;
+  }
+
   return (
-    // Reverting to h-full. The height constraint is now handled by calc() within UserCommunication.
     <div className="w-full h-full bg-gray-100">
-      <UserCommunication />
+      <UserCommunication workspaceId={currentWorkspace.id} />
     </div>
   );
 };

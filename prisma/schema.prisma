@@ -100,6 +100,20 @@ enum ActivityType {
   ATTACHMENT_REMOVED
 }
 
+// ---- NEW MESSAGING ENUMS ----
+enum ConversationType {
+  DIRECT
+  GROUP
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+// -----------------------------
+
 // ---------------- Core Models ----------------
 
 model User {
@@ -132,6 +146,13 @@ model User {
   mentions            Mention[]
   uploadedAttachments Attachment[]
 
+  // ---- NEW MESSAGING RELATIONS ----
+  conversationParticipants ConversationParticipant[]
+  sentMessages             Message[]
+  createdTickets           Ticket[]
+  sentTicketMessages       TicketMessage[]
+  // ---------------------------------
+
   @@map("users")
 }
 
@@ -150,11 +171,16 @@ model Workspace {
   teamSize    String?
   workFields  String[]
 
-  members     WorkspaceMember[]
-  projects    Project[]
+  members      WorkspaceMember[]
+  projects     Project[]
   subscription Subscription?
   settings     WorkspaceSettings?
   personalTasks Task[] @relation("WorkspacePersonalTasks")
+
+  // ---- NEW MESSAGING RELATIONS ----
+  conversations Conversation[]
+  tickets       Ticket[]
+  // ---------------------------------
 
   @@map("workspaces")
 }
@@ -173,11 +199,11 @@ model WorkspaceMember {
 }
 
 model WorkspaceSettings {
-  id                    String    @id @default(cuid())
-  allowGuestAccess      Boolean   @default(false)
-  timeZone              String    @default("UTC")
-  workspaceId           String    @unique
-  workspace             Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  id               String    @id @default(cuid())
+  allowGuestAccess Boolean   @default(false)
+  timeZone         String    @default("UTC")
+  workspaceId      String    @unique
+  workspace        Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@map("workspace_settings")
 }
@@ -195,14 +221,14 @@ model Project {
   workspaceId String
   workspace   Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
-  members   ProjectMember[]
-  tasks     Task[]      @relation("ProjectTasks")
-  documents Document[]  @relation("ProjectDocuments")
-  wireframes Wireframe[] @relation("ProjectWireframes")
-  prompts    Prompt[]   @relation("ProjectPrompts")
+  members    ProjectMember[]
+  tasks      Task[]          @relation("ProjectTasks")
+  documents  Document[]      @relation("ProjectDocuments")
+  wireframes Wireframe[]     @relation("ProjectWireframes")
+  prompts    Prompt[]        @relation("ProjectPrompts")
   activities Activity[]
-  sprints   Sprint[]
-  sections  Section[]
+  sprints    Sprint[]
+  sections   Section[]
 
   @@map("projects")
 }
@@ -214,7 +240,7 @@ model ProjectMember {
   projectId String
   userId    String
   project   Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([projectId, userId])
   @@map("project_members")
@@ -233,7 +259,7 @@ model Sprint {
   projectId   String
   project     Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
-  tasks Task[]
+  tasks      Task[]
   milestones Milestone[]
 
   @@map("sprints")
@@ -248,20 +274,20 @@ model Milestone {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  sprintId    String
-  sprint      Sprint   @relation(fields: [sprintId], references: [id], onDelete: Cascade)
+  sprintId String
+  sprint   Sprint   @relation(fields: [sprintId], references: [id], onDelete: Cascade)
 
   @@map("milestones")
 }
 
 model Section {
-  id          String   @id @default(cuid())
-  name        String
-  order       Int      @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  projectId   String
-  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  id        String   @id @default(cuid())
+  name      String
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   tasks Task[]
 
@@ -284,47 +310,40 @@ model PersonalSection {
 }
 
 model Task {
-  id                   String           @id @default(cuid())
+  id                   String       @id @default(cuid())
   title                String
   description          String?
-  status               TaskStatus       @default(TODO)
-  priority             Priority         @default(MEDIUM)
+  status               TaskStatus   @default(TODO)
+  priority             Priority     @default(MEDIUM)
   dueDate              DateTime?
   startDate            DateTime?
   endDate              DateTime?
-  createdAt            DateTime         @default(now())
-  updatedAt            DateTime         @updatedAt
-  completed            Boolean         @default(false)
-
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime     @updatedAt
+  completed            Boolean      @default(false)
   points               Int?
   completionPercentage Float?
-
   projectId            String?
   sprintId             String?
   sectionId            String?
-  project              Project?         @relation("ProjectTasks", fields: [projectId], references: [id], onDelete: Cascade)
-  sprint               Sprint?          @relation(fields: [sprintId], references: [id], onDelete: SetNull)
-  section              Section?         @relation(fields: [sectionId], references: [id], onDelete: SetNull)
-
+  project              Project?     @relation("ProjectTasks", fields: [projectId], references: [id], onDelete: Cascade)
+  sprint               Sprint?      @relation(fields: [sprintId], references: [id], onDelete: SetNull)
+  section              Section?     @relation(fields: [sectionId], references: [id], onDelete: SetNull)
   personalUserId       String?
   personalWorkspaceId  String?
   personalSectionId    String?
-  personalUser         User?            @relation("UserPersonalTasks", fields: [personalUserId], references: [id], onDelete: Cascade)
-  personalWorkspace    Workspace?       @relation("WorkspacePersonalTasks", fields: [personalWorkspaceId], references: [id], onDelete: SetNull)
+  personalUser         User?        @relation("UserPersonalTasks", fields: [personalUserId], references: [id], onDelete: Cascade)
+  personalWorkspace    Workspace?   @relation("WorkspacePersonalTasks", fields: [personalWorkspaceId], references: [id], onDelete: SetNull)
   personalSection      PersonalSection? @relation(fields: [personalSectionId], references: [id], onDelete: SetNull)
-
   assigneeId           String?
   creatorId            String
-  assignee             User?            @relation("TaskAssignee", fields: [assigneeId], references: [id])
-  creator              User             @relation("TaskCreator", fields: [creatorId], references: [id])
-
+  assignee             User?        @relation("TaskAssignee", fields: [assigneeId], references: [id])
+  creator              User         @relation("TaskCreator", fields: [creatorId], references: [id])
   parentId             String?
-  parent               Task?            @relation("TaskSubtasks", fields: [parentId], references: [id])
-  subtasks             Task[]           @relation("TaskSubtasks")
-
+  parent               Task?        @relation("TaskSubtasks", fields: [parentId], references: [id])
+  subtasks             Task[]       @relation("TaskSubtasks")
   dependencies         TaskDependency[] @relation("DependentTask")
   dependents           TaskDependency[] @relation("PrecedingTask")
-
   comments             Comment[]
   activities           Activity[]
   labels               TaskLabel[]
@@ -334,17 +353,15 @@ model Task {
 }
 
 model Attachment {
-  id        String   @id @default(cuid())
-  publicId  String   @unique // NEW: Cloudinary's unique identifier for the asset
-  fileName  String
-  fileType  String
-  fileSize  Int      
-  url       String   
-  createdAt DateTime @default(now())
-
-  taskId    String
-  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
-
+  id         String   @id @default(cuid())
+  publicId   String   @unique
+  fileName   String
+  fileType   String
+  fileSize   Int
+  url        String
+  createdAt  DateTime @default(now())
+  taskId     String
+  task       Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
   uploaderId String
   uploader   User     @relation(fields: [uploaderId], references: [id], onDelete: Cascade)
 
@@ -373,20 +390,17 @@ model TaskLabel {
 }
 
 model Document {
-  id        String       @id @default(cuid())
+  id        String   @id @default(cuid())
   title     String
-  content     Json?
-  dataUrl     String?
-  createdAt DateTime     @default(now())
-  updatedAt DateTime     @updatedAt
-
+  content   Json?
+  dataUrl   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
   projectId String?
   userId    String?
-
-  project      Project? @relation("ProjectDocuments", fields: [projectId], references: [id], onDelete: Cascade)
+  project   Project? @relation("ProjectDocuments", fields: [projectId], references: [id], onDelete: Cascade)
   personalUser User?    @relation("UserPersonalDocuments", fields: [userId], references: [id], onDelete: Cascade)
-
-  comments   Comment[]
+  comments  Comment[]
   activities Activity[]
 
   @@map("documents")
@@ -399,27 +413,23 @@ model Wireframe {
   thumbnail String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
   projectId String?
   userId    String?
-
-  project      Project? @relation("ProjectWireframes", fields: [projectId], references: [id], onDelete: Cascade)
+  project   Project? @relation("ProjectWireframes", fields: [projectId], references: [id], onDelete: Cascade)
   personalUser User?    @relation("UserPersonalWireframes", fields: [userId], references: [id], onDelete: Cascade)
-
-  comments   Comment[]
+  comments  Comment[]
   activities Activity[]
 
   @@map("wireframes")
 }
 
 model Comment {
-  id        String   @id @default(cuid())
-  content   String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  authorId  String
-  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
-
+  id          String     @id @default(cuid())
+  content     String
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  authorId    String
+  author      User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
   taskId      String?
   documentId  String?
   wireframeId String?
@@ -428,8 +438,7 @@ model Comment {
   document    Document?  @relation(fields: [documentId], references: [id], onDelete: Cascade)
   wireframe   Wireframe? @relation(fields: [wireframeId], references: [id], onDelete: Cascade)
   prompt      Prompt?    @relation(fields: [promptId], references: [id], onDelete: Cascade)
-
-  mentions Mention[]
+  mentions    Mention[]
 
   @@map("comments")
 }
@@ -446,23 +455,22 @@ model Mention {
 }
 
 model Activity {
-  id        String       @id @default(cuid())
-  type      ActivityType
-  data      Json
-  createdAt DateTime     @default(now())
-  userId    String
-  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-
+  id          String       @id @default(cuid())
+  type        ActivityType
+  data        Json
+  createdAt   DateTime     @default(now())
+  userId      String
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   projectId   String?
   taskId      String?
   documentId  String?
   wireframeId String?
   promptId    String?
-  project     Project?   @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  task        Task?      @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  document    Document?  @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  wireframe   Wireframe? @relation(fields: [wireframeId], references: [id], onDelete: Cascade)
-  prompt      Prompt?    @relation(fields: [promptId], references: [id], onDelete: Cascade)
+  project     Project?     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  task        Task?        @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  document    Document?    @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  wireframe   Wireframe?   @relation(fields: [wireframeId], references: [id], onDelete: Cascade)
+  prompt      Prompt?      @relation(fields: [promptId], references: [id], onDelete: Cascade)
 
   @@map("activities")
 }
@@ -497,14 +505,12 @@ model Prompt {
   model       String?  @default("gpt-4o")
   variables   Json     @default("[]")
   versions    Json     @default("[]")
-
-  projectId String?
-  userId    String?
-  project   Project? @relation("ProjectPrompts", fields: [projectId], references: [id], onDelete: Cascade)
-  user      User?    @relation("UserPersonalPrompts", fields: [userId], references: [id], onDelete: Cascade)
-
-  comments   Comment[]
-  activities Activity[]
+  projectId   String?
+  userId      String?
+  project     Project? @relation("ProjectPrompts", fields: [projectId], references: [id], onDelete: Cascade)
+  user        User?    @relation("UserPersonalPrompts", fields: [userId], references: [id], onDelete: Cascade)
+  comments    Comment[]
+  activities  Activity[]
 
   @@map("prompts")
 }
@@ -515,10 +521,85 @@ model TaskDependency {
   dependentTaskId String
   type            DependencyType @default(FINISH_TO_START)
   lag             Int            @default(0)
-
-  precedingTask Task @relation("PrecedingTask", fields: [precedingTaskId], references: [id], onDelete: Cascade)
-  dependentTask Task @relation("DependentTask", fields: [dependentTaskId], references: [id], onDelete: Cascade)
+  precedingTask   Task           @relation("PrecedingTask", fields: [precedingTaskId], references: [id], onDelete: Cascade)
+  dependentTask   Task           @relation("DependentTask", fields: [dependentTaskId], references: [id], onDelete: Cascade)
 
   @@unique([precedingTaskId, dependentTaskId])
   @@map("task_dependencies")
 }
+
+// ---- NEW MESSAGING MODELS ----
+
+model Conversation {
+  id          String           @id @default(cuid())
+  workspaceId String
+  type        ConversationType
+  name        String? // For group chats
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  workspace    Workspace                 @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  participants ConversationParticipant[]
+  messages     Message[]
+
+  @@map("conversations")
+}
+
+model ConversationParticipant {
+  id             String       @id @default(cuid())
+  conversationId String
+  userId         String
+  joinedAt       DateTime     @default(now())
+  lastReadAt     DateTime?
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, userId])
+  @@map("conversation_participants")
+}
+
+model Message {
+  id             String       @id @default(cuid())
+  conversationId String
+  senderId       String
+  content        String
+  createdAt      DateTime     @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User         @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@map("messages")
+}
+
+model Ticket {
+  id          String        @id @default(cuid())
+  workspaceId String
+  creatorId   String
+  subject     String
+  priority    Priority
+  status      TicketStatus  @default(OPEN)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  resolvedAt  DateTime?
+
+  workspace Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  creator   User            @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  messages  TicketMessage[]
+
+  @@map("tickets")
+}
+
+model TicketMessage {
+  id        String   @id @default(cuid())
+  ticketId  String
+  senderId  String
+  content   String
+  createdAt DateTime @default(now())
+
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  sender User   @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@map("ticket_messages")
+}
+// ---------------------------------
