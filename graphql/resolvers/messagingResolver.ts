@@ -791,8 +791,8 @@ export const messagingResolvers = {
       },
       subscribe: withFilter(
         () => {
-            log('Subscription: ticketMessageAdded', 'New client subscribed to AsyncIterator');
-            return pubsub.asyncIterator([Topics.TICKET_MESSAGE_ADDED]);
+            log('Subscription: ticketMessageAdded', 'New client subscribed to asyncIterableIterator');
+            return pubsub.asyncIterableIterator([Topics.TICKET_MESSAGE_ADDED]);
         },
         (payload, variables, context: GraphQLContext | undefined) => {
           const source = 'Subscription: ticketMessageAdded [FILTER]';
@@ -840,8 +840,8 @@ export const messagingResolvers = {
       },
       subscribe: withFilter(
         () => {
-            log('Subscription: messageAdded', 'New client subscribed to AsyncIterator');
-            return pubsub.asyncIterator([Topics.MESSAGE_ADDED]);
+            log('Subscription: messageAdded', 'New client subscribed to asyncIterableIterator');
+            return pubsub.asyncIterableIterator([Topics.MESSAGE_ADDED]);
         },
         async (payload, variables, context: GraphQLContext | undefined) => {
           const source = 'Subscription: messageAdded [FILTER]';

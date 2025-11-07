@@ -1,9 +1,15 @@
 import { PubSub } from 'graphql-subscriptions';
 
-// This instance will be used across your resolvers to publish events.
-export const pubsub = new PubSub();
+declare global {
+  var pubsub: PubSub | undefined;
+}
 
-// Define a simple enum for topic names to avoid magic strings.
+export const pubsub = global.pubsub || new PubSub();
+
+if (process.env.NODE_ENV !== 'production') {
+  global.pubsub = pubsub;
+}
+
 export const Topics = {
   MESSAGE_ADDED: 'MESSAGE_ADDED',
   TICKET_MESSAGE_ADDED: 'TICKET_MESSAGE_ADDED',

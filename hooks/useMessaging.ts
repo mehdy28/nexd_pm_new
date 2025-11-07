@@ -36,6 +36,7 @@ export interface Message {
   content: string;
   createdAt: string; // ISO Date String
   sender: UserAvatarPartial;
+  __typename?: string;
 }
 
 export interface TicketMessage extends Message {
@@ -95,9 +96,10 @@ const updateCommunicationListCache = (
               getCommunicationList: newList,
           },
       });
+      console.log(`[Subscription] Successfully updated communication list in cache for item ID: ${itemId}`);
     }
   } catch (e) {
-    console.warn("Could not find GET_MESSAGING_DATA in cache. It might not have been fetched yet.", e);
+    console.warn("[Subscription] Could not find GET_MESSAGING_DATA in cache. It might not have been fetched yet.", e);
   }
 };
 
@@ -141,34 +143,62 @@ export const useMessaging = ({ workspaceId }: UseMessagingParams) => {
     variables: { conversationId: selectedItem?.id },
     skip: !selectedItem || selectedItem.type !== 'conversation',
     onData: ({ client, data }) => {
+      console.log('[Subscription] MESSAGE_ADDED onData fired.', { data });
       const newMessage = data.data?.messageAdded as Message;
-      if (!newMessage || !selectedItem) return;
+      if (!newMessage || !selectedItem) {
+        console.warn('[Subscription] onData callback for MESSAGE_ADDED received no message or no item is selected.');
+        return;
+      }
       
+      console.log('[Subscription] New conversation message received:', newMessage);
       updateCommunicationListCache(client, workspaceId, selectedItem.id, newMessage);
 
       const queryOptions = { query: GET_CONVERSATION_DETAILS, variables: { id: selectedItem.id } };
-      const cachedData = client.readQuery<{ getConversation: ConversationDetails }>(queryOptions);
-      if (cachedData?.getConversation) {
-        client.writeQuery({ ...queryOptions, data: { getConversation: { ...cachedData.getConversation, messages: [...cachedData.getConversation.messages, newMessage] } } });
+      try {
+        const cachedData = client.readQuery<{ getConversation: ConversationDetails }>(queryOptions);
+        console.log('[Subscription] Read conversation details from cache:', cachedData);
+        if (cachedData?.getConversation) {
+          client.writeQuery({ ...queryOptions, data: { getConversation: { ...cachedData.getConversation, messages: [...cachedData.getConversation.messages, newMessage] } } });
+          console.log('[Subscription] Successfully wrote new message to conversation cache.');
+        } else {
+            console.warn('[Subscription] Could not find conversation in cache to update.');
+        }
+      } catch (error) {
+        console.error('[Subscription] Error reading/writing conversation cache:', error);
       }
     },
+    onError: (error) => console.error('[Subscription] MESSAGE_ADDED subscription error:', error),
   });
 
   useSubscription(TICKET_MESSAGE_ADDED_SUBSCRIPTION, {
     variables: { ticketId: selectedItem?.id },
     skip: !selectedItem || selectedItem.type !== 'ticket',
     onData: ({ client, data }) => {
+        console.log('[Subscription] TICKET_MESSAGE_ADDED onData fired.', { data });
         const newMessage = data.data?.ticketMessageAdded as TicketMessage;
-        if (!newMessage || !selectedItem) return;
+        if (!newMessage || !selectedItem) {
+            console.warn('[Subscription] onData callback for TICKET_MESSAGE_ADDED received no message or no item is selected.');
+            return;
+        }
 
+        console.log('[Subscription] New ticket message received:', newMessage);
         updateCommunicationListCache(client, workspaceId, selectedItem.id, newMessage);
         
         const queryOptions = { query: GET_TICKET_DETAILS, variables: { id: selectedItem.id } };
-        const cachedData = client.cache.readQuery<{ getTicket: TicketDetails }>(queryOptions);
-        if (cachedData?.getTicket) {
-          client.writeQuery({ ...queryOptions, data: { getTicket: { ...cachedData.getTicket, messages: [...cachedData.getTicket.messages, newMessage] } } });
+        try {
+            const cachedData = client.cache.readQuery<{ getTicket: TicketDetails }>(queryOptions);
+            console.log('[Subscription] Read ticket details from cache:', cachedData);
+            if (cachedData?.getTicket) {
+              client.writeQuery({ ...queryOptions, data: { getTicket: { ...cachedData.getTicket, messages: [...cachedData.getTicket.messages, newMessage] } } });
+              console.log('[Subscription] Successfully wrote new message to ticket cache.');
+            } else {
+                console.warn('[Subscription] Could not find ticket in cache to update.');
+            }
+        } catch (error) {
+            console.error('[Subscription] Error reading/writing ticket cache:', error);
         }
     },
+    onError: (error) => console.error('[Subscription] TICKET_MESSAGE_ADDED subscription error:', error),
   });
 
   useEffect(() => {
@@ -182,12 +212,14 @@ export const useMessaging = ({ workspaceId }: UseMessagingParams) => {
 
   const handleSendMessage = useCallback(async (content: string) => {
     if (!selectedItem || content.trim() === '') return;
+    console.log(`[Messaging Hook] Firing sendMessage for item ${selectedItem.id} of type ${selectedItem.type}`);
     if (selectedItem.type === 'conversation') {
       await sendMessageMutation({ variables: { conversationId: selectedItem.id, content } });
     } else {
       await sendTicketMessageMutation({ variables: { ticketId: selectedItem.id, content } });
     }
-    // Note: We don't need to refetch here anymore because the subscription's onData handles the cache update.
+    console.log(`[Messaging Hook] sendMessage mutation call completed for item ${selectedItem.id}`);
+    // Note: We don't need to refetch here because the subscription's onData handles the cache update.
   }, [selectedItem, sendMessageMutation, sendTicketMessageMutation]);
 
   const handleCreateTicket = useCallback(async (data: { subject: string; priority: 'LOW' | 'MEDIUM' | 'HIGH'; message: string }) => {
