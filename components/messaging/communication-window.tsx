@@ -1,18 +1,33 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
-import { Send, Hash, LifeBuoy } from "lucide-react";
+import { Send, User as UserIcon, Users, LifeBuoy } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { CommunicationItem, ConversationDetails, TicketDetails } from "@/hooks/useMessaging";
+import { CommunicationItem, ConversationDetails, TicketDetails, TypingUser } from "@/hooks/useMessaging";
 import { formatDistanceToNow } from 'date-fns';
 
 const getInitials = (name: string) => name.split(" ").map((n) => n[0]).join("").toUpperCase();
+
+const priorityBadgeColors: Record<string, string> = {
+  LOW: 'border-green-500/50 bg-green-500/10 text-green-700',
+  MEDIUM: 'border-yellow-500/50 bg-yellow-500/10 text-yellow-700',
+  HIGH: 'border-red-500/50 bg-red-500/10 text-red-700',
+};
+
+// A simple animated dots component for the typing indicator
+const TypingIndicatorDots = () => (
+  <div className="flex items-center space-x-1">
+    <span className="h-2 w-2 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
+    <span className="h-2 w-2 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
+    <span className="h-2 w-2 bg-gray-400 rounded-full animate-bounce"></span>
+  </div>
+);
 
 interface CommunicationWindowProps {
   communicationItem: CommunicationItem;
@@ -20,9 +35,11 @@ interface CommunicationWindowProps {
   onSendMessage: (content: string) => void;
   isSending: boolean;
   currentUserId?: string;
+  typingUsers?: TypingUser[];
+  onUserIsTyping?: () => void;
 }
 
-export function CommunicationWindow({ communicationItem, details, onSendMessage, isSending, currentUserId }: CommunicationWindowProps) {
+export function CommunicationWindow({ communicationItem, details, onSendMessage, isSending, currentUserId, typingUsers = [], onUserIsTyping }: CommunicationWindowProps) {
   const [newMessage, setNewMessage] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -33,7 +50,7 @@ export function CommunicationWindow({ communicationItem, details, onSendMessage,
 
   useEffect(() => {
     scrollToBottom();
-  }, [details.messages]);
+  }, [details.messages, typingUsers]);
 
   useEffect(() => {
     if (textareaRef.current) {
@@ -49,9 +66,31 @@ export function CommunicationWindow({ communicationItem, details, onSendMessage,
     }
   };
 
+  const handleTyping = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setNewMessage(e.target.value);
+    onUserIsTyping?.();
+  };
+
+  const typingDisplay = useMemo(() => {
+    if (typingUsers.length === 0) return null;
+    if (typingUsers.length === 1) {
+      return `${typingUsers[0].firstName || ''} ${typingUsers[0].lastName || ''} is typing`;
+    }
+    if (typingUsers.length === 2) {
+      return `${typingUsers[0].firstName} and ${typingUsers[1].firstName} are typing`;
+    }
+    return `${typingUsers.length} people are typing`;
+  }, [typingUsers]);
+
   const isTicket = communicationItem.type === "ticket";
   const ticketDetails = isTicket ? (details as TicketDetails) : null;
-  const Icon = isTicket ? LifeBuoy : Hash;
+  const conversationDetails = !isTicket ? (details as ConversationDetails) : null;
+
+  const { Icon, iconColor } = useMemo(() => {
+    if (isTicket) return { Icon: LifeBuoy, iconColor: "text-red-500" };
+    if (conversationDetails?.type === 'GROUP') return { Icon: Users, iconColor: "text-purple-500" };
+    return { Icon: UserIcon, iconColor: "text-blue-500" };
+  }, [isTicket, conversationDetails]);
 
   return (
     <Card className="h-full flex flex-col">
@@ -59,15 +98,18 @@ export function CommunicationWindow({ communicationItem, details, onSendMessage,
         <div className="flex items-center justify-between">
           <div>
             <CardTitle className="text-lg flex items-center space-x-2">
-              <Icon className={cn("w-5 h-5", isTicket ? "text-red-500" : "text-gray-900")} />
+              <Icon className={cn("w-5 h-5", iconColor)} />
               <span>{communicationItem.title}</span>
             </CardTitle>
             <p className="text-sm text-muted-foreground capitalize">
-              {isTicket ? `Support Ticket ID: ${communicationItem.id}` : `Conversation`}
+              {isTicket ? `Support Ticket` : `${conversationDetails?.type === 'GROUP' ? 'Group' : 'Direct'} Conversation`}
             </p>
           </div>
           {isTicket && ticketDetails && (
             <div className="flex items-center space-x-2">
+               <Badge variant="outline" className={cn("capitalize", priorityBadgeColors[ticketDetails.priority])}>
+                {ticketDetails.priority.toLowerCase()}
+              </Badge>
               <Badge variant="secondary" className="capitalize">{ticketDetails.status.toLowerCase().replace('_', ' ')}</Badge>
             </div>
           )}
@@ -108,6 +150,15 @@ export function CommunicationWindow({ communicationItem, details, onSendMessage,
                 </div>
               </div>
             )})}
+
+            {typingDisplay && (
+              <div className="flex items-center space-x-3 h-8">
+                <div className="text-xs text-muted-foreground italic flex items-center space-x-2">
+                  <span>{typingDisplay}</span>
+                  <TypingIndicatorDots />
+                </div>
+              </div>
+            )}
             <div ref={messagesEndRef} />
           </div>
         </div>
@@ -118,7 +169,7 @@ export function CommunicationWindow({ communicationItem, details, onSendMessage,
                     ref={textareaRef}
                     placeholder={isTicket ? "Reply to support..." : "Send a message..."}
                     value={newMessage}
-                    onChange={(e) => setNewMessage(e.target.value)}
+                    onChange={handleTyping}
                     onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(); } }}
                     rows={1}
                     className="flex-1 bg-transparent border-0 resize-none focus-visible:ring-0 focus-visible:ring-offset-0 p-0 max-h-32"

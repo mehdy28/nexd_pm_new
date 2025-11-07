@@ -1,210 +1,781 @@
-// app/api/graphql/route.ts
+I will show u my other ui files and I want u to add me the logic to create a ticket .
+add subscriptions to create a ticket , direct message conversation  ,  group message conversation to they be in real time .
+also in the left side panel add a color indicator of the priority of the ticket based on the colors of the ticket creation form prioritis . 
+add me color indication to distinguish between a normal chat with 1 person or a group chat .
+also add these color infications in the right panel of messaginf 
 
-import apolloServer from "@/lib/apollo-server"
 
-export async function GET(request: Request) {
-  return apolloServer(request)
-}
+components/messaging/conversation-list.tsx
+"use client";
 
-export async function POST(request: Request) {
-  return apolloServer(request)
-}
+import { Badge } from "@/components/ui/badge";
+import { MessageSquare, LifeBuoy, Users, Loader2, Clock } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { CommunicationItem } from "@/hooks/useMessaging";
+import { formatDistanceToNow } from 'date-fns';
 
-// lib/apollo-server.ts
-import { ApolloServer } from "@apollo/server";
-import { startServerAndCreateNextHandler } from "@as-integrations/next";
-import { makeExecutableSchema } from "@graphql-tools/schema";
-
-import { typeDefs } from "@/graphql/schema";
-import { resolvers } from "@/graphql/resolvers";
-import { db } from "@/lib/firebase";
-import { initializeApp, getApps, cert } from "firebase-admin/app";
-import { getAuth } from "firebase-admin/auth";
-import { prisma } from "@/lib/prisma";
-// No need for IncomingHttpHeaders here if using Headers.get()
-
-// Ensure Context is defined as before
-export interface Context {
-  db: typeof db;
-  user?: {
-    id: string;
-    email: string;
-    name?: string;
-    role: string;
-    firebaseUid?: string;
+const getTypeDetails = (type: "conversation" | "ticket") => {
+  return {
+    color: type === "ticket" ? "text-red-500" : "text-[hsl(174,70%,54%)]",
+    icon: type === "ticket" ? LifeBuoy : MessageSquare,
   };
-  decodedToken?: any;
+};
+
+interface CommunicationListProps {
+  list: CommunicationItem[];
+  loading: boolean;
+  searchQuery: string;
+  selectedItem: CommunicationItem | null;
+  onSelectItem: (item: CommunicationItem) => void;
 }
 
-// Firebase Admin initialization (assuming it's correct from previous context)
-if (!getApps().length) {
-  initializeApp({
-    credential: cert({
-      projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-      privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n"),
-    }),
-  });
-}
-
-const schema = makeExecutableSchema({
-  typeDefs,
-  resolvers,
-});
-
-const server = new ApolloServer<Context>({
-  schema,
-});
-
-export default startServerAndCreateNextHandler(server, {
-  context: async (req) => {
-    console.log("--- RAW GraphQL Context Headers Received ---");
-    const rawHeaders = req.headers;
-    console.log("Entire req.headers object:", rawHeaders);
-
-    // --- MODIFIED: Access headers directly using .get() method ---
-    const authHeader = rawHeaders.get('authorization');
-    const plainHeaders: Record<string, string | null | undefined> = {}; // For logging purposes if desired
-    if (authHeader) plainHeaders['authorization'] = authHeader; // Only put authHeader if it exists for logging
-
-    console.log("Auth Header (via .get()):", authHeader); // Log the direct result
-    console.log("Auth Header Has 'authorization' (via .get()):", !!authHeader); // Log if it exists
-    // --- END MODIFIED ---
-
-    console.log("--- END RAW GraphQL Context Headers Received ---");
-
-    let token = typeof authHeader === 'string' ? authHeader.replace("Bearer ", "") : null;
-    let user = undefined;
-    let decodedToken = undefined;
-
-    console.log("--- GraphQL Context Function Called ---");
-    console.log("Auth Header Received (from .get()):", authHeader ? "[PRESENT]" : "[ABSENT]", `Value type: ${typeof authHeader}`);
-    console.log("Extracted Token (from .get()):", token ? "[PRESENT]" : "[ABSENT]", `Value type: ${typeof token}`);
-
-    if (token) {
-      try {
-        console.log("🔑 Verifying Firebase ID token...");
-        decodedToken = await getAuth().verifyIdToken(token);
-        console.log("✅ Firebase ID token decoded:", decodedToken);
-
-        const prismaUser = await prisma.user.findUnique({
-          where: { firebaseUid: decodedToken.uid },
-        });
-
-        if (prismaUser) {
-          console.log("✅ User found in Prisma:", prismaUser);
-          user = {
-            id: prismaUser.id,
-            email: prismaUser.email,
-            name: prismaUser.name ?? decodedToken.name ?? null,
-            role: prismaUser.role,
-            firebaseUid: decodedToken.uid,
-          };
-        } else {
-          console.warn("⚠️ No user found in Prisma with UID:", decodedToken.uid);
-          // If no user is found in Prisma, but we have a decoded token,
-          // we might still want to pass the basic Firebase user info.
-          // This depends on your app's logic for "authenticated but not registered in Prisma".
-          user = {
-            id: decodedToken.uid, // Use Firebase UID as ID if Prisma user doesn't exist yet
-            email: decodedToken.email,
-            name: decodedToken.name,
-            role: 'GUEST', // Or a default role for un-registered users
-            firebaseUid: decodedToken.uid,
-          };
-        }
-      } catch (error: any) {
-        console.error("❌ Error verifying token:", error.message);
-      }
-    } else {
-      console.log("⚠️ No token found in authorization header");
-    }
-    console.log("--- GraphQL Context Function Exited ---");
-
-    return {
-      db,
-      user,
-      decodedToken,
-    };
-  },
-});
-
-
-
-// ./lib/apollo-client.ts
-
-import { ApolloClient, InMemoryCache, createHttpLink } from "@apollo/client";
-import { setContext } from "@apollo/client/link/context";
-import { auth } from "@/lib/firebase";
-import { NormalizedCacheObject } from "@apollo/client";
-
-let apolloClient: ApolloClient<NormalizedCacheObject> | null = null;
-
-function createApolloClient() {
-  const httpLink = createHttpLink({
-    uri: "/api/graphql",
-  });
-
-  const authLink = setContext(async (_, { headers }) => { // Simplify context destructuring
-    let token = "";
-    
-    // Attempt to get token from the operation's context first
-    // Apollo Client's 'headers' object when passed via `context: { headers: { Authorization: ... } }`
-    // will have the Authorization key available directly here.
-    const operationAuthHeader = (headers as any)?.authorization;
-    
-    if (operationAuthHeader) {
-      token = operationAuthHeader.replace("Bearer ", "");
-      console.log("[ApolloClient] Using token from operation context. Token prefix:", token.substring(0, 10)); // Log part of token
-    } else {
-      // If no token in operation context, try to get it from Firebase current user
-      const user = auth.currentUser;
-      if (user) {
-        try {
-          token = await user.getIdToken();
-          console.log("[ApolloClient] Using token from Firebase current user. Token prefix:", token.substring(0, 10)); // Log part of token
-        } catch (error) {
-          console.error("[ApolloClient] Error getting ID token from current user:", error);
-        }
-      } else {
-        console.log("[ApolloClient] No token in context, no Firebase current user.");
-      }
-    }
-
-    return {
-      headers: {
-        ...headers, // Ensure any other existing headers are merged
-        authorization: token ? `Bearer ${token}` : "", // Apply the determined token
-      },
-    };
-  });
+export function CommunicationList({ list, loading, searchQuery, selectedItem, onSelectItem }: CommunicationListProps) {
+  const normalizedQuery = searchQuery.toLowerCase();
   
-  return new ApolloClient({
-    link: authLink.concat(httpLink),
-    cache: new InMemoryCache(),
-    defaultOptions: {
-      watchQuery: {
-        errorPolicy: "all",
-      },
-      query: {
-        errorPolicy: "all",
-      },
-    },
-  });
-}
+  const filteredItems = list.filter(
+    (item) =>
+      item.title.toLowerCase().includes(normalizedQuery) ||
+      (item.lastMessage || '').toLowerCase().includes(normalizedQuery) ||
+      item.participantInfo.toLowerCase().includes(normalizedQuery)
+  );
 
-export function initializeApollo(initialState: NormalizedCacheObject | null = null) {
-  const _apolloClient = apolloClient ?? createApolloClient();
-
-  if (initialState) {
-    const existingCache = _apolloClient.extract();
-    _apolloClient.cache.restore({ ...existingCache, ...initialState });
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+      </div>
+    );
   }
-  if (typeof window === "undefined") return _apolloClient;
-  if (!apolloClient) apolloClient = _apolloClient;
 
-  return _apolloClient;
+  if (filteredItems.length === 0) {
+    return <div className="p-4 text-center text-sm text-muted-foreground">No conversations or tickets found.</div>
+  }
+
+  return (
+    <div className="space-y-1 p-4">
+        {filteredItems.map((item) => {
+          const { color, icon: IconComponent } = getTypeDetails(item.type);
+          const isSelected = selectedItem?.id === item.id;
+          
+          return (
+            <div
+              key={item.id}
+              className={cn(
+                "p-3 rounded-lg cursor-pointer transition-colors hover:bg-gray-50",
+                isSelected && "bg-[hsl(174,70%,54%)]/10 border border-[hsl(174,70%,54%)]/20",
+              )}
+              onClick={() => onSelectItem(item)}
+            >
+              <div className="flex items-start space-x-3">
+                <div className={cn("flex-shrink-0 mt-1", color)}>
+                  <IconComponent className="w-5 h-5" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between mb-1">
+                    <h4 className="text-sm font-medium truncate">{item.title}</h4>
+                    {item.unreadCount > 0 && (
+                      <Badge variant="destructive" className="text-xs">
+                        {item.unreadCount}
+                      </Badge>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground mb-1 line-clamp-1">
+                    <span className="font-semibold capitalize">{item.type}:</span> {item.lastMessage}
+                  </p>
+                  <div className="flex items-center justify-between mt-1">
+                    <div className="flex items-center space-x-1 text-xs text-muted-foreground">
+                       {item.type === "conversation" && <Users className="w-3 h-3" />}
+                       <span>{item.participantInfo}</span>
+                    </div>
+                    <div className="flex items-center space-x-1 text-xs text-muted-foreground">
+                      <Clock className="w-3 h-3" />
+                      <span>{formatDistanceToNow(new Date(item.updatedAt), { addSuffix: true })}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+    </div>
+  );
+}
+
+components/messaging/communication-window.tsx
+"use client";
+
+import { useState, useRef, useEffect, useMemo } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Separator } from "@/components/ui/separator";
+import { Send, Hash, LifeBuoy } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { CommunicationItem, ConversationDetails, TicketDetails, TypingUser } from "@/hooks/useMessaging";
+import { formatDistanceToNow } from 'date-fns';
+
+const getInitials = (name: string) => name.split(" ").map((n) => n[0]).join("").toUpperCase();
+
+// A simple animated dots component for the typing indicator
+const TypingIndicatorDots = () => (
+  <div className="flex items-center space-x-1">
+    <span className="h-2 w-2 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
+    <span className="h-2 w-2 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
+    <span className="h-2 w-2 bg-gray-400 rounded-full animate-bounce"></span>
+  </div>
+);
+
+interface CommunicationWindowProps {
+  communicationItem: CommunicationItem;
+  details: ConversationDetails | TicketDetails;
+  onSendMessage: (content: string) => void;
+  isSending: boolean;
+  currentUserId?: string;
+  typingUsers?: TypingUser[];
+  onUserIsTyping?: () => void;
+}
+
+export function CommunicationWindow({ communicationItem, details, onSendMessage, isSending, currentUserId, typingUsers = [], onUserIsTyping }: CommunicationWindowProps) {
+  const [newMessage, setNewMessage] = useState("");
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [details.messages, typingUsers]);
+
+  useEffect(() => {
+    if (textareaRef.current) {
+        textareaRef.current.style.height = 'auto';
+        textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
+    }
+  }, [newMessage]);
+
+  const handleSendMessage = () => {
+    if (newMessage.trim()) {
+      onSendMessage(newMessage);
+      setNewMessage("");
+    }
+  };
+
+  const handleTyping = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setNewMessage(e.target.value);
+    onUserIsTyping?.();
+  };
+
+  const typingDisplay = useMemo(() => {
+    if (typingUsers.length === 0) return null;
+    if (typingUsers.length === 1) {
+      return `${typingUsers[0].firstName || ''} ${typingUsers[0].lastName || ''} is typing`;
+    }
+    if (typingUsers.length === 2) {
+      return `${typingUsers[0].firstName} and ${typingUsers[1].firstName} are typing`;
+    }
+    return `${typingUsers.length} people are typing`;
+  }, [typingUsers]);
+
+
+  const isTicket = communicationItem.type === "ticket";
+  const ticketDetails = isTicket ? (details as TicketDetails) : null;
+  const Icon = isTicket ? LifeBuoy : Hash;
+
+  return (
+    <Card className="h-full flex flex-col">
+      <CardHeader className="flex-shrink-0">
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="text-lg flex items-center space-x-2">
+              <Icon className={cn("w-5 h-5", isTicket ? "text-red-500" : "text-gray-900")} />
+              <span>{communicationItem.title}</span>
+            </CardTitle>
+            <p className="text-sm text-muted-foreground capitalize">
+              {isTicket ? `Support Ticket ID: ${communicationItem.id}` : `Conversation`}
+            </p>
+          </div>
+          {isTicket && ticketDetails && (
+            <div className="flex items-center space-x-2">
+              <Badge variant="secondary" className="capitalize">{ticketDetails.status.toLowerCase().replace('_', ' ')}</Badge>
+            </div>
+          )}
+        </div>
+      </CardHeader>
+      <Separator />
+      <CardContent className="flex-1 flex flex-col p-0 min-h-0">
+        <div className="flex-1 p-4 overflow-y-auto bg-gray-50">
+          <div className="space-y-4">
+            {details.messages.map((message) => {
+              const isSelf = message.sender.id === currentUserId;
+              const senderName = `${message.sender.firstName || ''} ${message.sender.lastName || ''}`.trim();
+              const isSupportAgent = 'isSupport' in message && message.isSupport;
+
+              return (
+              <div
+                key={message.id}
+                className={cn( "flex space-x-3", isSelf ? "flex-row-reverse space-x-reverse" : "flex-row" )}
+              >
+                <Avatar className="h-8 w-8 flex-shrink-0">
+                  <AvatarImage src={message.sender.avatar || undefined} alt={senderName} />
+                  <AvatarFallback>{getInitials(senderName || 'U')}</AvatarFallback>
+                </Avatar>
+                <div className={cn("flex-1 space-y-1 max-w-[70%]", isSelf ? "text-right" : "text-left")}>
+                  <div className={cn("flex items-center space-x-2", isSelf ? "justify-end" : "justify-start")}>
+                    <span className="text-xs text-muted-foreground">{formatDistanceToNow(new Date(message.createdAt), { addSuffix: true })}</span>
+                    <span className="text-sm font-medium">{senderName}</span>
+                    {isSupportAgent && <Badge variant="secondary" className="text-xs">Support</Badge>}
+                  </div>
+                  <div
+                    className={cn(
+                      "p-3 rounded-xl text-sm inline-block max-w-full text-left whitespace-pre-wrap break-words",
+                      isSelf ? "bg-[hsl(174,70%,54%)] text-white rounded-tr-sm" : "bg-gray-100 rounded-tl-sm"
+                    )}
+                  >
+                    {message.content}
+                  </div>
+                </div>
+              </div>
+            )})}
+
+            {typingDisplay && (
+              <div className="flex items-center space-x-3 h-8">
+                <div className="text-xs text-muted-foreground italic flex items-center space-x-2">
+                  <span>{typingDisplay}</span>
+                  <TypingIndicatorDots />
+                </div>
+              </div>
+            )}
+            <div ref={messagesEndRef} />
+          </div>
+        </div>
+        <Separator />
+        <div className="p-4 flex-shrink-0">
+            <div className="flex items-end space-x-2 border rounded-md p-2 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring has-[:focus-visible]:ring-offset-2">
+                <Textarea
+                    ref={textareaRef}
+                    placeholder={isTicket ? "Reply to support..." : "Send a message..."}
+                    value={newMessage}
+                    onChange={handleTyping}
+                    onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(); } }}
+                    rows={1}
+                    className="flex-1 bg-transparent border-0 resize-none focus-visible:ring-0 focus-visible:ring-offset-0 p-0 max-h-32"
+                />
+                <Button onClick={handleSendMessage} disabled={isSending || !newMessage.trim()} className="bg-[hsl(174,70%,54%)] hover:bg-[hsl(174,70%,44%)]">
+                    <Send className="h-4 w-4" />
+                </Button>
+            </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+components/messaging/direct-chat-creation.tsx
+"use client";
+
+import { useState } from "react";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { ArrowLeft, Search, MessageSquare } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Separator } from "@/components/ui/separator";
+import { CommunicationItem, WorkspaceMember } from "@/hooks/useMessaging";
+import { useUser } from "@/hooks/useUser";
+
+
+
+const getInitials = (name: string) => name.split(" ").map((n) => n[0]).join("").toUpperCase();
+
+interface DirectChatCreationProps {
+  workspaceId: string;
+  members: WorkspaceMember[];
+  onBack: () => void;
+  onChatSelected: (item: CommunicationItem) => void;
+  createDirectConversation: (variables: { variables: { workspaceId: string; participantId: string } }) => Promise<any>;
+}
+
+export function DirectChatCreation({ workspaceId, members, onBack, onChatSelected, createDirectConversation }: DirectChatCreationProps) {
+  const [searchQuery, setSearchQuery] = useState("");
+  const { user: currentUser } = useUser();
+
+  const filteredUsers = members.filter(member => {
+      if (member.user.id === currentUser?.id) return false; // Exclude self
+      const fullName = `${member.user.firstName || ''} ${member.user.lastName || ''}`.toLowerCase();
+      const email = member.user.email.toLowerCase();
+      return fullName.includes(searchQuery.toLowerCase()) || email.includes(searchQuery.toLowerCase());
+  });
+
+  const handleUserSelect = async (member: WorkspaceMember) => {
+    const res = await createDirectConversation({
+        variables: { workspaceId, participantId: member.user.id }
+    });
+
+    if (res.data?.createDirectConversation) {
+        onChatSelected({
+            id: res.data.createDirectConversation.id,
+            type: "conversation",
+            title: `${member.user.firstName || ''} ${member.user.lastName || ''}`.trim(),
+        } as CommunicationItem);
+    }
+  };
+
+  return (
+    <Card className="h-full flex flex-col">
+      <CardHeader className="flex-shrink-0 flex flex-row items-center justify-between">
+        <CardTitle className="text-lg">Start New Direct Chat</CardTitle>
+        <Button variant="outline" size="sm" onClick={onBack}>
+          <ArrowLeft className="w-4 h-4 mr-2" /> Back
+        </Button>
+      </CardHeader>
+      <CardContent className="flex-1 flex flex-col p-0 min-h-0">
+        <div className="p-4 flex-shrink-0">
+            <div className="flex items-center space-x-2 border rounded-md p-2">
+                <Search className="h-4 w-4 text-muted-foreground" />
+                <Input placeholder="Search users by name or email..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="flex-1 bg-transparent border-0 resize-none focus-visible:ring-0 focus-visible:ring-offset-0 p-0" />
+            </div>
+        </div>
+        <Separator />
+        <div className="flex-1 overflow-y-auto">
+          <div className="space-y-1 p-4">
+            {filteredUsers.length > 0 ? (
+                filteredUsers.map(member => {
+                    const fullName = `${member.user.firstName || ''} ${member.user.lastName || ''}`.trim();
+                    return (
+                    <div key={member.id} className="p-3 rounded-lg cursor-pointer hover:bg-gray-50 flex items-center justify-between" onClick={() => handleUserSelect(member)}>
+                        <div className="flex items-center space-x-3">
+                            <Avatar className="h-10 w-10">
+                                <AvatarImage src={member.user.avatar || undefined} alt={fullName} />
+                                <AvatarFallback>{getInitials(fullName)}</AvatarFallback>
+                            </Avatar>
+                            <div>
+                                <h4 className="text-sm font-medium">{fullName}</h4>
+                                <p className="text-xs text-muted-foreground capitalize">{member.role.toLowerCase()}</p>
+                            </div>
+                        </div>
+                        <Button variant="ghost" size="sm">
+                            <MessageSquare className="w-4 h-4 mr-2 text-[hsl(174,70%,54%)]" /> Chat
+                        </Button>
+                    </div>
+                )})
+            ) : (
+                <div className="p-4 text-center text-muted-foreground">No users found.</div>
+            )}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
 }
 
 
+components/messaging/group-chat-creation.tsx
+"use client";
 
+import { useState } from "react";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { ArrowLeft, Check, Plus, Send } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { cn } from "@/lib/utils";
+import { CommunicationItem, WorkspaceMember } from "@/hooks/useMessaging";
+import { useUser } from "@/hooks/useUser";
+
+const getInitials = (name: string) => name.split(" ").map((n) => n[0]).join("").toUpperCase();
+
+interface GroupChatCreationProps {
+  workspaceId: string;
+  members: WorkspaceMember[];
+  onBack: () => void;
+  onChatCreated: (item: CommunicationItem) => void;
+  createGroupConversation: (variables: { variables: { workspaceId: string; name: string; participantIds: string[] } }) => Promise<any>;
+}
+
+export function GroupChatCreation({ workspaceId, members, onBack, onChatCreated, createGroupConversation }: GroupChatCreationProps) {
+  const [groupName, setGroupName] = useState("");
+  const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const { user: currentUser } = useUser();
+
+  const toggleMember = (userId: string) => {
+    setSelectedMembers(prev => prev.includes(userId) ? prev.filter(id => id !== userId) : [...prev, userId]);
+  };
+
+  const handleCreateGroup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (groupName.trim() && selectedMembers.length > 0) {
+      const res = await createGroupConversation({
+        variables: { workspaceId, name: groupName, participantIds: selectedMembers }
+      });
+      if (res.data?.createGroupConversation) {
+        onChatCreated({
+          id: res.data.createGroupConversation.id,
+          type: "conversation",
+          title: groupName,
+        } as CommunicationItem);
+      }
+    }
+  };
+
+  const filteredUsers = members.filter(member => {
+    if (member.user.id === currentUser?.id) return false; // Exclude self
+    const fullName = `${member.user.firstName || ''} ${member.user.lastName || ''}`.toLowerCase();
+    return fullName.includes(searchQuery.toLowerCase());
+  });
+
+  const selectedUsers = members.filter(member => selectedMembers.includes(member.user.id));
+
+  return (
+    <Card className="h-full flex flex-col">
+      <CardHeader className="flex-shrink-0 flex flex-row items-center justify-between">
+        <CardTitle className="text-lg">Start New Group Chat</CardTitle>
+        <Button variant="outline" size="sm" onClick={onBack}><ArrowLeft className="w-4 h-4 mr-2" /> Back</Button>
+      </CardHeader>
+      <CardContent className="flex-1 flex flex-col p-6 min-h-0">
+        <form onSubmit={handleCreateGroup} className="flex flex-col h-full space-y-4">
+            <div className="flex-shrink-0 space-y-2">
+                <label className="text-sm font-medium">Group Name</label>
+                <div className="flex items-center space-x-2 border rounded-md p-2">
+                    <Input placeholder="e.g., Q4 Launch Coordination" value={groupName} onChange={(e) => setGroupName(e.target.value)} required className="flex-1 bg-transparent border-0 resize-none focus-visible:ring-0 focus-visible:ring-offset-0 p-0" />
+                </div>
+            </div>
+            <div className="flex flex-col flex-grow min-h-0 space-y-3">
+                <div className="flex justify-between items-center flex-shrink-0">
+                    <h4 className="text-sm font-medium">Add Members ({selectedMembers.length})</h4>
+                    <div className="text-xs text-muted-foreground truncate max-w-[50%]">
+                        Selected: {selectedUsers.map(m => m.user.firstName).join(', ')}
+                    </div>
+                </div>
+                <div className="flex-shrink-0 flex items-center space-x-2 border rounded-md p-2">
+                    <Input placeholder="Search users..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="flex-1 bg-transparent border-0 resize-none focus-visible:ring-0 focus-visible:ring-offset-0 p-0" />
+                </div>
+                <div className="flex-grow min-h-0 border rounded-md overflow-y-auto">
+                    <div className="p-2 space-y-1">
+                        {filteredUsers.map(member => {
+                            const isSelected = selectedMembers.includes(member.user.id);
+                            const fullName = `${member.user.firstName || ''} ${member.user.lastName || ''}`.trim();
+                            return (
+                                <div key={member.id} className={cn("p-2 rounded-md cursor-pointer flex items-center justify-between transition-colors", isSelected ? "bg-[hsl(174,70%,54%)]/20" : "hover:bg-gray-50")} onClick={() => toggleMember(member.user.id)}>
+                                    <div className="flex items-center space-x-3">
+                                        <Avatar className="h-8 w-8">
+                                          <AvatarImage src={member.user.avatar || undefined} alt={fullName} />
+                                          <AvatarFallback>{getInitials(fullName)}</AvatarFallback>
+                                        </Avatar>
+                                        <div>
+                                            <h4 className="text-sm font-medium">{fullName}</h4>
+                                            <p className="text-xs text-muted-foreground capitalize">{member.role.toLowerCase()}</p>
+                                        </div>
+                                    </div>
+                                    {isSelected ? <Check className="w-4 h-4 text-[hsl(174,70%,54%)]" /> : <Plus className="w-4 h-4 text-muted-foreground" />}
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            </div>
+            <Button type="submit" disabled={!groupName.trim() || selectedMembers.length === 0} className="w-full flex-shrink-0 text-white bg-[hsl(174,70%,54%)] hover:bg-[hsl(174,70%,44%)]">
+                <Send className="w-4 h-4 mr-2" /> Create Group Chat
+            </Button>
+        </form>
+      </CardContent>
+    </Card>
+  );
+}
+
+
+components/messaging/new-ticket-form.tsx
+
+
+"use client";
+
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ArrowLeft, Send } from "lucide-react";
+import { useState } from "react";
+
+interface NewTicketFormProps {
+  onBack: () => void;
+  onSubmit: (data: { subject: string; priority: 'LOW' | 'MEDIUM' | 'HIGH'; message: string }) => Promise<void>;
+}
+
+export function NewTicketForm({ onBack, onSubmit }: NewTicketFormProps) {
+  const [subject, setSubject] = useState("");
+  const [message, setMessage] = useState("");
+  const [priority, setPriority] = useState<'LOW' | 'MEDIUM' | 'HIGH'>("MEDIUM");
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (subject.trim() && message.trim()) {
+      await onSubmit({ subject, priority, message });
+    }
+  };
+  
+  const priorityColors: Record<string, string> = { LOW: 'bg-green-500', MEDIUM: 'bg-yellow-500', HIGH: 'bg-red-500' };
+
+  return (
+    <Card className="h-full flex flex-col">
+      <CardHeader className="flex-shrink-0 flex flex-row items-center justify-between">
+        <CardTitle className="text-lg">Create New Support Ticket</CardTitle>
+        <Button variant="outline" size="sm" onClick={onBack}>
+          <ArrowLeft className="w-4 h-4 mr-2" /> Back to Chats
+        </Button>
+      </CardHeader>
+      <CardContent className="flex-1 flex flex-col p-6">
+        <form onSubmit={handleSubmit} className="flex-1 flex flex-col space-y-6">
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Subject</label>
+            <div className="flex items-center space-x-2 border rounded-md p-2 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring has-[:focus-visible]:ring-offset-2">
+              <Input placeholder="e.g., Unable to access project dashboard" value={subject} onChange={(e) => setSubject(e.target.value)} required className="flex-1 bg-transparent border-0 resize-none focus-visible:ring-0 focus-visible:ring-offset-0 p-0" />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Priority</label>
+            <div className="flex items-center border rounded-md has-[button:focus-visible]:ring-2 has-[button:focus-visible]:ring-ring has-[button:focus-visible]:ring-offset-2">
+              <Select value={priority} onValueChange={(v) => setPriority(v as any)}>
+                <SelectTrigger className="w-full border-0 bg-transparent focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 p-2 justify-start gap-2">
+                  <span className={`h-2.5 w-2.5 rounded-full ${priorityColors[priority]}`} />
+                  <SelectValue placeholder="Select priority" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="LOW"><div className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-green-500" />Low</div></SelectItem>
+                  <SelectItem value="MEDIUM"><div className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-yellow-500" />Medium</div></SelectItem>
+                  <SelectItem value="HIGH"><div className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-red-500" />High</div></SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="space-y-2 flex-1 flex flex-col">
+            <label className="text-sm font-medium">Details</label>
+            <div className="flex-1 flex items-start space-x-2 border rounded-md p-2 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring has-[:focus-visible]:ring-offset-2">
+              <Textarea placeholder="Describe your issue or request in detail..." value={message} onChange={(e) => setMessage(e.target.value)} required className="flex-1 bg-transparent border-0 resize-none focus-visible:ring-0 focus-visible:ring-offset-0 p-0" />
+            </div>
+          </div>
+          <Button type="submit" className="w-full bg-[hsl(174,70%,54%)] hover:bg-[hsl(174,70%,44%)]">
+            <Send className="w-4 h-4 mr-2" /> Submit Ticket
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
+  );
+}
+
+
+components/messaging/user-communication.tsx
+"use client";
+
+import { useState } from "react";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { MessageSquare, LifeBuoy, Search, Users, User, Loader2 } from "lucide-react";
+import { CommunicationList } from "./conversation-list";
+import { CommunicationWindow } from "./communication-window";
+import { NewTicketForm } from "./new-ticket-form";
+import { DirectChatCreation } from "./direct-chat-creation";
+import { GroupChatCreation } from "./group-chat-creation";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { useMessaging, CommunicationItem } from "@/hooks/useMessaging";
+import { useUser } from "@/hooks/useUser";
+
+
+type ViewState = 'list' | 'new_ticket' | 'new_group_chat' | 'new_direct_chat';
+
+interface UserCommunicationProps {
+  workspaceId: string;
+}
+
+export function UserCommunication({ workspaceId }: UserCommunicationProps) {
+  const [currentView, setCurrentView] = useState<ViewState>('list');
+  const [searchQuery, setSearchQuery] = useState("");
+  const { user: currentUser } = useUser();
+
+  const {
+    communicationList,
+    workspaceMembers,
+    listLoading,
+    selectedItem,
+    setSelectedItem,
+    activeItemDetails,
+    itemLoading,
+    sendMessage,
+    sendingMessage,
+    createTicket,
+    createDirectConversation,
+    createGroupConversation,
+    refetchList,
+    typingUsers,
+    notifyTyping,
+  } = useMessaging({ workspaceId });
+
+  const handleCreateNewTicket = () => {
+    setCurrentView('new_ticket');
+    setSelectedItem(null);
+  };
+
+  const handleCreateNewGroupChat = () => {
+    setCurrentView('new_group_chat');
+    setSelectedItem(null);
+  };
+
+  const handleCreateNewDirectChat = () => {
+    setCurrentView('new_direct_chat');
+    setSelectedItem(null);
+  };
+
+  const handleChatCreated = (item: CommunicationItem) => {
+    refetchList().then(() => {
+        setSelectedItem(item);
+        setCurrentView('list');
+    });
+  };
+
+  const handleTicketSubmission = async (data: { subject: string; priority: any; message: string }) => {
+    const newTicket = await createTicket(data);
+    if (newTicket) {
+      const newListItem = {
+        id: newTicket.id,
+        type: "ticket" as const,
+        title: newTicket.subject,
+        unreadCount: 0,
+      };
+      // Refetch and select the new item
+      refetchList().then(() => {
+          setSelectedItem(newListItem as CommunicationItem);
+          setCurrentView('list');
+      });
+    }
+  };
+
+  const renderRightPanel = () => {
+    if (currentView === 'new_ticket') {
+      return (
+        <NewTicketForm
+          onBack={() => setCurrentView('list')}
+          onSubmit={handleTicketSubmission}
+        />
+      );
+    }
+
+    if (currentView === 'new_group_chat') {
+        return (
+            <GroupChatCreation
+                workspaceId={workspaceId}
+                members={workspaceMembers}
+                onBack={() => setCurrentView('list')}
+                onChatCreated={handleChatCreated}
+                createGroupConversation={createGroupConversation}
+            />
+        );
+    }
+
+    if (currentView === 'new_direct_chat') {
+        return (
+            <DirectChatCreation
+                workspaceId={workspaceId}
+                members={workspaceMembers}
+                onBack={() => setCurrentView('list')}
+                onChatSelected={handleChatCreated}
+                createDirectConversation={createDirectConversation}
+            />
+        );
+    }
+
+    if (itemLoading) {
+      return (
+        <Card className="h-full flex items-center justify-center">
+          <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+        </Card>
+      );
+    }
+
+    if (selectedItem && activeItemDetails) {
+      return (
+        <CommunicationWindow
+          key={selectedItem.id}
+          communicationItem={selectedItem}
+          details={activeItemDetails}
+          onSendMessage={sendMessage}
+          isSending={sendingMessage}
+          currentUserId={currentUser?.id}
+          typingUsers={typingUsers}
+          onUserIsTyping={notifyTyping}
+        />
+      );
+    }
+
+    return (
+      <Card className="h-full flex items-center justify-center bg-gray-50/50">
+        <div className="text-center text-muted-foreground">
+          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gray-100 flex items-center justify-center">
+            <MessageSquare className="w-8 h-8" />
+          </div>
+          <h3 className="text-lg font-medium mb-2">
+            Select a Conversation or Ticket
+          </h3>
+          <p>
+            Choose an item from the list to view messages or start a new interaction.
+          </p>
+        </div>
+      </Card>
+    );
+  };
+
+  return (
+    <div className="h-full overflow-hidden flex">
+      <div className="h-full flex flex-col px-6 w-full">
+        <div className="flex-shrink-0 pt-2">
+          <h1 className="text-3xl font-bold text-gray-900">Communication Hub</h1>
+        </div>
+        <div className="space-y-6 pb-6 flex-grow">
+          <div className="grid gap-6 lg:grid-cols-3 h-full">
+            <div className="lg:col-span-1 flex flex-col h-[80vh]">
+              <Card className="flex flex-col h-full">
+                  <CardHeader className="flex-shrink-0 space-y-3 p-4">
+                      <div className="relative">
+                          <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                          <Input
+                              placeholder="Search chats or tickets..."
+                              value={searchQuery}
+                              onChange={(e) => setSearchQuery(e.target.value)}
+                              className="pl-8"
+                          />
+                      </div>
+                      <div className="grid grid-cols-3 gap-2">
+                          <Button onClick={handleCreateNewDirectChat} variant="secondary" size="sm" className="text-xs">
+                              <User className="w-3 h-3 mr-1" /> Direct
+                          </Button>
+                          <Button onClick={handleCreateNewGroupChat} variant="secondary" size="sm" className="text-xs">
+                              <Users className="w-3 h-3 mr-1" /> Group
+                          </Button>
+                          <Button onClick={handleCreateNewTicket} variant="outline" size="sm" className="text-[hsl(174,70%,54%)] border-[hsl(174,70%,54%)] hover:bg-[hsl(174,70%,54%)] hover:text-white text-xs">
+                              <LifeBuoy className="w-3 h-3 mr-1" /> Ticket
+                          </Button>
+                      </div>
+                  </CardHeader>
+                <CardContent className="p-0 h-full overflow-y-auto">
+                  <CommunicationList
+                    list={communicationList}
+                    loading={listLoading}
+                    searchQuery={searchQuery}
+                    selectedItem={selectedItem}
+                    onSelectItem={setSelectedItem}
+                  />
+                </CardContent>
+              </Card>
+            </div>
+            <div className="lg:col-span-2 h-[80vh]">
+              {renderRightPanel()}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

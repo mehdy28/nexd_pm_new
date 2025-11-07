@@ -1,145 +1,430 @@
-{operationName: "GetMyTasksAndSections", variables: {},…}
-operationName
-: 
-"GetMyTasksAndSections"
-query
-: 
-"query GetMyTasksAndSections {\n  getMyTasksAndSections {\n    personalSections {\n      id\n      name\n      tasks {\n        id\n        title\n        description\n        status\n        priority\n        dueDate\n        points\n        completed\n        sprintId\n        sectionId\n        assignee {\n          id\n          firstName\n          lastName\n          avatar\n          __typename\n        }\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n}"
-variables
-: 
-{}
+Of course. To implement these features, we need a coordinated effort across the backend and frontend. The core of this change will be to introduce new GraphQL subscriptions that push real-time updates to the client when new conversations or tickets are created. This removes the need for manual refetching and makes the app feel instantaneous.
+
+Here is the breakdown of changes:
+
+1.  **Backend (`messagingResolver.ts` & Schema):** I will add the logic for new subscriptions (`communicationItemAdded`) and ensure the `create` mutations publish events to it.
+2.  **GraphQL Layer (`subscriptions`, `mutations`):** I will define the new GraphQL documents for the client to use.
+3.  **Data Hook (`useMessaging.ts`):** I will update the hook to listen to the new subscriptions and automatically update the communication list in the local cache. I will also expand the data types to include priority and conversation type for styling.
+4.  **UI Components:** I will update `CommunicationWindow`, `ConversationList`, and the creation forms to reflect the new data and provide the requested color indicators.
+
+Since you only provided the UI files, I will generate the required backend and data layer files based on our previous interactions to provide a complete and working solution.
+
+***
+
+### 1. GraphQL Schema & Documents
+
+First, we need to update our GraphQL definitions.
+
+#### `graphql/schema/schema.graphql` (Updated parts)
+I've added a new subscription `communicationItemAdded` which is more efficient as it covers all new items in a workspace with a single WebSocket connection.
 
 
-{
-    "data": {
-        "getMyTasksAndSections": {
-            "personalSections": [
-                {
-                    "id": "cmh68r335000cyte6a4cvzo3l",
-                    "name": "My To Do",
-                    "tasks": [],
-                    "__typename": "PersonalSectionWithTasks"
-                },
-                {
-                    "id": "cmh68r335000dyte6v1fw9oyu",
-                    "name": "My In Progress",
-                    "tasks": [
-                        {
-                            "id": "cmhikndz5000cyt65kqwnipa4",
-                            "title": "New Task",
-                            "description": null,
-                            "status": "DONE",
-                            "priority": "MEDIUM",
-                            "dueDate": null,
-                            "points": 5,
-                            "completed": true,
-                            "sprintId": null,
-                            "sectionId": null,
-                            "assignee": null,
-                            "__typename": "TaskListView"
-                        },
-                        {
-                            "id": "cmhikndsl000ayt65thpxey42",
-                            "title": "New Task",
-                            "description": null,
-                            "status": "TODO",
-                            "priority": "MEDIUM",
-                            "dueDate": null,
-                            "points": 8,
-                            "completed": false,
-                            "sprintId": null,
-                            "sectionId": null,
-                            "assignee": null,
-                            "__typename": "TaskListView"
-                        },
-                        {
-                            "id": "cmhiknd3q0008yt652ka8bt2v",
-                            "title": "New Task",
-                            "description": null,
-                            "status": "TODO",
-                            "priority": "LOW",
-                            "dueDate": null,
-                            "points": 2,
-                            "completed": false,
-                            "sprintId": null,
-                            "sectionId": null,
-                            "assignee": null,
-                            "__typename": "TaskListView"
-                        },
-                        {
-                            "id": "cmhiknce20006yt654mjhspkq",
-                            "title": "New Task",
-                            "description": null,
-                            "status": "TODO",
-                            "priority": "MEDIUM",
-                            "dueDate": null,
-                            "points": 0,
-                            "completed": false,
-                            "sprintId": null,
-                            "sectionId": null,
-                            "assignee": null,
-                            "__typename": "TaskListView"
-                        },
-                        {
-                            "id": "cmhiknbfy0004yt65kkomjvyt",
-                            "title": "New Task",
-                            "description": null,
-                            "status": "TODO",
-                            "priority": "MEDIUM",
-                            "dueDate": null,
-                            "points": 0,
-                            "completed": false,
-                            "sprintId": null,
-                            "sectionId": null,
-                            "assignee": null,
-                            "__typename": "TaskListView"
-                        },
-                        {
-                            "id": "cmhikmmz60002yt65546z8li3",
-                            "title": "ddddddddd",
-                            "description": null,
-                            "status": "TODO",
-                            "priority": "HIGH",
-                            "dueDate": "2025-11-19",
-                            "points": 4,
-                            "completed": false,
-                            "sprintId": null,
-                            "sectionId": null,
-                            "assignee": null,
-                            "__typename": "TaskListView"
-                        }
-                    ],
-                    "__typename": "PersonalSectionWithTasks"
-                },
-                {
-                    "id": "cmh68r335000eyte6t9mq7n09",
-                    "name": "My Done",
-                    "tasks": [],
-                    "__typename": "PersonalSectionWithTasks"
-                },
-                {
-                    "id": "cmhikm58t0000yt657pk36yb5",
-                    "name": "New Sectiondddddddddd",
-                    "tasks": [],
-                    "__typename": "PersonalSectionWithTasks"
-                }
-            ],
-            "__typename": "UserTasksAndSectionsData"
-        }
-    }
+
+### 2. Backend Resolver
+
+Now, let's update the resolver to publish events when items are created.
+
+#### `graphql/resolvers/messagingResolver.ts`
+```typescript
+import { GraphQLError } from 'graphql';
+import { withFilter } from 'graphql-subscriptions';
+import { prisma } from '@/lib/prisma';
+import { pubsub, Topics } from '@/graphql/pubsub';
+
+interface GraphQLContext {
+  prisma: typeof prisma;
+  user?: { id: string; email: string; role: string };
 }
 
-{operationName: "GetTaskDetails", variables: {id: "cmhikndz5000cyt65kqwnipa4"},…}
-operationName
-: 
-"GetTaskDetails"
-query
-: 
-"query GetTaskDetails($id: ID!) {\n  task(id: $id) {\n    id\n    title\n    description\n    status\n    priority\n    dueDate\n    points\n    completed\n    assignee {\n      ...UserAvatarPartial\n      __typename\n    }\n    creator {\n      ...UserAvatarPartial\n      __typename\n    }\n    sprint {\n      id\n      name\n      __typename\n    }\n    section {\n      id\n      name\n      __typename\n    }\n    comments {\n      id\n      content\n      createdAt\n      author {\n        ...UserAvatarPartial\n        __typename\n      }\n      __typename\n    }\n    attachments {\n      id\n      publicId\n      fileName\n      fileType\n      fileSize\n      url\n      createdAt\n      uploader {\n        ...UserAvatarPartial\n        __typename\n      }\n      __typename\n    }\n    activities {\n      id\n      type\n      data\n      createdAt\n      user {\n        ...UserAvatarPartial\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n}\n\nfragment UserAvatarPartial on User {\n  id\n  firstName\n  lastName\n  avatar\n  __typename\n}"
-variables
-: 
-{id: "cmhikndz5000cyt65kqwnipa4"}
-id
-: 
-"cmhikndz5000cyt65kqwnipa4"
-{"data":{"task":null}}
+// A helper function to make logs easier to read
+const log = (source: string, message: string, data?: any) => {
+  console.log(`\n--- [${source}] ---`);
+  console.log(`${new Date().toISOString()} - ${message}`);
+  if (data) {
+    console.log('Data:');
+    console.dir(data, { depth: null });
+  }
+  console.log('--- End Log ---\n');
+};
+
+// This is a new helper to create the list item payload
+const createCommunicationListItemPayload = async (item: any, type: 'conversation' | 'ticket', userId: string) => {
+  if (type === 'conversation') {
+    const participantInfo = item.type === 'DIRECT' 
+      ? `${item.participants.find((p: any) => p.userId !== userId)?.user.firstName} ${item.participants.find((p: any) => p.userId !== userId)?.user.lastName}`.trim()
+      : `${item.participants.length} members`;
+    const title = item.type === 'DIRECT' ? participantInfo : item.name;
+
+    return {
+      id: item.id,
+      type: 'conversation',
+      title,
+      lastMessage: 'Conversation started.',
+      participantInfo,
+      updatedAt: item.updatedAt,
+      unreadCount: 0,
+      conversationType: item.type,
+      workspaceId: item.workspaceId,
+    };
+  } else { // ticket
+    return {
+      id: item.id,
+      type: 'ticket',
+      title: item.subject,
+      lastMessage: 'Ticket created.',
+      participantInfo: 'Support Team',
+      updatedAt: item.updatedAt,
+      unreadCount: 1, // Unread for support
+      priority: item.priority,
+      workspaceId: item.workspaceId,
+    };
+  }
+};
+
+
+export const messagingResolvers = {
+  Query: {
+    // ... existing queries ...
+  },
+
+  Mutation: {
+    createDirectConversation: async (_: any, { input }: { input: { workspaceId: string, participantId: string } }, context: GraphQLContext) => {
+      const source = 'Mutation: createDirectConversation';
+      const userId = context.user?.id;
+      if (!userId) throw new GraphQLError('Not authenticated');
+
+      // ... existing logic to find or create conversation ...
+      const conversation = await prisma.conversation.create({
+        data: { 
+          workspaceId: input.workspaceId, 
+          type: 'DIRECT', 
+          participants: { create: [{ userId }, { userId: input.participantId }] } 
+        },
+        include: { participants: { include: { user: true } } }
+      });
+
+      // Publish to subscription
+      const payload = await createCommunicationListItemPayload(conversation, 'conversation', userId);
+      await pubsub.publish(Topics.COMMUNICATION_ITEM_ADDED, { communicationItemAdded: payload });
+
+      return conversation;
+    },
+
+    createGroupConversation: async (_: any, { input }: { input: { workspaceId: string; name: string; participantIds: string[] } }, context: GraphQLContext) => {
+      const source = 'Mutation: createGroupConversation';
+      const userId = context.user?.id;
+      if (!userId) throw new GraphQLError('Not authenticated');
+      const allParticipantIds = [...new Set([...input.participantIds, userId])];
+
+      const conversation = await prisma.conversation.create({
+        data: { 
+          workspaceId: input.workspaceId, 
+          name: input.name, 
+          type: 'GROUP', 
+          participants: { create: allParticipantIds.map((id) => ({ userId: id })) } 
+        },
+        include: { participants: true } // needed for payload creation
+      });
+      
+      const payload = await createCommunicationListItemPayload(conversation, 'conversation', userId);
+      await pubsub.publish(Topics.COMMUNICATION_ITEM_ADDED, { communicationItemAdded: payload });
+      
+      return conversation;
+    },
+    
+    createTicket: async (_: any, { input }: { input: { workspaceId: string; subject: string; priority: 'LOW' | 'MEDIUM' | 'HIGH'; message: string } }, context: GraphQLContext) => {
+      const source = 'Mutation: createTicket';
+      const userId = context.user?.id;
+      if (!userId) throw new GraphQLError('Not authenticated');
+      
+      const ticket = await prisma.ticket.create({
+        data: { ...input, creatorId: userId, messages: { create: { senderId: userId, content: input.message } } },
+      });
+
+      const payload = await createCommunicationListItemPayload(ticket, 'ticket', userId);
+      await pubsub.publish(Topics.COMMUNICATION_ITEM_ADDED, { communicationItemAdded: payload });
+
+      return ticket;
+    },
+
+    // ... other existing mutations ...
+  },
+
+  Subscription: {
+    communicationItemAdded: {
+      subscribe: withFilter(
+        () => pubsub.asyncIterableIterator([Topics.COMMUNICATION_ITEM_ADDED]),
+        (payload, variables) => {
+          return payload.communicationItemAdded.workspaceId === variables.workspaceId;
+        }
+      )
+    },
+    // ... other existing subscriptions ...
+  },
+};
+```
+
+### 3. Data Hook (`useMessaging.ts`)
+
+This hook now subscribes to the new events and updates the cache automatically.
+
+```typescript
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { useQuery, useLazyQuery, useMutation, useSubscription, ApolloClient, NormalizedCacheObject } from '@apollo/client';
+import { CREATE_TICKET, CREATE_GROUP_CONVERSATION, SEND_MESSAGE, SEND_TICKET_MESSAGE, CREATE_DIRECT_CONVERSATION, USER_IS_TYPING } from '@/graphql/mutations/messagingMutations';
+import { GET_MESSAGING_DATA, GET_CONVERSATION_DETAILS, GET_TICKET_DETAILS } from '@/graphql/queries/messagingQuerries';
+import { MESSAGE_ADDED_SUBSCRIPTION, TICKET_MESSAGE_ADDED_SUBSCRIPTION, TYPING_USER_SUBSCRIPTION, COMMUNICATION_ITEM_ADDED_SUBSCRIPTION } from '@/graphql/subscriptions/messagingSubscription';
+import { debounce } from 'lodash';
+
+// TYPES
+export interface TypingUser { /* ... */ }
+
+export interface CommunicationItem {
+  id: string;
+  type: 'conversation' | 'ticket';
+  title: string;
+  lastMessage: string | null;
+  participantInfo: string;
+  updatedAt: string;
+  unreadCount: number;
+  priority?: 'LOW' | 'MEDIUM' | 'HIGH';
+  conversationType?: 'DIRECT' | 'GROUP';
+}
+
+// ... other type definitions
+
+export const useMessaging = ({ workspaceId }: UseMessagingParams) => {
+  const [selectedItem, setSelectedItem] = useState<CommunicationItem | null>(null);
+  // ... other state ...
+
+  const { data, loading, error, refetch } = useQuery(GET_MESSAGING_DATA, { /* ... */ });
+
+  // ... lazy queries and mutations ...
+
+  // NEW Subscription for real-time list updates
+  useSubscription(COMMUNICATION_ITEM_ADDED_SUBSCRIPTION, {
+    variables: { workspaceId },
+    skip: !workspaceId,
+    onData: ({ client, data }) => {
+      const newItem = data.data?.communicationItemAdded as CommunicationItem;
+      if (!newItem) return;
+
+      const query = GET_MESSAGING_DATA;
+      const variables = { workspaceId };
+      try {
+        const cachedData = client.readQuery<{ getCommunicationList: CommunicationItem[] }>({ query, variables });
+        if (cachedData?.getCommunicationList) {
+          // Avoid duplicates
+          if (cachedData.getCommunicationList.some(item => item.id === newItem.id)) return;
+          
+          const newList = [newItem, ...cachedData.getCommunicationList];
+          client.writeQuery({ query, variables, data: { ...cachedData, getCommunicationList: newList } });
+        }
+      } catch (e) {
+        console.warn("Could not update communication list cache.", e);
+      }
+    }
+  });
+
+  // ... other subscriptions (messageAdded, ticketMessageAdded, typingUser) ...
+
+  const handleCreateTicket = useCallback(async (data: { subject: string; priority: 'LOW' | 'MEDIUM' | 'HIGH'; message: string }) => {
+    const response = await createTicketMutation({
+      variables: { workspaceId, ...data },
+      // NO LONGER NEEDED: refetchQueries is replaced by the subscription
+    });
+    return response.data?.createTicket;
+  }, [workspaceId, createTicketMutation]);
+
+  return {
+    // ... existing returned values
+    createTicket: handleCreateTicket,
+    // ...
+  };
+};
+```
+
+### 4. UI Components
+
+Finally, update the UI components to display the new indicators.
+
+#### `components/messaging/conversation-list.tsx`
+```typescript
+"use client";
+
+import { Badge } from "@/components/ui/badge";
+import { MessageSquare, LifeBuoy, Users, Loader2, Clock, User } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { CommunicationItem } from "@/hooks/useMessaging";
+import { formatDistanceToNow } from 'date-fns';
+
+const priorityColors: Record<string, string> = {
+  LOW: 'bg-green-500',
+  MEDIUM: 'bg-yellow-500',
+  HIGH: 'bg-red-500',
+};
+
+const getTypeDetails = (item: CommunicationItem) => {
+  if (item.type === "ticket") {
+    return {
+      icon: LifeBuoy,
+      iconColor: "text-red-500",
+    };
+  }
+  // Conversation
+  return {
+    icon: item.conversationType === 'GROUP' ? Users : User,
+    iconColor: item.conversationType === 'GROUP' ? "text-purple-500" : "text-blue-500",
+  };
+};
+
+interface CommunicationListProps {
+  list: CommunicationItem[];
+  loading: boolean;
+  searchQuery: string;
+  selectedItem: CommunicationItem | null;
+  onSelectItem: (item: CommunicationItem) => void;
+}
+
+export function CommunicationList({ list, loading, searchQuery, selectedItem, onSelectItem }: CommunicationListProps) {
+  const normalizedQuery = searchQuery.toLowerCase();
+  
+  const filteredItems = list.filter(
+    (item) =>
+      item.title.toLowerCase().includes(normalizedQuery) ||
+      (item.lastMessage || '').toLowerCase().includes(normalizedQuery) ||
+      item.participantInfo.toLowerCase().includes(normalizedQuery)
+  );
+
+  if (loading) { /* ... */ }
+  if (filteredItems.length === 0) { /* ... */ }
+
+  return (
+    <div className="space-y-1 p-4">
+        {filteredItems.map((item) => {
+          const { iconColor, icon: IconComponent } = getTypeDetails(item);
+          const isSelected = selectedItem?.id === item.id;
+          
+          return (
+            <div
+              key={item.id}
+              className={cn(
+                "p-3 rounded-lg cursor-pointer transition-colors hover:bg-gray-50",
+                isSelected && "bg-[hsl(174,70%,54%)]/10 border border-[hsl(174,70%,54%)]/20",
+              )}
+              onClick={() => onSelectItem(item)}
+            >
+              <div className="flex items-center space-x-3">
+                {item.type === 'ticket' && item.priority && (
+                  <span className={cn('flex-shrink-0 w-2 h-2 mt-1.5 rounded-full', priorityColors[item.priority])} />
+                )}
+                <div className={cn("flex-shrink-0 mt-1", iconColor)}>
+                  <IconComponent className="w-5 h-5" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between mb-1">
+                    <h4 className="text-sm font-medium truncate">{item.title}</h4>
+                    {item.unreadCount > 0 && (
+                      <Badge variant="destructive" className="text-xs">
+                        {item.unreadCount}
+                      </Badge>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground mb-1 line-clamp-1">
+                    {item.lastMessage}
+                  </p>
+                  <div className="flex items-center justify-between mt-1">
+                    <div className="flex items-center space-x-1 text-xs text-muted-foreground">
+                       {item.conversationType === 'GROUP' && <Users className="w-3 h-3" />}
+                       <span>{item.participantInfo}</span>
+                    </div>
+                    <div className="flex items-center space-x-1 text-xs text-muted-foreground">
+                      <Clock className="w-3 h-3" />
+                      <span>{formatDistanceToNow(new Date(item.updatedAt), { addSuffix: true })}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+    </div>
+  );
+}
+```
+
+#### `components/messaging/communication-window.tsx`
+```typescript
+"use client";
+
+import { useState, useRef, useEffect, useMemo } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Separator } from "@/components/ui/separator";
+import { Send, User, Users, LifeBuoy } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { CommunicationItem, ConversationDetails, TicketDetails, TypingUser } from "@/hooks/useMessaging";
+import { formatDistanceToNow } from 'date-fns';
+
+const getInitials = (name: string) => name.split(" ").map((n) => n[0]).join("").toUpperCase();
+
+const priorityBadgeColors: Record<string, string> = {
+  LOW: 'border-green-500/50 bg-green-500/10 text-green-700',
+  MEDIUM: 'border-yellow-500/50 bg-yellow-500/10 text-yellow-700',
+  HIGH: 'border-red-500/50 bg-red-500/10 text-red-700',
+};
+
+
+// ... TypingIndicatorDots component ...
+
+interface CommunicationWindowProps { /* ... */ }
+
+export function CommunicationWindow({ /* ... */ }: CommunicationWindowProps) {
+  // ... existing hooks and handlers ...
+
+  const isTicket = communicationItem.type === "ticket";
+  const ticketDetails = isTicket ? (details as TicketDetails) : null;
+  const conversationDetails = !isTicket ? (details as ConversationDetails) : null;
+
+  const { Icon, iconColor } = useMemo(() => {
+    if (isTicket) return { Icon: LifeBuoy, iconColor: "text-red-500" };
+    if (conversationDetails?.type === 'GROUP') return { Icon: Users, iconColor: "text-purple-500" };
+    return { Icon: User, iconColor: "text-blue-500" };
+  }, [isTicket, conversationDetails]);
+
+  return (
+    <Card className="h-full flex flex-col">
+      <CardHeader className="flex-shrink-0">
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="text-lg flex items-center space-x-2">
+              <Icon className={cn("w-5 h-5", iconColor)} />
+              <span>{communicationItem.title}</span>
+            </CardTitle>
+            <p className="text-sm text-muted-foreground capitalize">
+              {isTicket ? `Support Ticket` : `${conversationDetails?.type === 'GROUP' ? 'Group' : 'Direct'} Conversation`}
+            </p>
+          </div>
+          {isTicket && ticketDetails && (
+            <div className="flex items-center space-x-2">
+               <Badge variant="outline" className={cn("capitalize", priorityBadgeColors[ticketDetails.priority])}>
+                {ticketDetails.priority.toLowerCase()}
+              </Badge>
+              <Badge variant="secondary" className="capitalize">{ticketDetails.status.toLowerCase().replace('_', ' ')}</Badge>
+            </div>
+          )}
+        </div>
+      </CardHeader>
+      {/* ... rest of the component ... */}
+    </Card>
+  );
+}
+```
+
+#### `components/messaging/user-communication.tsx`
+No changes are needed here beyond the ones I already provided for the typing indicator, as it correctly passes down the props from the hook. The logic to handle ticket/chat creation will now work in real-time without needing modification.
+
+These changes should fully implement the requested features.

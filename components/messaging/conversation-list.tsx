@@ -1,15 +1,28 @@
 "use client";
 
 import { Badge } from "@/components/ui/badge";
-import { MessageSquare, LifeBuoy, Users, Loader2, Clock } from "lucide-react";
+import { MessageSquare, LifeBuoy, Users, Loader2, Clock, User as UserIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CommunicationItem } from "@/hooks/useMessaging";
 import { formatDistanceToNow } from 'date-fns';
 
-const getTypeDetails = (type: "conversation" | "ticket") => {
+const priorityColors: Record<string, string> = {
+  LOW: 'bg-green-500',
+  MEDIUM: 'bg-yellow-500',
+  HIGH: 'bg-red-500',
+};
+
+const getTypeDetails = (item: CommunicationItem) => {
+  if (item.type === "ticket") {
+    return {
+      icon: LifeBuoy,
+      iconColor: "text-red-500",
+    };
+  }
+  // Conversation
   return {
-    color: type === "ticket" ? "text-red-500" : "text-[hsl(174,70%,54%)]",
-    icon: type === "ticket" ? LifeBuoy : MessageSquare,
+    icon: item.conversationType === 'GROUP' ? Users : UserIcon,
+    iconColor: item.conversationType === 'GROUP' ? "text-purple-500" : "text-blue-500",
   };
 };
 
@@ -46,7 +59,7 @@ export function CommunicationList({ list, loading, searchQuery, selectedItem, on
   return (
     <div className="space-y-1 p-4">
         {filteredItems.map((item) => {
-          const { color, icon: IconComponent } = getTypeDetails(item.type);
+          const { iconColor, icon: IconComponent } = getTypeDetails(item);
           const isSelected = selectedItem?.id === item.id;
           
           return (
@@ -58,8 +71,11 @@ export function CommunicationList({ list, loading, searchQuery, selectedItem, on
               )}
               onClick={() => onSelectItem(item)}
             >
-              <div className="flex items-start space-x-3">
-                <div className={cn("flex-shrink-0 mt-1", color)}>
+              <div className="flex items-center space-x-3">
+                {item.type === 'ticket' && item.priority && (
+                  <span className={cn('flex-shrink-0 w-2 h-2 mt-1.5 rounded-full', priorityColors[item.priority])} />
+                )}
+                <div className={cn("flex-shrink-0 mt-1", iconColor)}>
                   <IconComponent className="w-5 h-5" />
                 </div>
                 <div className="flex-1 min-w-0">
@@ -72,11 +88,10 @@ export function CommunicationList({ list, loading, searchQuery, selectedItem, on
                     )}
                   </div>
                   <p className="text-xs text-muted-foreground mb-1 line-clamp-1">
-                    <span className="font-semibold capitalize">{item.type}:</span> {item.lastMessage}
+                    {item.lastMessage}
                   </p>
                   <div className="flex items-center justify-between mt-1">
                     <div className="flex items-center space-x-1 text-xs text-muted-foreground">
-                       {item.type === "conversation" && <Users className="w-3 h-3" />}
                        <span>{item.participantInfo}</span>
                     </div>
                     <div className="flex items-center space-x-1 text-xs text-muted-foreground">

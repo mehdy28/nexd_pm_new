@@ -837,6 +837,17 @@ type CommunicationListItem {
   participantInfo: String!
   updatedAt: DateTime!
   unreadCount: Int!
+  priority: Priority # For tickets
+  conversationType: ConversationType # For conversations
+}
+
+
+
+# NEW Typing Indicator Type
+type TypingUser {
+  id: ID!
+  firstName: String
+  lastName: String
 }
 
 # ----------------------------------
@@ -1279,6 +1290,9 @@ type Mutation {
   createTicket(input: CreateTicketInput!): Ticket!
   sendTicketMessage(input: SendTicketMessageInput!): TicketMessage!
   updateTicketStatus(ticketId: ID!, status: TicketStatus!): Ticket!
+  
+  # NEW Typing Indicator Mutation
+  userIsTyping(conversationId: ID!): Boolean
 }
 
 # ----------------------------------
@@ -1291,8 +1305,15 @@ type Subscription {
   # And change this line
   ticketMessageAdded(ticketId: ID!): TicketMessage
 
+  # NEW Typing Indicator Subscription
+  typingUser(conversationId: ID!): TypingUser
+
   # This allows the server to handle empty/initial events without crashing.
   communicationItemUpdated(workspaceId: ID!): CommunicationListItem
+
+
+  # NEW subscription for real-time list updates
+  communicationItemAdded(workspaceId: ID!): CommunicationListItem
 }
 
 # ----------------------------------
@@ -1300,3 +1321,24 @@ type Subscription {
 # ----------------------------------
 scalar JSON
 scalar DateTime
+
+
+
+
+
+
+
+
+
+
+
+
+type Subscription {
+  messageAdded(conversationId: ID!): Message
+  ticketMessageAdded(ticketId: ID!): TicketMessage
+  typingUser(conversationId: ID!): TypingUser
+
+  # NEW subscription for real-time list updates
+  communicationItemAdded(workspaceId: ID!): CommunicationListItem
+}
+

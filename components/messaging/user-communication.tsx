@@ -38,45 +38,38 @@ export function UserCommunication({ workspaceId }: UserCommunicationProps) {
     createTicket,
     createDirectConversation,
     createGroupConversation,
-    refetchList,
+    typingUsers,
+    notifyTyping,
   } = useMessaging({ workspaceId });
 
   const handleCreateNewTicket = () => {
     setCurrentView('new_ticket');
-    setSelectedItem(null);
+    // We set to null directly here, no need for the wrapper
+    setSelectedItem(null as any);
   };
 
   const handleCreateNewGroupChat = () => {
     setCurrentView('new_group_chat');
-    setSelectedItem(null);
+    setSelectedItem(null as any);
   };
 
   const handleCreateNewDirectChat = () => {
     setCurrentView('new_direct_chat');
-    setSelectedItem(null);
+    setSelectedItem(null as any);
   };
 
-  const handleChatCreated = (item: CommunicationItem) => {
-    refetchList().then(() => {
-        setSelectedItem(item);
-        setCurrentView('list');
-    });
+  const handleChatCreated = (newItem: CommunicationItem) => {
+    setSelectedItem(newItem);
+    setCurrentView('list');
   };
 
   const handleTicketSubmission = async (data: { subject: string; priority: any; message: string }) => {
     const newTicket = await createTicket(data);
     if (newTicket) {
-      const newListItem = {
-        id: newTicket.id,
-        type: "ticket" as const,
-        title: newTicket.subject,
-        unreadCount: 0,
-      };
-      // Refetch and select the new item
-      refetchList().then(() => {
-          setSelectedItem(newListItem as CommunicationItem);
-          setCurrentView('list');
-      });
+      // The subscription will add the ticket to the list in real-time.
+      // We can optimistically create a temporary item to select, or wait for the subscription to add it.
+      // For simplicity, we'll just switch the view. The user can then click on the new item.
+      setCurrentView('list');
     }
   };
 
@@ -131,6 +124,8 @@ export function UserCommunication({ workspaceId }: UserCommunicationProps) {
           onSendMessage={sendMessage}
           isSending={sendingMessage}
           currentUserId={currentUser?.id}
+          typingUsers={typingUsers}
+          onUserIsTyping={notifyTyping}
         />
       );
     }

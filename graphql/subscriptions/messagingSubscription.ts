@@ -1,6 +1,5 @@
 import { gql } from '@apollo/client';
 
-
 // SUBSCRIPTIONS
 
 export const MESSAGE_ADDED_SUBSCRIPTION = gql`
@@ -22,6 +21,32 @@ export const TICKET_MESSAGE_ADDED_SUBSCRIPTION = gql`
       createdAt
       isSupport
       sender { id firstName lastName avatar }
+    }
+  }
+`;
+
+export const TYPING_USER_SUBSCRIPTION = gql`
+  subscription TypingUser($conversationId: ID!) {
+    typingUser(conversationId: $conversationId) {
+      id
+      firstName
+      lastName
+    }
+  }
+`;
+
+export const COMMUNICATION_ITEM_ADDED_SUBSCRIPTION = gql`
+  subscription CommunicationItemAdded($workspaceId: ID!) {
+    communicationItemAdded(workspaceId: $workspaceId) {
+      id
+      type
+      title
+      lastMessage
+      participantInfo
+      updatedAt
+      unreadCount
+      priority
+      conversationType
     }
   }
 `;
