@@ -1,23 +1,22 @@
-// app/(core)/workspace/page.tsx
 "use client";
 
-import { useEffect, useState } from "react"; // Added useState
+import { useEffect, useState } from "react";
 import { useTopbar } from "@/components/layout/topbar-store";
-import { Users, Settings, Plus, MoreHorizontal, Loader2 } from "lucide-react";
+import { Users, Settings, Plus, MoreHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
-
 import { useWorkspaceData } from "@/hooks/useWorkspaceData";
-import CreateProjectModal from "@/components/project/create-project-modal"; // Import the modal component
+import CreateProjectModal from "@/components/project/create-project-modal";
+import { LoadingPlaceholder, ErrorPlaceholder } from "@/components/placeholders/status-placeholders";
 
 export default function WorkspacePage() {
   const { setConfig, setActiveKey } = useTopbar();
 
-  const { workspaceData, loading, error, refetchWorkspaceData } = useWorkspaceData(); // Added refetch
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false); // State for modal
+  const { workspaceData, loading, error, refetchWorkspaceData } = useWorkspaceData();
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   useEffect(() => {
     setConfig({
@@ -29,37 +28,14 @@ export default function WorkspacePage() {
   }, [workspaceData, setConfig, setActiveKey]);
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[calc(100vh-64px)] bg-muted/30">
-        <Loader2 className="h-10 w-10 animate-spin text-teal-500" />
-        <p className="ml-4 text-lg text-slate-700">Loading workspace data...</p>
-      </div>
-    );
+    return <LoadingPlaceholder message="Loading workspace data..." />;
   }
 
   if (error) {
-    return (
-      <div className="flex items-center justify-center min-h-[calc(100vh-64px)] bg-red-100 text-red-700 p-4">
-        <p className="text-lg">Error loading workspace data: {error.message}</p>
-      </div>
-    );
+    return <ErrorPlaceholder error={error} onRetry={refetchWorkspaceData} />;
   }
 
-  if (!workspaceData) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-64px)] bg-muted/30 p-8 text-center">
-        <h2 className="text-3xl font-bold text-foreground mb-4">No Workspace Found</h2>
-        <p className="text-muted-foreground leading-relaxed max-w-xl mb-8">
-          It looks like you haven't set up a workspace yet. Let's get you started!
-        </p>
-        <Link href="/setup" passHref>
-          <Button className="shadow-soft hover:shadow-medium transition-all duration-200">
-            Create Your First Workspace
-          </Button>
-        </Link>
-      </div>
-    );
-  }
+
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -87,7 +63,6 @@ export default function WorkspacePage() {
     // useMutation's refetchQueries takes care of this
   };
 
-
   return (
     <div className="p-8 space-y-10 bg-muted/30 min-h-full">
       {/* Workspace Description */}
@@ -109,11 +84,12 @@ export default function WorkspacePage() {
               Team Size: {workspaceData.teamSize}
             </Badge>
           )}
-          {workspaceData.workFields && workspaceData.workFields.map((field, index) => (
-            <Badge key={index} variant="secondary" className="bg-gray-100 text-gray-800 border-0">
-              {field}
-            </Badge>
-          ))}
+          {workspaceData.workFields &&
+            workspaceData.workFields.map((field, index) => (
+              <Badge key={index} variant="secondary" className="bg-gray-100 text-gray-800 border-0">
+                {field}
+              </Badge>
+            ))}
         </div>
       </div>
 
@@ -131,7 +107,7 @@ export default function WorkspacePage() {
         </div>
 
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {workspaceData.projects.map((project) => (
+          {workspaceData.projects.map(project => (
             <Card
               key={project.id}
               className="shadow-soft hover:shadow-medium hover:scale-[1.02] transition-all duration-200 cursor-pointer group"
@@ -161,9 +137,11 @@ export default function WorkspacePage() {
                 <CardContent className="space-y-4">
                   <div className="flex items-center justify-between">
                     <Badge variant="secondary" className={`${getStatusColor(project.status)} border-0 font-medium`}>
-                      {project.status.replace(/_/g, ' ')}
+                      {project.status.replace(/_/g, " ")}
                     </Badge>
-                    <span className="text-sm text-muted-foreground font-medium">{project.projectMemberCount} members</span>
+                    <span className="text-sm text-muted-foreground font-medium">
+                      {project.projectMemberCount} members
+                    </span>
                   </div>
 
                   <div className="space-y-3">
@@ -176,7 +154,13 @@ export default function WorkspacePage() {
                     <div className="w-full bg-muted rounded-full h-2">
                       <div
                         className="bg-primary h-2 rounded-full transition-all duration-300"
-                        style={{ width: `${project.totalTaskCount > 0 ? (project.completedTaskCount / project.totalTaskCount) * 100 : 0}%` }}
+                        style={{
+                          width: `${
+                            project.totalTaskCount > 0
+                              ? (project.completedTaskCount / project.totalTaskCount) * 100
+                              : 0
+                          }%`,
+                        }}
                       />
                     </div>
                   </div>
@@ -201,7 +185,7 @@ export default function WorkspacePage() {
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {workspaceData.members.map((member) => (
+          {workspaceData.members.map(member => (
             <Card
               key={member.user.id}
               className="shadow-soft hover:shadow-medium hover:scale-[1.02] transition-all duration-200 group"
@@ -210,9 +194,16 @@ export default function WorkspacePage() {
                 <div className="flex items-center space-x-4">
                   <div className="relative">
                     <Avatar className="h-12 w-12 shadow-sm">
-                      <AvatarImage src={member.user.firstName ? `https://ui-avatars.com/api/?name=${member.user.firstName}+${member.user.lastName}&background=random` : "/placeholder.svg"} alt={`${member.user.firstName || ""} ${member.user.lastName || ""}`} />
+                      <AvatarImage
+                        src={
+                          member.user.firstName
+                            ? `https://ui-avatars.com/api/?name=${member.user.firstName}+${member.user.lastName}&background=random`
+                            : "/placeholder.svg"
+                        }
+                        alt={`${member.user.firstName || ""} ${member.user.lastName || ""}`}
+                      />
                       <AvatarFallback className="bg-primary/10 text-primary font-semibold">
-                        {`${(member.user.firstName?.[0] || '')}${(member.user.lastName?.[0] || '')}` || '?'}
+                        {`${member.user.firstName?.[0] || ""}${member.user.lastName?.[0] || ""}` || "?"}
                       </AvatarFallback>
                     </Avatar>
                   </div>
@@ -220,7 +211,7 @@ export default function WorkspacePage() {
                     <p className="font-semibold text-foreground truncate group-hover:text-primary transition-colors">
                       {`${member.user.firstName || ""} ${member.user.lastName || ""}`.trim() || member.user.email}
                     </p>
-                    <p className="text-sm text-muted-foreground truncate">{member.role.replace(/_/g, ' ')}</p>
+                    <p className="text-sm text-muted-foreground truncate">{member.role.replace(/_/g, " ")}</p>
                   </div>
                 </div>
               </CardContent>

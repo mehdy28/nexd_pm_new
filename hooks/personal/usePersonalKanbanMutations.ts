@@ -1,4 +1,4 @@
-import { useMutation } from "@apollo/client"
+import { useMutation, ApolloCache } from "@apollo/client"
 import { useCallback } from "react"
 import { GET_MY_TASKS_AND_SECTIONS_QUERY } from "@/graphql/queries/personal/getMyTasksAndSections"
 import { CREATE_PERSONAL_SECTION_MUTATION } from "@/graphql/mutations/personal/createPersonalSection"
@@ -10,6 +10,13 @@ import { DELETE_PERSONAL_TASK_MUTATION } from "@/graphql/mutations/personal/dele
 import { Priority, TaskStatus } from "@prisma/client"
 import { PriorityUI, TaskStatusUI, TaskUI, SectionUI } from "./useMyTasksAndSections"
 
+// --- Cached Query Type ---
+// Helper type for reading/writing to the Apollo Cache
+type GetMyTasksAndSectionsQueryType = {
+  getMyTasksAndSections: {
+    sections: SectionUI[]
+  }
+}
 
 // --- Input Interfaces ---
 interface CreateSectionVariables {
@@ -92,7 +99,46 @@ export function usePersonalKanbanMutations() {
     { updatePersonalSection: SectionUI },
     UpdateSectionVariables
   >(UPDATE_PERSONAL_SECTION_MUTATION, {
-    refetchQueries: getKanbanRefetchQueries,
+    // REMOVED: refetchQueries. We will update the cache manually to prevent flicker.
+    update: (cache, { data }) => {
+      const updatedSection = data?.updatePersonalSection
+      if (!updatedSection) return
+
+      const existingQueryData = cache.readQuery<GetMyTasksAndSectionsQueryType>({
+        query: GET_MY_TASKS_AND_SECTIONS_QUERY,
+      })
+
+      if (!existingQueryData?.getMyTasksAndSections?.sections) return
+
+      const existingSections = existingQueryData.getMyTasksAndSections.sections
+
+      // Create a new array based on the reorder operation
+      const newSections = [...existingSections]
+      const fromIndex = newSections.findIndex(s => s.id === updatedSection.id)
+
+      if (fromIndex === -1) return // Section not found, should not happen
+
+      // Remove the section from its old position
+      const [movedSection] = newSections.splice(fromIndex, 1)
+
+      // The backend should return the updated object with the correct new order value
+      const toIndex = updatedSection.order
+      if (typeof toIndex !== "number") return // The new order is required
+
+      // Insert the section into its new position
+      newSections.splice(toIndex, 0, movedSection)
+
+      // Write the newly ordered array back to the cache
+      cache.writeQuery<GetMyTasksAndSectionsQueryType>({
+        query: GET_MY_TASKS_AND_SECTIONS_QUERY,
+        data: {
+          getMyTasksAndSections: {
+            ...existingQueryData.getMyTasksAndSections,
+            sections: newSections,
+          },
+        },
+      })
+    },
   })
 
   const [deleteSectionMutation] = useMutation<
@@ -154,8 +200,6 @@ export function usePersonalKanbanMutations() {
   const deleteColumn = useCallback(
     async (id: string): Promise<void> => {
       try {
-        // Personal tasks should always be deleted with their section for simplicity, or reassigned.
-        // Defaulting to delete=true simplifies the Kanban UI logic.
         await deleteSectionMutation({
           variables: { id, options: { deleteTasks: true } },
         })

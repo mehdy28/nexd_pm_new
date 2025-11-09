@@ -30,8 +30,7 @@ import { useMyTasksAndSections } from "@/hooks/personal/useMyTasksAndSections"
 import { usePersonalTaskmutations } from "@/hooks/personal/usePersonalTaskMutations"
 import { TaskUI, SectionUI, PriorityUI } from "@/hooks/personal/useMyTasksAndSections"
 import { TaskDetailSheet } from "../modals/task-detail-sheet"
-
-
+import { LoadingPlaceholder, ErrorPlaceholder } from "@/components/placeholders/status-placeholders"
 
 type NewTaskForm = {
   title: string
@@ -387,7 +386,7 @@ export function PersonalListView() {
   useEffect(() => {
     if (deleteTaskModalOpen && customTaskModalRef.current) customTaskModalRef.current.focus()
   }, [deleteTaskModalOpen])
-  
+
   const allSelected = useMemo(
     () => selectedCount > 0 && selectedCount === allTaskIds.length,
     [selectedCount, allTaskIds]
@@ -397,33 +396,10 @@ export function PersonalListView() {
     [sections, sectionToDelete]
   )
 
-  if (loading)
-    return (
-      <div className="flex items-center justify-center min-h-[calc(100vh-64px)] bg-muted/30">
-        <Loader2 className="h-10 w-10 animate-spin text-teal-500" />
-        <p className="ml-4 text-lg text-slate-700">Loading your tasks...</p>
-      </div>
-    )
-  if (error)
-    return (
-      <div className="flex items-center justify-center min-h-[calc(100vh-64px)] bg-red-100 text-red-700 p-4">
-        <p className="text-lg">Error loading tasks: {error.message}</p>
-      </div>
-    )
+  if (loading) return <LoadingPlaceholder message="Loading your tasks..." />
+  if (error) return <ErrorPlaceholder error={error} onRetry={refetchMyTasksAndSections} />
 
-  if (!sections || sections.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[calc(10vh-64px)] bg-muted/30 p-8 text-center">
-        <h2 className="text-3xl font-bold text-foreground mb-4">Your Personal Task Board</h2>
-        <p className="text-muted-foreground leading-relaxed max-w-xl mb-8">
-          This is your space for personal to-dos. Get started by creating a section.
-        </p>
-        <Button onClick={addSection} disabled={isSectionMutating} className="bg-[#4ab5ae] text-white h-9 rounded-md">
-          {isSectionMutating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}+ Add Section
-        </Button>
-      </div>
-    )
-  }
+
 
   return (
     <div className="p-6 pt-3">
@@ -673,7 +649,9 @@ export function PersonalListView() {
               <div id="delete-section-description" className="text-sm text-muted-foreground">
                 {sectionToDelete.tasks.length > 0 ? (
                   <>
-                    <p>This section contains {sectionToDelete.tasks.length} tasks. What would you like to do with them?</p>
+                    <p>
+                      This section contains {sectionToDelete.tasks.length} tasks. What would you like to do with them?
+                    </p>
                     <div className="mt-4 space-y-2">
                       <div className="flex items-center space-x-2">
                         <Checkbox
@@ -716,13 +694,11 @@ export function PersonalListView() {
                           )}
                         </div>
                       )}
-                      {!deleteTasksConfirmed &&
-                        otherSections.length === 0 &&
-                        sectionToDelete.tasks.length > 0 && (
-                          <p className="text-red-500 text-sm">
-                            Cannot reassign tasks. No other sections available. You must delete the tasks.
-                          </p>
-                        )}
+                      {!deleteTasksConfirmed && otherSections.length === 0 && sectionToDelete.tasks.length > 0 && (
+                        <p className="text-red-500 text-sm">
+                          Cannot reassign tasks. No other sections available. You must delete the tasks.
+                        </p>
+                      )}
                     </div>
                   </>
                 ) : (
@@ -802,7 +778,6 @@ export function PersonalListView() {
   )
 }
 
-
 interface TaskRowProps {
   task: TaskUI
   selected: boolean
@@ -815,7 +790,8 @@ interface TaskRowProps {
 
 function TaskRow({ task, selected, onSelect, onToggleCompleted, onChange, onOpen, onDelete }: TaskRowProps) {
   const Icon = task.completed ? CheckCircle2 : Circle
-  const cellInput = "h-8 w-full bg-transparent border-0 focus-visible:ring-0 focus-visible:border-0 focus:outline-none text-sm"
+  const cellInput =
+    "h-8 w-full bg-transparent border-0 focus-visible:ring-0 focus-visible:border-0 focus:outline-none text-sm"
 
   return (
     <div className="grid grid-cols-[40px_1fr_160px_140px_100px_96px] items-center gap-2 px-10 py-2 hover:bg-muted/40 focus-within:bg-emerald-50/50 focus-within:ring-1 focus-within:ring-emerald-200 rounded-md">
@@ -846,20 +822,14 @@ function TaskRow({ task, selected, onSelect, onToggleCompleted, onChange, onOpen
         />
       </div>
       <div className="justify-self-end w-[160px]">
-        <Input
-          type="date"
-          value={task.due || ""}
-          onChange={e => onChange({ due: e.target.value })}
-          className="h-8"
-        />
+        <Input type="date" value={task.due || ""} onChange={e => onChange({ due: e.target.value })} className="h-8" />
       </div>
       <div className="justify-self-end w-[140px]">
-        <Select
-          value={task.priority}
-          onValueChange={(v: PriorityUI) => onChange({ priority: v })}
-        >
+        <Select value={task.priority} onValueChange={(v: PriorityUI) => onChange({ priority: v })}>
           <SelectTrigger className="h-8">
-            <div className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-xs", priorityStyles[task.priority])}>
+            <div
+              className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-xs", priorityStyles[task.priority])}
+            >
               <span className={cn("mr-2 h-2 w-2 rounded-full", priorityDot[task.priority])} />
               {task.priority}
             </div>

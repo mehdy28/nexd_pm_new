@@ -6,7 +6,7 @@ import { AlertCircle, BadgeCheck, ListChecks } from "lucide-react"
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
 import { Pie, PieChart, ResponsiveContainer, Legend, Bar, BarChart, XAxis, YAxis, CartesianGrid } from "recharts"
 import { useMyDashboard } from "@/hooks/personal/useMyDashboard"
-import { Skeleton } from "@/components/ui/skeleton"
+import { LoadingPlaceholder, ErrorPlaceholder } from "@/components/placeholders/status-placeholders"
 
 const PIE_COLORS = [
   "hsl(var(--chart-1))",
@@ -21,10 +21,10 @@ const chartConfig = {
 }
 
 export function MyDashboardView() {
-  const { dashboardData, loading, error } = useMyDashboard()
+  const { dashboardData, loading, error, refetch } = useMyDashboard()
 
-  if (loading) return <DashboardSkeleton />
-  if (error) return <div className="text-red-500">Error loading dashboard: {error.message}</div>
+  if (loading) return <LoadingPlaceholder message="Loading your dashboard..." />
+  if (error) return <ErrorPlaceholder error={error} onRetry={refetch} />
   if (!dashboardData) return <div>No data available.</div>
 
   const { kpis, priorityDistribution, statusDistribution } = dashboardData
@@ -157,24 +157,5 @@ function BarDistributionChartCard({
         </ChartContainer>
       </CardContent>
     </Card>
-  )
-}
-
-function DashboardSkeleton() {
-  return (
-    <div className="flex flex-col gap-4 p-4">
-      <div className="flex items-center justify-between">
-        <Skeleton className="h-8 w-48" />
-      </div>
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        <Skeleton className="h-28 w-full" />
-        <Skeleton className="h-28 w-full" />
-        <Skeleton className="h-28 w-full" />
-      </div>
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Skeleton className="h-80 w-full" />
-        <Skeleton className="h-80 w-full" />
-      </div>
-    </div>
   )
 }

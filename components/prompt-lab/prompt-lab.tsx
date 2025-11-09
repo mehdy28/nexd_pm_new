@@ -14,6 +14,7 @@ import { VariableDiscoveryBuilder } from "./variable-discovery-builder"
 import { toast } from 'sonner';
 import { useDebounce } from 'use-debounce';
 import { usePromptDetails } from "@/hooks/usePromptDetails";
+import { LoadingPlaceholder, ErrorPlaceholder } from "@/components/placeholders/status-placeholders";
 
 
 function deepCompareBlocks(arr1: Block[], arr2: Block[]): boolean {
@@ -160,11 +161,12 @@ export function PromptLab({ prompt, onBack, projectId }: { prompt: Prompt; onBac
     fetchVersionContent,
     loadingVersionContent,
     currentLoadedVersionContent,
-    loadingDetails
+    loadingDetails,
+    detailsError,
+    refetchPromptDetails
   } = usePromptDetails(prompt.id, projectId);
 
   const currentPrompt = selectedPromptDetails || prompt;
-
 
   const [selectedVersionId, setSelectedVersionId] = useState<string | null>(null)
   const [rightTab, setRightTab] = useState<"editor" | "version-details" | "preview">("editor")
@@ -173,10 +175,8 @@ export function PromptLab({ prompt, onBack, projectId }: { prompt: Prompt; onBac
   const [previewVariableValues, setPreviewVariableValues] = useState<Record<string, string>>({})
   const [renderedPreview, setRenderedPreview] = useState("");
   const [pendingNotes, setPendingNotes] = useState("");
-
   const [isSnapshotting, setIsSnapshotting] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
-
 
   // Memoized content, context, and variables for the editor.
   const editorContent = useMemo(() => {
@@ -208,8 +208,6 @@ export function PromptLab({ prompt, onBack, projectId }: { prompt: Prompt; onBac
 
   // Determine the name of the currently displayed version
   const currentVersionName = useMemo(() => {
-    // If selectedVersionId is null, it implicitly means the currently active prompt state.
-    // The name of this "active" state should be derived from the main prompt's title.
     if (selectedVersionId === null) {
       return currentPrompt.title || "Untitled Prompt (Active)"; // Use main prompt title
     }
@@ -229,27 +227,21 @@ export function PromptLab({ prompt, onBack, projectId }: { prompt: Prompt; onBac
       const versions = currentPrompt.versions || [];
       const hasVersions = versions.length > 0;
 
-      // Ensure a version is always selected (either a historical one or implied "Active Prompt")
-      if (selectedVersionId === undefined) { // Initial load, default to active
+      if (selectedVersionId === undefined) {
         console.log('[PromptLab] [Trace: RootEffect] Initial load, defaulting to Active Prompt (null).');
         setSelectedVersionId(null);
       } else if (selectedVersionId !== null && !versions.some(v => v.id === selectedVersionId)) {
-        // A historical version was selected, but it's no longer in the list (e.g., deleted or refetched with old ID)
         console.log('[PromptLab] [Trace: RootEffect] Selected historical version not found, defaulting to Active Prompt (null).');
         setSelectedVersionId(null);
       }
 
-      // Logic to trigger fetching content for a selected historical version
       if (selectedVersionId !== null && currentPrompt.id && currentLoadedVersionContent?.id !== selectedVersionId) {
         console.log(`[PromptLab] [Trace: RootEffect] Historical version ${selectedVersionId} selected, and its content is not yet loaded. Triggering fetch.`);
-        // --- FIX IS HERE ---
-        // fetchVersionContent(currentPrompt.id, selectedVersionId); // ORIGINAL: Passed two args
-        fetchVersionContent(selectedVersionId); // CORRECTED: Pass only versionId, as the hook closes over prompt.id
+        fetchVersionContent(selectedVersionId);
       } else if (selectedVersionId === null) {
         console.log('[PromptLab] [Trace: RootEffect] Active Prompt selected, editor will show active content.');
       }
 
-      // Update preview variables when main prompt variables change
       const initialPreviewValues: Record<string, string> = {};
       currentPrompt.variables.forEach(v => {
         if (!v.source) {
@@ -277,10 +269,6 @@ export function PromptLab({ prompt, onBack, projectId }: { prompt: Prompt; onBac
 
   // selectedVersionMetadata is only for the metadata of the selected historical version
   const selectedVersionMetadata = useMemo(() => currentPrompt?.versions.find((v) => v.id === selectedVersionId) || null, [currentPrompt, selectedVersionId])
-
-  function copy(text: string) {
-    navigator.clipboard.writeText(text).catch(() => {})
-  }
 
   const handleUpdatePrompt = useCallback((patch: Partial<Prompt>) => {
     console.log('[PromptLab] [Trace: HandleUpdate] handleUpdatePrompt called with patch keys:', Object.keys(patch));
@@ -366,6 +354,18 @@ export function PromptLab({ prompt, onBack, projectId }: { prompt: Prompt; onBac
     console.log('[PromptLab] [Trace: HandleRemoveVar] Calling handleUpdatePrompt with updated variables count:', updatedVariables.length);
     handleUpdatePrompt({ variables: updatedVariables });
   }, [currentPrompt.variables, handleUpdatePrompt]);
+
+  if (loadingDetails && !selectedPromptDetails) {
+    return <LoadingPlaceholder message="Loading prompt details..." />
+  }
+
+  if (detailsError) {
+    return <ErrorPlaceholder error={detailsError} onRetry={refetchPromptDetails} />
+  }
+
+  function copy(text: string) {
+    navigator.clipboard.writeText(text).catch(() => {})
+  }
 
   return (
     <DndProvider backend={HTML5Backend}>
@@ -1623,7 +1623,7 @@ function VersionsPanel({
 
   const [localVersionDescription, setLocalVersionDescription] = useState<string>('');
   const [debouncedVersionDescription] = useDebounce(localVersionDescription, 500);
-  const textAreaRef = useRef<HTMLTextAreaElement>(null);
+  const textAreaRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
     if (selectedVersionMetadata) {

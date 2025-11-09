@@ -23,6 +23,7 @@ import {
   SortableContext,
   verticalListSortingStrategy,
   horizontalListSortingStrategy,
+  arrayMove, // Import the recommended utility
 } from "@dnd-kit/sortable"
 import { Loader2 } from "lucide-react"
 
@@ -60,6 +61,11 @@ export function PersonalKanbanBoard({ initialColumns }: PersonalKanbanBoardProps
   const rowRef = useRef<HTMLDivElement | null>(null)
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
 
+  // --- LOGGING ---
+  const renderCount = useRef(0)
+  renderCount.current += 1
+  console.log(`[RENDER #${renderCount.current}] Board rendering. initialColumns has ${initialColumns.length} items.`)
+
   const {
     createColumn,
     updateColumn,
@@ -84,7 +90,17 @@ export function PersonalKanbanBoard({ initialColumns }: PersonalKanbanBoardProps
   }, [])
 
   useEffect(() => {
-    setColumns(initialColumns)
+    // --- LOGGING ---
+    console.groupCollapsed(`[EFFECT 🔎] Syncing state from initialColumns prop.`)
+    console.log("Prop 'initialColumns' order:", JSON.parse(JSON.stringify(initialColumns.map(c => c.title))))
+    console.log("Current local 'columns' order:", JSON.parse(JSON.stringify(columns.map(c => c.title))))
+    if (JSON.stringify(initialColumns) !== JSON.stringify(columns)) {
+      console.warn("[EFFECT 🔴] State overwritten by initialColumns prop because they were different.")
+      setColumns(initialColumns)
+    } else {
+      console.log("[EFFECT ✅] No state change needed, local state matches prop.")
+    }
+    console.groupEnd()
   }, [initialColumns])
 
   useEffect(() => {
@@ -96,7 +112,7 @@ export function PersonalKanbanBoard({ initialColumns }: PersonalKanbanBoardProps
         priority: taskDetails.priority,
         points: taskDetails.points,
         due: taskDetails.dueDate,
-        assignee: null, // Personal tasks have no assignee
+        assignee: null,
         editing: false,
       })
     } else {
@@ -132,47 +148,54 @@ export function PersonalKanbanBoard({ initialColumns }: PersonalKanbanBoardProps
   }
 
   function handleDragEnd(event: DragEndEvent) {
-    const activeType = event.active.data.current?.type as string | undefined
-    const activeId = String(event.active.id)
-    const overId = event.over?.id ? String(event.over.id) : null
+    const { active, over } = event
+    const activeType = active.data.current?.type as string | undefined
+    const activeId = String(active.id)
+    const overId = over?.id ? String(over.id) : null
+
     setOverlay(null)
-    if (!overId) return
+    if (!overId || activeId === overId) return
 
     if (activeType === "column") {
-      const fromIndex = columns.findIndex(c => c.id === activeId)
-      const toIndex = columns.findIndex(c => c.id === overId)
-      if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) return
+      setColumns(currentColumns => {
+        const fromIndex = currentColumns.findIndex(c => c.id === activeId)
+        const toIndex = currentColumns.findIndex(c => c.id === overId)
 
-      setColumns(prev => {
-        const next = [...prev]
-        const [moved] = next.splice(fromIndex, 1)
-        next.splice(toIndex, 0, moved)
-        next.forEach((col, idx) => {
-          col.order = idx
-          if (col.order !== undefined) updateColumn(col.id, undefined, idx)
-        })
-        return next
+        if (fromIndex === -1 || toIndex === -1) {
+          return currentColumns // Should not happen
+        }
+
+        console.log(`[DRAG END - COLUMN] from index ${fromIndex} to ${toIndex}`)
+        const reorderedColumns = arrayMove(currentColumns, fromIndex, toIndex)
+
+        console.log("[OPTIMISTIC UPDATE] New local order:", reorderedColumns.map(c => c.title))
+        console.log(`[MUTATION] Calling 'updateColumn' for ID '${activeId}' with new order index ${toIndex}`)
+        updateColumn(activeId, undefined, toIndex)
+
+        return reorderedColumns
       })
       return
     }
 
     if (activeType === "card") {
+      // Card logic remains the same, but for consistency, we'll keep it clean
       const fromColumnId = findColumnIdByCardId(activeId)
       if (!fromColumnId) return
       let toColumnId: string | undefined
-      let toIndex = 0
       const overIsColumn = columns.some(c => c.id === overId)
+
       if (overIsColumn) {
         toColumnId = overId
-        toIndex = columns.find(c => c.id === toColumnId)!.cards.length
       } else {
         toColumnId = findColumnIdByCardId(overId)
-        if (!toColumnId) return
-        toIndex = indexOfCard(toColumnId, overId)
-        if (toIndex < 0) toIndex = 0
       }
+
+      if (!toColumnId) return
+
       const fromIndex = indexOfCard(fromColumnId, activeId)
-      if (fromIndex < 0 || !toColumnId || (fromColumnId === toColumnId && fromIndex === toIndex)) return
+      const toIndex = overIsColumn ? columns.find(c => c.id === toColumnId)!.cards.length : indexOfCard(toColumnId, overId)
+
+      if (fromColumnId === toColumnId && fromIndex === toIndex) return
 
       setColumns(prev => {
         const next = prev.map(c => ({ ...c, cards: [...c.cards] }))
@@ -180,44 +203,32 @@ export function PersonalKanbanBoard({ initialColumns }: PersonalKanbanBoardProps
         const toCol = next.find(c => c.id === toColumnId)!
         const [moved] = fromCol.cards.splice(fromIndex, 1)
         let insertAt = toIndex
-        if (fromColumnId === toColumnId && toIndex > fromIndex) insertAt = toIndex - 1
-        toCol.cards.splice(insertAt, 0, moved)
-        if (fromColumnId !== toColumnId) {
-          updateCard(toColumnId, moved.id, { sectionId: toCol.id })
+        if (fromColumnId === toColumnId && toIndex > fromIndex) {
+          insertAt = toIndex - 1
         }
+        toCol.cards.splice(insertAt, 0, moved)
         return next
       })
+
+      if (fromColumnId !== toColumnId) {
+        updateCard(toColumnId, activeId, { sectionId: toColumnId })
+      }
     }
   }
 
-  const handleAddCard = useCallback(
-    async (columnId: string, title: string) => await createCard(columnId, title),
-    [createCard]
-  )
-  const handleUpdateColumnTitle = useCallback(
-    async (columnId: string, title: string) => {
+  const handleAddCard = useCallback(async (columnId: string, title: string) => await createCard(columnId, title), [createCard])
+  const handleUpdateColumnTitle = useCallback(async (columnId: string, title: string) => {
       const currentColumn = columns.find(c => c.id === columnId)
       await updateColumn(columnId, title, currentColumn?.order)
-    },
-    [updateColumn, columns]
-  )
-  const handleDeleteColumn = useCallback(
-    async (columnId: string) => await deleteColumn(columnId),
-    [deleteColumn]
-  )
-  const handleDeleteCard = useCallback(
-    async (cardId: string) => {
+    }, [updateColumn, columns])
+  const handleDeleteColumn = useCallback(async (columnId: string) => await deleteColumn(columnId), [deleteColumn])
+  const handleDeleteCard = useCallback(async (cardId: string) => {
       await deleteCard(cardId)
       setDrawerOpen(false)
-    },
-    [deleteCard]
-  )
-  const handleDeleteRequest = useCallback(
-    (sectionId: string, task: TaskUI) => {
+    }, [deleteCard])
+  const handleDeleteRequest = useCallback((sectionId: string, task: TaskUI) => {
       handleDeleteCard(task.id)
-    },
-    [handleDeleteCard]
-  )
+    }, [handleDeleteCard])
 
   const isMutating = isKanbanMutating || isTaskDetailsMutating
 
@@ -233,8 +244,8 @@ export function PersonalKanbanBoard({ initialColumns }: PersonalKanbanBoardProps
       id: editingCardLocal.id,
       sectionId: selected.columnId,
       assignee: null,
-      completed: false, // Kanban doesn't use this field directly
-      status: "TODO", // Status is derived from column, not needed here
+      completed: false,
+      status: "TODO",
     }
   }, [editingCardLocal, selected])
 
@@ -319,7 +330,7 @@ export function PersonalKanbanBoard({ initialColumns }: PersonalKanbanBoardProps
           </SortableContext>
         </div>
 
-        <DragOverlay dropAnimation={{ duration: 180, easing: "cubic-bezier(0.2, 0, 0, 1)" }}>
+        <DragOverlay>
           {overlay?.kind === "card" ? (
             <div
               className="card pointer-events-none shadow-[var(--shadow-lg)]"

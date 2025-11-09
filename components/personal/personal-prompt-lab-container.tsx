@@ -5,7 +5,7 @@ import { useState, useCallback } from "react"
 import { PromptList } from "../prompt-lab/prompt-list"
 import { PromptLab } from "../prompt-lab/prompt-lab"
 import { Button } from "../ui/button"
-import GlobalAppLoader from "@/components/global-app-loader"
+import { LoadingPlaceholder, ErrorPlaceholder } from "@/components/placeholders/status-placeholders"
 
 import { usePersonalPromptsList } from "@/hooks/personal/usePersonalPromptsList"
 import { usePromptDetails } from "@/hooks/usePromptDetails"
@@ -93,6 +93,15 @@ export function PersonalPromptLabContainer() {
     selectPrompt(null) // Deselect the prompt. This will trigger a list refetch via its useCallback.
   }
 
+  const handleRetry = useCallback(() => {
+    console.log("[PersonalPromptLabContainer] [Trace: RetryButton] Retry button clicked.")
+    if (selectedPromptId) {
+      refetchPromptDetails() // Retry details fetch if a prompt is selected
+    } else {
+      triggerPromptsListFetch(true) // Retry list fetch if no prompt is selected
+    }
+  }, [selectedPromptId, refetchPromptDetails, triggerPromptsListFetch])
+
   // Determine overall loading and error states
   const isLoading = loadingList || loadingDetails
   const error = listError || detailsError
@@ -108,30 +117,13 @@ export function PersonalPromptLabContainer() {
   // --- Global Loader Conditional Rendering ---
   if (isLoading && prompts.length === 0 && !listError && !detailsError) {
     console.log(`[PersonalPromptLabContainer] [Trace: Render] Rendering GLOBAL LOADER. Message: "${loaderMessage}".`)
-    return <GlobalAppLoader message={loaderMessage} />
+    return <LoadingPlaceholder message={loaderMessage} />
   }
 
   // --- Error Handling (after global loading completes) ---
   if (error) {
     console.log("[PersonalPromptLabContainer] [Trace: Render] Rendering ERROR STATE. Error:", error)
-    return (
-      <div className="grid h-full place-items-center p-6 text-sm text-red-500">
-        Error loading data: {error}
-        <Button
-          onClick={() => {
-            console.log("[PersonalPromptLabContainer] [Trace: RetryButton] Retry button clicked.")
-            if (selectedPromptId) {
-              refetchPromptDetails() // Retry details fetch if a prompt is selected
-            } else {
-              triggerPromptsListFetch(true) // Retry list fetch if no prompt is selected
-            }
-          }}
-          className="mt-4"
-        >
-          Retry
-        </Button>
-      </div>
-    )
+    return <ErrorPlaceholder error={new Error(error)} onRetry={handleRetry} />
   }
 
   // --- Main UI Rendering (after global loading and error checks) ---

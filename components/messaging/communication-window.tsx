@@ -1,3 +1,4 @@
+//components/messaging/communication-window.tsx
 "use client";
 
 import { useState, useRef, useEffect, useMemo } from "react";

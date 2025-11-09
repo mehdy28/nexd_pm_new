@@ -148,13 +148,10 @@ export function UserCommunication({ workspaceId }: UserCommunicationProps) {
   };
 
   return (
-    <div className="h-full overflow-hidden flex">
-      <div className="h-full flex flex-col px-6 w-full">
-        <div className="flex-shrink-0 pt-2">
-          <h1 className="text-3xl font-bold text-gray-900">Communication Hub</h1>
-        </div>
-        <div className="space-y-6 pb-6 flex-grow">
-          <div className="grid gap-6 lg:grid-cols-3 h-full">
+    <div className="h-full overflow-hidden flex pt-6 ">
+      <div className="h-full flex flex-col justify-center px-6 w-full">
+        <div className="space-y-6 pb-6">
+          <div className="grid gap-6 lg:grid-cols-3">
             <div className="lg:col-span-1 flex flex-col h-[80vh]">
               <Card className="flex flex-col h-full">
                   <CardHeader className="flex-shrink-0 space-y-3 p-4">

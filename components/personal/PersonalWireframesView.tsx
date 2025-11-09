@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useCallback, KeyboardEvent ,useMemo} from "react"
+import { useEffect, useState, useCallback, KeyboardEvent, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -18,8 +18,10 @@ import {
 } from "@/components/ui/alert-dialog"
 import WireframeEditorComponent from "@/components/wireframes/wireframe-editor"
 import { usePersonalWireframes } from "@/hooks/personal/usePersonalWireframes"
+import { LoadingPlaceholder, ErrorPlaceholder } from "@/components/placeholders/status-placeholders"
 
 export function PersonalWireframesView() {
+  console.log("LOG: <PersonalWireframesView> component rendering.")
   const {
     wireframes: pageItems,
     totalCount,
@@ -45,6 +47,7 @@ export function PersonalWireframesView() {
 
   // Clear selection when page or data changes
   useEffect(() => {
+    console.log("LOG: Clearing selection due to page/data change.")
     setSelected({})
   }, [page, pageSize, search, pageItems])
 
@@ -58,9 +61,11 @@ export function PersonalWireframesView() {
   }, [])
 
   const handleCreateNew = useCallback(async () => {
+    console.log("LOG: handleCreateNew triggered.")
     try {
       const newWireframe = await createWireframe("Untitled Wireframe", { nodes: [], edges: [] })
       if (newWireframe) {
+        console.log(`LOG: New wireframe created. Setting editingWireframeId to -> ${newWireframe.id}`)
         setEditingWireframeId(newWireframe.id)
       }
     } catch (err) {
@@ -138,10 +143,12 @@ export function PersonalWireframesView() {
   }, [selected, pageItems])
 
   if (editingWireframeId) {
+    console.log(`LOG: Rendering <WireframeEditorComponent> for ID: ${editingWireframeId}`)
     return (
       <WireframeEditorComponent
         wireframeId={editingWireframeId}
         onBack={() => {
+          console.log("LOG: onBack triggered from editor. Returning to list view.")
           setEditingWireframeId(null)
           refetch()
         }}
@@ -149,8 +156,13 @@ export function PersonalWireframesView() {
     )
   }
 
+  if (loading && pageItems.length === 0) {
+    return <LoadingPlaceholder message="Loading your wireframes..." />
+  }
+
   if (error) {
-    return <div className="grid h-full place-items-center text-red-600">Error: {error.message}</div>
+    console.log("LOG: Rendering error state.", { error })
+    return <ErrorPlaceholder error={error} onRetry={refetch} />
   }
 
   const deleteModalDescription =
@@ -158,6 +170,7 @@ export function PersonalWireframesView() {
       ? `You are about to permanently delete ${deleteTarget.length} wireframes. This action cannot be undone.`
       : "You are about to permanently delete this wireframe. This action cannot be undone."
 
+  console.log("LOG: Rendering Wireframe List View.")
   return (
     <>
       <div className="flex h-full flex-col p-4">
@@ -207,7 +220,14 @@ export function PersonalWireframesView() {
                         aria-label="Select wireframe"
                       />
                     </div>
-                    <div onClick={() => setEditingWireframeId(w.id)} title="Open wireframe" className="block cursor-pointer">
+                    <div
+                      onClick={() => {
+                        console.log(`LOG: Opening wireframe editor for ID: ${w.id}`)
+                        setEditingWireframeId(w.id)
+                      }}
+                      title="Open wireframe"
+                      className="block cursor-pointer"
+                    >
                       <div className="aspect-[16/10] w-full bg-slate-50">
                         <img
                           src={w.thumbnail || "/placeholder.svg"}

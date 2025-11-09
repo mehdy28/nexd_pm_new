@@ -1,6 +1,7 @@
+// components/project/ProjectOverview.tsx
 "use client";
 
-import { useState, useEffect, useRef } from "react"; // Import useRef
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -22,8 +23,8 @@ import { CalendarDays, Users, CheckCircle2, Clock, AlertCircle, Settings, Plus, 
 import { useProjectDetails } from "@/hooks/useProjectDetails";
 import { useSprintMutations } from "@/hooks/useSprintMutations";
 import { SprintStatus, SprintDetailsFragment } from "@/types/sprint";
-import { ProjectStatus } from '@/types/project';
-
+import { ProjectStatus } from "@/types/project";
+import { LoadingPlaceholder, ErrorPlaceholder } from "@/components/placeholders/status-placeholders";
 
 // --- Type definitions ---
 type SprintUi = {
@@ -58,15 +59,20 @@ interface ProjectOverviewProps {
 }
 // --------------------------------------------------------------------------------
 
-
 export function ProjectOverview({ projectId, projectData }: ProjectOverviewProps) {
   console.log("[project] ProjectOverview component rendered.");
 
-  const { projectDetails, loading, error } = useProjectDetails(projectId);
+  const { projectDetails, loading, error, refetchProjectDetails } = useProjectDetails(projectId);
   const {
-    createSprint, createLoading, createError,
-    updateSprint, updateLoading, updateError,
-    deleteSprint, deleteLoading, deleteError,
+    createSprint,
+    createLoading,
+    createError,
+    updateSprint,
+    updateLoading,
+    updateError,
+    deleteSprint,
+    deleteLoading,
+    deleteError,
   } = useSprintMutations(projectId);
 
   const [sprints, setSprints] = useState<SprintUi[]>([]);
@@ -75,10 +81,18 @@ export function ProjectOverview({ projectId, projectData }: ProjectOverviewProps
   const [currentEditingSprint, setCurrentEditingSprint] = useState<SprintUi | null>(null);
 
   const [newSprintFormData, setNewSprintFormData] = useState<SprintFormDataType>({
-    name: "", description: "", startDate: "", endDate: "", status: SprintStatus.PLANNING,
+    name: "",
+    description: "",
+    startDate: "",
+    endDate: "",
+    status: SprintStatus.PLANNING,
   });
   const [editSprintFormData, setEditSprintFormData] = useState<SprintFormDataType>({
-    name: "", description: "", startDate: "", endDate: "", status: SprintStatus.PLANNING,
+    name: "",
+    description: "",
+    startDate: "",
+    endDate: "",
+    status: SprintStatus.PLANNING,
   });
 
   const [newSprintErrors, setNewSprintErrors] = useState<{ [key: string]: boolean }>({});
@@ -92,10 +106,12 @@ export function ProjectOverview({ projectId, projectData }: ProjectOverviewProps
     // Subsequent updates to the sprints list will be handled by local state manipulation.
     if (projectDetails?.sprints && !hasInitializedSprints.current) {
       console.log(`[project] Initializing sprints state with ${projectDetails.sprints.length} sprints from projectDetails.`);
-      setSprints(projectDetails.sprints.map(sprint => ({
-        ...sprint,
-        description: sprint.description || null,
-      })));
+      setSprints(
+        projectDetails.sprints.map(sprint => ({
+          ...sprint,
+          description: sprint.description || null,
+        }))
+      );
       hasInitializedSprints.current = true;
     } else if (!projectDetails?.sprints && hasInitializedSprints.current) {
       // If projectDetails.sprints becomes empty/null *after* initialization, clear local state
@@ -108,27 +124,18 @@ export function ProjectOverview({ projectId, projectData }: ProjectOverviewProps
     // This is the key change for your requirement.
   }, [projectDetails?.sprints]); // Kept dependency for initial load and explicit clear on projectDetails removal
 
+  const combinedError = error || createError || updateError || deleteError;
 
   // --- Combined Loading State ---
   if (loading) {
-    console.log("[project] Displaying initial project details loading state.");
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-muted/30">
-        <Loader2 className="h-10 w-10 animate-spin text-teal-500" />
-        <p className="ml-4 text-lg text-slate-700">Loading project details...</p>
-      </div>
-    );
+    return <LoadingPlaceholder message="Loading project details..." />;
   }
 
   // --- Combined Error State ---
-  if (error || createError || updateError || deleteError) {
-    const errorMessage = error?.message || createError?.message || updateError?.message || deleteError?.message;
+  if (combinedError) {
+    const errorMessage = combinedError.message;
     console.error(`[project] Displaying error state: ${errorMessage}`);
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-red-100 text-red-700 p-4">
-        <p className="text-lg">Error: {errorMessage}</p>
-      </div>
-    );
+    return <ErrorPlaceholder error={new Error(errorMessage)} onRetry={refetchProjectDetails} />;
   }
 
   // --- No Project Data ---
@@ -144,9 +151,8 @@ export function ProjectOverview({ projectId, projectData }: ProjectOverviewProps
     );
   }
 
-  const progressPercentage = projectDetails.totalTasks > 0
-    ? (projectDetails.completedTasks / projectDetails.totalTasks) * 100
-    : 0;
+  const progressPercentage =
+    projectDetails.totalTasks > 0 ? (projectDetails.completedTasks / projectDetails.totalTasks) * 100 : 0;
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -183,12 +189,24 @@ export function ProjectOverview({ projectId, projectData }: ProjectOverviewProps
     setNewSprintErrors({});
   };
 
-  const validateSprintForm = (formData: SprintFormDataType, setErrors: React.Dispatch<React.SetStateAction<{[key: string]: boolean}>>) => {
+  const validateSprintForm = (
+    formData: SprintFormDataType,
+    setErrors: React.Dispatch<React.SetStateAction<{ [key: string]: boolean }>>
+  ) => {
     let hasErrors = false;
     const errors: { [key: string]: boolean } = {};
-    if (!formData.name.trim()) { errors.name = true; hasErrors = true; }
-    if (!formData.startDate) { errors.startDate = true; hasErrors = true; }
-    if (!formData.endDate) { errors.endDate = true; hasErrors = true; }
+    if (!formData.name.trim()) {
+      errors.name = true;
+      hasErrors = true;
+    }
+    if (!formData.startDate) {
+      errors.startDate = true;
+      hasErrors = true;
+    }
+    if (!formData.endDate) {
+      errors.endDate = true;
+      hasErrors = true;
+    }
     setErrors(errors);
     return !hasErrors;
   };
@@ -232,14 +250,20 @@ export function ProjectOverview({ projectId, projectData }: ProjectOverviewProps
       });
 
       if (data?.createSprint) {
-        console.log(`[project] Server successfully created sprint: ${data.createSprint.name} with ID ${data.createSprint.id}`);
+        console.log(
+          `[project] Server successfully created sprint: ${data.createSprint.name} with ID ${data.createSprint.id}`
+        );
         // Replace optimistic sprint with real sprint from server
-        setSprints(prevSprints => prevSprints.map(s =>
-          s.id === tempId ? {
-            ...data.createSprint,
-            description: data.createSprint.description || null,
-          } : s
-        ));
+        setSprints(prevSprints =>
+          prevSprints.map(s =>
+            s.id === tempId
+              ? {
+                  ...data.createSprint,
+                  description: data.createSprint.description || null,
+                }
+              : s
+          )
+        );
       } else {
         // If no data, implies an error on server side, rollback optimistic
         console.error("[project] Create sprint mutation returned no data, rolling back optimistic update.");
@@ -256,13 +280,13 @@ export function ProjectOverview({ projectId, projectData }: ProjectOverviewProps
     setCurrentEditingSprint(sprint);
 
     const formatDateForInput = (dateString: string | undefined): string => {
-        if (!dateString) return "";
-        const date = new Date(dateString);
-        if (isNaN(date.getTime())) {
-            console.warn(`Invalid date string received for sprint ID ${sprint.id}: ${dateString}`);
-            return "";
-        }
-        return date.toISOString().split('T')[0];
+      if (!dateString) return "";
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) {
+        console.warn(`Invalid date string received for sprint ID ${sprint.id}: ${dateString}`);
+        return "";
+      }
+      return date.toISOString().split("T")[0];
     };
 
     setEditSprintFormData({
@@ -276,7 +300,6 @@ export function ProjectOverview({ projectId, projectData }: ProjectOverviewProps
     setEditSprintOpen(true);
   };
 
-
   const cancelEditSprint = () => {
     console.log("[project] Cancelling sprint edit.");
     setEditSprintOpen(false);
@@ -285,7 +308,9 @@ export function ProjectOverview({ projectId, projectData }: ProjectOverviewProps
   };
 
   const handleUpdateSprint = async () => {
-    console.log(`[project] Attempting to update sprint ID: ${currentEditingSprint?.id} via mutation (client-side optimistic update).`);
+    console.log(
+      `[project] Attempting to update sprint ID: ${currentEditingSprint?.id} via mutation (client-side optimistic update).`
+    );
     if (!currentEditingSprint) return;
 
     if (!validateSprintForm(editSprintFormData, setEditSprintErrors)) {
@@ -304,9 +329,7 @@ export function ProjectOverview({ projectId, projectData }: ProjectOverviewProps
     };
 
     const originalSprints = sprints; // For rollback
-    setSprints(prevSprints => prevSprints.map(s =>
-      s.id === currentEditingSprint.id ? updatedOptimisticSprint : s
-    ));
+    setSprints(prevSprints => prevSprints.map(s => (s.id === currentEditingSprint.id ? updatedOptimisticSprint : s)));
     setEditSprintOpen(false);
     setCurrentEditingSprint(null);
     setEditSprintErrors({});
@@ -327,13 +350,19 @@ export function ProjectOverview({ projectId, projectData }: ProjectOverviewProps
       });
 
       if (data?.updateSprint) {
-        console.log(`[project] Server successfully updated sprint: ${data.updateSprint.name} with ID ${data.updateSprint.id}`);
-        setSprints(prevSprints => prevSprints.map(s =>
-          s.id === data.updateSprint.id ? {
-            ...data.updateSprint,
-            description: data.updateSprint.description || null,
-          } : s
-        ));
+        console.log(
+          `[project] Server successfully updated sprint: ${data.updateSprint.name} with ID ${data.updateSprint.id}`
+        );
+        setSprints(prevSprints =>
+          prevSprints.map(s =>
+            s.id === data.updateSprint.id
+              ? {
+                  ...data.updateSprint,
+                  description: data.updateSprint.description || null,
+                }
+              : s
+          )
+        );
       } else {
         console.error("[project] Update sprint mutation returned no data, rolling back optimistic update.");
         setSprints(originalSprints);
@@ -343,7 +372,6 @@ export function ProjectOverview({ projectId, projectData }: ProjectOverviewProps
       setSprints(originalSprints);
     }
   };
-
 
   const handleDeleteSprint = async (sprintId: string) => {
     console.log(`[project] Attempting to delete sprint with ID: ${sprintId} via mutation (client-side optimistic update).`);
@@ -362,7 +390,6 @@ export function ProjectOverview({ projectId, projectData }: ProjectOverviewProps
       setSprints(originalSprints); // Rollback on error
     }
   };
-
 
   console.log("[project] Rendering ProjectOverview with data.");
   return (
@@ -478,38 +505,40 @@ export function ProjectOverview({ projectId, projectData }: ProjectOverviewProps
                           <label className="text-xs text-muted-foreground">Sprint Title</label>
                           <Input
                             value={newSprintFormData.name}
-                            onChange={(e) => {
-                              setNewSprintFormData((prev) => ({ ...prev, name: e.target.value }));
-                              setNewSprintErrors((prev) => ({ ...prev, name: false }));
+                            onChange={e => {
+                              setNewSprintFormData(prev => ({ ...prev, name: e.target.value }));
+                              setNewSprintErrors(prev => ({ ...prev, name: false }));
                             }}
                             placeholder="Sprint title"
                             disabled={createLoading}
                             className={newSprintErrors.name ? "border-red-500" : ""}
                           />
-                           {newSprintErrors.name && <p className="text-red-500 text-xs mt-1">Sprint name is required.</p>}
+                          {newSprintErrors.name && <p className="text-red-500 text-xs mt-1">Sprint name is required.</p>}
                         </div>
                         <div className="space-y-2">
                           <label className="text-xs text-muted-foreground">Start Date</label>
                           <Input
                             type="date"
                             value={newSprintFormData.startDate}
-                            onChange={(e) => {
-                              setNewSprintFormData((prev) => ({ ...prev, startDate: e.target.value }));
-                              setNewSprintErrors((prev) => ({ ...prev, startDate: false }));
+                            onChange={e => {
+                              setNewSprintFormData(prev => ({ ...prev, startDate: e.target.value }));
+                              setNewSprintErrors(prev => ({ ...prev, startDate: false }));
                             }}
                             disabled={createLoading}
                             className={newSprintErrors.startDate ? "border-red-500" : ""}
                           />
-                          {newSprintErrors.startDate && <p className="text-red-500 text-xs mt-1">Start date is required.</p>}
+                          {newSprintErrors.startDate && (
+                            <p className="text-red-500 text-xs mt-1">Start date is required.</p>
+                          )}
                         </div>
                         <div className="space-y-2">
                           <label className="text-xs text-muted-foreground">End Date</label>
                           <Input
                             type="date"
                             value={newSprintFormData.endDate}
-                            onChange={(e) => {
-                              setNewSprintFormData((prev) => ({ ...prev, endDate: e.target.value }));
-                              setNewSprintErrors((prev) => ({ ...prev, endDate: false }));
+                            onChange={e => {
+                              setNewSprintFormData(prev => ({ ...prev, endDate: e.target.value }));
+                              setNewSprintErrors(prev => ({ ...prev, endDate: false }));
                             }}
                             disabled={createLoading}
                             className={newSprintErrors.endDate ? "border-red-500" : ""}
@@ -520,8 +549,8 @@ export function ProjectOverview({ projectId, projectData }: ProjectOverviewProps
                           <label className="text-xs text-muted-foreground">Description</label>
                           <Textarea
                             value={newSprintFormData.description}
-                            onChange={(e) => {
-                              setNewSprintFormData((prev) => ({ ...prev, description: e.target.value }));
+                            onChange={e => {
+                              setNewSprintFormData(prev => ({ ...prev, description: e.target.value }));
                             }}
                             placeholder="Sprint description"
                             className="resize-none"
@@ -566,7 +595,7 @@ export function ProjectOverview({ projectId, projectData }: ProjectOverviewProps
                     </div>
                   )}
 
-                  {sprints.map((sprint) => (
+                  {sprints.map(sprint => (
                     <div key={sprint.id} className="flex items-start justify-between p-4 border rounded-lg">
                       <div className="flex-1 space-y-2">
                         <div className="flex items-center gap-2">
@@ -602,23 +631,29 @@ export function ProjectOverview({ projectId, projectData }: ProjectOverviewProps
                               className="text-red-600 hover:text-red-700 hover:bg-red-50"
                               disabled={deleteLoading}
                             >
-                              {deleteLoading ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                              ) : (
-                                <Trash2 className="h-4 w-4" />
-                              )}
+                              {deleteLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
                             </Button>
                           </DialogTrigger>
                           <DialogContent>
                             <DialogHeader>
                               <DialogTitle>Confirm Deletion</DialogTitle>
                               <DialogDescription>
-                                Are you sure you want to delete the sprint "<strong>{sprint.name}</strong>"?
-                                This action cannot be undone. Any tasks associated with this sprint will lose their sprint assignment.
+                                Are you sure you want to delete the sprint "<strong>{sprint.name}</strong>"? This action
+                                cannot be undone. Any tasks associated with this sprint will lose their sprint
+                                assignment.
                               </DialogDescription>
                             </DialogHeader>
                             <DialogFooter>
-                              <Button variant="outline" onClick={() => { /* Close dialog handled by shadcn internally */ }}>Cancel</Button>
+                              <Button
+                                variant="outline"
+                                onClick={
+                                  () => {
+                                    /* Close dialog handled by shadcn internally */
+                                  }
+                                }
+                              >
+                                Cancel
+                              </Button>
                               <Button
                                 variant="destructive"
                                 onClick={() => handleDeleteSprint(sprint.id)}
@@ -644,18 +679,16 @@ export function ProjectOverview({ projectId, projectData }: ProjectOverviewProps
               <DialogContent className="bg-white sm:max-w-[425px]">
                 <DialogHeader>
                   <DialogTitle>Edit Sprint: {currentEditingSprint.name}</DialogTitle>
-                  <DialogDescription>
-                    Make changes to your sprint here. Click save when you're done.
-                  </DialogDescription>
+                  <DialogDescription>Make changes to your sprint here. Click save when you're done.</DialogDescription>
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
                   <div className="space-y-2">
                     <label className="text-xs text-muted-foreground">Sprint Title</label>
                     <Input
                       value={editSprintFormData.name}
-                      onChange={(e) => {
-                        setEditSprintFormData((prev) => ({ ...prev, name: e.target.value }));
-                        setEditSprintErrors((prev) => ({ ...prev, name: false }));
+                      onChange={e => {
+                        setEditSprintFormData(prev => ({ ...prev, name: e.target.value }));
+                        setEditSprintErrors(prev => ({ ...prev, name: false }));
                       }}
                       placeholder="Sprint title"
                       disabled={updateLoading}
@@ -668,23 +701,25 @@ export function ProjectOverview({ projectId, projectData }: ProjectOverviewProps
                     <Input
                       type="date"
                       value={editSprintFormData.startDate}
-                      onChange={(e) => {
-                        setEditSprintFormData((prev) => ({ ...prev, startDate: e.target.value }));
-                        setEditSprintErrors((prev) => ({ ...prev, startDate: false }));
+                      onChange={e => {
+                        setEditSprintFormData(prev => ({ ...prev, startDate: e.target.value }));
+                        setEditSprintErrors(prev => ({ ...prev, startDate: false }));
                       }}
                       disabled={updateLoading}
                       className={editSprintErrors.startDate ? "border-red-500" : ""}
                     />
-                    {editSprintErrors.startDate && <p className="text-red-500 text-xs mt-1">Start date is required.</p>}
+                    {editSprintErrors.startDate && (
+                      <p className="text-red-500 text-xs mt-1">Start date is required.</p>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <label className="text-xs text-muted-foreground">End Date</label>
                     <Input
                       type="date"
                       value={editSprintFormData.endDate}
-                      onChange={(e) => {
-                        setEditSprintFormData((prev) => ({ ...prev, endDate: e.target.value }));
-                        setEditSprintErrors((prev) => ({ ...prev, endDate: false }));
+                      onChange={e => {
+                        setEditSprintFormData(prev => ({ ...prev, endDate: e.target.value }));
+                        setEditSprintErrors(prev => ({ ...prev, endDate: false }));
                       }}
                       disabled={updateLoading}
                       className={editSprintErrors.endDate ? "border-red-500" : ""}
@@ -695,8 +730,8 @@ export function ProjectOverview({ projectId, projectData }: ProjectOverviewProps
                     <label className="text-xs text-muted-foreground">Description</label>
                     <Textarea
                       value={editSprintFormData.description}
-                      onChange={(e) => {
-                        setEditSprintFormData((prev) => ({ ...prev, description: e.target.value }));
+                      onChange={e => {
+                        setEditSprintFormData(prev => ({ ...prev, description: e.target.value }));
                       }}
                       placeholder="Sprint description"
                       className="resize-none"
@@ -708,37 +743,36 @@ export function ProjectOverview({ projectId, projectData }: ProjectOverviewProps
                     <label className="text-xs text-muted-foreground">Status</label>
                     <select
                       value={editSprintFormData.status}
-                      onChange={(e) => {
-                        setEditSprintFormData((prev) => ({ ...prev, status: e.target.value as SprintStatus }));
+                      onChange={e => {
+                        setEditSprintFormData(prev => ({ ...prev, status: e.target.value as SprintStatus }));
                       }}
                       className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                       disabled={updateLoading}
                     >
-                      {Object.values(SprintStatus).map((status) => (
+                      {Object.values(SprintStatus).map(status => (
                         <option key={status} value={status}>
-                          {status.replace(/_/g, ' ')}
+                          {status.replace(/_/g, " ")}
                         </option>
                       ))}
                     </select>
                   </div>
                 </div>
                 <DialogFooter>
-                  <Button variant="ghost" onClick={cancelEditSprint} disabled={updateLoading}>Cancel</Button>
+                  <Button variant="ghost" onClick={cancelEditSprint} disabled={updateLoading}>
+                    Cancel
+                  </Button>
                   <Button
                     onClick={handleUpdateSprint}
                     className="bg-blue-600 hover:bg-blue-700 text-white"
                     disabled={updateLoading}
                   >
-                    {updateLoading ? (
-                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    ) : null}
+                    {updateLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                     Save changes
                   </Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
           )}
-
 
           {/* Team Members Sidebar */}
           <div className="space-y-6">
@@ -754,19 +788,27 @@ export function ProjectOverview({ projectId, projectData }: ProjectOverviewProps
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {projectDetails.members.map((member) => (
+                  {projectDetails.members.map(member => (
                     <div key={member.user.id} className="flex items-center space-x-3">
                       <Avatar className="h-8 w-8">
-                        <AvatarImage src={member.user.avatar || (member.user.firstName ? `https://ui-avatars.com/api/?name=${member.user.firstName}+${member.user.lastName}&background=random` : "/placeholder.svg")} alt={`${member.user.firstName || ""} ${member.user.lastName || ""}`} />
+                        <AvatarImage
+                          src={
+                            member.user.avatar ||
+                            (member.user.firstName
+                              ? `https://ui-avatars.com/api/?name=${member.user.firstName}+${member.user.lastName}&background=random`
+                              : "/placeholder.svg")
+                          }
+                          alt={`${member.user.firstName || ""} ${member.user.lastName || ""}`}
+                        />
                         <AvatarFallback>
-                          {`${(member.user.firstName?.[0] || '')}${(member.user.lastName?.[0] || '')}` || '?'}
+                          {`${member.user.firstName?.[0] || ""}${member.user.lastName?.[0] || ""}` || "?"}
                         </AvatarFallback>
                       </Avatar>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium truncate">
                           {`${member.user.firstName || ""} ${member.user.lastName || ""}`.trim() || member.user.email}
                         </p>
-                        <p className="text-xs text-slate-500 truncate">{member.role.replace(/_/g, ' ')}</p>
+                        <p className="text-xs text-slate-500 truncate">{member.role.replace(/_/g, " ")}</p>
                       </div>
                     </div>
                   ))}

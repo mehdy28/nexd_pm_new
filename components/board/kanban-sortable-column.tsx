@@ -24,10 +24,8 @@ export function KanbanSortableColumn({
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: column.id,
     data: { type: "column" },
-    animateLayoutChanges: (args) => {
-      // Animate siblings during sorting and the dragged item when it was dragging.
-      return args.isSorting || args.wasDragging
-    },
+    // REMOVED: The custom animateLayoutChanges function was causing the flicker.
+    // By removing it, we allow dnd-kit to use its default, flicker-free animation strategy.
   })
 
   const style: React.CSSProperties = {

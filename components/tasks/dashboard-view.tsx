@@ -1,5 +1,4 @@
 // components/DashboardView.tsx
-
 "use client"
 
 import type React from "react"
@@ -10,7 +9,7 @@ import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Legend, Line, Pie, PieChart, ResponsiveContainer, XAxis, YAxis } from "recharts"
 import { useProjectDashboard } from "@/hooks/useProjectDashboard"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Skeleton } from "@/components/ui/skeleton"
+import { LoadingPlaceholder, ErrorPlaceholder } from "@/components/placeholders/status-placeholders"
 
 const PIE_COLORS = ["hsl(var(--chart-1))", "hsl(var(--chart-2))", "hsl(var(--chart-3))", "hsl(var(--chart-4))", "hsl(var(--chart-5))"]
 
@@ -28,14 +27,14 @@ interface DashboardViewProps {
 
 export function DashboardView({ projectId }: DashboardViewProps) {
   const [selectedSprintId, setSelectedSprintId] = useState<string | null>(null)
-  const { dashboardData, loading, error } = useProjectDashboard(projectId, selectedSprintId)
+  const { dashboardData, loading, error, refetchProjectDashboard } = useProjectDashboard(projectId, selectedSprintId)
 
   const handleSprintChange = (sprintId: string) => {
     setSelectedSprintId(sprintId === "all" ? null : sprintId)
   }
 
-  if (loading) return <DashboardSkeleton />
-  if (error) return <div className="text-red-500">Error loading dashboard: {error.message}</div>
+  if (loading) return <LoadingPlaceholder message="Loading project dashboard..." />
+  if (error) return <ErrorPlaceholder error={error} onRetry={refetchProjectDashboard} />
   if (!dashboardData) return <div>No data available for this project.</div>
 
   const { kpis, priorityDistribution, statusDistribution, burnupChart, burndownChart, memberWorkload, sprints } = dashboardData
@@ -174,30 +173,4 @@ function BarDistributionChartCard({ title, description, data, dataKey, xAxisKey 
         </CardContent>
     </Card>
   );
-}
-
-function DashboardSkeleton() {
-    return (
-        <div className="flex flex-col gap-4 p-4">
-            <div className="flex items-center justify-between">
-                <Skeleton className="h-8 w-48" />
-                <Skeleton className="h-10 w-[220px]" />
-            </div>
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                <Skeleton className="h-28 w-full" />
-                <Skeleton className="h-28 w-full" />
-                <Skeleton className="h-28 w-full" />
-                <Skeleton className="h-28 w-full" />
-            </div>
-            <div className="grid gap-4 lg:grid-cols-2">
-                <Skeleton className="h-80 w-full" />
-                <Skeleton className="h-80 w-full" />
-            </div>
-            <div className="grid gap-4 lg:grid-cols-3">
-                <Skeleton className="h-80 w-full" />
-                <Skeleton className="h-80 w-full" />
-                <Skeleton className="h-80 w-full" />
-            </div>
-        </div>
-    );
 }

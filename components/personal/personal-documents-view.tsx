@@ -31,7 +31,7 @@ import {
 import { usePersonalDocuments } from "@/hooks/personal/usePersonalDocuments"
 import { Editor } from "../documents/DynamicEditor"
 import { PdfViewer } from "../documents/pdf-viewer"
-
+import { LoadingPlaceholder, ErrorPlaceholder } from "@/components/placeholders/status-placeholders"
 
 export function PersonalDocumentsView() {
   const {
@@ -61,7 +61,10 @@ export function PersonalDocumentsView() {
   const inputRef = useRef<HTMLInputElement | null>(null)
 
   useEffect(() => {
-    setShowEditor(!!selectedDocument)
+    console.log("LOG: selectedDocument changed", { selectedDocument })
+    const shouldShow = !!selectedDocument
+    console.log(`LOG: Setting showEditor to -> ${shouldShow}`)
+    setShowEditor(shouldShow)
   }, [selectedDocument])
 
   useEffect(() => {
@@ -111,13 +114,12 @@ export function PersonalDocumentsView() {
     }
   }, [deleteTarget, deletePersonalDocument])
 
+  if (loading && pageItems.length === 0) {
+    return <LoadingPlaceholder message="Loading your documents..." />
+  }
+
   if (error) {
-    return (
-      <div className="h-full w-full grid place-items-center text-red-500">
-        <p>Error: {error}</p>
-        <Button onClick={() => refetchDocumentsList && refetchDocumentsList()}>Try Again</Button>
-      </div>
-    )
+    return <ErrorPlaceholder error={new Error(error)} onRetry={refetchDocumentsList} />
   }
 
   return (
@@ -141,13 +143,19 @@ export function PersonalDocumentsView() {
                   <Loader2 className="h-6 w-6 animate-spin" />
                 </div>
               ) : selectedDocument.type === "doc" ? (
-                <Editor
-                  key={selectedDocument.id}
-                  initialContent={selectedDocument.content}
-                  onChange={content => updatePersonalDocument(selectedDocument.id, { content })}
-                />
+                <>
+                  {console.log(`LOG: Rendering <Editor> component for doc ID: ${selectedDocument.id}`)}
+                  <Editor
+                    key={selectedDocument.id}
+                    initialContent={selectedDocument.content}
+                    onChange={content => updatePersonalDocument(selectedDocument.id, { content })}
+                  />
+                </>
               ) : (
-                <PdfViewer dataUrl={selectedDocument.dataUrl} />
+                <>
+                  {console.log(`LOG: Rendering <PdfViewer> component for doc ID: ${selectedDocument.id}`)}
+                  <PdfViewer dataUrl={selectedDocument.dataUrl} />
+                </>
               )}
             </div>
           </div>

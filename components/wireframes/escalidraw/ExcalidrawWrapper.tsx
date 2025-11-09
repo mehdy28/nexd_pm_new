@@ -31,7 +31,10 @@ type DynamicMainMenuType = React.ComponentType<{ children?: React.ReactNode }> &
 
 
 const DynamicExcalidraw = dynamic(
-    () => import("@excalidraw/excalidraw").then((mod) => mod.Excalidraw),
+    () => {
+        console.log("LOG: [ExcalidrawWrapper] next/dynamic is importing @excalidraw/excalidraw");
+        return import("@excalidraw/excalidraw").then((mod) => mod.Excalidraw)
+    },
     {
         ssr: false,
     }
@@ -56,7 +59,7 @@ const ExcalidrawWrapper: React.FC<ExcalidrawWrapperProps> = memo(({
     setApi,
     api
 }) => {
-    console.log("[WelcomeScreen] ExcalidrawWrapper: Rendering");
+    console.log("LOG: [ExcalidrawWrapper] Rendering component.", { hasApi: !!api, hasInitialData: !!initialData });
     const [dynamicWelcomeScreenReady, setDynamicWelcomeScreenReady] = useState(false);
     const initialDataRef = useRef(initialData);
     const [DynamicWelcomeScreenComponent, setDynamicWelcomeScreenComponent] = useState<DynamicWelcomeScreenType | null>(null);
@@ -66,62 +69,81 @@ const ExcalidrawWrapper: React.FC<ExcalidrawWrapperProps> = memo(({
 
     useEffect(() => {
         let isMounted = true; // Track component mount status
+        console.log("LOG: [ExcalidrawWrapper] useEffect for WelcomeScreen loading triggered.");
 
         const loadWelcomeScreen = async () => {
-            console.log("[WelcomeScreen] DynamicWelcomeScreen: Importing WelcomeScreen");
-            const { WelcomeScreen } = await import('@excalidraw/excalidraw');
+            console.log("LOG: [ExcalidrawWrapper] Importing WelcomeScreen component...");
+            try {
+                const { WelcomeScreen } = await import('@excalidraw/excalidraw');
 
-            if (!isMounted) return; // Prevent state updates on unmounted component
+                if (!isMounted) {
+                    console.log("LOG: [ExcalidrawWrapper] WelcomeScreen import finished, but component unmounted. Aborting state update.");
+                    return;
+                }
 
-            const DynamicComponent = WelcomeScreen as any;
-            DynamicComponent.Center = WelcomeScreen.Center;
-            DynamicComponent.Hints = WelcomeScreen.Hints;
+                const DynamicComponent = WelcomeScreen as any;
+                DynamicComponent.Center = WelcomeScreen.Center;
+                DynamicComponent.Hints = WelcomeScreen.Hints;
 
-            console.log("[WelcomeScreen] DynamicWelcomeScreen: DynamicComponent.Center", DynamicComponent.Center);
-            console.log("[WelcomeScreen] DynamicWelcomeScreen: WelcomeScreen imported and properties copied");
+                console.log("LOG: [ExcalidrawWrapper] WelcomeScreen imported successfully. Setting state.");
 
-            setDynamicWelcomeScreenComponent(() => DynamicComponent); // Set the component
-            setDynamicWelcomeScreenReady(true);
+                setDynamicWelcomeScreenComponent(() => DynamicComponent); // Set the component
+                setDynamicWelcomeScreenReady(true);
+            } catch (e) {
+                console.error("LOG: [ExcalidrawWrapper] Failed to import WelcomeScreen:", e);
+            }
         };
 
         loadWelcomeScreen();
 
         return () => {
+            console.log("LOG: [ExcalidrawWrapper] Cleanup for WelcomeScreen useEffect.");
             isMounted = false; // Set mount status to false on unmount
         };
     }, []);
 
     useEffect(() => {
         let isMounted = true;
+        console.log("LOG: [ExcalidrawWrapper] useEffect for MainMenu loading triggered.");
 
         const loadMainMenu = async () => {
-            const { MainMenu } = await import('@excalidraw/excalidraw');
+            console.log("LOG: [ExcalidrawWrapper] Importing MainMenu component...");
+            try {
+                const { MainMenu } = await import('@excalidraw/excalidraw');
 
-            if (!isMounted) return;
+                if (!isMounted) {
+                    console.log("LOG: [ExcalidrawWrapper] MainMenu import finished, but component unmounted. Aborting state update.");
+                    return;
+                }
 
-            //You can adjust here to copy sub-properties of MenuItems if needed.
-            const DynamicComponent = MainMenu as any;
-            DynamicComponent.Item = MainMenu.Item;
-            DynamicComponent.ItemLink = MainMenu.ItemLink;
-            DynamicComponent.ItemCustom = MainMenu.ItemCustom;
+                //You can adjust here to copy sub-properties of MenuItems if needed.
+                const DynamicComponent = MainMenu as any;
+                DynamicComponent.Item = MainMenu.Item;
+                DynamicComponent.ItemLink = MainMenu.ItemLink;
+                DynamicComponent.ItemCustom = MainMenu.ItemCustom;
 
-            setDynamicMainMenuComponent(() => DynamicComponent);
-            setDynamicMainMenuReady(true);
+                console.log("LOG: [ExcalidrawWrapper] MainMenu imported successfully. Setting state.");
+                setDynamicMainMenuComponent(() => DynamicComponent);
+                setDynamicMainMenuReady(true);
+            } catch (e) {
+                console.error("LOG: [ExcalidrawWrapper] Failed to import MainMenu:", e);
+            }
         };
 
         loadMainMenu();
 
         return () => {
+            console.log("LOG: [ExcalidrawWrapper] Cleanup for MainMenu useEffect.");
             isMounted = false;
         };
     }, []);
 
     const onLoadLib = useCallback(async (signal: AbortSignal) => {
         if (!api) {
-            console.log("[WelcomeScreen] ExcalidrawWrapper: API not ready for library load.");
+            console.warn("LOG: [ExcalidrawWrapper] onLoadLib called, but API is not ready.");
             return;
         }
-        console.log("[WelcomeScreen] ExcalidrawWrapper: API ready, attempting to load library.");
+        console.log("LOG: [ExcalidrawWrapper] onLoadLib: API ready, attempting to fetch library.");
         try {
             const response = await fetch('/libraries/mehhdy.excalidrawlib', { signal });
             if (!response.ok) {
@@ -130,42 +152,43 @@ const ExcalidrawWrapper: React.FC<ExcalidrawWrapperProps> = memo(({
             const libraryData = await response.json();
 
             if (api && typeof api.updateLibrary === 'function') {
-                console.log("[WelcomeScreen] ExcalidrawWrapper: Updating library...");
+                console.log("LOG: [ExcalidrawWrapper] onLoadLib: Calling api.updateLibrary...");
                 api.updateLibrary({
                     libraryItems: libraryData.libraryItems,
                 });
-                console.log("[WelcomeScreen] ExcalidrawWrapper: Library updated.");
+                console.log("LOG: [ExcalidrawWrapper] onLoadLib: Library updated successfully.");
             } else {
-                console.warn("[WelcomeScreen] ExcalidrawWrapper: updateLibrary function not available on API.");
+                console.warn("LOG: [ExcalidrawWrapper] onLoadLib: updateLibrary function not available on API.");
             }
-        } catch (error) {
+        } catch (error: any) {
             if (error.name === 'AbortError') {
-                console.log("[WelcomeScreen] ExcalidrawWrapper: Fetch aborted.");
+                console.log("LOG: [ExcalidrawWrapper] onLoadLib: Fetch aborted.");
             } else {
-              console.error("[WelcomeScreen] ExcalidrawWrapper: Error loading library:", error);
+              console.error("LOG: [ExcalidrawWrapper] onLoadLib: Error loading library:", error);
             }
         }
     }, [api]);
 
     useEffect(() => {
-        if (!api) return;
+        if (!api) {
+            console.log("LOG: [ExcalidrawWrapper] useEffect for library loading: waiting for API.");
+            return;
+        }
+        console.log("LOG: [ExcalidrawWrapper] useEffect for library loading: API is available. Firing onLoadLib.");
 
         const abortController = new AbortController();
 
-        const loadLibrary = async () => {
-            await onLoadLib(abortController.signal);
-        };
-
-        loadLibrary();
+        onLoadLib(abortController.signal);
 
         return () => {
+            console.log("LOG: [ExcalidrawWrapper] Cleanup for library loading useEffect. Aborting fetch.");
             abortController.abort(); // Cancel the fetch request
         };
     }, [api, onLoadLib]);
 
     useEffect(() => {
         if (api && initialData !== initialDataRef.current) {
-            console.log("[WelcomeScreen] ExcalidrawWrapper: initialData prop changed, updating scene.");
+            console.log("LOG: [ExcalidrawWrapper] useEffect detected initialData prop change. Updating scene.");
             const elements = initialData?.elements ?? [];
             const appState = initialData?.appState ?? {};
 
@@ -174,17 +197,29 @@ const ExcalidrawWrapper: React.FC<ExcalidrawWrapperProps> = memo(({
                 appState: appState,
             });
             initialDataRef.current = initialData;
-            console.log("[WelcomeScreen] ExcalidrawWrapper: Scene updated with new initialData.");
+            console.log("LOG: [ExcalidrawWrapper] Scene updated with new initialData.");
         }
     }, [api, initialData]);
+
+    const handleSetApi = useCallback((apiInstance: ExcalidrawAPI | null) => {
+        console.log(`LOG: [ExcalidrawWrapper] excalidrawAPI callback fired. API is ${apiInstance ? 'available' : 'null'}.`);
+        setApi(apiInstance);
+    }, [setApi]);
+
+    const handleOnChange = useCallback((elements: ReadonlyArray<ExcalidrawElement>, appState: ExcalidrawAppState) => {
+        console.log("LOG: [ExcalidrawWrapper] onChange from Excalidraw triggered.");
+        if (onChange) {
+            onChange(elements, appState);
+        }
+    }, [onChange]);
 
     return (
         <div style={{ display: "flex", flexDirection: "column", height: "100%", width: "100%" }}>
             <div style={{ flexGrow: 1, position: "relative" }}>
                 <DynamicExcalidraw
-                    excalidrawAPI={(apiInstance) => setApi(apiInstance)}
+                    excalidrawAPI={handleSetApi}
                     initialData={initialDataRef.current}
-                    onChange={onChange}
+                    onChange={handleOnChange}
                     UIOptions={{ canvasActions: { loadScene: false } }}
                 >
                    {dynamicMainMenuReady && DynamicMainMenuComponent ? (
@@ -208,7 +243,7 @@ const ExcalidrawWrapper: React.FC<ExcalidrawWrapperProps> = memo(({
                             </DynamicMainMenuComponent.ItemCustom>
                         </DynamicMainMenuComponent>
                     ) : (
-                        <div>Loading Main Menu...</div>
+                        <div>{console.log("LOG: [ExcalidrawWrapper] Rendering 'Loading Main Menu...'")}Loading Main Menu...</div>
                     )}
                     {dynamicWelcomeScreenReady && DynamicWelcomeScreenComponent ? (
                         <DynamicWelcomeScreenComponent>
@@ -223,7 +258,7 @@ const ExcalidrawWrapper: React.FC<ExcalidrawWrapperProps> = memo(({
                             </DynamicWelcomeScreenComponent.Center>
                         </DynamicWelcomeScreenComponent>
                     ) : (
-                        <div>Loading Welcome Screen...</div>
+                        <div>{console.log("LOG: [ExcalidrawWrapper] Rendering 'Loading Welcome Screen...'")}Loading Welcome Screen...</div>
                     )}
                 </DynamicExcalidraw>
             </div>

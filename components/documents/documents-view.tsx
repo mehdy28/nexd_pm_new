@@ -1,5 +1,4 @@
 // components/documents/documents-view.tsx
-
 "use client"
 
 import type React from "react"
@@ -21,6 +20,7 @@ import { Upload, Plus, ChevronLeft, ArrowLeft, ArrowRight, FileText, File, Trash
 import { useProjectDocuments } from "@/hooks/useProjectDocuments"
 import { Editor } from "./DynamicEditor"
 import { PdfViewer } from "./pdf-viewer"
+import { LoadingPlaceholder, ErrorPlaceholder } from "@/components/placeholders/status-placeholders"
 
 export function DocumentsView({ projectId }: { projectId: string }) {
   const {
@@ -97,13 +97,12 @@ export function DocumentsView({ projectId }: { projectId: string }) {
     }
   }, [deleteTarget, deleteProjectDocument])
 
+  if (loading && pageItems.length === 0) {
+    return <LoadingPlaceholder message="Loading your documents..." />
+  }
+
   if (error) {
-    return (
-      <div className="h-full w-full grid place-items-center text-red-500">
-        <p>Error: {error}</p>
-        <Button onClick={() => refetchDocumentsList && refetchDocumentsList()}>Try Again</Button>
-      </div>
-    )
+    return <ErrorPlaceholder error={new Error(error)} onRetry={refetchDocumentsList} />
   }
 
   return (
@@ -123,7 +122,9 @@ export function DocumentsView({ projectId }: { projectId: string }) {
             </div>
             <div className="min-h-0 flex-1 overflow-auto rounded-lg bg-white py-2 shadow-inner">
               {loading && !selectedDocument.content ? (
-                <div className="grid h-full place-items-center"><Loader2 className="h-6 w-6 animate-spin" /></div>
+                <div className="grid h-full place-items-center">
+                  <Loader2 className="h-6 w-6 animate-spin" />
+                </div>
               ) : selectedDocument.type === "doc" ? (
                 <Editor
                   key={selectedDocument.id}
@@ -139,16 +140,35 @@ export function DocumentsView({ projectId }: { projectId: string }) {
           <div className="saas-card flex flex-1 flex-col overflow-hidden p-4">
             <div className="mb-4 shrink-0 border-b pb-4">
               <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_auto] md:items-center">
-                <Input value={search} onChange={e => setSearch(e.target.value)} className="h-9 sm:w-[280px]" placeholder="Search documents..." />
+                <Input
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  className="h-9 sm:w-[280px]"
+                  placeholder="Search documents..."
+                />
                 <div className="flex items-center justify-start gap-2 md:justify-end">
-                  <input ref={fileInputRef} type="file" accept="application/pdf" className="hidden" onChange={handleFileChange} />
-                  <Button variant="outline" className="h-9 bg-transparent" onClick={handleUploadClick}><Upload className="mr-1 h-4 w-4" /> Upload PDF</Button>
-                  <Button className="h-9 btn-primary" onClick={handleCreateDoc}><Plus className="mr-1 h-4 w-4" /> New Document</Button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="application/pdf"
+                    className="hidden"
+                    onChange={handleFileChange}
+                  />
+                  <Button variant="outline" className="h-9 bg-transparent" onClick={handleUploadClick}>
+                    <Upload className="mr-1 h-4 w-4" /> Upload PDF
+                  </Button>
+                  <Button className="h-9 btn-primary" onClick={handleCreateDoc}>
+                    <Plus className="mr-1 h-4 w-4" /> New Document
+                  </Button>
                 </div>
               </div>
             </div>
             <div className="relative flex-1 overflow-y-auto">
-              {loading && <div className="absolute inset-0 z-10 grid place-items-center bg-white/50"><Loader2 className="h-6 w-6 animate-spin" /></div>}
+              {loading && (
+                <div className="absolute inset-0 z-10 grid place-items-center bg-white/50">
+                  <Loader2 className="h-6 w-6 animate-spin" />
+                </div>
+              )}
               {pageItems.length > 0 ? (
                 <ul className="space-y-2">
                   {pageItems.map(doc => {
@@ -156,12 +176,22 @@ export function DocumentsView({ projectId }: { projectId: string }) {
                     const isPdf = doc.type === "pdf"
                     const Icon = isPdf ? File : FileText
                     return (
-                      <li key={doc.id} className="group rounded-lg border p-3 hover:bg-slate-50 transition flex items-start gap-3">
-                        <button className="flex flex-1 flex-col text-left" onClick={() => selectDocument(doc.id)} title={doc.title}>
+                      <li
+                        key={doc.id}
+                        className="group rounded-lg border p-3 hover:bg-slate-50 transition flex items-start gap-3"
+                      >
+                        <button
+                          className="flex flex-1 flex-col text-left"
+                          onClick={() => selectDocument(doc.id)}
+                          title={doc.title}
+                        >
                           <div className="flex items-start gap-2">
                             <Icon className="mt-0.5 h-4 w-4 text-slate-500" />
                             {isEditing ? (
-                              <Input ref={inputRef} defaultValue={doc.title} className="h-8"
+                              <Input
+                                ref={inputRef}
+                                defaultValue={doc.title}
+                                className="h-8"
                                 onBlur={e => {
                                   updateProjectDocument(doc.id, { title: e.target.value.trim() })
                                   setEditingId(null)
@@ -171,34 +201,87 @@ export function DocumentsView({ projectId }: { projectId: string }) {
                                   if (e.key === "Escape") setEditingId(null)
                                 }}
                               />
-                            ) : (<div className="line-clamp-1 text-sm font-medium">{doc.title}</div>)}
+                            ) : (
+                              <div className="line-clamp-1 text-sm font-medium">{doc.title}</div>
+                            )}
                           </div>
-                          <div className="mt-2 flex items-center gap-2 text-xs text-slate-500"><Clock className="h-3.5 w-3.5" /><span>Updated {timeAgo(doc.updatedAt)}</span></div>
+                          <div className="mt-2 flex items-center gap-2 text-xs text-slate-500">
+                            <Clock className="h-3.5 w-3.5" />
+                            <span>Updated {timeAgo(doc.updatedAt)}</span>
+                          </div>
                         </button>
                         <div className="ml-1 flex items-center gap-1">
-                          <Button size="sm" variant="ghost" className="h-8 px-2" onClick={() => setEditingId(doc.id)} title="Rename"><Edit2 className="h-4 w-4" /></Button>
-                          <Button size="sm" variant="ghost" className="h-8 px-2 text-red-600 hover:bg-red-50 hover:text-red-700" onClick={() => setDeleteTarget(doc.id)} title="Delete"><Trash2 className="h-4 w-4" /></Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-8 px-2"
+                            onClick={() => setEditingId(doc.id)}
+                            title="Rename"
+                          >
+                            <Edit2 className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-8 px-2 text-red-600 hover:bg-red-50 hover:text-red-700"
+                            onClick={() => setDeleteTarget(doc.id)}
+                            title="Delete"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
                         </div>
-                      </li>)
+                      </li>
+                    )
                   })}
                 </ul>
               ) : !loading ? (
                 <div className="flex h-full items-center justify-center rounded-md border border-dashed text-center text-sm text-slate-500">
-                  <div><p>No documents found.</p><p className="mt-1">Create a document or upload a PDF to get started.</p></div>
+                  <div>
+                    <p>No documents found.</p>
+                    <p className="mt-1">Create a document or upload a PDF to get started.</p>
+                  </div>
                 </div>
               ) : null}
             </div>
             <div className="mt-4 shrink-0 border-t pt-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="text-sm text-slate-600">Showing {startItem}–{endItem} of {totalCount}</div>
+                <div className="text-sm text-slate-600">
+                  Showing {startItem}–{endItem} of {totalCount}
+                </div>
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-slate-500">Rows per page</span>
-                  <Select value={String(pageSize)} onValueChange={v => setPageSize(Number(v))}><SelectTrigger className="h-8 w-[90px]"><SelectValue /></SelectTrigger>
-                    <SelectContent><SelectItem value="8">8</SelectItem><SelectItem value="12">12</SelectItem><SelectItem value="20">20</SelectItem><SelectItem value="40">40</SelectItem></SelectContent>
+                  <Select value={String(pageSize)} onValueChange={v => setPageSize(Number(v))}>
+                    <SelectTrigger className="h-8 w-[90px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="8">8</SelectItem>
+                      <SelectItem value="12">12</SelectItem>
+                      <SelectItem value="20">20</SelectItem>
+                      <SelectItem value="40">40</SelectItem>
+                    </SelectContent>
                   </Select>
-                  <Button variant="outline" className="h-8 bg-transparent" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1} title="Previous"><ArrowLeft className="h-4 w-4" /></Button>
-                  <div className="min-w-[80px] text-center text-sm">Page {page} / {totalPages}</div>
-                  <Button variant="outline" className="h-8 bg-transparent" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page >= totalPages} title="Next"><ArrowRight className="h-4 w-4" /></Button>
+                  <Button
+                    variant="outline"
+                    className="h-8 bg-transparent"
+                    onClick={() => setPage(p => Math.max(1, p - 1))}
+                    disabled={page <= 1}
+                    title="Previous"
+                  >
+                    <ArrowLeft className="h-4 w-4" />
+                  </Button>
+                  <div className="min-w-[80px] text-center text-sm">
+                    Page {page} / {totalPages}
+                  </div>
+                  <Button
+                    variant="outline"
+                    className="h-8 bg-transparent"
+                    onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                    disabled={page >= totalPages}
+                    title="Next"
+                  >
+                    <ArrowRight className="h-4 w-4" />
+                  </Button>
                 </div>
               </div>
             </div>
@@ -207,8 +290,18 @@ export function DocumentsView({ projectId }: { projectId: string }) {
       </div>
       <AlertDialog open={!!deleteTarget} onOpenChange={open => !open && setDeleteTarget(null)}>
         <AlertDialogContent>
-          <AlertDialogHeader><AlertDialogTitle>Are you sure?</AlertDialogTitle><AlertDialogDescription>This will permanently delete the document. This action cannot be undone.</AlertDialogDescription></AlertDialogHeader>
-          <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={confirmDelete} className="bg-red-600 hover:bg-red-700">Delete</AlertDialogAction></AlertDialogFooter>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete the document. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-red-600 hover:bg-red-700">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
     </>
@@ -216,12 +309,12 @@ export function DocumentsView({ projectId }: { projectId: string }) {
 }
 
 function timeAgo(ts: number) {
-  const s = Math.floor((Date.now() - ts) / 1000);
-  if (s < 60) return `${s}s ago`;
-  const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m ago`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  const d = Math.floor(h / 24);
-  return `${d}d ago`;
+  const s = Math.floor((Date.now() - ts) / 1000)
+  if (s < 60) return `${s}s ago`
+  const m = Math.floor(s / 60)
+  if (m < 60) return `${m}m ago`
+  const h = Math.floor(m / 60)
+  if (h < 24) return `${h}h ago`
+  const d = Math.floor(h / 24)
+  return `${d}d ago`
 }

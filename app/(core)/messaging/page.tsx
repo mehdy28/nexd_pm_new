@@ -13,7 +13,7 @@ const MessaginPage: React.FC = () => {
   }
 
   return (
-    <div className="w-full h-full bg-gray-100">
+    <div className="w-full h-full  bg-muted/30">
       <UserCommunication workspaceId={currentWorkspace.id} />
     </div>
   );

@@ -8,9 +8,14 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Loader2 } from "lucide-react"
 
-import { usePersonalGanttData, CustomGanttTask, PersonalSectionGanttFilterOption } from "@/hooks/personal/usePersonalGanttData"
+import {
+  usePersonalGanttData,
+  CustomGanttTask,
+  PersonalSectionGanttFilterOption,
+} from "@/hooks/personal/usePersonalGanttData"
 import { usePersonalGanttMutations } from "@/hooks/personal/usePersonalGanttMutations"
 import { usePersonalTaskmutations } from "@/hooks/personal/usePersonalTaskMutations" // For delete
+import { LoadingPlaceholder, ErrorPlaceholder } from "@/components/placeholders/status-placeholders"
 
 interface PersonalGanttViewProps {}
 
@@ -56,8 +61,11 @@ const PersonalGanttView: React.FC<PersonalGanttViewProps> = () => {
     mutationError: upsertMutationError,
   } = usePersonalGanttMutations()
 
-  const { deleteTask, isTaskMutating: isDeleteMutating, taskMutationError: deleteMutationError } =
-  usePersonalTaskmutations()
+  const {
+    deleteTask,
+    isTaskMutating: isDeleteMutating,
+    taskMutationError: deleteMutationError,
+  } = usePersonalTaskmutations()
 
   const isMutating = isUpsertMutating || isDeleteMutating
   const mutationError = upsertMutationError || deleteMutationError
@@ -184,27 +192,22 @@ const PersonalGanttView: React.FC<PersonalGanttViewProps> = () => {
   )
 
   if (ganttDataLoading && optimisticGanttTasks.length === 0) {
-    return (
-      <div className="flex items-center justify-center min-h-[calc(10vh)] bg-muted/30">
-        <Loader2 className="h-10 w-10 animate-spin text-teal-500" />
-        <p className="ml-4 text-lg text-slate-700">Loading Gantt data...</p>
-      </div>
-    )
+    return <LoadingPlaceholder message="Loading Gantt data..." />
   }
 
   const error = ganttDataError || mutationError
   if (error) {
-    return (
-      <div className="flex items-center justify-center min-h-[calc(10vh)] bg-red-100 text-red-700 p-4">
-        <p className="text-lg">Error: {error.message}</p>
-      </div>
-    )
+    return <ErrorPlaceholder error={error} onRetry={refetchPersonalGanttData} />
   }
 
   return (
     <div className="relative px-6">
       <div className="flex items-center gap-3 py-6">
-        <Button onClick={() => setIsCreateTaskOpen(true)} className="bg-[#4ab5ae] text-white h-9 rounded-md" disabled={isMutating}>
+        <Button
+          onClick={() => setIsCreateTaskOpen(true)}
+          className="bg-[#4ab5ae] text-white h-9 rounded-md"
+          disabled={isMutating}
+        >
           {isMutating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
           + Add item
         </Button>
@@ -260,7 +263,7 @@ const PersonalGanttView: React.FC<PersonalGanttViewProps> = () => {
             />
           </RightSideModal>
         )}
-        {optimisticGanttTasks.length > 0 ? (
+        {optimisticGanttTasks.length > 0 && (
           <Gantt
             tasks={optimisticGanttTasks}
             viewMode={viewMode}
@@ -271,14 +274,6 @@ const PersonalGanttView: React.FC<PersonalGanttViewProps> = () => {
             columnWidth={dynamicColumnWidth}
             readOnly={isMutating}
           />
-        ) : (
-          <div className="flex flex-col items-center justify-center min-h-[calc(10vh)] bg-muted/30 p-8 text-center">
-            <h2 className="text-3xl font-bold text-foreground mb-4">No Tasks for Gantt View</h2>
-            <p className="text-muted-foreground leading-relaxed max-w-xl mb-8">
-              Your personal tasks need a due date to be displayed in the Gantt chart. Add some tasks with
-              dates to get started.
-            </p>
-          </div>
         )}
       </div>
     </div>
@@ -448,4 +443,3 @@ const TaskForm: React.FC<TaskFormProps> = ({ onAddTask, onClose, availableSectio
 }
 
 export default PersonalGanttView
-

@@ -94,11 +94,13 @@ function debounce<T extends (...args: any[]) => any>(
 
 const WireframeEditorPage: React.FC<WireframeEditorPageProps> = memo(
   ({ wireframeId, onBack }) => {
+    console.log(`LOG: [WireframeEditorPage] Rendering with wireframeId: ${wireframeId}`);
     const [excalidrawAPI, setExcalidrawAPI] = useState<ExcalidrawAPI | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [hasMounted, setHasMounted] = useState(false);
 
     const { wireframe, loading, error } = useWireframeDetails(wireframeId);
+    console.log(`LOG: [WireframeEditorPage] useWireframeDetails state:`, { loading, error, wireframe: !!wireframe });
 
     const { updateWireframe } = useProjectWireframes(wireframe?.project?.id || "temp_project_for_editor");
 
@@ -106,11 +108,13 @@ const WireframeEditorPage: React.FC<WireframeEditorPageProps> = memo(
 
     useEffect(() => {
       if (wireframe && wireframe.title !== wireframeName) {
+        console.log(`LOG: [WireframeEditorPage] useEffect syncing wireframeName from fetched data. New name: "${wireframe.title}"`);
         setWireframeName(wireframe.title);
       }
     }, [wireframe, wireframeName]);
 
     useEffect(() => {
+      console.log("LOG: [WireframeEditorPage] Component has mounted. Setting hasMounted to true.");
       setHasMounted(true);
     }, []);
 
@@ -121,11 +125,11 @@ const WireframeEditorPage: React.FC<WireframeEditorPageProps> = memo(
       currentTitle: string
     ) => {
       if (!wireframeId) {
-        console.warn("Cannot save: wireframeId is missing. [SENIOR_ENGINEER]");
+        console.warn("LOG: [WireframeEditorPage] Cannot save: wireframeId is missing.");
         return;
       }
 
-      console.log("Saving wireframe data to database... [SENIOR_ENGINEER]");
+      console.log("LOG: [WireframeEditorPage] Executing saveWireframeData...");
 
       const filteredElements = elements.filter((element) => !element.isDeleted);
 
@@ -145,37 +149,45 @@ const WireframeEditorPage: React.FC<WireframeEditorPageProps> = memo(
             appState: appStateForSaving,
           },
         });
-        console.log("Wireframe data saved successfully. [SENIOR_ENGINEER]");
+        console.log("LOG: [WireframeEditorPage] Wireframe data saved successfully.");
       } catch (err) {
-        console.error("Error saving wireframe data: [SENIOR_ENGINEER]", err);
+        console.error("LOG: [WireframeEditorPage] Error saving wireframe data:", err);
       }
     }, [wireframeId, updateWireframe]);
 
     // --- Debounced version of saveWireframeData ---
     const debouncedSaveWireframeData = useMemo(
-      () => debounce(saveWireframeData, 1500),
+      () => {
+        console.log("LOG: [WireframeEditorPage] Creating debounced save function for wireframe data.");
+        return debounce(saveWireframeData, 1500);
+      },
       [saveWireframeData]
     );
 
     // --- Save Wireframe Name function ---
     const saveWireframeName = useCallback(async (id: string, title: string) => {
+      console.log(`LOG: [WireframeEditorPage] Executing saveWireframeName with title: "${title}"`);
       try {
         await updateWireframe(id, { title });
-        console.log(`Wireframe name updated to "${title}". [SENIOR_ENGINEER]`);
+        console.log(`LOG: [WireframeEditorPage] Wireframe name updated to "${title}".`);
       } catch (err) {
-        console.error("Error updating wireframe name: [SENIOR_ENGINEER]", err);
+        console.error("LOG: [WireframeEditorPage] Error updating wireframe name:", err);
       }
     }, [updateWireframe]);
 
     // --- Debounced version of saveWireframeName ---
     const debouncedSaveWireframeName = useMemo(
-      () => debounce(saveWireframeName, 1000),
+      () => {
+        console.log("LOG: [WireframeEditorPage] Creating debounced save function for wireframe name.");
+        return debounce(saveWireframeName, 1000);
+      },
       [saveWireframeName]
     );
 
     // --- Excalidraw onChange Handler ---
     const handleExcalidrawChange = useCallback(
       (elements: ReadonlyArray<ExcalidrawElement>, appState: ExcalidrawAppState) => {
+        console.log("LOG: [WireframeEditorPage] handleExcalidrawChange triggered.");
         debouncedSaveWireframeData(elements, appState, wireframeName);
       },
       [debouncedSaveWireframeData, wireframeName]
@@ -185,9 +197,10 @@ const WireframeEditorPage: React.FC<WireframeEditorPageProps> = memo(
     const handleNameChange = useCallback(
       (e: React.ChangeEvent<HTMLInputElement>) => {
         const newName = e.target.value;
+        console.log(`LOG: [WireframeEditorPage] handleNameChange. New value: "${newName}"`);
         setWireframeName(newName);
         if (!wireframeId) {
-          console.warn("Cannot rename: wireframeId is missing. [SENIOR_ENGINEER]");
+          console.warn("LOG: [WireframeEditorPage] Cannot rename: wireframeId is missing.");
           return;
         }
         debouncedSaveWireframeName(wireframeId, newName);
@@ -197,6 +210,7 @@ const WireframeEditorPage: React.FC<WireframeEditorPageProps> = memo(
 
     // --- Back Callback ---
     const editorOnBack = useCallback(() => {
+      console.log("LOG: [WireframeEditorPage] Back button clicked. Flushing pending saves.");
       // Flush any pending debounced changes before navigating back
       debouncedSaveWireframeData.flush();
       debouncedSaveWireframeName.flush();
@@ -212,6 +226,7 @@ const WireframeEditorPage: React.FC<WireframeEditorPageProps> = memo(
     };
 
     const excalidrawInitialData = useMemo(() => {
+      console.log("LOG: [WireframeEditorPage] Recalculating excalidrawInitialData...");
       const defaultData: {
         elements: ReadonlyArray<ExcalidrawElement>;
         appState: Partial<ExcalidrawAppState>;
@@ -221,6 +236,7 @@ const WireframeEditorPage: React.FC<WireframeEditorPageProps> = memo(
       };
 
       if (loading || !wireframe) {
+        console.log("LOG: [WireframeEditorPage] Data is loading or wireframe not found, returning default initial data.");
         return defaultData;
       }
 
@@ -238,7 +254,7 @@ const WireframeEditorPage: React.FC<WireframeEditorPageProps> = memo(
       }
 
       console.log(
-        "WireframeEditorPage: Preparing initial data for Excalidraw component from fetched wireframe. [SENIOR_ENGINEER]"
+        "LOG: [WireframeEditorPage] Preparing initial data for Excalidraw component from fetched wireframe."
       );
       return {
         elements: elements,
@@ -247,6 +263,7 @@ const WireframeEditorPage: React.FC<WireframeEditorPageProps> = memo(
     }, [wireframe, loading]);
 
     if (!hasMounted || loading) {
+      console.log("LOG: [WireframeEditorPage] Rendering loading state.");
       return (
         <div className="page-scroller grid h-full place-items-center p-4">
           <Loader2 className="h-8 w-8 animate-spin text-emerald-500" />
@@ -255,6 +272,7 @@ const WireframeEditorPage: React.FC<WireframeEditorPageProps> = memo(
     }
 
     if (error) {
+      console.log("LOG: [WireframeEditorPage] Rendering error state.", { error });
       return (
         <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", height: "100vh", padding: "1rem" }}>
           <p style={{ marginBottom: "1rem", color: "red" }}>Error loading wireframe: {error.message}</p>
@@ -264,6 +282,7 @@ const WireframeEditorPage: React.FC<WireframeEditorPageProps> = memo(
     }
 
     if (!wireframe) {
+      console.log("LOG: [WireframeEditorPage] Rendering 'not found' state.");
       return (
         <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", height: "100vh", padding: "1rem" }}>
           <p style={{ marginBottom: "1rem" }}>Wireframe not found or is unavailable.</p>
@@ -272,6 +291,7 @@ const WireframeEditorPage: React.FC<WireframeEditorPageProps> = memo(
       );
     }
 
+    console.log("LOG: [WireframeEditorPage] Rendering main editor view.");
     return (
       <div style={{
         display: "flex",

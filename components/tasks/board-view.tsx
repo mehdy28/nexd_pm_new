@@ -1,4 +1,4 @@
-// components/tasks/board-view.tsx
+// components/tasks/board-view.tsx`
 "use client"
 
 import { KanbanBoard } from "@/components/board/kanban-board"
@@ -6,9 +6,9 @@ import { useProjectTasksAndSections, SectionUI, TaskUI, PriorityUI, TaskStatusUI
 import { useProjectTaskMutations } from "@/hooks/useProjectTaskMutations";
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { Card, Column } from "@/components/board/kanban-types";
-import { Loader2 } from "lucide-react";
 import { Priority as PrismaPriority, TaskStatus as PrismaTaskStatus } from "@prisma/client";
 import { UserAvatarPartial } from "@/types/useProjectTasksAndSections";
+import { LoadingPlaceholder, ErrorPlaceholder } from "@/components/placeholders/status-placeholders";
 
 
 interface BoardViewProps {
@@ -219,29 +219,13 @@ export function BoardView({ projectId }: BoardViewProps) {
   }, [currentSprintId, sprintFilterOptions]);
 
 
-  if (!projectId) {
-    return (
-      <div className="flex items-center justify-center min-h-[200px] p-4 text-center text-muted-foreground">
-        Please select a project.
-      </div>
-    );
-  }
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[200px]">
-        <Loader2 className="h-8 w-8 animate-spin text-teal-500" />
-        <span className="ml-2 text-lg text-slate-700">Loading tasks...</span>
-      </div>
-    );
+    return <LoadingPlaceholder message="Loading tasks..." />;
   }
 
   if (error) {
-    return (
-      <div className="p-4 text-center text-red-700">
-        Error loading tasks: {error.message}
-      </div>
-    );
+    return <ErrorPlaceholder error={error} onRetry={refetchProjectTasksAndSections} />;
   }
 
   const isMutating = isTaskMutating;

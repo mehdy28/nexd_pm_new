@@ -69,13 +69,13 @@ export function PromptList({
   const endItem = Math.min(page * pageSize, totalPromptsCount);
 
 
-  if (isError) {
-    return (
-      <div className="grid h-full place-items-center text-red-500">
-        <p>Failed to load prompts.</p>
-      </div>
-    )
-  }
+  // if (isError) {
+  //   return (
+  //     <div className="grid h-full place-items-center text-red-500">
+  //       <p>Failed to load prompts.</p>
+  //     </div>
+  //   )
+  // }
 
   return (
     <>

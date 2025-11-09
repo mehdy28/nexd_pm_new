@@ -1,3 +1,4 @@
+// components/prompt-lab/prompt-lab-container.tsx
 'use client'
 
 import { useState, useCallback } from 'react';
@@ -6,7 +7,7 @@ import { useParams } from 'next/navigation';
 import { PromptList } from "./prompt-list";
 import { PromptLab } from "./prompt-lab";
 import { Button } from "../ui/button";
-import GlobalAppLoader from "@/components/global-app-loader";
+import { LoadingPlaceholder, ErrorPlaceholder } from "@/components/placeholders/status-placeholders";
 
 import { usePromptsList } from "@/hooks/usePromptsList";
 import { usePromptDetails } from "@/hooks/usePromptDetails";
@@ -85,6 +86,15 @@ export function PromptLabContainer({ projectId: initialProjectId }: { projectId?
     selectPrompt(null); // Deselect the prompt. This will trigger a list refetch via its useCallback.
   };
 
+  const handleRetry = useCallback(() => {
+    console.log('[PromptLabContainer] [Trace: RetryButton] Retry button clicked.');
+    if (selectedPromptId) {
+      refetchPromptDetails(); // Retry details fetch if a prompt is selected
+    } else {
+      triggerPromptsListFetch(true); // Retry list fetch if no prompt is selected
+    }
+  }, [selectedPromptId, refetchPromptDetails, triggerPromptsListFetch]);
+
   // Determine overall loading and error states
   const isLoading = loadingList || loadingDetails;
   const error = listError || detailsError;
@@ -100,25 +110,13 @@ export function PromptLabContainer({ projectId: initialProjectId }: { projectId?
   // --- Global Loader Conditional Rendering ---
   if (isLoading && prompts.length === 0 && !listError && !detailsError) { // Only show global loader if no prompts in list yet and no error
     console.log(`[PromptLabContainer] [Trace: Render] Rendering GLOBAL LOADER. Message: "${loaderMessage}".`);
-    return <GlobalAppLoader message={loaderMessage} />;
+    return <LoadingPlaceholder message={loaderMessage} />;
   }
 
   // --- Error Handling (after global loading completes) ---
   if (error) {
     console.log('[PromptLabContainer] [Trace: Render] Rendering ERROR STATE. Error:', error);
-    return (
-      <div className="grid h-full place-items-center p-6 text-sm text-red-500">
-        Error loading data: {error}
-        <Button onClick={() => {
-          console.log('[PromptLabContainer] [Trace: RetryButton] Retry button clicked.');
-          if (selectedPromptId) {
-            refetchPromptDetails(); // Retry details fetch if a prompt is selected
-          } else {
-            triggerPromptsListFetch(true); // Retry list fetch if no prompt is selected
-          }
-        }} className="mt-4">Retry</Button>
-      </div>
-    );
+    return <ErrorPlaceholder error={new Error(error)} onRetry={handleRetry} />;
   }
 
   // --- Main UI Rendering (after global loading and error checks) ---

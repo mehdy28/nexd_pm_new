@@ -1,4 +1,3 @@
-// components/tasks/personal-board-view.tsx
 "use client"
 
 import { PersonalKanbanBoard } from "@/components/board/personal/personal-kanban-board"
@@ -6,7 +5,7 @@ import { useMyTasksAndSections, SectionUI, TaskUI, PriorityUI } from "@/hooks/pe
 import { usePersonalTaskmutations } from "@/hooks/personal/usePersonalTaskMutations"
 import { useMemo, useCallback } from "react"
 import { Column } from "@/components/board/kanban-types"
-import { Loader2 } from "lucide-react"
+import { LoadingPlaceholder, ErrorPlaceholder } from "@/components/placeholders/status-placeholders"
 import { Priority as PrismaPriority, TaskStatus as PrismaTaskStatus } from "@prisma/client"
 
 const mapPriorityToPrisma = (priority: PriorityUI): PrismaPriority => {
@@ -162,18 +161,11 @@ export function PersonalBoardView() {
   )
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[200px]">
-        <Loader2 className="h-8 w-8 animate-spin text-teal-500" />
-        <span className="ml-2 text-lg text-slate-700">Loading your board...</span>
-      </div>
-    )
+    return <LoadingPlaceholder message="Loading your board..." />
   }
 
   if (error) {
-    return (
-      <div className="p-4 text-center text-red-700">Error loading your tasks: {error.message}</div>
-    )
+    return <ErrorPlaceholder error={error} onRetry={refetchMyTasksAndSections} />
   }
 
   return (
