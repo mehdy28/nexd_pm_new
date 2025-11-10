@@ -53,9 +53,9 @@ export function NewTicketForm({ onBack, onSubmit }: NewTicketFormProps) {
                   <SelectValue placeholder="Select priority" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="LOW"><div className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-green-500" />Low</div></SelectItem>
-                  <SelectItem value="MEDIUM"><div className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-yellow-500" />Medium</div></SelectItem>
-                  <SelectItem value="HIGH"><div className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-red-500" />High</div></SelectItem>
+                  <SelectItem value="LOW"><div className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-green-500" />LOW</div></SelectItem>
+                  <SelectItem value="MEDIUM"><div className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-yellow-500" />MEDIUM</div></SelectItem>
+                  <SelectItem value="HIGH"><div className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-red-500" />HIGH</div></SelectItem>
                 </SelectContent>
               </Select>
             </div>

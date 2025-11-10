@@ -124,7 +124,7 @@ export function SupportChatWindow({ ticketId }: SupportChatWindowProps) {
               <div className="flex items-center space-x-2">
                 <Badge variant="destructive">Open</Badge>
                 <Badge variant="outline" className="text-red-600">
-                  High Priority
+                  HIGH Priority
                 </Badge>
               </div>
             </div>
@@ -247,7 +247,7 @@ export function SupportChatWindow({ ticketId }: SupportChatWindowProps) {
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">Priority:</span>
               <Badge variant="outline" className="text-red-600">
-                High
+                HIGH
               </Badge>
             </div>
             <div className="flex items-center space-x-2">

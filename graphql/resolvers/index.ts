@@ -1,4 +1,3 @@
-// graphql/resolvers/index.ts
 import { userResolver } from "./userResolver"
 import setupResolver from "./setupResolver"
 import workspaceResolver from "./workspaceResolver"
@@ -26,12 +25,16 @@ import personalPromptResolvers from "./personal/personalPromptResolver"
 // Messaging and Ticketing resolvers
 import { messagingResolvers } from "./messagingResolver"
 
+// Member management resolvers
+import { memberManagementResolvers } from "./memberManagementResolver"
+
 export const resolvers = {
   Query: {
     // General & Workspace
     ...workspaceResolver.Query,
     ...userResolver.Query,
     ...lookupResolvers.Query,
+    ...memberManagementResolvers.Query,
 
     // Project
     ...projectResolver.Query,
@@ -56,6 +59,9 @@ export const resolvers = {
     // Setup & User
     ...setupResolver.Mutation,
     ...userResolver.Mutation,
+    
+    // Member Management
+    ...memberManagementResolvers.Mutation,
 
     // Project
     ...projectResolver.Mutation,

@@ -41,14 +41,14 @@ type NewTaskForm = {
 }
 
 const priorityStyles: Record<PriorityUI, string> = {
-  Low: "bg-green-100 text-green-700 ring-1 ring-green-200",
-  Medium: "bg-orange-100 text-orange-700 ring-1 ring-orange-200",
-  High: "bg-red-100 text-red-700 ring-1 ring-red-200",
+  LOW: "bg-green-100 text-green-700 ring-1 ring-green-200",
+  MEDIUM: "bg-orange-100 text-orange-700 ring-1 ring-orange-200",
+  HIGH: "bg-red-100 text-red-700 ring-1 ring-red-200",
 }
 const priorityDot: Record<PriorityUI, string> = {
-  Low: "bg-green-500",
-  Medium: "bg-orange-500",
-  High: "bg-red-500",
+  LOW: "bg-green-500",
+  MEDIUM: "bg-orange-500",
+  HIGH: "bg-red-500",
 }
 
 export function PersonalListView() {
@@ -291,7 +291,7 @@ export function PersonalListView() {
       [sectionId]: p[sectionId] || {
         title: "",
         due: null,
-        priority: "Medium",
+        priority: "MEDIUM",
         points: null,
         description: null,
       },
@@ -540,7 +540,7 @@ export function PersonalListView() {
                         <div className="space-y-2">
                           <label className="text-xs text-muted-foreground">Priority</label>
                           <Select
-                            value={newTask[section.id]?.priority || "Medium"}
+                            value={newTask[section.id]?.priority || "MEDIUM"}
                             onValueChange={(v: PriorityUI) =>
                               setNewTask(p => ({
                                 ...p,
@@ -553,7 +553,7 @@ export function PersonalListView() {
                               <SelectValue placeholder="Priority" />
                             </SelectTrigger>
                             <SelectContent>
-                              {(["Low", "Medium", "High"] as PriorityUI[]).map(p => (
+                              {(["LOW", "MEDIUM", "HIGH"] as PriorityUI[]).map(p => (
                                 <SelectItem key={p} value={p}>
                                   <div className="flex items-center gap-2">
                                     <span className={cn("h-2 w-2 rounded-full", priorityDot[p])} />
@@ -835,7 +835,7 @@ function TaskRow({ task, selected, onSelect, onToggleCompleted, onChange, onOpen
             </div>
           </SelectTrigger>
           <SelectContent>
-            {(["Low", "Medium", "High"] as PriorityUI[]).map(p => (
+            {(["LOW", "MEDIUM", "HIGH"] as PriorityUI[]).map(p => (
               <SelectItem key={p} value={p}>
                 <div className="flex items-center gap-2">
                   <span className={cn("h-2 w-2 rounded-full", priorityDot[p])} />

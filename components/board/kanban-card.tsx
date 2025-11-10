@@ -59,7 +59,7 @@ export function KanbanCard({
       aria-label={`Open ${card.title}`}
     >
       <div className="flex items-start justify-between mb-3">
-        <span className={badgeClass(card.priority)}>{card.priority || "Low"}</span>
+        <span className={badgeClass(card.priority)}>{card.priority || "LOW"}</span>
         <div className="text-xs text-muted-foreground font-medium">{card.points ? `${card.points} SP` : ""}</div>
       </div>
 
@@ -89,9 +89,9 @@ export function KanbanCard({
 }
 
 function badgeClass(priority?: Card["priority"]) {
-  if (priority === "High")
+  if (priority === "HIGH")
     return "inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-red-50 text-red-700 border border-red-200"
-  if (priority === "Medium")
+  if (priority === "MEDIUM")
     return "inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200"
   return "inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200"
 }

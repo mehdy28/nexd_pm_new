@@ -1,4 +1,3 @@
-# graphql/schema/schema.graphql
 # ----------------------------------
 # Enums
 # ----------------------------------
@@ -134,6 +133,16 @@ enum TicketStatus {
 }
 
 # ----------------------------------
+# NEW MEMBER MANAGEMENT ENUMS
+# ----------------------------------
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  EXPIRED
+}
+
+# ----------------------------------
 # Models
 # ----------------------------------
 
@@ -161,8 +170,8 @@ type User {
   activities: [Activity]
   comments: [Comment]
   mentions: [Mention]
-  conversations: [Conversation] # NEW
-  tickets: [Ticket] # NEW
+  conversations: [Conversation]
+  tickets: [Ticket]
 }
 
 type Workspace {
@@ -183,8 +192,19 @@ type Workspace {
   subscription: Subscription
   settings: WorkspaceSettings
   personalTasks: [Task]
-  conversations: [Conversation] # NEW
-  tickets: [Ticket] # NEW
+  conversations: [Conversation]
+  tickets: [Ticket]
+  invitations: [WorkspaceInvitation!]
+}
+
+type WorkspaceInvitation {
+  id: ID!
+  email: String!
+  role: WorkspaceRole!
+  status: InvitationStatus!
+  expiresAt: DateTime!
+  createdAt: DateTime!
+  invitedBy: UserPartial!
 }
 
 type WorkspaceMember {
@@ -503,6 +523,10 @@ type UserPartial {
   lastName: String
 }
 
+type WorkspacePartial {
+  id: ID!
+}
+
 type ProjectData {
   id: ID!
   name: String!
@@ -531,7 +555,7 @@ type GanttTaskData {
   hideChildren: Boolean
   displayOrder: Int
   description: String
-  assignee: UserAvatarPartial
+  assignee: UserLookupPartial
   originalTaskId: ID
   originalType: String
 }
@@ -578,18 +602,12 @@ type ProjectDetails {
   displayStatus: String!
   members: [ProjectMemberDetails!]!
   sprints: [SprintDetails!]!
+  workspace: WorkspacePartial!
 }
 
 type UserFullDetails {
   id: ID!
   email: String!
-  firstName: String
-  lastName: String
-  avatar: String
-}
-
-type UserAvatarPartial {
-  id: ID!
   firstName: String
   lastName: String
   avatar: String
@@ -609,7 +627,7 @@ type TaskListView {
   dueDate: DateTime
   points: Int
   completionPercentage: Float
-  assignee: UserAvatarPartial
+  assignee: UserLookupPartial
   completed: Boolean!
   sprintId: ID
   sectionId: ID
@@ -674,7 +692,7 @@ type TaskLookupItem {
   status: TaskStatus!
   priority: Priority!
   dueDate: DateTime
-  assignee: UserAvatarPartial
+  assignee: UserLookupPartial
   sprint: SprintNameId
 }
 
@@ -689,7 +707,7 @@ type DocumentListItem {
 type WorkspaceLookupData {
   id: ID!
   name: String!
-  owner: UserAvatarPartial!
+  owner: UserLookupPartial!
   members: [WorkspaceMemberLookupItem!]!
 }
 
@@ -699,13 +717,11 @@ type WorkspaceMemberLookupItem {
   user: UserLookupPartial!
 }
 
-
 type WorkspaceMemberDetails {
   id: ID! # This is the ID of the WorkspaceMember record
   role: WorkspaceRole!
   user: UserLookupPartial!
 }
-
 
 type DocumentsListResponse {
   documents: [DocumentListItem!]!
@@ -797,7 +813,7 @@ type Conversation {
   id: ID!
   type: ConversationType!
   name: String # For group chats
-  participants: [UserAvatarPartial!]!
+  participants: [UserLookupPartial!]!
   messages: [Message!]!
   updatedAt: DateTime!
 }
@@ -806,7 +822,7 @@ type Message {
   id: ID!
   content: String!
   createdAt: DateTime!
-  sender: UserAvatarPartial!
+  sender: UserLookupPartial!
 }
 
 type Ticket {
@@ -814,7 +830,7 @@ type Ticket {
   subject: String!
   priority: Priority!
   status: TicketStatus!
-  creator: UserAvatarPartial!
+  creator: UserLookupPartial!
   messages: [TicketMessage!]!
   createdAt: DateTime!
   updatedAt: DateTime!
@@ -824,11 +840,10 @@ type TicketMessage {
   id: ID!
   content: String!
   createdAt: DateTime!
-  sender: UserAvatarPartial!
+  sender: UserLookupPartial!
   isSupport: Boolean! # To distinguish user vs admin/support replies
 }
 
-# This type matches the frontend component's expectation
 type CommunicationListItem {
   id: ID!
   type: String! # 'conversation' or 'ticket'
@@ -841,9 +856,6 @@ type CommunicationListItem {
   conversationType: ConversationType # For conversations
 }
 
-
-
-# NEW Typing Indicator Type
 type TypingUser {
   id: ID!
   firstName: String
@@ -853,6 +865,16 @@ type TypingUser {
 # ----------------------------------
 # Inputs
 # ----------------------------------
+
+input WorkspaceInvitationInput {
+  email: String!
+  role: WorkspaceRole!
+}
+
+input ProjectMemberInput {
+  userId: ID!
+  role: ProjectRole!
+}
 
 input DeleteSectionOptions {
   deleteTasks: Boolean!
@@ -1191,12 +1213,13 @@ type Query {
   # AI/Prompt
   resolvePromptVariable(projectId: ID, workspaceId: ID, variableSource: JSON!, promptVariableId: ID): String
 
-
-
-  # NEW QUERY TO FETCH WORKSPACE MEMBERS
+  # Workspace Members
   getWorkspaceMembers(workspaceId: ID!): [WorkspaceMemberDetails!]!
 
-  # Existing Messaging Queries
+  # NEW: Workspace Invitations
+  getWorkspaceInvitations(workspaceId: ID!): [WorkspaceInvitation!]!
+
+  # Messaging
   getCommunicationList(workspaceId: ID!): [CommunicationListItem!]!
   getConversation(id: ID!): Conversation
   getTicket(id: ID!): Ticket
@@ -1207,7 +1230,7 @@ type Query {
 # ----------------------------------
 type Mutation {
   # User & Workspace Setup
-  createUser(email: String!, password: String, firstName: String, lastName: String, role: UserRole): User!
+  createUser(email: String!, firstName: String, lastName: String, role: UserRole, invitationToken: String): User!
   setupWorkspace(
     userId: ID!
     workspaceName: String!
@@ -1282,7 +1305,7 @@ type Mutation {
   confirmAttachmentUpload(input: ConfirmAttachmentInput!): Attachment!
   deleteAttachment(id: ID!): Attachment!
 
-  # NEW MESSAGING MUTATIONS
+  # Messaging
   createDirectConversation(input: CreateDirectConversationInput!): Conversation!
   createGroupConversation(input: CreateGroupConversationInput!): Conversation!
   sendMessage(input: SendMessageInput!): Message!
@@ -1290,29 +1313,28 @@ type Mutation {
   createTicket(input: CreateTicketInput!): Ticket!
   sendTicketMessage(input: SendTicketMessageInput!): TicketMessage!
   updateTicketStatus(ticketId: ID!, status: TicketStatus!): Ticket!
-  
-  # NEW Typing Indicator Mutation
   userIsTyping(conversationId: ID!): Boolean
+
+  # --- NEW MEMBER MANAGEMENT MUTATIONS ---
+  inviteWorkspaceMembers(workspaceId: ID!, invitations: [WorkspaceInvitationInput!]!): [WorkspaceInvitation!]!
+  revokeWorkspaceInvitation(invitationId: ID!): WorkspaceInvitation!
+  resendWorkspaceInvitation(invitationId: ID!): WorkspaceInvitation!
+  acceptWorkspaceInvitation(token: String!): WorkspaceMember!
+  updateWorkspaceMemberRole(memberId: ID!, role: WorkspaceRole!): WorkspaceMemberDetails!
+  removeWorkspaceMembers(memberIds: [ID!]!): [WorkspaceMemberDetails!]!
+  addProjectMembers(projectId: ID!, members: [ProjectMemberInput!]!): [ProjectMemberDetails!]!
+  updateProjectMemberRole(memberId: ID!, role: ProjectRole!): ProjectMemberDetails!
+  removeProjectMembers(memberIds: [ID!]!): [ProjectMemberDetails!]!
 }
 
 # ----------------------------------
 # NEW REAL-TIME SUBSCRIPTIONS
 # ----------------------------------
 type Subscription {
-  # Change this line
   messageAdded(conversationId: ID!): Message
-
-  # And change this line
   ticketMessageAdded(ticketId: ID!): TicketMessage
-
-  # NEW Typing Indicator Subscription
   typingUser(conversationId: ID!): TypingUser
-
-  # This allows the server to handle empty/initial events without crashing.
   communicationItemUpdated(workspaceId: ID!): CommunicationListItem
-
-
-  # NEW subscription for real-time list updates
   communicationItemAdded(workspaceId: ID!): CommunicationListItem
 }
 
@@ -1321,24 +1343,3 @@ type Subscription {
 # ----------------------------------
 scalar JSON
 scalar DateTime
-
-
-
-
-
-
-
-
-
-
-
-
-type Subscription {
-  messageAdded(conversationId: ID!): Message
-  ticketMessageAdded(ticketId: ID!): TicketMessage
-  typingUser(conversationId: ID!): TypingUser
-
-  # NEW subscription for real-time list updates
-  communicationItemAdded(workspaceId: ID!): CommunicationListItem
-}
-

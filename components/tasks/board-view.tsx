@@ -17,9 +17,9 @@ interface BoardViewProps {
 
 const mapPriorityToPrisma = (priority: PriorityUI): PrismaPriority => {
   switch (priority) {
-    case "Low": return "LOW";
-    case "Medium": return "MEDIUM";
-    case "High": return "HIGH";
+    case "LOW": return "LOW";
+    case "MEDIUM": return "MEDIUM";
+    case "HIGH": return "HIGH";
   }
 };
 
@@ -148,7 +148,7 @@ export function BoardView({ projectId }: BoardViewProps) {
         title,
         description,
         assigneeId: assigneeId ?? null,
-        priority: "Medium",
+        priority: "MEDIUM",
         status: "TODO",
         sprintId: currentSprintId,
       });

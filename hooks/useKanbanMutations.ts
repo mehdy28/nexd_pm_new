@@ -39,9 +39,9 @@ interface UpdateTaskVariables {
 
 const mapPriorityToPrisma = (priority: PriorityUI): Priority => {
   switch (priority) {
-    case "Low": return "LOW";
-    case "Medium": return "MEDIUM";
-    case "High": return "HIGH";
+    case "LOW": return "LOW";
+    case "MEDIUM": return "MEDIUM";
+    case "HIGH": return "HIGH";
   }
 };
 

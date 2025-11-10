@@ -342,14 +342,14 @@ export function PersonalKanbanBoard({ initialColumns }: PersonalKanbanBoardProps
               <div className="flex items-start">
                 <span
                   className={
-                    overlay.card.priority === "High"
+                    overlay.card.priority === "HIGH"
                       ? "badge-high"
-                      : overlay.card.priority === "Medium"
+                      : overlay.card.priority === "MEDIUM"
                       ? "badge-medium"
                       : "badge-low"
                   }
                 >
-                  {overlay.card.priority || "Low"}
+                  {overlay.card.priority || "LOW"}
                 </span>
                 <div className="ml-auto text-xs text-slate-500">
                   {overlay.card.points ? `${overlay.card.points} SP` : ""}

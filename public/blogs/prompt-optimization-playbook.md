@@ -77,7 +77,7 @@ Example Output Format:
 ## Sprint 9 Plan
 **Capacity:** [X] story points
 **Stories Selected:** [List with points and assignees]
-**Risk Level:** [High/Medium/Low with justification]
+**Risk Level:** [HIGH/MEDIUM/LOW with justification]
 **Dependencies:** [External blockers to track]
 \`\`\`
 
@@ -90,7 +90,7 @@ Context: Project Alpha is 60% complete with the following status:
 - Timeline: 2 weeks behind original schedule
 - Budget: 5% over budget due to scope changes
 - Quality: All deliverables meeting acceptance criteria
-- Team morale: High, but concerns about timeline pressure
+- Team morale: HIGH, but concerns about timeline pressure
 - Key milestone: Demo scheduled for [date]
 
 Audience: C-level executives who prefer concise, action-oriented updates
@@ -125,7 +125,7 @@ Context: Analyzing risks for [Project Name] with these characteristics:
 - Budget: $[X]
 - Technology stack: [List key technologies]
 - External dependencies: [List key dependencies]
-- Stakeholder complexity: [High/Medium/Low]
+- Stakeholder complexity: [HIGH/MEDIUM/LOW]
 
 Task: Conduct comprehensive risk analysis including:
 1. Risk identification across all categories

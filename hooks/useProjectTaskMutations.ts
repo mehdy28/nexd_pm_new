@@ -55,9 +55,9 @@ interface UpdateProjectTaskVariables {
 // --- Helper Functions ---
 const mapPriorityToPrisma = (priority: PriorityUI): Priority => {
   switch (priority) {
-    case "Low": return "LOW";
-    case "Medium": return "MEDIUM";
-    case "High": return "HIGH";
+    case "LOW": return "LOW";
+    case "MEDIUM": return "MEDIUM";
+    case "HIGH": return "HIGH";
   }
 };
 
@@ -137,6 +137,60 @@ export function useProjectTaskMutations(projectId: string) { // Removed stale sp
     });
   }, [projectId, updateProjectTaskApolloMutation]);
 
+  const toggleTaskCompleted = useCallback(
+    async (taskId: string, currentStatus: TaskStatusUI, sprintIdForCache: string | null) => {
+      const newStatus = currentStatus === "DONE" ? "TODO" : "DONE";
+      return await updateProjectTaskApolloMutation({
+        variables: {
+          input: {
+            id: taskId,
+            status: newStatus,
+          },
+        },
+        update: (cache, { data }) => {
+          const updatedTask = data?.updateProjectTask;
+          if (!updatedTask) return;
+
+          const queryOptions = {
+            query: GET_PROJECT_TASKS_AND_SECTIONS_QUERY,
+            variables: { projectId, sprintId: sprintIdForCache },
+          };
+
+          const existingData = cache.readQuery<GetProjectTasksAndSectionsQueryType>(queryOptions);
+          if (!existingData) {
+            console.warn(`Cache update for toggle skipped: Could not find query for sprintId: ${sprintIdForCache}`);
+            return;
+          }
+
+          const newSections = existingData.getProjectTasksAndSections.sections.map(section => {
+            const taskIndex = section.cards.findIndex(card => card.id === taskId);
+            if (taskIndex === -1) {
+              return section;
+            }
+
+            const newCards = [
+              ...section.cards.slice(0, taskIndex),
+              updatedTask,
+              ...section.cards.slice(taskIndex + 1),
+            ];
+            return { ...section, cards: newCards };
+          });
+
+          cache.writeQuery({
+            ...queryOptions,
+            data: {
+              getProjectTasksAndSections: {
+                ...existingData.getProjectTasksAndSections,
+                sections: newSections,
+              },
+            },
+          });
+        },
+      });
+    },
+    [projectId, updateProjectTaskApolloMutation]
+  );
+
   const deleteTask = useCallback(async (taskId: string, sprintId: string | null) => {
     // Refetch is acceptable for deletion.
     return await deleteProjectTaskApolloMutation({
@@ -148,6 +202,7 @@ export function useProjectTaskMutations(projectId: string) { // Removed stale sp
   return {
     createTask,
     updateTask,
+    toggleTaskCompleted,
     deleteTask,
     isTaskMutating: createLoading || updateLoading || deleteLoading,
     taskMutationError: createError || updateError || deleteError,

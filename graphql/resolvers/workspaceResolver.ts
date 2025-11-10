@@ -1,5 +1,4 @@
 import { prisma } from "@/lib/prisma"; // Adjust path if necessary
-// REMOVED: import { IResolvers } from 'graphql-tools'; // Or your GraphQL server's type definition
 
 // Consistent logging function
 function log(prefix: string, message: string, data?: any) {
@@ -15,19 +14,17 @@ function log(prefix: string, message: string, data?: any) {
 interface GraphQLContext {
   prisma: typeof prisma; // Use the imported prisma instance type
   user?: { id: string; email: string; role: string }; // The authenticated user from your AuthContextProvider
-  // Add other context properties if necessary, like decodedToken
 }
 
-// REMOVED: export const workspaceResolver: IResolvers<any, GraphQLContext> = {
-export const workspaceResolver = { // Now a plain JavaScript object
+export const workspaceResolver = {
   Query: {
     getWorkspaceData: async (_parent: unknown, _args: unknown, context: GraphQLContext) => {
       log("[getWorkspaceData Query]", "called");
 
-         if (!context.user?.id) {
-         log("[getWorkspaceData Query]", "No authenticated user found in context.");
-         throw new Error("Authentication required: No user ID found in context.");
-       }
+      if (!context.user?.id) {
+        log("[getWorkspaceData Query]", "No authenticated user found in context.");
+        throw new Error("Authentication required: No user ID found in context.");
+      }
 
       const userId = context.user.id;
       log("[getWorkspaceData Query]", `Fetching data for userId: ${userId}`);
@@ -43,6 +40,14 @@ export const workspaceResolver = { // Now a plain JavaScript object
                   include: { user: true }, // Include user details for each member
                 },
                 projects: {
+                  // MODIFICATION: Filter projects to only include those the user is a member of.
+                  where: {
+                    members: {
+                      some: {
+                        userId: userId,
+                      },
+                    },
+                  },
                   include: {
                     _count: {
                       select: { members: true, tasks: true },
@@ -60,9 +65,6 @@ export const workspaceResolver = { // Now a plain JavaScript object
 
         if (!workspaceMember) {
           log("[getWorkspaceData Query]", `No workspace found for user ID: ${userId}`);
-          // A user might not have a workspace yet (e.g., just registered, going through setup)
-          // You might return null or an empty object, depending on your UI's expectation for this state.
-          // For this command, we'll return null if no workspace is found.
           return null;
         }
 
@@ -76,9 +78,8 @@ export const workspaceResolver = { // Now a plain JavaScript object
           projectMemberCount: project._count.members,
           totalTaskCount: project._count.tasks, // Total tasks from _count.tasks
           completedTaskCount: project.tasks.length, // Number of tasks where status is DONE
-          // Exclude the 'tasks' array which was only for counting finished tasks
-          tasks: undefined, // Remove the specific tasks array from the returned project object
-          _count: undefined, // Remove the raw _count object
+          tasks: undefined,
+          _count: undefined,
         }));
 
         // Transform members to the desired output format (id, email, role in workspace)
@@ -90,7 +91,6 @@ export const workspaceResolver = { // Now a plain JavaScript object
             email: member.user.email,
             firstName: member.user.firstName,
             lastName: member.user.lastName,
-            // Only expose necessary user fields
           },
         }));
 
@@ -116,8 +116,6 @@ export const workspaceResolver = { // Now a plain JavaScript object
   },
   // Custom field resolvers for Project
   Project: {
-    // These fields are already computed and attached in the getWorkspaceData resolver
-    // but they must also be defined in the Project type to be valid.
     projectMemberCount: (project: any) => project.projectMemberCount,
     totalTaskCount: (project: any) => project.totalTaskCount,
     completedTaskCount: (project: any) => project.completedTaskCount,

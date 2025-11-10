@@ -5,7 +5,7 @@ import { useTopbar, useTopbarSetup } from "@/components/layout/topbar-store"
 import { BoardView } from "@/components/tasks/board-view"
 import { ListView } from "@/components/tasks/list-view"
 import { DocumentsView } from "@/components/documents/documents-view"
-import { CalendarView } from "@/components/tasks/calendar-view"
+//import { CalendarView } from "@/components/tasks/calendar-view"
 import { DashboardView } from "@/components/tasks/dashboard-view"
 import { PromptLabContainer } from "@/components/prompt-lab/prompt-lab-container"
 import { WireframesView } from "@/components/wireframes/wireframes-view"
@@ -64,7 +64,7 @@ const TABS = [
   { key: "list", label: "List", icon: <ListChecks className="h-4 w-4" /> },
   { key: "board", label: "Board", icon: <SquareKanban className="h-4 w-4" /> },
   { key: "gantt", label: "Gantt", icon: <BarChart3 className="h-4 w-4" /> },
-  { key: "calendar", label: "Calendar", icon: <CalendarDays className="h-4 w-4" /> },
+ // { key: "calendar", label: "Calendar", icon: <CalendarDays className="h-4 w-4" /> },
   { key: "documents", label: "Documents", icon: <FileText className="h-4 w-4" /> },
   { key: "prompt-lab", label: "Prompt Lab", icon: <Wand2 className="h-4 w-4" /> },
   { key: "wireframes", label: "Wireframes", icon: <Layers3 className="h-4 w-4" /> },
@@ -94,7 +94,7 @@ export default function ProjectPage() {
   if (currentKey === "list") return <ListView projectId={projectId} />
   if (currentKey === "board") return <BoardView projectId={projectId} />
   if (currentKey === "gantt") return <GanttView projectId={projectId} />
-  if (currentKey === "calendar") return <CalendarView projectId={projectId} />
+ /// if (currentKey === "calendar") return <CalendarView projectId={projectId} />
   if (currentKey === "documents") return <DocumentsView projectId={projectId} />
   if (currentKey === "prompt-lab") return <PromptLabContainer projectId={projectId} />
   if (currentKey === "wireframes") return <WireframesView projectId={projectId} />

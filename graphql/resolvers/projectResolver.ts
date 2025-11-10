@@ -1,5 +1,3 @@
-// graphql/resolvers/projectResolver.ts
-
 import { prisma } from "@/lib/prisma";
 import { TaskStatus, Priority, SprintStatus } from "@prisma/client"; // Added SprintStatus
 
@@ -128,6 +126,9 @@ export const projectResolver = {
           status: project.status,
           color: project.color,
           createdAt: project.createdAt.toISOString(),
+          workspace: { // ADD THIS
+            id: project.workspaceId,
+          },
 
           totalTasks,
           completedTasks,

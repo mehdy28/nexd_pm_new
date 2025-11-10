@@ -99,7 +99,7 @@ const mockTasks: Task[] = [
   },
   {
     id: "2.1",
-    title: "Low-fidelity Wireframes",
+    title: "LOW-fidelity Wireframes",
     assignee: { name: "John Doe", avatar: "/placeholder.svg?height=32&width=32" },
     status: "completed",
     startDate: "2024-01-29",
@@ -113,7 +113,7 @@ const mockTasks: Task[] = [
   },
   {
     id: "2.2",
-    title: "High-fidelity Wireframes",
+    title: "HIGH-fidelity Wireframes",
     assignee: { name: "John Doe", avatar: "/placeholder.svg?height=32&width=32" },
     status: "completed",
     startDate: "2024-02-06",

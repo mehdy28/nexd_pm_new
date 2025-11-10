@@ -2,63 +2,49 @@
 
 import type React from "react"
 import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Eye, EyeOff } from "lucide-react"
+import { Eye, EyeOff, Info } from "lucide-react"
 import Image from "next/image"
 import { useToast } from "@/components/ui/use-toast"
-import { useAuth } from "@/hooks/useAuth"; // your custom auth hook
+import { useAuth } from "@/hooks/useAuth";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState("")
-  const { login, currentUser } = useAuth() // <-- login from hook
-  const router = useRouter()
-  const { toast } = useToast()
+  
+  const { login, loading: isLoading, error } = useAuth();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { toast } = useToast();
 
+  const invitationToken = searchParams.get('invitation_token');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
-    setError("");
-  
     try {
-      await login(email, password);
-  
-      const hasWorkspace =
-        (currentUser?.ownedWorkspaces?.length ?? 0) > 0 ||
-        (currentUser?.workspaceMembers?.length ?? 0) > 0;
-  
-      if (hasWorkspace) router.push("/workspace");
-      else router.push("/setup");
+      await login(email, password, invitationToken);
     } catch (err: any) {
-      setError(err.message || "Login failed");
       toast({
         variant: "destructive",
         title: "Uh oh! Something went wrong.",
-        description: err.message,
+        description: err.message || "Login failed.",
       });
-    } finally {
-      setIsLoading(false);
     }
   };
   
-
   return (
     <div className="flex min-h-screen">
-      {/* Left side */}
       <div className="hidden lg:flex flex-col justify-center items-center w-1/2 bg-slate-800 p-8">
         <Image src="/nexd-logo-horizontal.png" alt="NEXD.PM" width={250} height={80} className="object-contain" />
         <h2 className="mt-6 text-xl font-medium text-white text-center">Your all-in-one project management solution.</h2>
       </div>
 
-      {/* Right side */}
       <div className="flex items-center justify-center w-full lg:w-1/2 bg-white p-2">
         <div className="w-full max-w-lg rounded-lg bg-white p-8 shadow-sm">
           <div className="flex flex-col items-center mb-8">
@@ -67,6 +53,16 @@ export default function LoginPage() {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            {invitationToken && (
+              <Alert>
+                <Info className="h-4 w-4" />
+                <AlertTitle>You have an invitation!</AlertTitle>
+                <AlertDescription>
+                  Log in to your account to accept your workspace invitation.
+                </AlertDescription>
+              </Alert>
+            )}
+
             {error && <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-md">{error}</div>}
 
             <div className="space-y-2">
@@ -115,7 +111,7 @@ export default function LoginPage() {
           <div className="mt-6 text-center">
             <p className="text-sm text-slate-600">
               Don't have an account?{" "}
-              <Link href="/register" className="text-primary hover:text-primary/80 font-medium">
+              <Link href={invitationToken ? `/register?invitation_token=${invitationToken}` : "/register"} className="text-primary hover:text-primary/80 font-medium">
                 Sign up
               </Link>
             </p>

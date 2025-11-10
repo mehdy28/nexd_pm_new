@@ -1,4 +1,3 @@
-// hooks/useProjectDetails.ts
 import { useQuery } from "@apollo/client";
 import { GET_PROJECT_DETAILS_QUERY } from "@/graphql/queries/getProjectDetails"; // Adjust path
 
@@ -27,14 +26,10 @@ interface SprintDetails {
   status: "PLANNING" | "ACTIVE" | "COMPLETED"; // Corresponds to your derived status
 }
 
-// If you uncomment activities
-// interface ActivityDetails {
-//   id: string;
-//   type: string; // ActivityType enum
-//   data: any; // JSON scalar
-//   createdAt: string;
-//   user: UserFullDetails;
-// }
+// Add this interface
+interface WorkspacePartial {
+  id: string;
+}
 
 interface ProjectDetailsResponse {
   getProjectDetails: {
@@ -44,6 +39,8 @@ interface ProjectDetailsResponse {
     status: "PLANNING" | "ACTIVE" | "ON_HOLD" | "COMPLETED" | "ARCHIVED" | "CANCELLED"; // ProjectStatus enum
     color: string;
     createdAt: string;
+
+    workspace: WorkspacePartial; // Add this line
 
     totalTasks: number;
     completedTasks: number;

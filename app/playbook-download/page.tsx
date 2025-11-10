@@ -498,7 +498,7 @@ export default function PlaybookDownloadPage() {
             >
               {[
                 { value: "1-5", label: "1-5 people", desc: "Small, agile team" },
-                { value: "6-15", label: "6-15 people", desc: "Medium team" },
+                { value: "6-15", label: "6-15 people", desc: "MEDIUM team" },
                 { value: "16-30", label: "16-30 people", desc: "Large team" },
                 { value: "31-50", label: "31-50 people", desc: "Very large team" },
                 { value: "50+", label: "50+ people", desc: "Multiple teams" },

@@ -112,6 +112,14 @@ enum TicketStatus {
   RESOLVED
   CLOSED
 }
+
+// ---- NEW INVITATION ENUM ----
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  EXPIRED
+}
 // -----------------------------
 
 // ---------------- Core Models ----------------
@@ -153,6 +161,9 @@ model User {
   sentTicketMessages       TicketMessage[]
   // ---------------------------------
 
+  // ---- NEW INVITATION RELATIONS ----
+  sentWorkspaceInvitations WorkspaceInvitation[] @relation("Inviter")
+
   @@map("users")
 }
 
@@ -176,6 +187,9 @@ model Workspace {
   subscription Subscription?
   settings     WorkspaceSettings?
   personalTasks Task[] @relation("WorkspacePersonalTasks")
+  
+  // ---- NEW INVITATION RELATIONS ----
+  invitations WorkspaceInvitation[]
 
   // ---- NEW MESSAGING RELATIONS ----
   conversations Conversation[]
@@ -196,6 +210,25 @@ model WorkspaceMember {
 
   @@unique([workspaceId, userId])
   @@map("workspace_members")
+}
+
+model WorkspaceInvitation {
+  id          String           @id @default(cuid())
+  email       String
+  role        WorkspaceRole    @default(MEMBER)
+  status      InvitationStatus @default(PENDING)
+  token       String           @unique
+  expiresAt   DateTime
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  workspaceId String
+  invitedById String
+
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  invitedBy   User      @relation("Inviter", fields: [invitedById], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, email])
+  @@map("workspace_invitations")
 }
 
 model WorkspaceSettings {
@@ -246,6 +279,7 @@ model ProjectMember {
   @@map("project_members")
 }
 
+// ... rest of schema is unchanged
 model Sprint {
   id          String     @id @default(cuid())
   name        String

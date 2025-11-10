@@ -1,190 +1,191 @@
 "use client";
 
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useState } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
-} from "@/components/ui/select";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import { useMemberManagement } from "@/hooks/useMemberManagement";
+import { WorkspaceRole } from "@/types/workspace";
+import { Loader2, Plus, Trash2, X } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 
 interface InviteMembersModalProps {
   isOpen: boolean;
   onClose: () => void;
+  workspaceId: string;
 }
 
-export function InviteMembersModal({ isOpen, onClose }: InviteMembersModalProps) {
-  const invitedUsers = [
-    { email: "user1@example.com", workspaceRole: "Member", projectRole: "Editor", project: "Project Alpha" },
-    { email: "user2@example.com", workspaceRole: "Admin", projectRole: "Viewer", project: "Project Beta" },
-    { email: "user3@example.com", workspaceRole: "Member", projectRole: "Manager", project: "Project Gamma" },
-    { email: "user4@example.com", workspaceRole: "Viewer", projectRole: "Viewer", project: "Project Alpha" },
-    { email: "user5@example.com", workspaceRole: "Admin", projectRole: "Editor", project: "Project Beta" },
-    { email: "user6@example.com", workspaceRole: "Member", projectRole: "Viewer", project: "Project Gamma" },
-    { email: "user7@example.com", workspaceRole: "Viewer", projectRole: "Manager", project: "Project Alpha" },
-    { email: "user8@example.com", workspaceRole: "Admin", projectRole: "Viewer", project: "Project Beta" },
-    { email: "user9@example.com", workspaceRole: "Member", projectRole: "Editor", project: "Project Gamma" },
-    { email: "user10@example.com", workspaceRole: "Viewer", projectRole: "Manager", project: "Project Alpha" },
-  ];
+type PendingInvitation = {
+  email: string;
+  role: WorkspaceRole;
+};
 
-  const projects = ["Project A", "Project B", "Project C"];
+export function InviteMembersModal({ isOpen, onClose, workspaceId }: InviteMembersModalProps) {
+  const { invitations, loading, inviteMembers, inviteLoading, revokeInvitation, revokeLoading } = useMemberManagement(workspaceId);
+  const [pendingInvites, setPendingInvites] = useState<PendingInvitation[]>([]);
+  const [currentEmail, setCurrentEmail] = useState("");
+  const [currentRole, setCurrentRole] = useState<WorkspaceRole>(WorkspaceRole.MEMBER);
+  const [error, setError] = useState("");
+
+  const handleAddPendingInvite = () => {
+    setError("");
+    if (!currentEmail || !/^\S+@\S+\.\S+$/.test(currentEmail)) {
+      setError("Please enter a valid email.");
+      return;
+    }
+    if (pendingInvites.some(p => p.email === currentEmail) || invitations.some(i => i.email === currentEmail)) {
+      setError("This email has already been invited.");
+      return;
+    }
+    setPendingInvites(prev => [...prev, { email: currentEmail, role: currentRole }]);
+    setCurrentEmail("");
+  };
+
+  const handleRemovePendingInvite = (email: string) => {
+    setPendingInvites(prev => prev.filter(p => p.email !== email));
+  };
+  
+  const handleSendInvitations = async () => {
+    if (pendingInvites.length === 0) return;
+    try {
+      await inviteMembers(pendingInvites);
+      setPendingInvites([]);
+      onClose();
+    } catch (e) {
+      console.error("Failed to send invitations", e);
+    }
+  };
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent
-        className="bg-card text-foreground p-6 rounded-lg shadow-lg w-[900px] h-[550px] max-w-none flex flex-col"
-      >
+      <DialogContent className="bg-card text-foreground p-6 rounded-lg shadow-lg w-[800px] h-[550px] max-w-none flex flex-col">
         <DialogHeader>
-          <DialogTitle className="text-2xl font-semibold text-foreground mb-4">
-            Invite Members
-          </DialogTitle>
+          <DialogTitle className="text-2xl font-semibold text-foreground">Invite Members</DialogTitle>
+          <DialogDescription>Add members to your workspace. You can add multiple emails before sending the invitations.</DialogDescription>
         </DialogHeader>
 
-        <Tabs defaultValue="invite" className="flex flex-col flex-1 overflow-hidden">
-          {/* Sticky Tabs */}
-          <div className="sticky top-0 z-10 bg-card pb-2">
-            <TabsList className="flex justify-start w-full h-10">
-              <TabsTrigger value="invite">Invite Member</TabsTrigger>
-              <TabsTrigger value="invited">Invited Members</TabsTrigger>
-            </TabsList>
-          </div>
-
-          {/* Scrollable area */}
-          <div className="flex-1 overflow-y-auto min-h-0 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
-            {/* Invite Tab */}
-            <TabsContent value="invite" className="flex-1 overflow-y-auto px-0 py-0">
-              <div className="grid gap-4 w-full h-full">
-                {/* Email */}
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="email" className="text-left text-foreground">
-                    Email
-                  </Label>
-                  <Input
-                    id="email"
-                    className="col-span-3 border-border bg-background w-full"
-                    placeholder="Enter user email"
-                  />
+        <Tabs defaultValue="invite" className="flex-grow flex flex-col mt-2 min-h-0">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="invite">Invite New Members</TabsTrigger>
+            <TabsTrigger value="invited">Pending Invitations ({invitations.length})</TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="invite" className="flex-grow mt-4 overflow-hidden">
+            {/* FIX: This wrapper div ensures the tab's content manages its own layout correctly */}
+            <div className="flex flex-col h-full">
+              <div className="space-y-4 shrink-0">
+                <div className="flex items-end gap-2">
+                  <div className="flex-grow space-y-1">
+                    <Label htmlFor="email">Email address</Label>
+                    <Input
+                      id="email"
+                      placeholder="name@example.com"
+                      value={currentEmail}
+                      onChange={e => setCurrentEmail(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="workspace-role">Role</Label>
+                    <Select value={currentRole} onValueChange={(value: WorkspaceRole) => setCurrentRole(value)}>
+                      <SelectTrigger id="workspace-role" className="w-[120px]">
+                        <SelectValue placeholder="Select role" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Object.values(WorkspaceRole)
+                          .filter(role => role !== WorkspaceRole.OWNER)
+                          .map(role => (
+                            <SelectItem key={role} value={role}>
+                              {role.charAt(0) + role.slice(1).toLowerCase()}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Button variant="outline" size="icon" onClick={handleAddPendingInvite}>
+                    <Plus className="h-4 w-4" />
+                  </Button>
                 </div>
+                {error && <p className="text-sm text-red-500">{error}</p>}
+              </div>
 
-                {/* Workspace Role */}
-                <div className="grid grid-cols-4 items-center gap-4 w-full">
-                  <Label htmlFor="workspace-role" className="text-left text-foreground">
-                    Workspace Role
-                  </Label>
-                  <Select className="col-span-3 w-full">
-                    <SelectTrigger 
-                      id="workspace-role"
-                      className="border-border bg-background w-full"
-                    >
-                      <SelectValue placeholder="Select role" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="member">Member</SelectItem>
-                      <SelectItem value="admin">Admin</SelectItem>
-                      <SelectItem value="owner">Owner</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Project */}
-                <div className="grid grid-cols-4 items-center gap-4 w-full">
-                  <Label htmlFor="project" className="text-left text-foreground">
-                    Project
-                  </Label>
-                  <Select className="col-span-3 w-full">
-                    <SelectTrigger 
-                      id="project"
-                      className="border-border bg-background w-full"
-                    >
-                      <SelectValue placeholder="Select project" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {projects.map((p, i) => (
-                        <SelectItem key={i} value={p.toLowerCase()}>
-                          {p}
-                        </SelectItem>
+              <div className="mt-4 border-t pt-4 flex-grow flex flex-col min-h-0 overflow-hidden">
+                <h4 className="text-sm font-medium mb-2 shrink-0">To be invited ({pendingInvites.length})</h4>
+                <div className="flex-grow overflow-y-auto pr-2">
+                  {pendingInvites.length === 0 ? (
+                    <div className="h-full flex items-center justify-center">
+                      <p className="text-sm text-muted-foreground text-center">
+                        Add emails above to create a batch invitation.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {pendingInvites.map(invite => (
+                        <div
+                          key={invite.email}
+                          className="flex items-center justify-between bg-muted p-2 rounded-md"
+                        >
+                          <div>
+                            <p className="text-sm font-medium">{invite.email}</p>
+                            <p className="text-xs text-muted-foreground">{invite.role}</p>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            onClick={() => handleRemovePendingInvite(invite.email)}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
                       ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Project Role */}
-                <div className="grid grid-cols-4 items-center gap-4 w-full">
-                  <Label htmlFor="project-role" className="text-left text-foreground">
-                    Project Role
-                  </Label>
-                  <Select className="col-span-3 w-full">
-                    <SelectTrigger 
-                      id="project-role"
-                      className="border-border bg-background w-full"
-                    >
-                      <SelectValue placeholder="Select role" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="viewer">Viewer</SelectItem>
-                      <SelectItem value="editor">Editor</SelectItem>
-                      <SelectItem value="manager">Manager</SelectItem>
-                    </SelectContent>
-                  </Select>
+                    </div>
+                  )}
                 </div>
               </div>
-            </TabsContent>
 
-            {/* Invited Tab */}
-            <TabsContent value="invited" className="flex-1 overflow-y-auto px-4 py-0">
-              {/* Sticky Header */}
-              <div className="sticky top-0 bg-card z-10 pb-2 border-b border-border ">
-                <div className="grid grid-cols-4 gap-4 font-semibold text-foreground text-right">
-                <span>Email</span>
-                <span>Workspace Role</span>
-                <span>Project Role</span>
-                <span>Project</span>
-                </div>
+              <div className="shrink-0 border-t pt-4 flex justify-end gap-2">
+                <Button variant="outline" onClick={onClose} disabled={inviteLoading}>
+                  Cancel
+                </Button>
+                <Button onClick={handleSendInvitations} disabled={pendingInvites.length === 0 || inviteLoading}>
+                  {inviteLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Send Invitations
+                </Button>
               </div>
-              {invitedUsers.length === 0 ? (
-                // TODO: Center this text
-                <p className="text-muted-foreground">No users invited yet.</p>
-              ) : (
-                <ul className="space-y-2">
-                  {invitedUsers.map((user, index) => (
-                    <li
-                      key={index} // Use a more stable key if available, like a user ID
-                      className="grid grid-cols-4 gap-4 text-sm text-foreground border-b border-border pb-2"
-                      style={{ textAlign: 'right' }} // Apply text-align right directly for specificity
-                    >
-                      <span className="pr-2">{user.email}</span> {/* Add some right padding */}
-                      <span className="pr-2 text-muted-foreground"> {/* Add padding to other spans */}
-                        {user.workspaceRole}
-                      </span>
-                      <span className="pr-2 text-muted-foreground"> {/* Add padding */}
-                        {user.projectRole}
-                      </span>
-                       <span className="text-muted-foreground">
-                         {user.project}
-                      </span>
-                    </li>
-                  ))}
-                  {/* Add more empty list items to ensure consistent height if needed */}
-                  {Array.from({ length: Math.max(0, 10 - invitedUsers.length) }).map((_, index) => <li key={`empty-${index}`} className="h-[28px]"></li>)}
-                </ul>
-              )}
-            </TabsContent>
-          </div>
+            </div>
+          </TabsContent>
 
-          {/* Footer Buttons */}
-          <div className="flex justify-end gap-2 mt-4">
-            <Button variant="outline" onClick={onClose}>
-              Cancel
-            </Button>
-            <Button className="bg-[#4ab5ae] text-white hover:bg-[#3a9d96] transition-colors duration-200">
-              Send Invitation
-            </Button>
-          </div>
+          <TabsContent value="invited" className="flex-grow mt-4 overflow-hidden">
+             {/* FIX: This wrapper div ensures the tab's content manages its own layout correctly */}
+            <div className="flex flex-col h-full">
+              {loading ? <div className="flex items-center justify-center flex-grow"><Loader2 className="h-6 w-6 animate-spin" /></div> :
+                invitations.length === 0 ? 
+                <div className="flex-grow flex items-center justify-center">
+                  <p className="text-sm text-muted-foreground text-center">No pending invitations.</p>
+                </div> :
+                (
+                  <div className="space-y-2 overflow-y-auto flex-grow pr-2">
+                      {invitations.map(invite => (
+                          <div key={invite.id} className="flex items-center justify-between p-2 rounded-md hover:bg-muted">
+                              <div>
+                                  <p className="font-medium text-sm">{invite.email}</p>
+                                  <div className="text-xs text-muted-foreground">
+                                      Role: {invite.role} · Status: <Badge variant="outline">{invite.status}</Badge>
+                                  </div>
+                              </div>
+                              <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => revokeInvitation(invite.id)} disabled={revokeLoading}>
+                                  <Trash2 className="h-4 w-4"/>
+                              </Button>
+                          </div>
+                      ))}
+                  </div>
+                )
+              }
+            </div>
+          </TabsContent>
         </Tabs>
       </DialogContent>
     </Dialog>

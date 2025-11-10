@@ -342,8 +342,8 @@ export function KanbanBoard({
           {overlay?.kind === "card" ? (
             <div className="card pointer-events-none shadow-[var(--shadow-lg)]" style={{ width: overlay.width ? `${overlay.width}px` : undefined, height: overlay.height ? `${overlay.height}px` : undefined }}>
               <div className="flex items-start">
-                <span className={ overlay.card.priority === "High" ? "badge-high" : overlay.card.priority === "Medium" ? "badge-medium" : "badge-low" } >
-                  {overlay.card.priority || "Low"}
+                <span className={ overlay.card.priority === "HIGH" ? "badge-high" : overlay.card.priority === "MEDIUM" ? "badge-medium" : "badge-low" } >
+                  {overlay.card.priority || "LOW"}
                 </span>
                 <div className="ml-auto text-xs text-slate-500">{overlay.card.points ? `${overlay.card.points} SP` : ""}</div>
               </div>

@@ -27,7 +27,7 @@ type Task = {
   id: string
   title: string
   date: string // ISO yyyy-mm-dd
-  priority?: "Low" | "Medium" | "High"
+  priority?: "LOW" | "MEDIUM" | "HIGH"
   completed?: boolean
 }
 
@@ -71,19 +71,19 @@ function buildMonthMatrix(current: Date) {
 }
 
 const seed: Task[] = [
-  { id: "t-1", title: "Create a new card design", date: "2025-06-19", priority: "Medium" },
-  { id: "t-2", title: "This", date: "2025-06-06", priority: "Low" }, // Adjusted date to match image
-  { id: "t-3", title: "Is", date: "2025-06-05", priority: "High" }, // Adjusted date to match image
-  { id: "t-4", title: "Random", date: "2025-06-20", priority: "Low" },
-  { id: "t-5", title: "The TASK", date: "2025-06-21", priority: "Medium" },
-  { id: "t-6", title: "Random task", date: "2025-06-22", priority: "High" },
-  { id: "t-7", title: "Another random task", date: "2025-06-23", priority: "Low" },
-  { id: "t-8", title: "Create a new feed page", date: "2025-06-30", priority: "Medium" },
-  { id: "t-9", title: "TASK", date: "2025-06-24", priority: "High" },
-  { id: "t-10", title: ":D", date: "2025-06-24", priority: "Low" },
-  { id: "t-11", title: "Create wireframe system", date: "2025-06-24", priority: "Medium" },
-  { id: "t-12", title: "Create the kanban board", date: "2025-06-24", priority: "High" },
-  { id: "t-13", title: "Invitation system", date: "2025-06-24", priority: "Low" },
+  { id: "t-1", title: "Create a new card design", date: "2025-06-19", priority: "MEDIUM" },
+  { id: "t-2", title: "This", date: "2025-06-06", priority: "LOW" }, // Adjusted date to match image
+  { id: "t-3", title: "Is", date: "2025-06-05", priority: "HIGH" }, // Adjusted date to match image
+  { id: "t-4", title: "Random", date: "2025-06-20", priority: "LOW" },
+  { id: "t-5", title: "The TASK", date: "2025-06-21", priority: "MEDIUM" },
+  { id: "t-6", title: "Random task", date: "2025-06-22", priority: "HIGH" },
+  { id: "t-7", title: "Another random task", date: "2025-06-23", priority: "LOW" },
+  { id: "t-8", title: "Create a new feed page", date: "2025-06-30", priority: "MEDIUM" },
+  { id: "t-9", title: "TASK", date: "2025-06-24", priority: "HIGH" },
+  { id: "t-10", title: ":D", date: "2025-06-24", priority: "LOW" },
+  { id: "t-11", title: "Create wireframe system", date: "2025-06-24", priority: "MEDIUM" },
+  { id: "t-12", title: "Create the kanban board", date: "2025-06-24", priority: "HIGH" },
+  { id: "t-13", title: "Invitation system", date: "2025-06-24", priority: "LOW" },
 ]
 
 interface CalendarViewProps {
@@ -103,7 +103,7 @@ export function CalendarView({ projectId }: CalendarViewProps) {
   function tasksOn(dateISO: string) {
     return tasks.filter((t) => t.date === dateISO)
   }
-  function addTask(dateISO: string, title: string, priority: Task["priority"] = "Low") {
+  function addTask(dateISO: string, title: string, priority: Task["priority"] = "LOW") {
     const trimmed = title.trim()
     if (!trimmed) return
     setTasks((prev) => [{ id: cryptoId(), title: trimmed, date: dateISO, priority }, ...prev])
@@ -568,7 +568,7 @@ function DayView({
                       onCheckedChange={(checked) => onUpdate(t.id, { completed: checked })}
                     />
                     <Select
-                      value={t.priority || "Low"}
+                      value={t.priority || "LOW"}
                       onValueChange={(value) => onUpdate(t.id, { priority: value as Task["priority"] })}
                     >
                       <SelectTrigger
@@ -578,9 +578,9 @@ function DayView({
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="Low">Low</SelectItem>
-                        <SelectItem value="Medium">Medium</SelectItem>
-                        <SelectItem value="High">High</SelectItem>
+                        <SelectItem value="LOW">LOW</SelectItem>
+                        <SelectItem value="MEDIUM">MEDIUM</SelectItem>
+                        <SelectItem value="HIGH">HIGH</SelectItem>
                       </SelectContent>
                     </Select>
                     <Button size="sm" variant="ghost" className="h-8 px-2" onClick={() => onDelete(t.id)}>
@@ -737,16 +737,16 @@ function DaySheet({
                         onCheckedChange={(checked) => onUpdate(t.id, { completed: checked })}
                       />
                       <Select
-                        value={t.priority || "Low"}
+                        value={t.priority || "LOW"}
                         onValueChange={(value) => onUpdate(t.id, { priority: value as Task["priority"] })}
                       >
                         <SelectTrigger className="h-8 rounded-md border border-border bg-white px-2 text-xs">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent className="bg-white border-border">
-                          <SelectItem value="Low">Low</SelectItem>
-                          <SelectItem value="Medium">Medium</SelectItem>
-                          <SelectItem value="High">High</SelectItem>
+                          <SelectItem value="LOW">LOW</SelectItem>
+                          <SelectItem value="MEDIUM">MEDIUM</SelectItem>
+                          <SelectItem value="HIGH">HIGH</SelectItem>
                         </SelectContent>
                       </Select>
                       <Button

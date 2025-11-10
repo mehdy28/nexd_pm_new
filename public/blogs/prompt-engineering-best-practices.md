@@ -242,7 +242,7 @@ Budget: $500,000
 Key features: Visual prompt engineering, AI automation, team collaboration
 
 Provide:
-1. Top 5 risks with probability (High/Medium/Low)
+1. Top 5 risks with probability (HIGH/MEDIUM/LOW)
 2. Impact assessment for each risk
 3. Specific mitigation strategies
 4. Early warning indicators to monitor

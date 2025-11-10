@@ -9,7 +9,7 @@ import { UserAvatarPartial } from "@/types/useProjectTasksAndSections"
 import { TaskStatus, Priority } from "@prisma/client"
 
 // --- Type Definitions for the hook's return ---
-export type PriorityUI = "Low" | "Medium" | "High"
+export type PriorityUI = "LOW" | "MEDIUM" | "HIGH"
 export type TaskStatusUI = "TODO" | "DONE"
 
 export interface TaskUI {
@@ -54,11 +54,11 @@ interface MyTasksAndSectionsResponse {
 export const mapPriorityToUI = (priority: "LOW" | "MEDIUM" | "HIGH"): PriorityUI => {
   switch (priority) {
     case "LOW":
-      return "Low"
+      return "LOW"
     case "MEDIUM":
-      return "Medium"
+      return "MEDIUM"
     case "HIGH":
-      return "High"
+      return "HIGH"
   }
 }
 

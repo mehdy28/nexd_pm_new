@@ -58,7 +58,7 @@
 //       {
 //         schema,
 //         context: async (ctx: any) => {
-//           const rawAuth = ctx.connectionParams?.Authorization as string | undefined;
+//           const rawAuth = ctx.connectionParams?.authorization as string | undefined; // CORRECTED: lowercase 'a'
 //           const token = rawAuth ? rawAuth.replace('Bearer ', '') : null;
 //           let user = undefined;
 //           if (token) {
@@ -193,7 +193,7 @@ import { typeDefs } from './graphql/schema';
 import { resolvers } from './graphql/resolvers';
 import { prisma } from './lib/prisma';
 import { pubsub } from './graphql/pubsub';
-import { getAuth } from 'firebase-admin/auth';
+import { getAuth, DecodedIdToken } from 'firebase-admin/auth';
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
 
 // Utility for timestamped logging
@@ -240,7 +240,7 @@ async function startServer() {
       {
         schema,
         context: async (ctx: any) => {
-          const rawAuth = ctx.connectionParams?.authorization as string | undefined; // CORRECTED: lowercase 'a'
+          const rawAuth = ctx.connectionParams?.authorization as string | undefined;
           const token = rawAuth ? rawAuth.replace('Bearer ', '') : null;
           let user = undefined;
           if (token) {
@@ -287,25 +287,29 @@ async function startServer() {
         const rawAuth = req.headers.authorization || null;
         const token = typeof rawAuth === 'string' ? rawAuth.replace('Bearer ', '') : null;
         let user = undefined;
+        let decodedToken: DecodedIdToken | null = null;
+
         if (token) {
           try {
-            const decodedToken = await getAuth().verifyIdToken(token);
-            const prismaUser = await prisma.user.findUnique({
-              where: { firebaseUid: decodedToken.uid },
-            });
-            if (prismaUser) {
-              user = {
-                id: prismaUser.id,
-                email: prismaUser.email,
-                role: prismaUser.role,
-                firebaseUid: decodedToken.uid,
-              };
+            decodedToken = await getAuth().verifyIdToken(token);
+            if (decodedToken) {
+              const prismaUser = await prisma.user.findUnique({
+                where: { firebaseUid: decodedToken.uid },
+              });
+              if (prismaUser) {
+                user = {
+                  id: prismaUser.id,
+                  email: prismaUser.email,
+                  role: prismaUser.role,
+                  firebaseUid: decodedToken.uid,
+                };
+              }
             }
           } catch (e) {
             logError('HTTP auth error:', e);
           }
         }
-        return { prisma, user, pubsub };
+        return { prisma, user, pubsub, decodedToken };
       },
       plugins: [
         {

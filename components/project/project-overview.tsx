@@ -18,13 +18,14 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { CalendarDays, Users, CheckCircle2, Clock, AlertCircle, Settings, Plus, Trash2, Loader2, Pencil } from "lucide-react";
+import { CalendarDays, Users, CheckCircle2, Clock, AlertCircle, Plus, Trash2, Loader2, Pencil } from "lucide-react";
 
 import { useProjectDetails } from "@/hooks/useProjectDetails";
 import { useSprintMutations } from "@/hooks/useSprintMutations";
-import { SprintStatus, SprintDetailsFragment } from "@/types/sprint";
+import { SprintStatus } from "@/types/sprint";
 import { ProjectStatus } from "@/types/project";
 import { LoadingPlaceholder, ErrorPlaceholder } from "@/components/placeholders/status-placeholders";
+import { AssignProjectMembersModal } from "@/components/project/assign-project-members-modal";
 
 // --- Type definitions ---
 type SprintUi = {
@@ -79,6 +80,7 @@ export function ProjectOverview({ projectId, projectData }: ProjectOverviewProps
   const [newSprintOpen, setNewSprintOpen] = useState(false);
   const [editSprintOpen, setEditSprintOpen] = useState(false);
   const [currentEditingSprint, setCurrentEditingSprint] = useState<SprintUi | null>(null);
+  const [isAssignMembersModalOpen, setIsAssignMembersModalOpen] = useState(false);
 
   const [newSprintFormData, setNewSprintFormData] = useState<SprintFormDataType>({
     name: "",
@@ -98,12 +100,9 @@ export function ProjectOverview({ projectId, projectData }: ProjectOverviewProps
   const [newSprintErrors, setNewSprintErrors] = useState<{ [key: string]: boolean }>({});
   const [editSprintErrors, setEditSprintErrors] = useState<{ [key: string]: boolean }>({});
 
-  // Flag to indicate if sprints have been initially loaded into local state
   const hasInitializedSprints = useRef(false);
 
   useEffect(() => {
-    // Only initialize sprints state once from projectDetails.sprints
-    // Subsequent updates to the sprints list will be handled by local state manipulation.
     if (projectDetails?.sprints && !hasInitializedSprints.current) {
       console.log(`[project] Initializing sprints state with ${projectDetails.sprints.length} sprints from projectDetails.`);
       setSprints(
@@ -114,31 +113,24 @@ export function ProjectOverview({ projectId, projectData }: ProjectOverviewProps
       );
       hasInitializedSprints.current = true;
     } else if (!projectDetails?.sprints && hasInitializedSprints.current) {
-      // If projectDetails.sprints becomes empty/null *after* initialization, clear local state
       console.log("[project] projectDetails.sprints became unavailable, clearing local sprints state.");
       setSprints([]);
-      hasInitializedSprints.current = false; // Reset if project disappears
+      hasInitializedSprints.current = false;
     }
-    // IMPORTANT: Removing projectDetails?.sprints from dependency array
-    // to prevent it from "resetting" local state after optimistic updates.
-    // This is the key change for your requirement.
-  }, [projectDetails?.sprints]); // Kept dependency for initial load and explicit clear on projectDetails removal
+  }, [projectDetails?.sprints]);
 
   const combinedError = error || createError || updateError || deleteError;
 
-  // --- Combined Loading State ---
   if (loading) {
     return <LoadingPlaceholder message="Loading project details..." />;
   }
 
-  // --- Combined Error State ---
   if (combinedError) {
     const errorMessage = combinedError.message;
     console.error(`[project] Displaying error state: ${errorMessage}`);
     return <ErrorPlaceholder error={new Error(errorMessage)} onRetry={refetchProjectDetails} />;
   }
 
-  // --- No Project Data ---
   if (!projectDetails) {
     console.warn(`[project] Project details not found for ID: ${projectId}.`);
     return (
@@ -230,7 +222,7 @@ export function ProjectOverview({ projectId, projectData }: ProjectOverviewProps
       status: SprintStatus.PLANNING,
     };
 
-    setSprints(prevSprints => [newOptimisticSprint, ...prevSprints]); // Add optimistically to local state
+    setSprints(prevSprints => [newOptimisticSprint, ...prevSprints]);
     setNewSprintOpen(false);
     setNewSprintFormData({ name: "", description: "", startDate: "", endDate: "", status: SprintStatus.PLANNING });
     setNewSprintErrors({});
@@ -253,7 +245,6 @@ export function ProjectOverview({ projectId, projectData }: ProjectOverviewProps
         console.log(
           `[project] Server successfully created sprint: ${data.createSprint.name} with ID ${data.createSprint.id}`
         );
-        // Replace optimistic sprint with real sprint from server
         setSprints(prevSprints =>
           prevSprints.map(s =>
             s.id === tempId
@@ -265,13 +256,12 @@ export function ProjectOverview({ projectId, projectData }: ProjectOverviewProps
           )
         );
       } else {
-        // If no data, implies an error on server side, rollback optimistic
         console.error("[project] Create sprint mutation returned no data, rolling back optimistic update.");
         setSprints(prevSprints => prevSprints.filter(s => s.id !== tempId));
       }
     } catch (err) {
       console.error("[project] Error creating sprint, rolling back optimistic update:", err);
-      setSprints(prevSprints => prevSprints.filter(s => s.id !== tempId)); // Rollback on error
+      setSprints(prevSprints => prevSprints.filter(s => s.id !== tempId));
     }
   };
 
@@ -328,7 +318,7 @@ export function ProjectOverview({ projectId, projectData }: ProjectOverviewProps
       isCompleted: editSprintFormData.status === SprintStatus.COMPLETED,
     };
 
-    const originalSprints = sprints; // For rollback
+    const originalSprints = sprints;
     setSprints(prevSprints => prevSprints.map(s => (s.id === currentEditingSprint.id ? updatedOptimisticSprint : s)));
     setEditSprintOpen(false);
     setCurrentEditingSprint(null);
@@ -376,22 +366,31 @@ export function ProjectOverview({ projectId, projectData }: ProjectOverviewProps
   const handleDeleteSprint = async (sprintId: string) => {
     console.log(`[project] Attempting to delete sprint with ID: ${sprintId} via mutation (client-side optimistic update).`);
 
-    const originalSprints = sprints; // Store for rollback
-    setSprints(prevSprints => prevSprints.filter(s => s.id !== sprintId)); // Remove optimistically from local state
+    const originalSprints = sprints;
+    setSprints(prevSprints => prevSprints.filter(s => s.id !== sprintId));
 
     try {
       await deleteSprint({
         variables: { id: sprintId },
       });
       console.log(`[project] Server successfully deleted sprint: ${sprintId}`);
-      // UI already updated optimistically
     } catch (err) {
       console.error(`[project] Error deleting sprint ${sprintId}, rolling back optimistic update:`, err);
-      setSprints(originalSprints); // Rollback on error
+      setSprints(originalSprints);
     }
   };
 
-  console.log("[project] Rendering ProjectOverview with data.");
+  const handleCloseAssignModal = () => {
+    // ADDED LOG
+    console.log("[project] Closing Assign Members Modal.");
+    setIsAssignMembersModalOpen(false);
+    // Refetch project details to show newly added members.
+    refetchProjectDetails();
+  };
+
+  // ADDED LOG - This will log the state every time the component re-renders.
+  console.log(`[project] STATE CHECK: isAssignMembersModalOpen is currently ${isAssignMembersModalOpen}`);
+
   return (
     <div className="h-full overflow-y-auto">
       <div className="p-6 pt-0 space-y-6">
@@ -405,10 +404,6 @@ export function ProjectOverview({ projectId, projectData }: ProjectOverviewProps
             <h1 className="text-3xl font-bold tracking-tight">{projectDetails.name}</h1>
             <p className="text-slate-600 max-w-2xl">{projectDetails.description}</p>
           </div>
-          {/* <Button variant="outline" size="sm" onClick={() => console.log("[project] Project Settings button clicked.")}>
-            <Settings className="h-4 w-4 mr-2" />
-            Project Settings
-          </Button> */}
         </div>
 
         {/* Stats Cards */}
@@ -423,7 +418,6 @@ export function ProjectOverview({ projectId, projectData }: ProjectOverviewProps
               <p className="text-xs text-slate-600">{projectDetails.completedTasks} completed</p>
             </CardContent>
           </Card>
-
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">In Progress</CardTitle>
@@ -434,7 +428,6 @@ export function ProjectOverview({ projectId, projectData }: ProjectOverviewProps
               <p className="text-xs text-slate-600">Active tasks</p>
             </CardContent>
           </Card>
-
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Overdue</CardTitle>
@@ -445,7 +438,6 @@ export function ProjectOverview({ projectId, projectData }: ProjectOverviewProps
               <p className="text-xs text-slate-600">Need attention</p>
             </CardContent>
           </Card>
-
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Team Members</CardTitle>
@@ -497,7 +489,6 @@ export function ProjectOverview({ projectId, projectData }: ProjectOverviewProps
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {/* Sprint Creation Form */}
                   {newSprintOpen && (
                     <div className="rounded-md border p-4 bg-slate-50">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -584,7 +575,6 @@ export function ProjectOverview({ projectId, projectData }: ProjectOverviewProps
                     </div>
                   )}
 
-                  {/* Sprint List */}
                   {sprints.length === 0 && !newSprintOpen && (
                     <div className="text-center py-8 text-slate-500">
                       <p>No sprints created yet</p>
@@ -611,7 +601,6 @@ export function ProjectOverview({ projectId, projectData }: ProjectOverviewProps
                         </div>
                       </div>
                       <div className="flex gap-2">
-                        {/* Edit Button */}
                         <Button
                           variant="ghost"
                           size="sm"
@@ -621,8 +610,6 @@ export function ProjectOverview({ projectId, projectData }: ProjectOverviewProps
                         >
                           <Pencil className="h-4 w-4" />
                         </Button>
-
-                        {/* Delete Confirmation Dialog */}
                         <Dialog>
                           <DialogTrigger asChild>
                             <Button
@@ -644,16 +631,7 @@ export function ProjectOverview({ projectId, projectData }: ProjectOverviewProps
                               </DialogDescription>
                             </DialogHeader>
                             <DialogFooter>
-                              <Button
-                                variant="outline"
-                                onClick={
-                                  () => {
-                                    /* Close dialog handled by shadcn internally */
-                                  }
-                                }
-                              >
-                                Cancel
-                              </Button>
+                              <Button variant="outline">Cancel</Button>
                               <Button
                                 variant="destructive"
                                 onClick={() => handleDeleteSprint(sprint.id)}
@@ -780,7 +758,17 @@ export function ProjectOverview({ projectId, projectData }: ProjectOverviewProps
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <CardTitle>Team Members</CardTitle>
-                  <Button variant="outline" size="sm" onClick={() => console.log("[project] Add Team Member button clicked.")}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      // ADDED LOG
+                      console.log("[project] 'Add Members' button was clicked.");
+                      setIsAssignMembersModalOpen(true);
+                      // ADDED LOG
+                      console.log("[project] State setter setIsAssignMembersModalOpen(true) was called. A re-render will be triggered.");
+                    }}
+                  >
                     <Plus className="h-4 w-4 mr-2" />
                     Add
                   </Button>
@@ -833,6 +821,24 @@ export function ProjectOverview({ projectId, projectData }: ProjectOverviewProps
           </div>
         </div>
       </div>
+
+      {/* Assign Members Modal */}
+      {(() => {
+        // ADDED LOG
+        const shouldRenderModal = !!projectDetails?.workspace?.id;
+        console.log(`[project] Checking condition to render modal. 'projectDetails.workspace.id' exists: ${shouldRenderModal}. Value: ${projectDetails?.workspace?.id}`);
+        if (shouldRenderModal) {
+          return (
+            <AssignProjectMembersModal
+              isOpen={isAssignMembersModalOpen}
+              onClose={handleCloseAssignModal}
+              projectId={projectId}
+              workspaceId={projectDetails.workspace.id}
+            />
+          );
+        }
+        return null;
+      })()}
     </div>
   );
 }

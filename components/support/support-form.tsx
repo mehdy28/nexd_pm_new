@@ -130,9 +130,9 @@ const SupportForm: React.FC<SupportFormProps> = ({ onSubmit }) => {
                 <SelectValue placeholder="Select urgency level" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="low">Low</SelectItem>
-                <SelectItem value="medium">Medium</SelectItem>
-                <SelectItem value="high">High</SelectItem>
+                <SelectItem value="low">LOW</SelectItem>
+                <SelectItem value="medium">MEDIUM</SelectItem>
+                <SelectItem value="high">HIGH</SelectItem>
                 <SelectItem value="critical">Critical</SelectItem>
               </SelectContent>
             </Select>

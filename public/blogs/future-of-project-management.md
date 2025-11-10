@@ -264,7 +264,7 @@ Quantum-enhanced project management will enable:
 #### 2. Technology Complexity
 - Overwhelming tool proliferation
 - Integration challenges between systems
-- High learning curves for new technologies
+- HIGH learning curves for new technologies
 - Increased cybersecurity risks
 
 #### 3. Human Resistance

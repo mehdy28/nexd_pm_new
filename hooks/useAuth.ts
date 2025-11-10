@@ -99,7 +99,8 @@ export function useAuth() {
       password: string,
       firstName: string,
       lastName: string,
-      role: "MEMBER" | "ADMIN" = "MEMBER" // <-- NEW OPTIONAL ROLE PARAMETER
+      invitationToken: string | null,
+      role: "MEMBER" | "ADMIN" = "MEMBER"
     ) => {
       // console.log("[Auth] register -> called with:", { email, firstName, lastName, role }); 
       setLoading(true);
@@ -121,7 +122,8 @@ export function useAuth() {
             email,
             firstName,
             lastName,
-            role: role, // <-- PASS THE ROLE TO THE MUTATION
+            role,
+            invitationToken,
           },
           context: {
             headers: {
@@ -324,7 +326,7 @@ export function useAdminRegistration() {
   const registerAdmin = useCallback(
     async (email: string, password: string, firstName: string, lastName: string) => {
       // Calls the primary register function, explicitly passing 'ADMIN' as the role.
-      await register(email, password, firstName, lastName, "ADMIN");
+      await register(email, password, firstName, lastName, null, "ADMIN");
     },
     [register]
   );

@@ -10,11 +10,11 @@ import { Priority as PrismaPriority, TaskStatus as PrismaTaskStatus } from "@pri
 
 const mapPriorityToPrisma = (priority: PriorityUI): PrismaPriority => {
   switch (priority) {
-    case "Low":
+    case "LOW":
       return "LOW"
-    case "Medium":
+    case "MEDIUM":
       return "MEDIUM"
-    case "High":
+    case "HIGH":
       return "HIGH"
   }
 }
@@ -107,7 +107,7 @@ export function PersonalBoardView() {
         await createTask(columnId, {
           title,
           description,
-          priority: "Medium" as any, // Cast because the input type might be stricter
+          priority: "MEDIUM" as any, // Cast because the input type might be stricter
           status: "TODO",
         })
       } catch (err) {

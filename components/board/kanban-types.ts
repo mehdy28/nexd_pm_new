@@ -1,7 +1,7 @@
 // components/board/kanban-types.ts
 import { UserAvatarPartial } from "@/types/useProjectTasksAndSections"
 
-export type Priority = "Low" | "Medium" | "High"
+export type Priority = "LOW" | "MEDIUM" | "HIGH"
 
 export type Card = {
   id: string

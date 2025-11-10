@@ -1,4 +1,4 @@
-// graphql/queries/getProjectDetails.ts
+//graphql/queries/getProjectDetails.ts
 
 import { gql } from '@apollo/client';
 
@@ -11,6 +11,11 @@ export const GET_PROJECT_DETAILS_QUERY = gql`
       status
       color
       createdAt
+
+      # Add this block
+      workspace {
+        id
+      }
 
       # Project statistics (computed in resolver)
       totalTasks
@@ -28,7 +33,7 @@ export const GET_PROJECT_DETAILS_QUERY = gql`
           email
           firstName
           lastName
-          avatar # Assuming User has an avatar field
+          avatar
         }
       }
 
@@ -41,20 +46,6 @@ export const GET_PROJECT_DETAILS_QUERY = gql`
         endDate
         isCompleted
       }
-
-      # If you uncomment recent activity, you'd add it here
-      # activities {
-      #   id
-      #   type
-      #   data # Raw JSON might be tricky to display directly
-      #   createdAt
-      #   user {
-      #     id
-      #     firstName
-      #     lastName
-      #     avatar
-      #   }
-      # }
     }
   }
 `;

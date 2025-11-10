@@ -62,9 +62,9 @@ import { useTaskDetails } from "@/hooks/useTaskDetails";
 import { ActivityUI, CommentUI } from "@/types/taskDetails";
 
 const priorityDot: Record<PriorityUI, string> = {
-  Low: "bg-green-500",
-  Medium: "bg-orange-500",
-  High: "bg-red-500",
+  LOW: "bg-green-500",
+  MEDIUM: "bg-orange-500",
+  HIGH: "bg-red-500",
 };
 
 // Styling for inputs without border, like Jira
@@ -405,7 +405,7 @@ export function TaskDetailSheet({
                         <SelectTrigger id="priority-select" className={cn("w-full text-gray-700 hover:bg-gray-50 rounded-md py-2 px-3 transition-colors", jiraSelectTriggerStyle)}>
                           <SelectValue><div className="inline-flex items-center gap-2"><span className={cn("h-2 w-2 rounded-full", priorityDot[editingTaskLocal.priority])} /><span>{editingTaskLocal.priority}</span></div></SelectValue>
                         </SelectTrigger>
-                        <SelectContent className="bg-white border-border">{(["Low", "Medium", "High"] as PriorityUI[]).map((p) => (<SelectItem key={p} value={p}><div className="flex items-center gap-2"><span className={cn("h-2 w-2 rounded-full", priorityDot[p])} />{p}</div></SelectItem>))}</SelectContent>
+                        <SelectContent className="bg-white border-border">{(["LOW", "MEDIUM", "HIGH"] as PriorityUI[]).map((p) => (<SelectItem key={p} value={p}><div className="flex items-center gap-2"><span className={cn("h-2 w-2 rounded-full", priorityDot[p])} />{p}</div></SelectItem>))}</SelectContent>
                       </Select>
                     </div>
                   </div>

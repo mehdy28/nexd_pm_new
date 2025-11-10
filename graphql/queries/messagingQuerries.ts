@@ -55,13 +55,21 @@ export const GET_CONVERSATION_DETAILS = gql`
       type
       name
       participants {
-        user { id firstName lastName avatar }
+        id
+        firstName
+        lastName
+        avatar
       }
       messages {
         id
         content
         createdAt
-        sender { id firstName lastName avatar }
+        sender {
+          id
+          firstName
+          lastName
+          avatar
+        }
       }
     }
   }
@@ -75,13 +83,23 @@ export const GET_TICKET_DETAILS = gql`
       priority
       status
       createdAt
-      creator { id firstName lastName avatar }
+      creator {
+        id
+        firstName
+        lastName
+        avatar
+      }
       messages {
         id
         content
         createdAt
         isSupport
-        sender { id firstName lastName avatar }
+        sender {
+          id
+          firstName
+          lastName
+          avatar
+        }
       }
     }
   }

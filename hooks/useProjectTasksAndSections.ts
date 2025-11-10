@@ -10,7 +10,7 @@ import { UserAvatarPartial } from "@/types/useProjectTasksAndSections";
 import { TaskStatus, Priority } from "@prisma/client";
 
 // --- Type Definitions for the hook's return ---
-export type PriorityUI = "Low" | "Medium" | "High";
+export type PriorityUI = "LOW" | "MEDIUM" | "HIGH";
 export type TaskStatusUI = "TODO" | "IN_PROGRESS" | "IN_REVIEW" | "DONE" | "CANCELLED";
 
 export interface ProjectMemberFullDetails { // Re-defining for consistency
@@ -73,9 +73,9 @@ interface ProjectTasksAndSectionsResponse {
 // Helper to convert Prisma Priority enum to UI string
 export const mapPriorityToUI = (priority: "LOW" | "MEDIUM" | "HIGH"): PriorityUI => {
   switch (priority) {
-    case "LOW": return "Low";
-    case "MEDIUM": return "Medium";
-    case "HIGH": return "High";
+    case "LOW": return "LOW";
+    case "MEDIUM": return "MEDIUM";
+    case "HIGH": return "HIGH";
   }
 };
 

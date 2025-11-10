@@ -43,11 +43,11 @@ interface UpdatePersonalTaskVariables {
 // --- Helper Functions for Type Mapping ---
 const mapPriorityToPrisma = (priority: PriorityUI): Priority => {
   switch (priority) {
-    case "Low":
+    case "LOW":
       return "LOW"
-    case "Medium":
+    case "MEDIUM":
       return "MEDIUM"
-    case "High":
+    case "HIGH":
       return "HIGH"
   }
 }
