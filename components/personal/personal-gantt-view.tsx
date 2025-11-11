@@ -1,3 +1,5 @@
+//components/personal/personal-gantt-view.tsx
+
 "use client"
 
 import React, { useState, useMemo, useEffect, useCallback, useRef } from "react"
@@ -71,11 +73,15 @@ const PersonalGanttView: React.FC<PersonalGanttViewProps> = () => {
   const mutationError = upsertMutationError || deleteMutationError
 
   useEffect(() => {
-    // Sync optimistic state when the source data from the hook changes
-    if (JSON.stringify(ganttTasks) !== JSON.stringify(optimisticGanttTasks)) {
+    if (ganttTasks && !isMutating) {
+      console.log("PersonalGanttView: Syncing server state to local state. Not mutating.")
       setOptimisticGanttTasks(ganttTasks)
+    } else if (isMutating) {
+      console.log("PersonalGanttView: Skipping state sync. Mutation in progress.")
+    } else if (!ganttTasks) {
+      console.log("PersonalGanttView: Skipping state sync. No ganttTasks data.")
     }
-  }, [ganttTasks])
+  }, [ganttTasks, isMutating])
 
   const dynamicColumnWidth = useMemo(() => {
     switch (viewMode) {
@@ -100,6 +106,7 @@ const PersonalGanttView: React.FC<PersonalGanttViewProps> = () => {
       const input: any = {
         id: originalItem.originalTaskId,
         type: originalItem.originalType,
+        displayOrder: originalItem.displayOrder,
       }
       let hasChanges = false
       if (originalItem.start.toISOString() !== task.start.toISOString()) {
@@ -116,15 +123,45 @@ const PersonalGanttView: React.FC<PersonalGanttViewProps> = () => {
       }
 
       if (hasChanges) {
-        setOptimisticGanttTasks(prev => prev.map(t => (t.id === task.id ? { ...t, ...task } : t)))
+        console.log(`PersonalGanttView: Optimistically updating task ${task.id}. New data:`, {
+          start: task.start,
+          end: task.end,
+          name: task.name,
+        })
+        console.log("[UPDATE GANTT TASK] Task list before update:", optimisticGanttTasks)
+
+        // Optimistic UI update
+        setOptimisticGanttTasks(prev => {
+          const newTasksList = prev.map(t =>
+            t.id === task.id
+              ? {
+                  ...t,
+                  start: task.start,
+                  end: task.end,
+                  name: task.name,
+                }
+              : t
+          )
+          console.log("[UPDATE GANTT TASK] Task list after update:", newTasksList)
+          return newTasksList
+        })
+
         try {
+          console.log(`PersonalGanttView: Sending update mutation for task ID ${originalItem.originalTaskId}.`)
           await updatePersonalGanttTask(input)
+          console.log(`PersonalGanttView: Update mutation for task ID ${originalItem.originalTaskId} successful.`)
         } catch (err) {
-          // Revert optimistic update on error
+          console.error(
+            `PersonalGanttView: Update mutation failed for task ID ${originalItem.originalTaskId}. Reverting optimistic update.`,
+            err
+          )
+          // Revert on error
           setOptimisticGanttTasks(prev =>
             prev.map(t => (t.id === task.id ? (originalItem as CustomGanttTask) : t))
           )
         }
+      } else {
+        console.log(`PersonalGanttView: No changes detected for task ${task.id}. Skipping update.`)
       }
     },
     [optimisticGanttTasks, updatePersonalGanttTask]
@@ -143,7 +180,7 @@ const PersonalGanttView: React.FC<PersonalGanttViewProps> = () => {
         try {
           await deleteTask(originalItem.originalTaskId)
         } catch (err) {
-          refetchPersonalGanttData() // Refetch to restore state on error
+          refetchPersonalGanttData()
         }
         return true
       }
@@ -159,17 +196,28 @@ const PersonalGanttView: React.FC<PersonalGanttViewProps> = () => {
 
       const roundedNewProgress = Math.round(task.progress || 0)
       if (originalItem.progress !== roundedNewProgress) {
-        setOptimisticGanttTasks(prev =>
-          prev.map(t => (t.id === task.id ? { ...t, progress: roundedNewProgress } : t))
-        )
+        console.log("[UPDATE GANTT TASK] Task list before update:", optimisticGanttTasks)
+
+        // Optimistic UI update
+        setOptimisticGanttTasks(prev => {
+          const newTasksList = prev.map(t => (t.id === task.id ? { ...t, progress: roundedNewProgress } : t))
+          console.log("[UPDATE GANTT TASK] Task list after update:", newTasksList)
+          return newTasksList
+        })
+
         try {
           await updatePersonalGanttTask({
             id: originalItem.originalTaskId,
             type: "TASK",
             progress: roundedNewProgress,
+            displayOrder: originalItem.displayOrder,
           })
         } catch (err) {
-          // Revert optimistic update
+          console.error(
+            `PersonalGanttView: Progress update mutation failed for task ID ${originalItem.originalTaskId}. Reverting optimistic update.`,
+            err
+          )
+          // Revert on error
           setOptimisticGanttTasks(prev =>
             prev.map(t => (t.id === task.id ? (originalItem as CustomGanttTask) : t))
           )
@@ -191,6 +239,14 @@ const PersonalGanttView: React.FC<PersonalGanttViewProps> = () => {
     [createPersonalGanttTask]
   )
 
+  // THIS IS THE REQUIRED FUNCTION BASED ON THE DOCUMENTATION.
+  // It handles clicks on the expander arrows.
+  const handleExpanderClick = (task: GanttTaskReact) => {
+    setOptimisticGanttTasks(prevTasks =>
+      prevTasks.map(t => (t.id === task.id ? { ...t, hideChildren: !t.hideChildren } : t))
+    )
+  }
+
   if (ganttDataLoading && optimisticGanttTasks.length === 0) {
     return <LoadingPlaceholder message="Loading Gantt data..." />
   }
@@ -200,6 +256,7 @@ const PersonalGanttView: React.FC<PersonalGanttViewProps> = () => {
     return <ErrorPlaceholder error={error} onRetry={refetchPersonalGanttData} />
   }
 
+  console.log("Gantt component rendering with tasks:", optimisticGanttTasks)
   return (
     <div className="relative px-6">
       <div className="flex items-center gap-3 py-6">
@@ -265,14 +322,20 @@ const PersonalGanttView: React.FC<PersonalGanttViewProps> = () => {
         )}
         {optimisticGanttTasks.length > 0 && (
           <Gantt
-            tasks={optimisticGanttTasks}
+            tasks={[...optimisticGanttTasks]
+              .sort((a, b) => a.displayOrder - b.displayOrder)
+              .map(task => ({
+                ...task,
+                isDisabled: isMutating,
+              }))}
             viewMode={viewMode}
             onDateChange={handleTaskChange}
             onDelete={handleTaskDelete}
             onProgressChange={handleProgressChange}
+            // THIS PROP IS REQUIRED BY THE DOCUMENTATION TO ENABLE THE HIERARCHY FEATURE.
+            onExpanderClick={handleExpanderClick}
             listCellWidth="200px"
             columnWidth={dynamicColumnWidth}
-            readOnly={isMutating}
           />
         )}
       </div>
@@ -296,7 +359,7 @@ const RightSideModal: React.FC<RightSideModalProps> = ({ children, onClose }) =>
               xmlns="http://www.w3.org/2000/svg"
               className="h-6 w-6"
               fill="none"
-              viewBox="0 0 24 24"
+              viewBox="0 0 24"
               stroke="currentColor"
             >
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />

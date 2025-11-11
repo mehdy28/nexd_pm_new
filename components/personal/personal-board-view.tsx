@@ -1,3 +1,4 @@
+// PersonalBoardView.tsx
 "use client"
 
 import { PersonalKanbanBoard } from "@/components/board/personal/personal-kanban-board"
@@ -24,6 +25,7 @@ const mapCompletedToPrismaStatus = (completed: boolean): PrismaTaskStatus => {
 }
 
 const mapSectionsToColumns = (sections: SectionUI[]): Column[] => {
+  if (!sections) return []
   return sections.map(section => ({
     id: section.id,
     title: section.title,
@@ -31,11 +33,11 @@ const mapSectionsToColumns = (sections: SectionUI[]): Column[] => {
     cards: section.tasks.map(task => ({
       id: task.id,
       title: task.title,
-      description: task.description,
+      description: task.description ?? undefined,
       priority: task.priority,
-      due: task.due,
-      points: task.points,
-      assignee: null, // Personal tasks have no assignee
+      due: task.endDate,
+      points: task.points ?? 0, // FIX: Ensure null is converted to a number
+      assignee: null,
       completed: task.completed,
       editing: false,
     })),
@@ -44,28 +46,22 @@ const mapSectionsToColumns = (sections: SectionUI[]): Column[] => {
 
 export function PersonalBoardView() {
   const {
-    personalSections: fetchedSections,
+    personalSections,
     loading,
     error,
     refetchMyTasksAndSections,
     createSection,
     updateSection,
     deleteSection,
+    reorderSections,
+    isReordering,
   } = useMyTasksAndSections()
 
-  const {
-    createTask,
-    updateTask,
-    deleteTask,
-    isTaskMutating,
-  } = usePersonalTaskmutations()
+  const { createTask, updateTask, deleteTask, isTaskMutating } = usePersonalTaskmutations()
 
   const initialColumns = useMemo(() => {
-    if (loading || error || !fetchedSections) {
-      return []
-    }
-    return mapSectionsToColumns(fetchedSections)
-  }, [fetchedSections, loading, error])
+    return mapSectionsToColumns(personalSections)
+  }, [personalSections])
 
   const handleCreateColumn = useCallback(
     async (title: string) => {
@@ -92,7 +88,6 @@ export function PersonalBoardView() {
   const handleDeleteColumn = useCallback(
     async (columnId: string) => {
       try {
-        // For simplicity, personal sections delete their tasks.
         await deleteSection(columnId, { deleteTasks: true, reassignToSectionId: null })
       } catch (err) {
         console.error("Failed to delete personal section:", err)
@@ -107,7 +102,7 @@ export function PersonalBoardView() {
         await createTask(columnId, {
           title,
           description,
-          priority: "MEDIUM" as any, // Cast because the input type might be stricter
+          priority: "MEDIUM" as any,
           status: "TODO",
         })
       } catch (err) {
@@ -118,20 +113,19 @@ export function PersonalBoardView() {
   )
 
   const handleUpdateCard = useCallback(
-    async (columnId: string, cardId: string, updates: Partial<TaskUI>) => {
-      const mutationInput: any = { id: cardId }
+    async (columnId: string, cardId: string, updates: Partial<TaskUI & { personalSectionId?: string }>) => {
+      const mutationInput: any = {}
 
       if (updates.title !== undefined) mutationInput.title = updates.title
       if (updates.description !== undefined) mutationInput.description = updates.description
       if (updates.priority !== undefined) mutationInput.priority = mapPriorityToPrisma(updates.priority)
       if (updates.points !== undefined) mutationInput.points = updates.points
-      if (updates.due !== undefined) mutationInput.dueDate = updates.due
+      if (updates.endDate !== undefined) mutationInput.dueDate = updates.endDate
       if (updates.completed !== undefined) mutationInput.status = mapCompletedToPrismaStatus(updates.completed)
-      // If the card is moved to a new column
-      if (columnId) mutationInput.personalSectionId = columnId
+      if (updates.personalSectionId) mutationInput.personalSectionId = updates.personalSectionId
 
       try {
-        await updateTask(cardId, mutationInput)
+        await updateTask(cardId, columnId, mutationInput)
       } catch (err) {
         console.error("Failed to update personal task:", err)
       }
@@ -140,9 +134,9 @@ export function PersonalBoardView() {
   )
 
   const handleDeleteCard = useCallback(
-    async (cardId: string) => {
+    async (columnId: string, cardId: string) => {
       try {
-        await deleteTask(cardId)
+        await deleteTask(cardId, columnId)
       } catch (err) {
         console.error("Failed to delete personal task:", err)
       }
@@ -152,21 +146,29 @@ export function PersonalBoardView() {
 
   const handleColumnsOrderChange = useCallback(
     async (newColumns: Column[]) => {
-      // Re-ordering logic for personal sections would go here.
-      // For now, we just refetch to get the latest state from the server,
-      // as the backend doesn't support re-ordering in this implementation.
-      refetchMyTasksAndSections()
+      const sectionsWithNewOrder = newColumns.map((col, index) => ({
+        id: col.id,
+        order: index,
+      }))
+
+      try {
+        await reorderSections(sectionsWithNewOrder)
+      } catch (err) {
+        console.error("Column reorder mutation failed:", err)
+      }
     },
-    [refetchMyTasksAndSections]
+    [reorderSections]
   )
 
-  if (loading) {
+  if (loading && !personalSections?.length) {
     return <LoadingPlaceholder message="Loading your board..." />
   }
 
   if (error) {
     return <ErrorPlaceholder error={error} onRetry={refetchMyTasksAndSections} />
   }
+
+  const isBoardMutating = isTaskMutating || isReordering
 
   return (
     <PersonalKanbanBoard
@@ -178,7 +180,7 @@ export function PersonalBoardView() {
       onCreateCard={handleCreateCard}
       onUpdateCard={handleUpdateCard}
       onDeleteCard={handleDeleteCard}
-      isMutating={isTaskMutating}
+      isMutating={isBoardMutating}
     />
   )
 }

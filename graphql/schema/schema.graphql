@@ -550,6 +550,7 @@ type GanttTaskData {
   end: DateTime!
   progress: Int!
   type: String!
+  project: ID
   sprint: ID
   personalSectionId: ID
   hideChildren: Boolean
@@ -625,12 +626,14 @@ type TaskListView {
   status: TaskStatus!
   priority: Priority!
   dueDate: DateTime
+  endDate: DateTime
   points: Int
   completionPercentage: Float
   assignee: UserLookupPartial
   completed: Boolean!
   sprintId: ID
   sectionId: ID
+  personalSectionId: ID
   commentCount: Int!
   attachmentCount: Int!
 }
@@ -1009,6 +1012,7 @@ input UpdatePersonalGanttTaskInput {
   startDate: DateTime
   endDate: DateTime
   progress: Int
+  displayOrder: Int
 }
 input CreateDocumentInput {
   projectId: ID!
@@ -1172,6 +1176,17 @@ input SendTicketMessageInput {
 }
 
 
+input ReorderPersonalSectionInput {
+  id: ID!
+  order: Int!
+}
+
+
+input ReorderProjectSectionInput {
+  id: ID!
+  order: Int!
+}
+
 # ----------------------------------
 # Root Queries
 # ----------------------------------
@@ -1249,11 +1264,15 @@ type Mutation {
   createProjectSection(projectId: ID!, name: String!, order: Int): Section!
   updateProjectSection(id: ID!, name: String, order: Int): Section!
   deleteProjectSection(id: ID!, options: DeleteSectionOptions): Section!
+  reorderProjectSections(projectId: ID!, sections: [ReorderProjectSectionInput!]!): [Section!]!
+
 
   # Personal Sections
   createPersonalSection(name: String!, order: Int): PersonalSection!
   updatePersonalSection(id: ID!, name: String, order: Int): PersonalSection!
   deletePersonalSection(id: ID!, options: DeleteSectionOptions): PersonalSection!
+  reorderPersonalSections(sections: [ReorderPersonalSectionInput!]!): [PersonalSection!]!
+
 
   # Project Tasks
   createProjectTask(input: CreateProjectTaskInput!): TaskListView!

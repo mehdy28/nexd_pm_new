@@ -76,11 +76,10 @@ export const personalResolver = {
             description: task.description,
             status: task.status,
             priority: task.priority,
-            dueDate: task.dueDate?.toISOString().split("T")[0] || null,
+            endDate: task.endDate?.toISOString().split("T")[0] || null,
             points: task.points,
             completed: task.status === "DONE",
-            sprintId: task.sprintId,
-            sectionId: null, // Personal tasks don't belong to project sections
+            personalSectionId: null, // Personal tasks don't belong to project sections
             assignee: null, // Personal tasks are self-assigned
           })),
         }))

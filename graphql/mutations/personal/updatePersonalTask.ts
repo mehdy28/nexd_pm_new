@@ -1,3 +1,4 @@
+// graphql/mutations/personal/updatePersonalTask.ts
 import { gql } from "@apollo/client"
 
 export const UPDATE_PERSONAL_TASK_MUTATION = gql`
@@ -8,11 +9,10 @@ export const UPDATE_PERSONAL_TASK_MUTATION = gql`
       description
       status
       priority
-      dueDate
+      endDate
       points
       completed # Derived field
-      sprintId # Will be null for personal tasks
-      sectionId # Will be null for personal tasks
+      personalSectionId # Will be null for personal tasks
       assignee {
         id
         firstName

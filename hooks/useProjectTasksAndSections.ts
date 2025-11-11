@@ -1,252 +1,265 @@
-// hooks/useProjectTasksAndSections.ts
-import { useQuery, useMutation } from "@apollo/client";
-import { useCallback, useMemo, useEffect } from "react";
-import { GET_PROJECT_TASKS_AND_SECTIONS_QUERY } from "@/graphql/queries/getProjectTasksAndSections";
-import { CREATE_PROJECT_SECTION_MUTATION } from "@/graphql/mutations/createProjectSection";
-import { UPDATE_PROJECT_SECTION_MUTATION } from "@/graphql/mutations/updateProjectSection";
-import { DELETE_PROJECT_SECTION_MUTATION } from "@/graphql/mutations/deleteProjectSection";
+import { useQuery, useMutation, useApolloClient } from "@apollo/client"
+import { useCallback, useMemo, useEffect } from "react"
+import { GET_PROJECT_TASKS_AND_SECTIONS_QUERY } from "@/graphql/queries/getProjectTasksAndSections"
+import { CREATE_PROJECT_SECTION_MUTATION } from "@/graphql/mutations/createProjectSection"
+import { UPDATE_PROJECT_SECTION_MUTATION } from "@/graphql/mutations/updateProjectSection"
+import { DELETE_PROJECT_SECTION_MUTATION } from "@/graphql/mutations/deleteProjectSection"
+import { REORDER_PROJECT_SECTIONS_MUTATION } from "@/graphql/mutations/reorderProjectSections" // <-- Import new mutation
 
-import { UserAvatarPartial } from "@/types/useProjectTasksAndSections";
-import { TaskStatus, Priority } from "@prisma/client";
+import { UserAvatarPartial } from "@/types/useProjectTasksAndSections"
+import { TaskStatus } from "@prisma/client"
 
-// --- Type Definitions for the hook's return ---
-export type PriorityUI = "LOW" | "MEDIUM" | "HIGH";
-export type TaskStatusUI = "TODO" | "IN_PROGRESS" | "IN_REVIEW" | "DONE" | "CANCELLED";
+// --- Type Definitions ---
+export type PriorityUI = "LOW" | "MEDIUM" | "HIGH"
+export type TaskStatusUI = "TODO" | "DONE" // Simplified for this context, expand if needed
 
-export interface ProjectMemberFullDetails { // Re-defining for consistency
-  id: string; // ProjectMember ID
-  role: "OWNER" | "ADMIN" | "MEMBER" | "VIEWER";
-  user: UserAvatarPartial;
+export interface ProjectMemberFullDetails {
+  id: string
+  role: "OWNER" | "ADMIN" | "MEMBER" | "VIEWER"
+  user: UserAvatarPartial
 }
 
 export interface TaskUI {
-  id: string;
-  title: string;
-  assignee: UserAvatarPartial | null;
-  due: string | null; // YYYY-MM-DD
-  priority: PriorityUI;
-  points: number;
-  completed: boolean; // Derived from TaskStatusUI
-  description?: string;
-  status: TaskStatusUI; // Keep original status for backend updates
-  sprintId?: string | null; // IMPORTANT: Ensure this is explicitly typed as potentially null
+  id: string
+  title: string
+  assignee: UserAvatarPartial | null
+  due: string | null
+  priority: PriorityUI
+  points: number | null
+  completed: boolean
+  description?: string | null
+  status: TaskStatusUI
+  sprintId?: string | null
+  sectionId?: string | undefined 
 }
 
 export interface SectionUI {
-  id: string;
-  title: string; // Mapped from 'name'
-  tasks: TaskUI[];
-  editing?: boolean; // Client-side state
+  id: string
+  title: string
+  tasks: TaskUI[]
+  editing?: boolean
 }
 
 export interface SprintFilterOption {
-  id: string;
-  name: string;
+  id: string
+  name: string
 }
 
-// Full response type for the main query
+// Type for the raw GraphQL response
 interface ProjectTasksAndSectionsResponse {
   getProjectTasksAndSections: {
-    sprints: SprintFilterOption[];
+    sprints: SprintFilterOption[]
     sections: Array<{
-      id: string;
-      name: string;
+      id: string
+      name: string
       tasks: Array<{
-        id: string;
-        title: string;
-        description?: string;
-        status: TaskStatusUI;
-        priority: "LOW" | "MEDIUM" | "HIGH";
-        dueDate?: string; // YYYY-MM-DD
-        points: number;
-        assignee: UserAvatarPartial | null;
-        sprintId?: string | null; // IMPORTANT: Ensure sprintId is part of the API response structure
-      }>;
-    }>;
-
-    projectMembers: ProjectMemberFullDetails[]; // NOW REQUIRED in the query
-  } | null;
+        id: string
+        title: string
+        description?: string | null
+        status: TaskStatusUI
+        priority: "LOW" | "MEDIUM" | "HIGH"
+        dueDate?: string | null
+        points: number | null
+        assignee: UserAvatarPartial | null
+        sprintId?: string | null
+      }>
+    }>
+    projectMembers: ProjectMemberFullDetails[]
+  } | null
 }
 
-// ... (existing mutation response/variables types for sections) ...
+// Types for the new reorder mutation
+interface ReorderSectionInput {
+  id: string
+  order: number
+}
+interface ReorderProjectSectionsData {
+  reorderProjectSections: {
+    id: string
+    order: number
+  }[]
+}
+interface ReorderProjectSectionsVars {
+  projectId: string
+  sections: ReorderSectionInput[]
+}
 
-// Helper to convert Prisma Priority enum to UI string
 export const mapPriorityToUI = (priority: "LOW" | "MEDIUM" | "HIGH"): PriorityUI => {
-  switch (priority) {
-    case "LOW": return "LOW";
-    case "MEDIUM": return "MEDIUM";
-    case "HIGH": return "HIGH";
-  }
-};
+  return priority
+}
 
-export const mapTaskStatusToUI = (status: TaskStatus): boolean => {
-  return status === 'DONE';
-};
+export const mapTaskStatusToUI = (status: TaskStatusUI): boolean => {
+  return status === "DONE"
+}
 
+export function useProjectTasksAndSections(projectId: string, sprintIdFromProps?: string | null) {
+  const client = useApolloClient() // <-- Get Apollo Client instance
 
-export function useProjectTasksAndSections(projectId: string, sprintIdFromProps?: string | null) { // Renamed for clarity
-  console.log(`[sprint] HOOK: useProjectTasksAndSections called with projectId: ${projectId}, sprintIdFromProps: ${sprintIdFromProps}`);
-
-  const { data, loading, error, refetch } = useQuery<ProjectTasksAndSectionsResponse>(GET_PROJECT_TASKS_AND_SECTIONS_QUERY, {
-    variables: { projectId, sprintId: sprintIdFromProps }, // Use sprintIdFromProps directly as the variable
-    skip: !projectId,
-    fetchPolicy: "network-only", // Ensure fresh data on each call
-  });
-
-  useEffect(() => {
-    if (data) {
-      console.log("[sprint] HOOK: Data received from GET_PROJECT_TASKS_AND_SECTIONS_QUERY.");
-      console.log("[sprint] HOOK: Query variables used for fetch (sprintId):", sprintIdFromProps);
-      console.log("[sprint] HOOK: Fetched sprints:", data.getProjectTasksAndSections?.sprints);
-      // console.log("[sprint] HOOK: Fetched sections (first 2 tasks of first section):", JSON.stringify(data.getProjectTasksAndSections?.sections?.[0]?.tasks.slice(0,2), null, 2));
+  const { data, loading, error, refetch } = useQuery<ProjectTasksAndSectionsResponse>(
+    GET_PROJECT_TASKS_AND_SECTIONS_QUERY,
+    {
+      variables: { projectId, sprintId: sprintIdFromProps },
+      skip: !projectId,
+      fetchPolicy: "cache-and-network",
     }
-    if (error) {
-      console.error("[sprint] HOOK: Query error:", error);
-    }
-  }, [data, error, sprintIdFromProps]);
-
+  )
 
   // --- Section Mutations ---
-  const [createProjectSectionMutation] = useMutation<any, any>(CREATE_PROJECT_SECTION_MUTATION, {
-    refetchQueries: [
-      GET_PROJECT_TASKS_AND_SECTIONS_QUERY,
-      "GetProjectTasksAndSections"
-    ],
-  });
+  const [createProjectSectionMutation] = useMutation(CREATE_PROJECT_SECTION_MUTATION, {
+    refetchQueries: ["GetProjectTasksAndSections"],
+  })
 
-  const [updateProjectSectionMutation] = useMutation<any, any>(UPDATE_PROJECT_SECTION_MUTATION, {
-    refetchQueries: [
-      GET_PROJECT_TASKS_AND_SECTIONS_QUERY,
-      "GetProjectTasksAndSections"
-    ],
-  });
+  const [updateProjectSectionMutation] = useMutation(UPDATE_PROJECT_SECTION_MUTATION) // Manual cache update is better
 
-  const [deleteProjectSectionMutation] = useMutation<any, any>(DELETE_PROJECT_SECTION_MUTATION, {
-    refetchQueries: [
-      GET_PROJECT_TASKS_AND_SECTIONS_QUERY,
-      "GetProjectTasksAndSections"
-    ],
-  });
+  const [deleteProjectSectionMutation] = useMutation(DELETE_PROJECT_SECTION_MUTATION, {
+    refetchQueries: ["GetProjectTasksAndSections"],
+  })
+
+  // --- NEW: Reorder Mutation Hook ---
+  const [reorderProjectSectionsMutation, { loading: isReordering }] = useMutation<
+    ReorderProjectSectionsData,
+    ReorderProjectSectionsVars
+  >(REORDER_PROJECT_SECTIONS_MUTATION)
   // -------------------------
 
-  const transformedData = data?.getProjectTasksAndSections;
+  const transformedData = data?.getProjectTasksAndSections
 
   const sections: SectionUI[] = useMemo(() => {
-    const tempSections: SectionUI[] = [];
-    if (transformedData) {
-      transformedData.sections.forEach(sec => {
-        tempSections.push({
-          id: sec.id,
-          title: sec.name,
-          tasks: sec.tasks.map(task => ({
-            id: task.id,
-            title: task.title,
-            assignee: task.assignee,
-            due: task.dueDate || null,
-            priority: mapPriorityToUI(task.priority),
-            points: task.points,
-            completed: mapTaskStatusToUI(task.status),
-            description: task.description,
-            status: task.status,
-            sprintId: task.sprintId, // Ensure sprintId is mapped here
-          })),
-          editing: false,
-        });
-      });
-    }
-    console.log(`[sprint] HOOK: Memoized sections count: ${tempSections.length}`);
-    return tempSections;
-  }, [transformedData]);
+    if (!transformedData) return []
+    return transformedData.sections.map(sec => ({
+      id: sec.id,
+      title: sec.name,
+      tasks: sec.tasks.map(task => ({
+        id: task.id,
+        title: task.title,
+        assignee: task.assignee,
+        due: task.dueDate || null,
+        priority: mapPriorityToUI(task.priority),
+        points: task.points,
+        completed: mapTaskStatusToUI(task.status),
+        description: task.description,
+        status: task.status,
+        sprintId: task.sprintId,
+      })),
+      editing: false,
+    }))
+  }, [transformedData])
 
-  // Expose project members from the query result
   const projectMembers: ProjectMemberFullDetails[] = useMemo(() => {
-    console.log(`[sprint] HOOK: Memoized projectMembers count: ${transformedData?.projectMembers.length || 0}`);
-    return transformedData?.projectMembers || [];
-  }, [transformedData]);
+    return transformedData?.projectMembers || []
+  }, [transformedData])
 
-  // The *suggested* default sprint ID. This will only be used by ListView
-  // if its own internalSelectedSprintId is initially undefined.
   const defaultSprintIdToSuggest: string | undefined = useMemo(() => {
     if (transformedData?.sprints && transformedData.sprints.length > 0) {
-      // Assuming transformedData.sprints[0] is the desired "default" or "latest" if no sprintIdFromProps is given.
-      // If there's a more specific logic for the "latest" or "active" sprint, implement it here.
-      const suggestedId = transformedData.sprints[0].id; // For example, the first one returned by the backend.
-      console.log(`[sprint] HOOK: Suggested default sprint ID for initial ListView state: ${suggestedId} (from fetched sprints[0])`);
-      return suggestedId;
+      return transformedData.sprints[0].id
     }
-    console.log("[sprint] HOOK: No default sprint ID suggested (no sprints available or transformedData is null).");
-    return undefined;
-  }, [transformedData?.sprints]); // Depend on transformedData.sprints to re-calculate if the list changes
+    return undefined
+  }, [transformedData?.sprints])
 
-  // --- Functions to expose for section mutations ---
-  const createSection = useCallback(async (name: string, order?: number | null) => {
-    console.log(`[sprint] HOOK: createSection called for projectId: ${projectId}, name: ${name}`);
-    try {
-      const response = await createProjectSectionMutation({
+  const createSection = useCallback(
+    async (name: string, order?: number) => {
+      const numSections = sections.length
+      await createProjectSectionMutation({
         variables: {
           projectId: projectId,
           name,
-          order: order ?? null,
+          order: order ?? numSections,
         },
-      });
-      console.log("[sprint] HOOK: createSection mutation successful. Response:", response.data);
-      return response.data?.createProjectSection;
-    } catch (err: any) {
-      console.error("[sprint] HOOK: Error creating section:", err);
-      throw err;
-    }
-  }, [projectId, createProjectSectionMutation]);
+      })
+    },
+    [projectId, createProjectSectionMutation, sections.length]
+  )
 
-
-  const updateSection = useCallback(async (id: string, name?: string | null, order?: number | null) => {
-    console.log(`[sprint] HOOK: updateSection called for sectionId: ${id}, name: ${name}`);
-    try {
-      const response = await updateProjectSectionMutation({
-        variables: {
-          id,
-          name: name ?? null,
-          order: order ?? null,
+  const updateSection = useCallback(
+    async (id: string, name: string) => {
+      await updateProjectSectionMutation({
+        variables: { id, name },
+        optimisticResponse: {
+          updateProjectSection: { __typename: "Section", id, name },
         },
-      });
-      console.log("[sprint] HOOK: updateSection mutation successful. Response:", response.data);
-      return response.data?.updateSection;
-    } catch (err: any) {
-      console.error("[sprint] HOOK: Error updating section:", err);
-      throw err;
-    }
-  }, [updateProjectSectionMutation]);
-
-  const deleteSection = useCallback(async (id: string, options: { deleteTasks: boolean; reassignToSectionId?: string | null }) => {
-    console.log(`[sprint] HOOK: deleteSection called for sectionId: ${id}. Options:`, options);
-    try {
-      const response = await deleteProjectSectionMutation({
-        variables: {
-          id,
-          options,
+        update: (cache, { data: mutationData }) => {
+          const idToUpdate = mutationData?.updateProjectSection.id
+          if (!idToUpdate) return
+          cache.modify({
+            id: cache.identify({ __typename: "Section", id: idToUpdate }),
+            fields: {
+              name() {
+                return mutationData?.updateProjectSection.name
+              },
+            },
+          })
         },
-      });
-      console.log("[sprint] HOOK: deleteSection mutation successful. Response:", response.data);
-      return response.data?.deleteProjectSection;
-    } catch (err: any) {
-      console.error("[sprint] HOOK: Error deleting section:", err);
-      throw err;
-    }
-  }, [deleteProjectSectionMutation]);
-  // -------------------------------------------------
+      })
+    },
+    [updateProjectSectionMutation]
+  )
 
+  const deleteSection = useCallback(
+    async (id: string, options: { deleteTasks: boolean; reassignToSectionId?: string | null }) => {
+      await deleteProjectSectionMutation({
+        variables: { id, options },
+      })
+    },
+    [deleteProjectSectionMutation]
+  )
+
+  // --- NEW: Reorder Sections Function ---
+  const reorderSections = useCallback(
+    async (sectionsToReorder: ReorderSectionInput[]) => {
+      const queryOptions = {
+        query: GET_PROJECT_TASKS_AND_SECTIONS_QUERY,
+        variables: { projectId, sprintId: sprintIdFromProps },
+      }
+      const originalQuery = client.readQuery<ProjectTasksAndSectionsResponse>(queryOptions)
+
+      // Optimistically update the cache
+      if (originalQuery?.getProjectTasksAndSections) {
+        const currentSections = [...originalQuery.getProjectTasksAndSections.sections]
+        const sectionMap = new Map(currentSections.map(s => [s.id, s]))
+
+        const reorderedSections = sectionsToReorder
+          .map(s => sectionMap.get(s.id))
+          .filter((s): s is NonNullable<typeof s> => s != null)
+
+        client.writeQuery({
+          ...queryOptions,
+          data: {
+            getProjectTasksAndSections: {
+              ...originalQuery.getProjectTasksAndSections,
+              sections: reorderedSections,
+            },
+          },
+        })
+      }
+
+      try {
+        await reorderProjectSectionsMutation({
+          variables: {
+            projectId,
+            sections: sectionsToReorder,
+          },
+        })
+      } catch (err) {
+        console.error("Failed to reorder sections:", err)
+        refetch() // On error, revert by refetching from the server
+        throw err
+      }
+    },
+    [client, reorderProjectSectionsMutation, refetch, projectId, sprintIdFromProps]
+  )
 
   return {
     sprintFilterOptions: transformedData?.sprints || [],
     sections: sections,
     loading,
     error,
+    isReordering, // <-- Expose loading state
     refetchProjectTasksAndSections: refetch,
     createSection,
     updateSection,
     deleteSection,
-    projectMembers, // Expose project members
-    // This return ensures ListView always gets its initially desired sprint,
-    // and if ListView itself has no preference yet, it gets a default suggestion.
+    reorderSections, // <-- Expose the new function
+    projectMembers,
     defaultSelectedSprintId: sprintIdFromProps !== undefined ? sprintIdFromProps : defaultSprintIdToSuggest,
-  };
+  }
 }

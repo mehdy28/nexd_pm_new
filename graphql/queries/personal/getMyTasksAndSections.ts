@@ -12,11 +12,10 @@ export const GET_MY_TASKS_AND_SECTIONS_QUERY = gql`
           description
           status
           priority
-          dueDate
+          endDate
           points
           completed
-          sprintId
-          sectionId
+          personalSectionId
           assignee {
             id
             firstName

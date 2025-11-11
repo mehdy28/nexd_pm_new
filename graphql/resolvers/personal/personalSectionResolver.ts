@@ -10,6 +10,14 @@ function log(prefix: string, message: string, data?: any) {
   }
 }
 
+
+
+interface ReorderPersonalSectionInput {
+  id: string;
+  order: number;
+}
+
+
 interface GraphQLContext {
   prisma: typeof prisma
   user?: { id: string; email: string; role: string }
@@ -222,7 +230,63 @@ export const personalSectionResolver = {
         throw new GraphQLError("Could not delete personal section.")
       }
     },
+
+
+    reorderPersonalSections: async (
+      _: any,
+      { sections }: { sections: ReorderPersonalSectionInput[] },
+      context: any
+    ) => {
+
+      const userId = context.user.id
+
+
+      try {
+        // Use a transaction to update all sections at once.
+        // This ensures that if one update fails, all are rolled back.
+        await prisma.$transaction(
+          sections.map((section) =>
+            prisma.personalSection.updateMany({
+              where: {
+                id: section.id,
+                userId: userId, // Security: ensure user owns the section
+              },
+              data: {
+                order: section.order,
+              },
+            })
+          )
+        );
+
+        // Fetch the updated sections to return them in the new order
+        const updatedSections = await prisma.personalSection.findMany({
+          where: {
+            userId: userId,
+          },
+          orderBy: {
+            order: 'asc',
+          },
+        });
+
+        return updatedSections;
+      } catch (error) {
+        console.error("Failed to reorder personal sections:", error);
+        throw new Error("An error occurred while reordering sections.");
+      }
+    },
   },
 }
 
 export default personalSectionResolver
+
+
+
+
+
+
+
+
+
+
+
+

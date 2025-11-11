@@ -55,11 +55,28 @@ import {
 } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-
-import { TaskUI, PriorityUI } from "@/hooks/useProjectTasksAndSections";
 import { UserAvatarPartial } from "@/types/useProjectTasksAndSections";
 import { useTaskDetails } from "@/hooks/useTaskDetails";
 import { ActivityUI, CommentUI } from "@/types/taskDetails";
+import type { TaskStatus } from "@prisma/client";
+
+// Define generic types that work for both personal and project tasks
+type PriorityUI = "LOW" | "MEDIUM" | "HIGH";
+type TaskStatusUI = TaskStatus; // "TODO" | "IN_PROGRESS" | "DONE"
+
+type TaskUI = {
+  id: string;
+  title: string;
+  description: string | null;
+  priority: PriorityUI;
+  due: string | null;
+  points: number | null;
+  sectionId: string; // Required for callbacks like delete
+  assignee?: UserAvatarPartial | null; // Project-specific, but optional for personal
+  status?: TaskStatusUI; // Project-specific, optional
+  completed?: boolean; // Personal-specific, optional
+};
+
 
 const priorityDot: Record<PriorityUI, string> = {
   LOW: "bg-green-500",

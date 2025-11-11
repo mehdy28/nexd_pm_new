@@ -1,11 +1,9 @@
-// components/tasks/list-view.tsx`
-"use client";
+"use client"
 
-import { useMemo, useState, useEffect, useCallback, useRef } from "react";
-import { formatDistanceToNow } from "date-fns";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { useMemo, useState, useEffect, useCallback, useRef } from "react"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,10 +11,10 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Separator } from "@/components/ui/separator";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+} from "@/components/ui/dropdown-menu"
+import { Separator } from "@/components/ui/separator"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   ChevronDown,
   ChevronRight,
@@ -26,52 +24,50 @@ import {
   Trash2,
   Loader2,
   EllipsisVertical,
-  ListOrdered,
-} from "lucide-react";
-import { cn } from "@/lib/utils";
-import { Label } from "@/components/ui/label";
-
+} from "lucide-react"
+import { cn } from "@/lib/utils"
+import { Label } from "@/components/ui/label"
 import {
   useProjectTasksAndSections,
   TaskUI,
   SectionUI,
   PriorityUI,
-} from "@/hooks/useProjectTasksAndSections";
-import { useProjectTaskMutations } from "@/hooks/useProjectTaskMutations";
-import { UserAvatarPartial } from "@/types/useProjectTasksAndSections";
-import { TaskDetailSheet } from "../modals/task-detail-sheet";
-import { LoadingPlaceholder, ErrorPlaceholder } from "@/components/placeholders/status-placeholders";
+} from "@/hooks/useProjectTasksAndSections"
+import { useProjectTaskMutations } from "@/hooks/useProjectTaskMutations"
+import { UserAvatarPartial } from "@/types/useProjectTasksAndSections"
+import { TaskDetailSheet } from "../modals/task-detail-sheet"
+import { LoadingPlaceholder, ErrorPlaceholder } from "@/components/placeholders/status-placeholders"
 
 type NewTaskForm = {
-  title: string;
-  assigneeId?: string | null;
-  due?: string | null;
-  priority: PriorityUI;
-  points?: number | null;
-  description?: string | null;
-  sprintId?: string | null;
-};
+  title: string
+  assigneeId?: string | null
+  due?: string | null
+  priority: PriorityUI
+  points?: number | null
+  description?: string | null
+  sprintId?: string | null
+}
 
 const priorityStyles: Record<PriorityUI, string> = {
   LOW: "bg-green-100 text-green-700 ring-1 ring-green-200",
   MEDIUM: "bg-orange-100 text-orange-700 ring-1 ring-orange-200",
   HIGH: "bg-red-100 text-red-700 ring-1 ring-red-200",
-};
+}
 const priorityDot: Record<PriorityUI, string> = {
   LOW: "bg-green-500",
   MEDIUM: "bg-orange-500",
   HIGH: "bg-red-500",
-};
+}
 
 interface ListViewProps {
-  projectId: string;
+  projectId: string
 }
 
 export function ListView({ projectId }: ListViewProps) {
-  const [internalSelectedSprintId, setInternalSelectedSprintId] = useState<string | undefined>(undefined);
+  const [internalSelectedSprintId, setInternalSelectedSprintId] = useState<string | undefined>(undefined)
 
   const {
-    sections: fetchedSections,
+    sections, // Use the data from the hook directly. Renamed from fetchedSections.
     sprintFilterOptions,
     loading,
     error,
@@ -81,13 +77,13 @@ export function ListView({ projectId }: ListViewProps) {
     deleteSection,
     projectMembers,
     defaultSelectedSprintId: suggestedDefaultSprintId,
-  } = useProjectTasksAndSections(projectId, internalSelectedSprintId);
+  } = useProjectTasksAndSections(projectId, internalSelectedSprintId)
 
   useEffect(() => {
     if (internalSelectedSprintId === undefined && suggestedDefaultSprintId) {
-      setInternalSelectedSprintId(suggestedDefaultSprintId);
+      setInternalSelectedSprintId(suggestedDefaultSprintId)
     }
-  }, [internalSelectedSprintId, suggestedDefaultSprintId]);
+  }, [internalSelectedSprintId, suggestedDefaultSprintId])
 
   const {
     createTask,
@@ -95,37 +91,35 @@ export function ListView({ projectId }: ListViewProps) {
     toggleTaskCompleted: toggleTaskCompletedMutation,
     deleteTask: deleteTaskMutation,
     isTaskMutating,
-    taskMutationError,
-  } = useProjectTaskMutations(projectId, internalSelectedSprintId);
+  } = useProjectTaskMutations(projectId) // Removed stale sprintId
 
-  const [sections, setSections] = useState<SectionUI[]>([]);
-  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
-  const [selected, setSelected] = useState<Record<string, boolean>>({});
-  const [sheetTask, setSheetTask] = useState<{ sectionId: string; taskId: string } | null>(null);
+  // --- REMOVED `useState` for `sections`. The hook's data is the source of truth. ---
 
-  const [newTaskOpen, setNewTaskOpen] = useState<Record<string, boolean>>({});
-  const [newTask, setNewTask] = useState<Record<string, NewTaskForm>>({});
-  const [isSectionMutating, setIsSectionMutating] = useState(false);
+  const [editingSectionId, setEditingSectionId] = useState<string | null>(null)
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
+  const [selected, setSelected] = useState<Record<string, boolean>>({})
+  const [sheetTask, setSheetTask] = useState<{ sectionId: string; taskId: string } | null>(null)
+  const [newTaskOpen, setNewTaskOpen] = useState<Record<string, boolean>>({})
+  const [newTask, setNewTask] = useState<Record<string, NewTaskForm>>({})
+  const [isSectionMutating, setIsSectionMutating] = useState(false)
 
-  // State for Modals
-  const [deleteSectionModalOpen, setDeleteSectionModalOpen] = useState(false);
-  const [sectionToDelete, setSectionToDelete] = useState<SectionUI | null>(null);
-  const [deleteTasksConfirmed, setDeleteTasksConfirmed] = useState(false);
-  const [reassignToSectionOption, setReassignToSectionOption] = useState<string | null>(null);
+  const [deleteSectionModalOpen, setDeleteSectionModalOpen] = useState(false)
+  const [sectionToDelete, setSectionToDelete] = useState<SectionUI | null>(null)
+  const [deleteTasksConfirmed, setDeleteTasksConfirmed] = useState(false)
+  const [reassignToSectionOption, setReassignToSectionOption] = useState<string | null>(null)
 
-  const [deleteTaskModalOpen, setDeleteTaskModalOpen] = useState(false);
-  const [taskToDelete, setTaskToDelete] = useState<{ sectionId: string; task: TaskUI } | null>(null);
+  const [deleteTaskModalOpen, setDeleteTaskModalOpen] = useState(false)
+  const [taskToDelete, setTaskToDelete] = useState<{ sectionId: string; task: TaskUI } | null>(null)
 
-  // Refs for Modals
-  const customModalRef = useRef<HTMLDivElement>(null);
-  const customTaskModalRef = useRef<HTMLDivElement>(null);
+  const customModalRef = useRef<HTMLDivElement>(null)
+  const customTaskModalRef = useRef<HTMLDivElement>(null)
 
   const sheetData = useMemo(() => {
-    if (!sheetTask) return null;
-    const s = sections.find(x => x.id === sheetTask.sectionId);
-    const t = s?.tasks.find(x => x.id === sheetTask.taskId);
-    return t ? { sectionId: sheetTask.sectionId, task: t } : null;
-  }, [sheetTask, sections]);
+    if (!sheetTask) return null
+    const s = sections.find(x => x.id === sheetTask.sectionId)
+    const t = s?.tasks.find(x => x.id === sheetTask.taskId)
+    return t ? { sectionId: sheetTask.sectionId, task: t } : null
+  }, [sheetTask, sections])
 
   const availableAssignees: UserAvatarPartial[] = useMemo(() => {
     return projectMembers.map(member => ({
@@ -133,361 +127,274 @@ export function ListView({ projectId }: ListViewProps) {
       firstName: member.user.firstName,
       lastName: member.user.lastName,
       avatar: member.user.avatar,
-    }));
-  }, [projectMembers]);
+    }))
+  }, [projectMembers])
 
   const toggleSection = useCallback((id: string) => {
-    setCollapsed(prev => ({ ...prev, [id]: !prev[id] }));
-  }, []);
-
-  const setSectionEditing = useCallback((id: string, editing: boolean) => {
-    setSections(prev => prev.map(s => (s.id === id ? { ...s, editing } : s)));
-  }, []);
+    setCollapsed(prev => ({ ...prev, [id]: !prev[id] }))
+  }, [])
 
   const renameSection = useCallback(
     async (id: string, title: string) => {
+      setEditingSectionId(null) // Exit editing mode immediately
       if (!title.trim()) {
-        setSections(prev => prev.map(s => (s.id === id ? { ...s, editing: false } : s)));
-        return;
+        return
       }
-      setIsSectionMutating(true);
+      setIsSectionMutating(true)
       try {
-        await updateSection(id, title);
+        await updateSection(id, title)
       } catch (err) {
-        console.error(`[renameSection] Failed to rename section "${id}":`, err);
+        console.error(`[renameSection] Failed to rename section "${id}":`, err)
       } finally {
-        setIsSectionMutating(false);
-        setSections(prev => prev.map(s => (s.id === id ? { ...s, editing: false } : s)));
+        setIsSectionMutating(false)
       }
     },
     [updateSection]
-  );
+  )
 
   const addSection = useCallback(async () => {
-    setIsSectionMutating(true);
+    setIsSectionMutating(true)
     try {
-      await createSection("New Section");
-      refetchProjectTasksAndSections();
+      await createSection("New Section")
     } catch (err) {
-      console.error("[addSection] Failed to add section:", err);
+      console.error("[addSection] Failed to add section:", err)
     } finally {
-      setIsSectionMutating(false);
+      setIsSectionMutating(false)
     }
-  }, [createSection, refetchProjectTasksAndSections]);
+  }, [createSection])
 
   const toggleTaskCompleted = useCallback(
     async (sectionId: string, taskId: string) => {
-      const taskToUpdate = sections.find(s => s.id === sectionId)?.tasks.find(t => t.id === taskId);
-      if (!taskToUpdate) return;
-      setSections(prev =>
-        prev.map(s =>
-          s.id === sectionId
-            ? {
-                ...s,
-                tasks: s.tasks.map(t =>
-                  t.id === taskId ? { ...t, completed: !t.completed, status: !t.completed ? "DONE" : "TODO" } : t
-                ),
-              }
-            : s
-        )
-      );
+      const taskToUpdate = sections.find(s => s.id === sectionId)?.tasks.find(t => t.id === taskId)
+      if (!taskToUpdate) return
+
+      // No optimistic UI update. The mutation hook will update the cache, triggering a re-render.
       try {
-        await toggleTaskCompletedMutation(taskId, taskToUpdate.status);
+        await toggleTaskCompletedMutation(taskId, taskToUpdate.status, internalSelectedSprintId || null)
       } catch (err) {
-        console.error(`[toggleTaskCompleted] Failed to toggle task "${taskId}" completion:`, err);
-        setSections(prev =>
-          prev.map(s =>
-            s.id === sectionId
-              ? {
-                  ...s,
-                  tasks: s.tasks.map(t =>
-                    t.id === taskId ? { ...t, completed: !t.completed, status: !t.completed ? "TODO" : "DONE" } : t
-                  ),
-                }
-              : s
-          )
-        );
+        console.error(`[toggleTaskCompleted] Failed to toggle task "${taskId}" completion:`, err)
       }
     },
-    [sections, toggleTaskCompletedMutation]
-  );
+    [sections, toggleTaskCompletedMutation, internalSelectedSprintId]
+  )
 
   const updateTask = useCallback(
     async (sectionId: string, taskId: string, updates: Partial<TaskUI>) => {
-      const originalTask = sections.find(s => s.id === sectionId)?.tasks.find(t => t.id === taskId);
-      if (!originalTask) return;
+      const mutationInput: { [key: string]: any } = {}
+      if (updates.title !== undefined) mutationInput.title = updates.title
+      if (updates.description !== undefined) mutationInput.description = updates.description
+      if (updates.priority !== undefined) mutationInput.priority = updates.priority
+      if (updates.points !== undefined) mutationInput.points = updates.points
+      if (updates.due !== undefined) mutationInput.dueDate = updates.due
+      if (updates.assignee !== undefined) mutationInput.assigneeId = updates.assignee?.id || null
+      const newStatus = updates.completed !== undefined ? (updates.completed ? "DONE" : "TODO") : undefined
+      if (newStatus !== undefined) mutationInput.status = newStatus
 
-      const mutationInput: { [key: string]: any } = { id: taskId };
-      if (updates.title !== undefined) mutationInput.title = updates.title;
-      if (updates.description !== undefined) mutationInput.description = updates.description;
-      if (updates.priority !== undefined) mutationInput.priority = updates.priority;
-      if (updates.points !== undefined) mutationInput.points = updates.points;
-      if (updates.due !== undefined) mutationInput.dueDate = updates.due;
-      if (updates.assignee !== undefined) mutationInput.assigneeId = updates.assignee?.id || null;
-      const newStatus = updates.completed !== undefined ? (updates.completed ? "DONE" : "TODO") : undefined;
-      if (newStatus !== undefined) mutationInput.status = newStatus;
-
-      setSections(prev =>
-        prev.map(s =>
-          s.id === sectionId
-            ? { ...s, tasks: s.tasks.map(t => (t.id === taskId ? { ...t, ...updates } : t)) }
-            : s
-        )
-      );
-
-      if (Object.keys(mutationInput).length > 1) {
+      // No optimistic UI update. The mutation hook will update the cache.
+      if (Object.keys(mutationInput).length > 0) {
         try {
-          await updateTaskMutation(taskId, mutationInput);
+          await updateTaskMutation(taskId, mutationInput, internalSelectedSprintId || null)
         } catch (err) {
-          console.error(`[updateTask] Failed to update task "${taskId}":`, err);
-          setSections(prev =>
-            prev.map(s =>
-              s.id === sectionId ? { ...s, tasks: s.tasks.map(t => (t.id === taskId ? originalTask : t)) } : s
-            )
-          );
+          console.error(`[updateTask] Failed to update task "${taskId}":`, err)
         }
       }
     },
-    [sections, updateTaskMutation]
-  );
+    [updateTaskMutation, internalSelectedSprintId]
+  )
 
   const openDeleteTaskModal = useCallback((sectionId: string, task: TaskUI) => {
-    setTaskToDelete({ sectionId, task });
-    setDeleteTaskModalOpen(true);
-  }, []);
+    setTaskToDelete({ sectionId, task })
+    setDeleteTaskModalOpen(true)
+  }, [])
 
   const closeSheet = useCallback(() => {
-    setSheetTask(null);
-  }, []);
+    setSheetTask(null)
+  }, [])
 
   const handleConfirmTaskDelete = useCallback(async () => {
-    if (!taskToDelete) return;
-    const sectionId = taskToDelete.sectionId;
-    const taskId = taskToDelete.task.id;
-    const originalSections = [...sections];
+    if (!taskToDelete) return
+    const taskId = taskToDelete.task.id
 
-    setSections(prev =>
-      prev.map(s => (s.id === sectionId ? { ...s, tasks: s.tasks.filter(t => t.id !== taskId) } : s))
-    );
-    setSelected(prev => {
-      const copy = { ...prev };
-      delete copy[taskId];
-      return copy;
-    });
-
+    // No local state update. The refetch on the delete mutation will handle the UI change.
     try {
-      await deleteTaskMutation(taskId);
+      await deleteTaskMutation(taskId, internalSelectedSprintId || null)
     } catch (err) {
-      console.error(`[handleConfirmTaskDelete] Failed to delete task "${taskId}":`, err);
-      setSections(originalSections);
-      refetchProjectTasksAndSections();
+      console.error(`[handleConfirmTaskDelete] Failed to delete task "${taskId}":`, err)
     } finally {
-      setDeleteTaskModalOpen(false);
-      setTaskToDelete(null);
+      setDeleteTaskModalOpen(false)
+      setTaskToDelete(null)
       if (sheetTask?.taskId === taskId) {
-        closeSheet();
+        closeSheet()
       }
     }
-  }, [taskToDelete, sections, deleteTaskMutation, refetchProjectTasksAndSections, sheetTask, closeSheet]);
+  }, [taskToDelete, deleteTaskMutation, sheetTask, closeSheet, internalSelectedSprintId])
 
-  const allTaskIds = useMemo(() => sections.flatMap(s => s.tasks.map(t => t.id)), [sections]);
+  const allTaskIds = useMemo(() => sections.flatMap(s => s.tasks.map(t => t.id)), [sections])
 
   const toggleSelect = useCallback((taskId: string, checked: boolean) => {
-    setSelected(prev => ({ ...prev, [taskId]: checked }));
-  }, []);
+    setSelected(prev => ({ ...prev, [taskId]: checked }))
+  }, [])
 
   const toggleSelectAll = useCallback(
     (checked: boolean) => {
       if (!checked) {
-        setSelected({});
-        return;
+        setSelected({})
+        return
       }
-      const next: Record<string, boolean> = {};
-      for (const id of allTaskIds) next[id] = true;
-      setSelected(next);
+      const next: Record<string, boolean> = {}
+      for (const id of allTaskIds) next[id] = true
+      setSelected(next)
     },
     [allTaskIds]
-  );
+  )
 
-  const selectedCount = useMemo(() => Object.values(selected).filter(Boolean).length, [selected]);
+  const selectedCount = useMemo(() => Object.values(selected).filter(Boolean).length, [selected])
 
   const bulkDeleteSelected = useCallback(async () => {
-    const toDelete = new Set(Object.entries(selected).filter(([, v]) => v).map(([k]) => k));
-    if (toDelete.size === 0) return;
+    const toDelete = new Set(Object.entries(selected).filter(([, v]) => v).map(([k]) => k))
+    if (toDelete.size === 0) return
 
-    const originalSections = [...sections];
-    setSections(prev => prev.map(s => ({ ...s, tasks: s.tasks.filter(t => !toDelete.has(t.id)) })));
-    setSelected({});
-
+    setSelected({})
     try {
       for (const taskId of Array.from(toDelete)) {
-        await deleteTaskMutation(taskId);
+        await deleteTaskMutation(taskId, internalSelectedSprintId || null)
       }
     } catch (err) {
-      console.error("[bulkDeleteSelected] Failed to bulk delete tasks:", err);
-      setSections(originalSections);
-      refetchProjectTasksAndSections();
+      console.error("[bulkDeleteSelected] Failed to bulk delete tasks:", err)
     }
-  }, [selected, sections, deleteTaskMutation, refetchProjectTasksAndSections]);
+  }, [selected, deleteTaskMutation, internalSelectedSprintId])
 
   const openNewTask = useCallback(
     (sectionId: string) => {
-      setNewTaskOpen(p => ({ ...p, [sectionId]: true }));
+      setNewTaskOpen(p => ({ ...p, [sectionId]: true }))
       setNewTask(p => ({
         ...p,
         [sectionId]: p[sectionId] || {
           title: "",
-          assigneeId: availableAssignees[0]?.id || null,
+          assigneeId: null,
           due: null,
           priority: "MEDIUM",
           points: null,
           description: null,
           sprintId: internalSelectedSprintId || null,
         },
-      }));
+      }))
     },
-    [availableAssignees, internalSelectedSprintId]
-  );
+    [internalSelectedSprintId]
+  )
 
   const cancelNewTask = useCallback((sectionId: string) => {
-    setNewTaskOpen(p => ({ ...p, [sectionId]: false }));
-  }, []);
+    setNewTaskOpen(p => ({ ...p, [sectionId]: false }))
+  }, [])
 
   const saveNewTask = useCallback(
     async (sectionId: string) => {
-      const form = newTask[sectionId];
-      if (!form || !form.title.trim()) return;
-      const assignedSprintId = internalSelectedSprintId || null;
+      const form = newTask[sectionId]
+      if (!form || !form.title.trim()) return
+
       try {
-        let createdTask: TaskUI = await createTask(sectionId, {
+        await createTask(sectionId, {
           title: form.title,
           description: form.description,
           assigneeId: form.assigneeId,
           dueDate: form.due,
           priority: form.priority,
           points: form.points,
-          sprintId: assignedSprintId,
+          sprintId: internalSelectedSprintId || null,
           status: "TODO",
-        });
-        if (!createdTask.sprintId) {
-          createdTask = { ...createdTask, sprintId: assignedSprintId };
-        }
-        setSections(prevSections =>
-          prevSections.map(s => {
-            if (s.id === sectionId) {
-              const taskBelongsToCurrentSprint = !assignedSprintId || createdTask.sprintId === assignedSprintId;
-              if (taskBelongsToCurrentSprint) {
-                return { ...s, tasks: [...s.tasks, createdTask] };
-              }
-            }
-            return s;
-          })
-        );
-        setNewTaskOpen(p => ({ ...p, [sectionId]: false }));
+        })
+        setNewTaskOpen(p => ({ ...p, [sectionId]: false }))
         setNewTask(p => {
-          const newState = { ...p };
-          delete newState[sectionId];
-          return newState;
-        });
+          const newState = { ...p }
+          delete newState[sectionId]
+          return newState
+        })
       } catch (err) {
-        console.error(`[saveNewTask] Failed to create task in section "${sectionId}":`, err);
+        console.error(`[saveNewTask] Failed to create task in section "${sectionId}":`, err)
       }
     },
     [newTask, createTask, internalSelectedSprintId]
-  );
+  )
 
   const openSheetFor = useCallback((sectionId: string, taskId: string) => {
-    setSheetTask({ sectionId, taskId });
-  }, []);
+    setSheetTask({ sectionId, taskId })
+  }, [])
 
   useEffect(() => {
-    if (fetchedSections) {
-      setSections(fetchedSections);
+    // This effect ensures the collapsed state is initialized when sections are loaded
+    if (sections) {
       setCollapsed(prevCollapsed => {
-        const newCollapsedState: Record<string, boolean> = {};
-        fetchedSections.forEach(sec => {
-          newCollapsedState[sec.id] = prevCollapsed[sec.id] ?? false;
-        });
-        return newCollapsedState;
-      });
+        const newCollapsedState: Record<string, boolean> = {}
+        sections.forEach(sec => {
+          newCollapsedState[sec.id] = prevCollapsed[sec.id] ?? false
+        })
+        return newCollapsedState
+      })
     }
-  }, [fetchedSections]);
+  }, [sections])
 
   const handleOpenDeleteSectionModal = useCallback(
     (section: SectionUI) => {
-      setSectionToDelete(section);
-      setDeleteTasksConfirmed(false);
-      const availableOtherSections = sections.filter(s => s.id !== section.id);
-      setReassignToSectionOption(availableOtherSections[0]?.id || null);
-      setDeleteSectionModalOpen(true);
+      setSectionToDelete(section)
+      setDeleteTasksConfirmed(false)
+      const availableOtherSections = sections.filter(s => s.id !== section.id)
+      setReassignToSectionOption(availableOtherSections[0]?.id || null)
+      setDeleteSectionModalOpen(true)
     },
     [sections]
-  );
+  )
 
   const handleConfirmDeleteSection = useCallback(async () => {
-    if (!sectionToDelete) return;
-    setIsSectionMutating(true);
+    if (!sectionToDelete) return
+    setIsSectionMutating(true)
     try {
-      const hasTasks = sectionToDelete.tasks.length > 0;
-      let reassignId: string | null | undefined = null;
+      const hasTasks = sectionToDelete.tasks.length > 0
+      let reassignId: string | null | undefined = null
       if (hasTasks && !deleteTasksConfirmed) {
-        reassignId = reassignToSectionOption;
+        reassignId = reassignToSectionOption
         if (!reassignId) {
-          setIsSectionMutating(false);
-          return;
+          setIsSectionMutating(false)
+          return
         }
       }
       await deleteSection(sectionToDelete.id, {
         deleteTasks: hasTasks ? deleteTasksConfirmed : true,
         reassignToSectionId: reassignId,
-      });
-      refetchProjectTasksAndSections();
+      })
     } catch (err) {
-      console.error(`[handleConfirmDeleteSection] Failed to delete section "${sectionToDelete.id}":`, err);
+      console.error(`[handleConfirmDeleteSection] Failed to delete section "${sectionToDelete.id}":`, err)
     } finally {
-      setIsSectionMutating(false);
-      setDeleteSectionModalOpen(false);
-      setSectionToDelete(null);
+      setIsSectionMutating(false)
+      setDeleteSectionModalOpen(false)
+      setSectionToDelete(null)
     }
-  }, [
-    sectionToDelete,
-    deleteTasksConfirmed,
-    reassignToSectionOption,
-    deleteSection,
-    refetchProjectTasksAndSections,
-  ]);
+  }, [sectionToDelete, deleteTasksConfirmed, reassignToSectionOption, deleteSection])
 
-  // Modal Focus Management
   useEffect(() => {
-    if (deleteSectionModalOpen && customModalRef.current) customModalRef.current.focus();
-  }, [deleteSectionModalOpen]);
+    if (deleteSectionModalOpen && customModalRef.current) customModalRef.current.focus()
+  }, [deleteSectionModalOpen])
   useEffect(() => {
-    if (deleteTaskModalOpen && customTaskModalRef.current) customTaskModalRef.current.focus();
-  }, [deleteTaskModalOpen]);
+    if (deleteTaskModalOpen && customTaskModalRef.current) customTaskModalRef.current.focus()
+  }, [deleteTaskModalOpen])
 
   const allSelected = useMemo(() => selectedCount > 0 && selectedCount === allTaskIds.length, [
     selectedCount,
     allTaskIds,
-  ]);
+  ])
   const otherSections = useMemo(() => sections.filter(s => s.id !== sectionToDelete?.id), [
     sections,
     sectionToDelete,
-  ]);
+  ])
   const currentSprintName = useMemo(() => {
-    const activeSprintId = internalSelectedSprintId || suggestedDefaultSprintId;
-    return sprintFilterOptions.find(s => s.id === activeSprintId)?.name || "";
-  }, [internalSelectedSprintId, sprintFilterOptions, suggestedDefaultSprintId]);
+    return sprintFilterOptions.find(s => s.id === internalSelectedSprintId)?.name || "All Sprints"
+  }, [internalSelectedSprintId, sprintFilterOptions])
 
-  const handleSprintSelectionChange = useCallback(
-    (sprintId: string) => {
-      setInternalSelectedSprintId(sprintId);
-      refetchProjectTasksAndSections();
-    },
-    [refetchProjectTasksAndSections]
-  );
+  const handleSprintSelectionChange = useCallback((sprintId: string) => {
+    setInternalSelectedSprintId(sprintId)
+  }, [])
 
-  if (loading) return <LoadingPlaceholder message="Loading tasks and sections..." />;
-  if (error) return <ErrorPlaceholder error={error} onRetry={refetchProjectTasksAndSections} />;
+  if (loading && !sections?.length) return <LoadingPlaceholder message="Loading tasks and sections..." />
+  if (error) return <ErrorPlaceholder error={error} onRetry={refetchProjectTasksAndSections} />
 
   return (
     <div className="p-6 pt-3">
@@ -543,22 +450,22 @@ export function ListView({ projectId }: ListViewProps) {
                 )}
               </button>
 
-              {section.editing ? (
+              {editingSectionId === section.id ? (
                 <Input
                   autoFocus
                   defaultValue={section.title}
                   className="h-8 w-64"
-                  onBlur={e => renameSection(section.id, e.target.value.trim() || "Untitled")}
+                  onBlur={e => renameSection(section.id, e.target.value.trim())}
                   onKeyDown={e => {
-                    if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-                    if (e.key === "Escape") setSectionEditing(section.id, false);
+                    if (e.key === "Enter") (e.target as HTMLInputElement).blur()
+                    if (e.key === "Escape") setEditingSectionId(null)
                   }}
                   disabled={isSectionMutating}
                 />
               ) : (
                 <button
                   className="text-sm font-semibold text-left hover:underline"
-                  onClick={() => setSectionEditing(section.id, true)}
+                  onClick={() => setEditingSectionId(section.id)}
                   title="Rename section"
                   disabled={isSectionMutating}
                 >
@@ -568,7 +475,12 @@ export function ListView({ projectId }: ListViewProps) {
 
               <div className="ml-auto flex items-center gap-2">
                 {!newTaskOpen[section.id] && (
-                  <Button variant="outline" size="sm" onClick={() => openNewTask(section.id)} disabled={isTaskMutating}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => openNewTask(section.id)}
+                    disabled={isTaskMutating}
+                  >
                     + Add task
                   </Button>
                 )}
@@ -579,7 +491,10 @@ export function ListView({ projectId }: ListViewProps) {
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => handleOpenDeleteSectionModal(section)} className="text-red-600">
+                    <DropdownMenuItem
+                      onClick={() => handleOpenDeleteSectionModal(section)}
+                      className="text-red-600"
+                    >
                       <Trash2 className="h-4 w-4 mr-2" /> Delete Section
                     </DropdownMenuItem>
                   </DropdownMenuContent>
@@ -598,9 +513,7 @@ export function ListView({ projectId }: ListViewProps) {
                     onToggleCompleted={() => toggleTaskCompleted(section.id, task.id)}
                     onChange={updates => updateTask(section.id, task.id, updates)}
                     onOpen={() => openSheetFor(section.id, task.id)}
-                    onDelete={(sid, tid) =>
-                      openDeleteTaskModal(sid, { id: tid, title: task.title, sectionId: sid } as TaskUI)
-                    }
+                    onDelete={() => openDeleteTaskModal(section.id, task)}
                     assignees={availableAssignees}
                   />
                 ))}
@@ -753,8 +666,6 @@ export function ListView({ projectId }: ListViewProps) {
         isTaskMutating={isTaskMutating}
       />
 
-      {/* MODALS */}
-
       {sectionToDelete && deleteSectionModalOpen && (
         <div
           ref={customModalRef}
@@ -764,10 +675,10 @@ export function ListView({ projectId }: ListViewProps) {
           tabIndex={-1}
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
           onClick={e => {
-            if (e.target === e.currentTarget) setDeleteSectionModalOpen(false);
+            if (e.target === e.currentTarget) setDeleteSectionModalOpen(false)
           }}
           onKeyDown={e => {
-            if (e.key === "Escape") setDeleteSectionModalOpen(false);
+            if (e.key === "Escape") setDeleteSectionModalOpen(false)
           }}
         >
           <div className="w-full max-w-lg rounded-lg border bg-white p-6 shadow-lg sm:rounded-xl">
@@ -797,8 +708,8 @@ export function ListView({ projectId }: ListViewProps) {
                             id="reassignTasks"
                             checked={!deleteTasksConfirmed && !!reassignToSectionOption}
                             onCheckedChange={(checked: boolean) => {
-                              if (checked) setReassignToSectionOption(otherSections[0]?.id || null);
-                              else setReassignToSectionOption(null);
+                              if (checked) setReassignToSectionOption(otherSections[0]?.id || null)
+                              else setReassignToSectionOption(null)
                             }}
                             disabled={isSectionMutating}
                           />
@@ -868,10 +779,10 @@ export function ListView({ projectId }: ListViewProps) {
           tabIndex={-1}
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
           onClick={e => {
-            if (e.target === e.currentTarget) setDeleteTaskModalOpen(false);
+            if (e.target === e.currentTarget) setDeleteTaskModalOpen(false)
           }}
           onKeyDown={e => {
-            if (e.key === "Escape") setDeleteTaskModalOpen(false);
+            if (e.key === "Escape") setDeleteTaskModalOpen(false)
           }}
         >
           <div className="w-full max-w-sm rounded-lg border bg-white p-6 shadow-lg sm:rounded-xl">
@@ -904,27 +815,27 @@ export function ListView({ projectId }: ListViewProps) {
         </div>
       )}
     </div>
-  );
+  )
 }
 
 interface TaskRowProps {
-  task: TaskUI;
-  selected: boolean;
-  onSelect: (checked: boolean) => void;
-  onToggleCompleted: () => void;
-  onChange: (updates: Partial<TaskUI>) => void;
-  onOpen: () => void;
-  onDelete: (sectionId: string, taskId: string) => void;
-  assignees: UserAvatarPartial[];
+  task: TaskUI
+  selected: boolean
+  onSelect: (checked: boolean) => void
+  onToggleCompleted: () => void
+  onChange: (updates: Partial<TaskUI>) => void
+  onOpen: () => void
+  onDelete: (sectionId: string, task: TaskUI) => void
+  assignees: UserAvatarPartial[]
 }
 
 function TaskRow({ task, selected, onSelect, onToggleCompleted, onChange, onOpen, onDelete, assignees }: TaskRowProps) {
-  const Icon = task.completed ? CheckCircle2 : Circle;
+  const Icon = task.completed ? CheckCircle2 : Circle
   const cellInput =
-    "h-8 w-full bg-transparent border-0 focus-visible:ring-0 focus-visible:border-0 focus:outline-none text-sm";
-  const assignee = task.assignee || { id: "unassigned", firstName: "Unassigned", lastName: "", avatar: "" };
-  const assigneeInitials = `${assignee.firstName?.[0] || ""}${assignee.lastName?.[0] || ""}`.trim() || "?";
-  const assigneeName = `${assignee.firstName || ""} ${assignee.lastName || ""}`.trim() || "Unassigned";
+    "h-8 w-full bg-transparent border-0 focus-visible:ring-0 focus-visible:border-0 focus:outline-none text-sm"
+  const assignee = task.assignee
+  const assigneeInitials = `${assignee?.firstName?.[0] || ""}${assignee?.lastName?.[0] || ""}`.trim() || "?"
+  const assigneeName = `${assignee?.firstName || ""} ${assignee?.lastName || ""}`.trim() || "Unassigned"
 
   return (
     <div className="grid grid-cols-[40px_1fr_180px_160px_140px_100px_96px] items-center gap-2 px-10 py-2 hover:bg-muted/40 focus-within:bg-emerald-50/50 focus-within:ring-1 focus-within:ring-emerald-200 rounded-md">
@@ -956,27 +867,29 @@ function TaskRow({ task, selected, onSelect, onToggleCompleted, onChange, onOpen
       </div>
       <div className="justify-self-end w-[180px]">
         <Select
-          value={assignee.id}
-          onValueChange={v => onChange({ assignee: assignees.find(a => a.id === v) || null })}
+          value={assignee?.id || "null"}
+          onValueChange={v => onChange({ assignee: v === "null" ? null : assignees.find(a => a.id === v) })}
         >
           <SelectTrigger className="h-8">
             <div className="flex items-center gap-2">
               <Avatar className="h-6 w-6 border">
-                <AvatarImage src={assignee.avatar || undefined} />
+                <AvatarImage src={assignee?.avatar || undefined} />
                 <AvatarFallback className="text-[10px]">{assigneeInitials}</AvatarFallback>
               </Avatar>
               <span className="text-sm truncate">{assigneeName}</span>
             </div>
           </SelectTrigger>
           <SelectContent>
+            <SelectItem value="null">Unassigned</SelectItem>
+            <Separator className="my-1" />
             {assignees.map(a => (
               <SelectItem key={a.id} value={a.id}>
                 <div className="flex items-center gap-2">
                   <Avatar className="h-5 w-5">
                     <AvatarImage src={a.avatar || undefined} />
-                    <AvatarFallback className="text-xs">{`${a.firstName?.[0] || ""}${
-                      a.lastName?.[0] || ""
-                    }` || "?"}</AvatarFallback>
+                    <AvatarFallback className="text-xs">
+                      {`${a.firstName?.[0] || ""}${a.lastName?.[0] || ""}` || "?"}
+                    </AvatarFallback>
                   </Avatar>
                   <span>
                     {a.firstName} {a.lastName}
@@ -993,7 +906,9 @@ function TaskRow({ task, selected, onSelect, onToggleCompleted, onChange, onOpen
       <div className="justify-self-end w-[140px]">
         <Select value={task.priority} onValueChange={(v: PriorityUI) => onChange({ priority: v })}>
           <SelectTrigger className="h-8">
-            <div className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-xs", priorityStyles[task.priority])}>
+            <div
+              className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-xs", priorityStyles[task.priority])}
+            >
               <span className={cn("mr-2 h-2 w-2 rounded-full", priorityDot[task.priority])} />
               {task.priority}
             </div>
@@ -1031,12 +946,12 @@ function TaskRow({ task, selected, onSelect, onToggleCompleted, onChange, onOpen
           variant="ghost"
           size="icon"
           className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
-          onClick={() => onDelete(task.sectionId, task.id)}
+          onClick={() => onDelete(task.sectionId, task)}
           title="Delete task"
         >
           <Trash2 className="h-4 w-4" />
         </Button>
       </div>
     </div>
-  );
+  )
 }

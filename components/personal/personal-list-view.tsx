@@ -1,3 +1,4 @@
+// components/personal/personal-list-view.tsx
 "use client"
 
 import { useMemo, useState, useEffect, useCallback, useRef } from "react"
@@ -34,7 +35,7 @@ import { LoadingPlaceholder, ErrorPlaceholder } from "@/components/placeholders/
 
 type NewTaskForm = {
   title: string
-  due?: string | null
+  endDate?: string | null
   priority: PriorityUI
   points?: number | null
   description?: string | null
@@ -52,8 +53,10 @@ const priorityDot: Record<PriorityUI, string> = {
 }
 
 export function PersonalListView() {
+  console.log("[PersonalListView] Component rendering or re-rendering.")
+
   const {
-    personalSections: fetchedSections,
+    personalSections: sections, // Use the data from the hook directly
     loading,
     error,
     refetchMyTasksAndSections,
@@ -61,6 +64,20 @@ export function PersonalListView() {
     updateSection,
     deleteSection,
   } = useMyTasksAndSections()
+
+  // Logging data fetching status
+  useEffect(() => {
+    console.log("[PersonalListView] Data fetching state changed.", { loading, error })
+    if (loading) {
+      console.log("[PersonalListView] Fetching tasks and sections...")
+    }
+    if (error) {
+      console.error("[PersonalListView] Error fetching data:", error)
+    }
+    if (!loading && !error && sections) {
+      console.log("[PersonalListView] Data successfully fetched or updated from cache. Current sections:", sections)
+    }
+  }, [loading, error, sections])
 
   const {
     createTask,
@@ -70,10 +87,11 @@ export function PersonalListView() {
     isTaskMutating,
   } = usePersonalTaskmutations()
 
-  const [sections, setSections] = useState<SectionUI[]>([])
+  // Removed local `sections` state to use the Apollo cache as the single source of truth.
+  const [editingSectionId, setEditingSectionId] = useState<string | null>(null)
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
   const [selected, setSelected] = useState<Record<string, boolean>>({})
-  const [sheetTask, setSheetTask] = useState<{ sectionId: string; taskId: string } | null>(null)
+  const [sheetTask, setSheetTask] = useState<{ personalSectionId: string; taskId: string } | null>(null)
   const [newTaskOpen, setNewTaskOpen] = useState<Record<string, boolean>>({})
   const [newTask, setNewTask] = useState<Record<string, NewTaskForm>>({})
   const [isSectionMutating, setIsSectionMutating] = useState(false)
@@ -83,176 +101,167 @@ export function PersonalListView() {
   const [deleteTasksConfirmed, setDeleteTasksConfirmed] = useState(false)
   const [reassignToSectionOption, setReassignToSectionOption] = useState<string | null>(null)
   const [deleteTaskModalOpen, setDeleteTaskModalOpen] = useState(false)
-  const [taskToDelete, setTaskToDelete] = useState<{ sectionId: string; task: TaskUI } | null>(null)
+  const [taskToDelete, setTaskToDelete] = useState<{ personalSectionId: string; task: TaskUI } | null>(null)
 
   const customModalRef = useRef<HTMLDivElement>(null)
   const customTaskModalRef = useRef<HTMLDivElement>(null)
 
   const sheetData = useMemo(() => {
     if (!sheetTask) return null
-    const s = sections.find(x => x.id === sheetTask.sectionId)
+    const s = sections.find(x => x.id === sheetTask.personalSectionId)
     const t = s?.tasks.find(x => x.id === sheetTask.taskId)
-    return t ? { sectionId: sheetTask.sectionId, task: t } : null
+    return t ? { personalSectionId: sheetTask.personalSectionId, task: t } : null
   }, [sheetTask, sections])
 
   const toggleSection = useCallback((id: string) => {
+    console.log("[PersonalListView] Toggling collapsed state for section.", { id })
     setCollapsed(prev => ({ ...prev, [id]: !prev[id] }))
-  }, [])
-
-  const setSectionEditing = useCallback((id: string, editing: boolean) => {
-    setSections(prev => prev.map(s => (s.id === id ? { ...s, editing } : s)))
   }, [])
 
   const renameSection = useCallback(
     async (id: string, title: string) => {
+      console.log("[PersonalListView] Initiating renameSection.", { id, title })
+      setEditingSectionId(null) // Exit editing mode immediately
       if (!title.trim()) {
-        setSections(prev => prev.map(s => (s.id === id ? { ...s, editing: false } : s)))
+        console.warn("[PersonalListView] renameSection aborted: title is empty.")
         return
       }
       setIsSectionMutating(true)
       try {
+        console.log("[PersonalListView] Calling updateSection mutation.", { id, title })
         await updateSection(id, title)
+        console.log("[PersonalListView] updateSection mutation successful.")
+      } catch (err) {
+        console.error("[PersonalListView] Failed to rename section:", { id, title }, err)
       } finally {
         setIsSectionMutating(false)
-        setSections(prev => prev.map(s => (s.id === id ? { ...s, editing: false } : s)))
+        console.log("[PersonalListView] renameSection finished.")
       }
     },
     [updateSection]
   )
 
   const addSection = useCallback(async () => {
+    console.log("[PersonalListView] Initiating addSection.")
     setIsSectionMutating(true)
     try {
+      console.log("[PersonalListView] Calling createSection mutation with title 'New Section'.")
       await createSection("New Section")
-      refetchMyTasksAndSections()
+      console.log("[PersonalListView] createSection mutation successful.")
+    } catch (err) {
+      console.error("[PersonalListView] Failed to create section:", err)
     } finally {
       setIsSectionMutating(false)
+      console.log("[PersonalListView] addSection finished.")
     }
-  }, [createSection, refetchMyTasksAndSections])
+  }, [createSection])
 
   const toggleTaskCompleted = useCallback(
-    async (sectionId: string, taskId: string) => {
-      const taskToUpdate = sections.find(s => s.id === sectionId)?.tasks.find(t => t.id === taskId)
-      if (!taskToUpdate) return
-      setSections(prev =>
-        prev.map(s =>
-          s.id === sectionId
-            ? {
-                ...s,
-                tasks: s.tasks.map(t =>
-                  t.id === taskId
-                    ? { ...t, completed: !t.completed, status: !t.completed ? "DONE" : "TODO" }
-                    : t
-                ),
-              }
-            : s
-        )
-      )
+    async (personalSectionId: string, taskId: string) => {
+      console.log("[PersonalListView] Initiating toggleTaskCompleted.", { personalSectionId, taskId })
+      const taskToUpdate = sections.find(s => s.id === personalSectionId)?.tasks.find(t => t.id === taskId)
+      if (!taskToUpdate) {
+        console.warn("[PersonalListView] toggleTaskCompleted aborted: task not found.", { personalSectionId, taskId })
+        return
+      }
+
       try {
-        await toggleTaskCompletedMutation(taskId, taskToUpdate.status)
+        console.log("[PersonalListView] Calling toggleTaskCompleted mutation.", {
+          taskId,
+          personalSectionId,
+          currentStatus: taskToUpdate.status,
+        })
+        // ADJUSTMENT: Pass personalSectionId to the mutation hook. This is the fix.
+        await toggleTaskCompletedMutation(taskId, personalSectionId, taskToUpdate.status)
+        console.log("[PersonalListView] toggleTaskCompleted mutation successful.")
       } catch (err) {
-        setSections(prev =>
-          prev.map(s =>
-            s.id === sectionId
-              ? {
-                  ...s,
-                  tasks: s.tasks.map(t =>
-                    t.id === taskId
-                      ? { ...t, completed: !t.completed, status: !t.completed ? "TODO" : "DONE" }
-                      : t
-                  ),
-                }
-              : s
-          )
-        )
+        console.error("Failed to toggle task completion:", err)
       }
     },
     [sections, toggleTaskCompletedMutation]
   )
 
   const updateTask = useCallback(
-    async (sectionId: string, taskId: string, updates: Partial<TaskUI>) => {
-      const originalTask = sections.find(s => s.id === sectionId)?.tasks.find(t => t.id === taskId)
-      if (!originalTask) return
-
-      const mutationInput: { [key: string]: any } = { id: taskId }
+    async (personalSectionId: string, taskId: string, updates: Partial<TaskUI>) => {
+      console.log("[PersonalListView] Initiating updateTask.", { personalSectionId, taskId, updates })
+      const mutationInput: { [key: string]: any } = {}
       if (updates.title !== undefined) mutationInput.title = updates.title
       if (updates.description !== undefined) mutationInput.description = updates.description
       if (updates.priority !== undefined) mutationInput.priority = updates.priority
       if (updates.points !== undefined) mutationInput.points = updates.points
-      if (updates.due !== undefined) mutationInput.dueDate = updates.due
+      if (updates.endDate !== undefined) mutationInput.endDate = updates.endDate
       const newStatus = updates.completed !== undefined ? (updates.completed ? "DONE" : "TODO") : undefined
       if (newStatus !== undefined) mutationInput.status = newStatus
 
-      setSections(prev =>
-        prev.map(s =>
-          s.id === sectionId
-            ? { ...s, tasks: s.tasks.map(t => (t.id === taskId ? { ...t, ...updates } : t)) }
-            : s
-        )
-      )
-
-      if (Object.keys(mutationInput).length > 1) {
+      if (Object.keys(mutationInput).length > 0) {
         try {
-          await updateTaskMutation(taskId, mutationInput)
+          console.log("[PersonalListView] Calling updateTask mutation.", { taskId, personalSectionId, mutationInput })
+          await updateTaskMutation(taskId, personalSectionId, mutationInput)
+          console.log("[PersonalListView] updateTask mutation successful.")
         } catch (err) {
-          setSections(prev =>
-            prev.map(s =>
-              s.id === sectionId
-                ? { ...s, tasks: s.tasks.map(t => (t.id === taskId ? originalTask : t)) }
-                : s
-            )
-          )
+          console.error("Failed to update task:", err)
         }
+      } else {
+        console.warn("[PersonalListView] updateTask aborted: no valid updates provided.", { updates })
       }
     },
-    [sections, updateTaskMutation]
+    [updateTaskMutation]
   )
 
-  const openDeleteTaskModal = useCallback((sectionId: string, task: TaskUI) => {
-    setTaskToDelete({ sectionId, task })
+  const openDeleteTaskModal = useCallback((personalSectionId: string, task: TaskUI) => {
+    console.log("[PersonalListView] Opening delete task modal.", { personalSectionId, task })
+    setTaskToDelete({ personalSectionId, task })
     setDeleteTaskModalOpen(true)
   }, [])
 
   const closeSheet = useCallback(() => {
+    console.log("[PersonalListView] Closing task detail sheet.")
     setSheetTask(null)
   }, [])
 
   const handleConfirmTaskDelete = useCallback(async () => {
-    if (!taskToDelete) return
-    const sectionId = taskToDelete.sectionId
-    const taskId = taskToDelete.task.id
-    const originalSections = [...sections]
-
-    setSections(prev => prev.map(s => (s.id === sectionId ? { ...s, tasks: s.tasks.filter(t => t.id !== taskId) } : s)))
-    setSelected(prev => {
-      const copy = { ...prev }
-      delete copy[taskId]
-      return copy
-    })
+    if (!taskToDelete) {
+      console.warn("[PersonalListView] handleConfirmTaskDelete aborted: taskToDelete is null.")
+      return
+    }
+    const { personalSectionId, task } = taskToDelete
+    const taskId = task.id
+    console.log("[PersonalListView] Confirming task deletion.", { taskId, personalSectionId })
 
     try {
-      await deleteTaskMutation(taskId)
+      console.log("[PersonalListView] Calling deleteTask mutation.", { taskId, personalSectionId })
+      // ADJUSTMENT: Pass personalSectionId to the mutation hook. This is the fix.
+      await deleteTaskMutation(taskId, personalSectionId)
+      console.log("[PersonalListView] deleteTask mutation successful.")
     } catch (err) {
-      setSections(originalSections)
-      refetchMyTasksAndSections()
+      console.error("Failed to delete task:", err)
     } finally {
+      console.log("[PersonalListView] Closing delete task modal and resetting state.")
       setDeleteTaskModalOpen(false)
       setTaskToDelete(null)
       if (sheetTask?.taskId === taskId) {
         closeSheet()
       }
     }
-  }, [taskToDelete, sections, deleteTaskMutation, refetchMyTasksAndSections, sheetTask, closeSheet])
+  }, [taskToDelete, deleteTaskMutation, sheetTask, closeSheet])
 
   const allTaskIds = useMemo(() => sections.flatMap(s => s.tasks.map(t => t.id)), [sections])
+  const sectionTaskMap = useMemo(
+    () => new Map(sections.flatMap(s => s.tasks.map(t => [t.id, s.id]))),
+    [sections]
+  )
 
   const toggleSelect = useCallback((taskId: string, checked: boolean) => {
+    console.log("[PersonalListView] Toggling selection for a single task.", { taskId, checked })
     setSelected(prev => ({ ...prev, [taskId]: checked }))
   }, [])
 
   const toggleSelectAll = useCallback(
     (checked: boolean) => {
+      console.log("[PersonalListView] Toggling selection for all tasks.", {
+        checked,
+        totalTasks: allTaskIds.length,
+      })
       if (!checked) {
         setSelected({})
         return
@@ -267,30 +276,41 @@ export function PersonalListView() {
   const selectedCount = useMemo(() => Object.values(selected).filter(Boolean).length, [selected])
 
   const bulkDeleteSelected = useCallback(async () => {
-    const toDelete = new Set(Object.entries(selected).filter(([, v]) => v).map(([k]) => k))
-    if (toDelete.size === 0) return
+    const toDelete = Object.keys(selected).filter(k => selected[k])
+    if (toDelete.length === 0) {
+      console.warn("[PersonalListView] bulkDeleteSelected aborted: no tasks selected.")
+      return
+    }
+    console.log("[PersonalListView] Initiating bulk delete for selected tasks.", { taskIds: toDelete })
 
-    const originalSections = [...sections]
-    setSections(prev => prev.map(s => ({ ...s, tasks: s.tasks.filter(t => !toDelete.has(t.id)) })))
     setSelected({})
 
     try {
-      for (const taskId of Array.from(toDelete)) {
-        await deleteTaskMutation(taskId)
+      for (const taskId of toDelete) {
+        // ADJUSTMENT: Use the sectionTaskMap to find the personalSectionId for each task.
+        const personalSectionId = sectionTaskMap.get(taskId)
+        if (personalSectionId) {
+          console.log(`[PersonalListView] Deleting task ${taskId} from section ${personalSectionId}`)
+          await deleteTaskMutation(taskId, personalSectionId)
+        } else {
+          console.warn(`Could not find section for task ${taskId}. Deleting without UI update.`)
+          await deleteTaskMutation(taskId, "") // Pass empty string to satisfy signature, hook will log error.
+        }
       }
+      console.log("[PersonalListView] Bulk delete operation completed successfully.")
     } catch (err) {
-      setSections(originalSections)
-      refetchMyTasksAndSections()
+      console.error("Failed during bulk delete:", err)
     }
-  }, [selected, sections, deleteTaskMutation, refetchMyTasksAndSections])
+  }, [selected, deleteTaskMutation, sectionTaskMap])
 
-  const openNewTask = useCallback((sectionId: string) => {
-    setNewTaskOpen(p => ({ ...p, [sectionId]: true }))
+  const openNewTask = useCallback((personalSectionId: string) => {
+    console.log("[PersonalListView] Opening new task form.", { personalSectionId })
+    setNewTaskOpen(p => ({ ...p, [personalSectionId]: true }))
     setNewTask(p => ({
       ...p,
-      [sectionId]: p[sectionId] || {
+      [personalSectionId]: p[personalSectionId] || {
         title: "",
-        due: null,
+        endDate: null,
         priority: "MEDIUM",
         points: null,
         description: null,
@@ -298,65 +318,81 @@ export function PersonalListView() {
     }))
   }, [])
 
-  const cancelNewTask = useCallback((sectionId: string) => {
-    setNewTaskOpen(p => ({ ...p, [sectionId]: false }))
+  const cancelNewTask = useCallback((personalSectionId: string) => {
+    console.log("[PersonalListView] Cancelling new task creation.", { personalSectionId })
+    setNewTaskOpen(p => ({ ...p, [personalSectionId]: false }))
   }, [])
 
   const saveNewTask = useCallback(
-    async (sectionId: string) => {
-      const form = newTask[sectionId]
-      if (!form || !form.title.trim()) return
+    async (personalSectionId: string) => {
+      const form = newTask[personalSectionId]
+      if (!form || !form.title.trim()) {
+        console.warn("[PersonalListView] saveNewTask aborted: form is invalid or title is empty.", { form })
+        return
+      }
+      console.log("[PersonalListView] Initiating saveNewTask.", { personalSectionId, form })
       try {
-        await createTask(sectionId, {
+        const taskPayload = {
           title: form.title,
           description: form.description,
-          dueDate: form.due,
+          endDate: form.endDate,
           priority: form.priority,
           points: form.points,
-          status: "TODO",
-        })
-        setNewTaskOpen(p => ({ ...p, [sectionId]: false }))
+          status: "TODO" as "TODO",
+        }
+        console.log("[PersonalListView] Calling createTask mutation.", { personalSectionId, taskPayload })
+        await createTask(personalSectionId, taskPayload)
+        console.log("[PersonalListView] createTask mutation successful. Closing form.")
+        setNewTaskOpen(p => ({ ...p, [personalSectionId]: false }))
         setNewTask(p => {
           const newState = { ...p }
-          delete newState[sectionId]
+          delete newState[personalSectionId]
           return newState
         })
-        refetchMyTasksAndSections()
-      } catch (err) {}
+      } catch (err) {
+        console.error("Failed to save new task:", err)
+      }
     },
-    [newTask, createTask, refetchMyTasksAndSections]
+    [newTask, createTask]
   )
 
-  const openSheetFor = useCallback((sectionId: string, taskId: string) => {
-    setSheetTask({ sectionId, taskId })
+  const openSheetFor = useCallback((personalSectionId: string, taskId: string) => {
+    console.log("[PersonalListView] Opening sheet for task.", { personalSectionId, taskId })
+    setSheetTask({ personalSectionId, taskId })
   }, [])
 
   useEffect(() => {
-    if (fetchedSections) {
-      setSections(fetchedSections)
+    if (sections) {
+      console.log("[PersonalListView] Initializing or updating collapsed state for sections.")
       setCollapsed(prevCollapsed => {
         const newCollapsedState: Record<string, boolean> = {}
-        fetchedSections.forEach(sec => {
+        sections.forEach(sec => {
           newCollapsedState[sec.id] = prevCollapsed[sec.id] ?? false
         })
         return newCollapsedState
       })
     }
-  }, [fetchedSections])
+  }, [sections])
 
   const handleOpenDeleteSectionModal = useCallback(
     (section: SectionUI) => {
+      console.log("[PersonalListView] Opening delete section modal.", { section })
       setSectionToDelete(section)
       setDeleteTasksConfirmed(false)
       const availableOtherSections = sections.filter(s => s.id !== section.id)
-      setReassignToSectionOption(availableOtherSections[0]?.id || null)
+      const reassignTarget = availableOtherSections[0]?.id || null
+      console.log("[PersonalListView] Setting initial reassign target for section tasks.", { reassignTarget })
+      setReassignToSectionOption(reassignTarget)
       setDeleteSectionModalOpen(true)
     },
     [sections]
   )
 
   const handleConfirmDeleteSection = useCallback(async () => {
-    if (!sectionToDelete) return
+    if (!sectionToDelete) {
+      console.warn("[PersonalListView] handleConfirmDeleteSection aborted: sectionToDelete is null.")
+      return
+    }
     setIsSectionMutating(true)
     try {
       const hasTasks = sectionToDelete.tasks.length > 0
@@ -364,21 +400,30 @@ export function PersonalListView() {
       if (hasTasks && !deleteTasksConfirmed) {
         reassignId = reassignToSectionOption
         if (!reassignId) {
+          console.warn("[PersonalListView] handleConfirmDeleteSection aborted: tasks exist but no reassign section selected.")
           setIsSectionMutating(false)
           return
         }
       }
-      await deleteSection(sectionToDelete.id, {
+      const deleteOptions = {
         deleteTasks: hasTasks ? deleteTasksConfirmed : true,
         reassignToSectionId: reassignId,
+      }
+      console.log("[PersonalListView] Confirming section deletion with options.", {
+        personalSectionId: sectionToDelete.id,
+        options: deleteOptions,
       })
-      refetchMyTasksAndSections()
+      await deleteSection(sectionToDelete.id, deleteOptions)
+      console.log("[PersonalListView] deleteSection mutation successful.")
+    } catch (err) {
+      console.error("[PersonalListView] Failed to delete section:", err)
     } finally {
       setIsSectionMutating(false)
       setDeleteSectionModalOpen(false)
       setSectionToDelete(null)
+      console.log("[PersonalListView] handleConfirmDeleteSection finished.")
     }
-  }, [sectionToDelete, deleteTasksConfirmed, reassignToSectionOption, deleteSection, refetchMyTasksAndSections])
+  }, [sectionToDelete, deleteTasksConfirmed, reassignToSectionOption, deleteSection])
 
   useEffect(() => {
     if (deleteSectionModalOpen && customModalRef.current) customModalRef.current.focus()
@@ -396,10 +441,8 @@ export function PersonalListView() {
     [sections, sectionToDelete]
   )
 
-  if (loading) return <LoadingPlaceholder message="Loading your tasks..." />
+  if (loading && !sections?.length) return <LoadingPlaceholder message="Loading your tasks..." />
   if (error) return <ErrorPlaceholder error={error} onRetry={refetchMyTasksAndSections} />
-
-
 
   return (
     <div className="p-6 pt-3">
@@ -439,22 +482,22 @@ export function PersonalListView() {
                 )}
               </button>
 
-              {section.editing ? (
+              {editingSectionId === section.id ? (
                 <Input
                   autoFocus
                   defaultValue={section.title}
                   className="h-8 w-64"
-                  onBlur={e => renameSection(section.id, e.target.value.trim() || "Untitled")}
+                  onBlur={e => renameSection(section.id, e.target.value.trim())}
                   onKeyDown={e => {
                     if (e.key === "Enter") (e.target as HTMLInputElement).blur()
-                    if (e.key === "Escape") setSectionEditing(section.id, false)
+                    if (e.key === "Escape") setEditingSectionId(null)
                   }}
                   disabled={isSectionMutating}
                 />
               ) : (
                 <button
                   className="text-sm font-semibold text-left hover:underline"
-                  onClick={() => setSectionEditing(section.id, true)}
+                  onClick={() => setEditingSectionId(section.id)}
                   title="Rename section"
                   disabled={isSectionMutating}
                 >
@@ -500,7 +543,7 @@ export function PersonalListView() {
                     selected={!!selected[task.id]}
                     onSelect={checked => toggleSelect(task.id, checked)}
                     onToggleCompleted={() => toggleTaskCompleted(section.id, task.id)}
-                    onChange={updates => updateTask(section.id, task.id, updates)}
+                    onUpdate={updates => updateTask(section.id, task.id, updates)}
                     onOpen={() => openSheetFor(section.id, task.id)}
                     onDelete={() => openDeleteTaskModal(section.id, task)}
                   />
@@ -527,11 +570,11 @@ export function PersonalListView() {
                           <label className="text-xs text-muted-foreground">Due date</label>
                           <Input
                             type="date"
-                            value={newTask[section.id]?.due || ""}
+                            value={newTask[section.id]?.endDate || ""}
                             onChange={e =>
                               setNewTask(p => ({
                                 ...p,
-                                [section.id]: { ...(p[section.id] as NewTaskForm), due: e.target.value },
+                                [section.id]: { ...(p[section.id] as NewTaskForm), endDate: e.target.value },
                               }))
                             }
                             disabled={isTaskMutating}
@@ -783,15 +826,26 @@ interface TaskRowProps {
   selected: boolean
   onSelect: (checked: boolean) => void
   onToggleCompleted: () => void
-  onChange: (updates: Partial<TaskUI>) => void
+  onUpdate: (updates: Partial<TaskUI>) => void
   onOpen: () => void
   onDelete: () => void
 }
 
-function TaskRow({ task, selected, onSelect, onToggleCompleted, onChange, onOpen, onDelete }: TaskRowProps) {
+function TaskRow({ task, selected, onSelect, onToggleCompleted, onUpdate, onOpen, onDelete }: TaskRowProps) {
   const Icon = task.completed ? CheckCircle2 : Circle
   const cellInput =
     "h-8 w-full bg-transparent border-0 focus-visible:ring-0 focus-visible:border-0 focus:outline-none text-sm"
+
+  const [localTitle, setLocalTitle] = useState(task.title)
+  useEffect(() => {
+    setLocalTitle(task.title)
+  }, [task.title])
+
+  const handleBlur = (field: keyof TaskUI, value: any) => {
+    if (value !== task[field]) {
+      onUpdate({ [field]: value })
+    }
+  }
 
   return (
     <div className="grid grid-cols-[40px_1fr_160px_140px_100px_96px] items-center gap-2 px-10 py-2 hover:bg-muted/40 focus-within:bg-emerald-50/50 focus-within:ring-1 focus-within:ring-emerald-200 rounded-md">
@@ -816,16 +870,25 @@ function TaskRow({ task, selected, onSelect, onToggleCompleted, onChange, onOpen
             "min-w-0 rounded-sm focus-visible:bg-emerald-50 focus-visible:ring-2 focus-visible:ring-emerald-500/60 focus-visible:ring-offset-0",
             task.completed && "line-through text-muted-foreground"
           )}
-          value={task.title}
-          onChange={e => onChange({ title: e.target.value })}
+          value={localTitle}
+          onChange={e => setLocalTitle(e.target.value)}
+          onBlur={() => handleBlur("title", localTitle)}
+          onKeyDown={e => {
+            if (e.key === "Enter") (e.target as HTMLInputElement).blur()
+          }}
           onFocus={e => e.currentTarget.select()}
         />
       </div>
       <div className="justify-self-end w-[160px]">
-        <Input type="date" value={task.due || ""} onChange={e => onChange({ due: e.target.value })} className="h-8" />
+        <Input
+          type="date"
+          defaultValue={task.endDate || ""}
+          onBlur={e => handleBlur("endDate", e.target.value)}
+          className="h-8"
+        />
       </div>
       <div className="justify-self-end w-[140px]">
-        <Select value={task.priority} onValueChange={(v: PriorityUI) => onChange({ priority: v })}>
+        <Select value={task.priority} onValueChange={(v: PriorityUI) => onUpdate({ priority: v })}>
           <SelectTrigger className="h-8">
             <div
               className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-xs", priorityStyles[task.priority])}
@@ -850,12 +913,16 @@ function TaskRow({ task, selected, onSelect, onToggleCompleted, onChange, onOpen
         <Input
           className={cellInput}
           type="number"
-          value={task.points ?? ""}
-          onChange={e =>
-            onChange({
-              points: Number.isNaN(Number.parseInt(e.target.value)) ? 0 : Number.parseInt(e.target.value),
-            })
+          defaultValue={task.points ?? ""}
+          onBlur={e =>
+            handleBlur(
+              "points",
+              Number.isNaN(Number.parseInt(e.target.value)) ? null : Number.parseInt(e.target.value)
+            )
           }
+          onKeyDown={e => {
+            if (e.key === "Enter") (e.target as HTMLInputElement).blur()
+          }}
           min={0}
         />
       </div>

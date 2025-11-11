@@ -1,8 +1,7 @@
-// components/board/personal-kanban-board.tsx
-
+// components/board/personal/personal-kanban-board.tsx
 "use client"
 
-import { useEffect, useMemo, useRef, useState, useCallback } from "react"
+import { useMemo, useRef, useState, useCallback, useEffect } from "react"
 import type { Card, Column } from "../kanban-types"
 import { KanbanSortableColumn } from "../kanban-sortable-column"
 import { KanbanSortableCard } from "../kanban-sortable-card"
@@ -23,11 +22,9 @@ import {
   SortableContext,
   verticalListSortingStrategy,
   horizontalListSortingStrategy,
-  arrayMove, // Import the recommended utility
+  arrayMove,
 } from "@dnd-kit/sortable"
 import { Loader2 } from "lucide-react"
-
-import { usePersonalKanbanMutations } from "@/hooks/personal/usePersonalKanbanMutations"
 import { useTaskDetails } from "@/hooks/personal/useTaskDetails"
 import { TaskDetailSheet } from "@/components/modals/task-detail-sheet"
 import { TaskUI } from "@/hooks/personal/useMyTasksAndSections"
@@ -49,9 +46,27 @@ type OverlayState =
 
 interface PersonalKanbanBoardProps {
   initialColumns: Column[]
+  onColumnsChange: (newColumns: Column[]) => void
+  onCreateColumn: (title: string) => void
+  onUpdateColumn: (columnId: string, title: string) => void
+  onDeleteColumn: (columnId: string) => void
+  onCreateCard: (columnId: string, title: string) => void
+  onUpdateCard: (columnId: string, cardId: string, updates: Partial<TaskUI & { personalSectionId?: string }>) => void
+  onDeleteCard: (columnId: string, cardId: string) => void
+  isMutating: boolean
 }
 
-export function PersonalKanbanBoard({ initialColumns }: PersonalKanbanBoardProps) {
+export function PersonalKanbanBoard({
+  initialColumns,
+  onColumnsChange,
+  onCreateColumn,
+  onUpdateColumn,
+  onDeleteColumn,
+  onCreateCard,
+  onUpdateCard,
+  onDeleteCard,
+  isMutating,
+}: PersonalKanbanBoardProps) {
   const [columns, setColumns] = useState<Column[]>(initialColumns)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [selected, setSelected] = useState<{ columnId: string; cardId: string } | null>(null)
@@ -60,22 +75,6 @@ export function PersonalKanbanBoard({ initialColumns }: PersonalKanbanBoardProps
 
   const rowRef = useRef<HTMLDivElement | null>(null)
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
-
-  // --- LOGGING ---
-  const renderCount = useRef(0)
-  renderCount.current += 1
-  console.log(`[RENDER #${renderCount.current}] Board rendering. initialColumns has ${initialColumns.length} items.`)
-
-  const {
-    createColumn,
-    updateColumn,
-    deleteColumn,
-    createCard,
-    updateCard,
-    deleteCard,
-    isMutating: isKanbanMutating,
-    mutationError,
-  } = usePersonalKanbanMutations()
 
   const { taskDetails, isMutating: isTaskDetailsMutating } = useTaskDetails(selected?.cardId || null)
 
@@ -90,17 +89,7 @@ export function PersonalKanbanBoard({ initialColumns }: PersonalKanbanBoardProps
   }, [])
 
   useEffect(() => {
-    // --- LOGGING ---
-    console.groupCollapsed(`[EFFECT 🔎] Syncing state from initialColumns prop.`)
-    console.log("Prop 'initialColumns' order:", JSON.parse(JSON.stringify(initialColumns.map(c => c.title))))
-    console.log("Current local 'columns' order:", JSON.parse(JSON.stringify(columns.map(c => c.title))))
-    if (JSON.stringify(initialColumns) !== JSON.stringify(columns)) {
-      console.warn("[EFFECT 🔴] State overwritten by initialColumns prop because they were different.")
-      setColumns(initialColumns)
-    } else {
-      console.log("[EFFECT ✅] No state change needed, local state matches prop.")
-    }
-    console.groupEnd()
+    setColumns(initialColumns)
   }, [initialColumns])
 
   useEffect(() => {
@@ -113,6 +102,7 @@ export function PersonalKanbanBoard({ initialColumns }: PersonalKanbanBoardProps
         points: taskDetails.points,
         due: taskDetails.dueDate,
         assignee: null,
+        completed: taskDetails.status === "DONE",
         editing: false,
       })
     } else {
@@ -122,9 +112,17 @@ export function PersonalKanbanBoard({ initialColumns }: PersonalKanbanBoardProps
 
   const handleUpdateTask = useCallback(
     async (sectionId: string, taskId: string, updates: Partial<TaskUI>) => {
-      await updateCard(sectionId, taskId, updates)
+      await onUpdateCard(sectionId, taskId, updates)
     },
-    [updateCard]
+    [onUpdateCard]
+  )
+
+  const handleDeleteRequest = useCallback(
+    (sectionId: string, task: TaskUI) => {
+      onDeleteCard(sectionId, task.id)
+      setDrawerOpen(false)
+    },
+    [onDeleteCard]
   )
 
   function findColumnIdByCardId(cardId: string) {
@@ -160,27 +158,19 @@ export function PersonalKanbanBoard({ initialColumns }: PersonalKanbanBoardProps
       setColumns(currentColumns => {
         const fromIndex = currentColumns.findIndex(c => c.id === activeId)
         const toIndex = currentColumns.findIndex(c => c.id === overId)
+        if (fromIndex === -1 || toIndex === -1) return currentColumns
 
-        if (fromIndex === -1 || toIndex === -1) {
-          return currentColumns // Should not happen
-        }
-
-        console.log(`[DRAG END - COLUMN] from index ${fromIndex} to ${toIndex}`)
         const reorderedColumns = arrayMove(currentColumns, fromIndex, toIndex)
-
-        console.log("[OPTIMISTIC UPDATE] New local order:", reorderedColumns.map(c => c.title))
-        console.log(`[MUTATION] Calling 'updateColumn' for ID '${activeId}' with new order index ${toIndex}`)
-        updateColumn(activeId, undefined, toIndex)
-
+        onColumnsChange(reorderedColumns)
         return reorderedColumns
       })
       return
     }
 
     if (activeType === "card") {
-      // Card logic remains the same, but for consistency, we'll keep it clean
       const fromColumnId = findColumnIdByCardId(activeId)
       if (!fromColumnId) return
+
       let toColumnId: string | undefined
       const overIsColumn = columns.some(c => c.id === overId)
 
@@ -189,7 +179,6 @@ export function PersonalKanbanBoard({ initialColumns }: PersonalKanbanBoardProps
       } else {
         toColumnId = findColumnIdByCardId(overId)
       }
-
       if (!toColumnId) return
 
       const fromIndex = indexOfCard(fromColumnId, activeId)
@@ -197,40 +186,25 @@ export function PersonalKanbanBoard({ initialColumns }: PersonalKanbanBoardProps
 
       if (fromColumnId === toColumnId && fromIndex === toIndex) return
 
+      // Optimistically update local UI
       setColumns(prev => {
         const next = prev.map(c => ({ ...c, cards: [...c.cards] }))
         const fromCol = next.find(c => c.id === fromColumnId)!
         const toCol = next.find(c => c.id === toColumnId)!
         const [moved] = fromCol.cards.splice(fromIndex, 1)
-        let insertAt = toIndex
-        if (fromColumnId === toColumnId && toIndex > fromIndex) {
-          insertAt = toIndex - 1
-        }
-        toCol.cards.splice(insertAt, 0, moved)
+
+        toCol.cards.splice(toIndex, 0, moved)
         return next
       })
 
+      // If card moved to a new column, notify the parent to trigger mutation
       if (fromColumnId !== toColumnId) {
-        updateCard(toColumnId, activeId, { sectionId: toColumnId })
+        onUpdateCard(fromColumnId, activeId, { personalSectionId: toColumnId })
       }
     }
   }
 
-  const handleAddCard = useCallback(async (columnId: string, title: string) => await createCard(columnId, title), [createCard])
-  const handleUpdateColumnTitle = useCallback(async (columnId: string, title: string) => {
-      const currentColumn = columns.find(c => c.id === columnId)
-      await updateColumn(columnId, title, currentColumn?.order)
-    }, [updateColumn, columns])
-  const handleDeleteColumn = useCallback(async (columnId: string) => await deleteColumn(columnId), [deleteColumn])
-  const handleDeleteCard = useCallback(async (cardId: string) => {
-      await deleteCard(cardId)
-      setDrawerOpen(false)
-    }, [deleteCard])
-  const handleDeleteRequest = useCallback((sectionId: string, task: TaskUI) => {
-      handleDeleteCard(task.id)
-    }, [handleDeleteCard])
-
-  const isMutating = isKanbanMutating || isTaskDetailsMutating
+  const isBoardMutating = isMutating || isTaskDetailsMutating
 
   const sheetTaskProp = useMemo(() => {
     if (!selected) return null
@@ -243,29 +217,22 @@ export function PersonalKanbanBoard({ initialColumns }: PersonalKanbanBoardProps
       ...editingCardLocal,
       id: editingCardLocal.id,
       sectionId: selected.columnId,
-      assignee: null,
-      completed: false,
-      status: "TODO",
+      status: editingCardLocal.completed ? "DONE" : "TODO",
     }
   }, [editingCardLocal, selected])
 
   return (
     <div className="page-scroller">
-      {mutationError && (
-        <div className="bg-red-100 text-red-700 p-3 rounded-md mb-4">
-          Error performing mutation: {mutationError.message}
-        </div>
-      )}
       <div className="flex items-center  pr-6 pl-6 pt-3 gap-3">
         <Button
-          onClick={() => createColumn("New Column")}
+          onClick={() => onCreateColumn("New Column")}
           className="bg-[#4ab5ae] text-white h-9 rounded-md"
-          disabled={isMutating}
+          disabled={isBoardMutating}
         >
-          {isKanbanMutating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}+ Add column
+          {isMutating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}+ Add column
         </Button>
         <div className="ml-auto relative w-[260px]">
-          <Input className="h-9" placeholder="Search tasks..." disabled={isMutating} />
+          <Input className="h-9" placeholder="Search tasks..." disabled={isBoardMutating} />
         </div>
       </div>
 
@@ -282,10 +249,10 @@ export function PersonalKanbanBoard({ initialColumns }: PersonalKanbanBoardProps
               <KanbanSortableColumn
                 key={column.id}
                 column={column}
-                onAddCard={() => handleAddCard(column.id, "New Task")}
-                onTitleChange={title => handleUpdateColumnTitle(column.id, title)}
-                onDeleteColumn={() => handleDeleteColumn(column.id)}
-                isMutating={isKanbanMutating}
+                onAddCard={() => onCreateCard(column.id, "New Task")}
+                onTitleChange={title => onUpdateColumn(column.id, title)}
+                onDeleteColumn={() => onDeleteColumn(column.id)}
+                isMutating={isMutating}
                 onStartTitleEdit={() => {}}
                 onStopTitleEdit={() => {}}
               >
@@ -306,7 +273,7 @@ export function PersonalKanbanBoard({ initialColumns }: PersonalKanbanBoardProps
                         )
                       }
                       onFinishInline={patch => {
-                        updateCard(column.id, card.id, patch)
+                        onUpdateCard(column.id, card.id, patch)
                         setColumns(prev =>
                           prev.map(c =>
                             c.id === column.id
@@ -320,8 +287,8 @@ export function PersonalKanbanBoard({ initialColumns }: PersonalKanbanBoardProps
                           )
                         )
                       }}
-                      onDeleteCard={() => handleDeleteCard(card.id)}
-                      isMutating={isKanbanMutating}
+                      onDeleteCard={() => onDeleteCard(column.id, card.id)}
+                      isMutating={isMutating}
                     />
                   ))}
                 </SortableContext>
@@ -384,7 +351,7 @@ export function PersonalKanbanBoard({ initialColumns }: PersonalKanbanBoardProps
         onUpdateTask={handleUpdateTask}
         onRequestDelete={handleDeleteRequest}
         availableAssignees={[]}
-        isTaskMutating={isMutating}
+        isTaskMutating={isBoardMutating}
       />
     </div>
   )

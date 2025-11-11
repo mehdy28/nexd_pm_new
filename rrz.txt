@@ -1,53 +1,1045 @@
+//components/personal/personal-gantt-view.tsx
+"use client"
 
+import React, { useState, useMemo, useEffect, useCallback, useRef } from "react"
+import { Gantt, Task as GanttTaskReact, ViewMode } from "gantt-task-react"
+import "gantt-task-react/dist/index.css"
 
-### `graphql/queries/getProjectDetails.ts`
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Loader2 } from "lucide-react"
 
-import { gql } from '@apollo/client';
+import {
+  usePersonalGanttData,
+  CustomGanttTask,
+  PersonalSectionGanttFilterOption,
+} from "@/hooks/personal/usePersonalGanttData"
+import { usePersonalGanttMutations } from "@/hooks/personal/usePersonalGanttMutations"
+import { usePersonalTaskmutations } from "@/hooks/personal/usePersonalTaskMutations" // For delete
+import { LoadingPlaceholder, ErrorPlaceholder } from "@/components/placeholders/status-placeholders"
 
-export const GET_PROJECT_DETAILS_QUERY = gql`
-  query GetProjectDetails($projectId: ID!) {
-    getProjectDetails(projectId: $projectId) {
-      id
-      name
-      description
-      status
-      color
-      createdAt
+interface PersonalGanttViewProps {}
 
-      # Add this block
-      workspace {
-        id
-      }
+// Helper to determine start/end date for a parent section based on its children tasks
+export function getStartEndDateForParent(tasks: CustomGanttTask[], parentId: string) {
+  const children = tasks.filter(t => t.project === parentId) // 'project' property is used by gantt-task-react for parent linking
+  if (children.length === 0) {
+    const parent = tasks.find(t => t.id === parentId)
+    return parent ? [parent.start, parent.end] : [new Date(), new Date()]
+  }
+  let start = children[0].start
+  let end = children[0].end
 
-      # Project statistics (computed in resolver)
-      totalTasks
-      completedTasks
-      inProgressTasks
-      overdueTasks
-      upcomingDeadlines
-
-      # Project Members
-      members {
-        id
-        role
-        user {
-          id
-          email
-          firstName
-          lastName
-          avatar
-        }
-      }
-
-      # Sprints
-      sprints {
-        id
-        name
-        description
-        startDate
-        endDate
-        isCompleted
-      }
+  for (let i = 0; i < children.length; i++) {
+    const task = children[i]
+    if (start.getTime() > task.start.getTime()) {
+      start = task.start
+    }
+    if (end.getTime() < task.end.getTime()) {
+      end = task.end
     }
   }
-`;
+  return [start, end]
+}
+
+const PersonalGanttView: React.FC<PersonalGanttViewProps> = () => {
+  const [isCreateTaskOpen, setIsCreateTaskOpen] = useState(false)
+  const [viewMode, setViewMode] = useState<ViewMode>(ViewMode.Week)
+  const [optimisticGanttTasks, setOptimisticGanttTasks] = useState<CustomGanttTask[]>([])
+
+  const {
+    ganttTasks,
+    sectionFilterOptions,
+    loading: ganttDataLoading,
+    error: ganttDataError,
+    refetchPersonalGanttData,
+  } = usePersonalGanttData()
+
+  const {
+    createPersonalGanttTask,
+    updatePersonalGanttTask,
+    isMutating: isUpsertMutating,
+    mutationError: upsertMutationError,
+  } = usePersonalGanttMutations()
+
+  const {
+    deleteTask,
+    isTaskMutating: isDeleteMutating,
+    taskMutationError: deleteMutationError,
+  } = usePersonalTaskmutations()
+
+  const isMutating = isUpsertMutating || isDeleteMutating
+  const mutationError = upsertMutationError || deleteMutationError
+
+  useEffect(() => {
+    // This effect syncs the server state (ganttTasks) with our local optimistic state.
+    // We add a condition to NOT sync while a mutation is in progress (`isMutating`).
+    // This prevents the backend's default sorting (e.g., by update time) from
+    // overwriting our local state during an optimistic update, which causes the flicker.
+    // The sync will happen once the mutation is complete and `isMutating` becomes false.
+    if (ganttTasks && !isMutating) {
+      console.log("PersonalGanttView: Syncing server state to local state. Not mutating.")
+      setOptimisticGanttTasks(ganttTasks)
+    } else if (isMutating) {
+      console.log("PersonalGanttView: Skipping state sync. Mutation in progress.")
+    } else if (!ganttTasks) {
+      console.log("PersonalGanttView: Skipping state sync. No ganttTasks data.")
+    }
+  }, [ganttTasks, isMutating])
+
+  const dynamicColumnWidth = useMemo(() => {
+    switch (viewMode) {
+      case ViewMode.Day:
+        return 150
+      case ViewMode.Week:
+        return 250
+      case ViewMode.Month:
+        return 300
+      case ViewMode.Year:
+        return 500
+      default:
+        return 150
+    }
+  }, [viewMode])
+
+  const handleTaskChange = useCallback(
+    async (task: GanttTaskReact) => {
+      const originalItem = optimisticGanttTasks.find(t => t.id === task.id)
+      if (!originalItem || originalItem.originalType !== "TASK") return
+
+      const input: any = {
+        id: originalItem.originalTaskId,
+        type: originalItem.originalType,
+        displayOrder: originalItem.displayOrder, // <-- ADD THE displayOrder TO THE INPUT
+      }
+      let hasChanges = false
+      if (originalItem.start.toISOString() !== task.start.toISOString()) {
+        input.startDate = task.start.toISOString()
+        hasChanges = true
+      }
+      if (originalItem.end.toISOString() !== task.end.toISOString()) {
+        input.endDate = task.end.toISOString()
+        hasChanges = true
+      }
+      if (task.name !== originalItem.name) {
+        input.name = task.name
+        hasChanges = true
+      }
+
+      if (hasChanges) {
+        console.log(`PersonalGanttView: Optimistically updating task ${task.id}. New data:`, {
+          start: task.start,
+          end: task.end,
+          name: task.name,
+        })
+        setOptimisticGanttTasks(prev => {
+          const newTasksList = prev.map(t =>
+            t.id === task.id
+              ? {
+                  ...t,
+                  start: task.start,
+                  end: task.end,
+                  name: task.name,
+                }
+              : t
+          )
+          return newTasksList
+        })
+        try {
+          console.log(`PersonalGanttView: Sending update mutation for task ID ${originalItem.originalTaskId}.`)
+          await updatePersonalGanttTask(input)
+          console.log(`PersonalGanttView: Update mutation for task ID ${originalItem.originalTaskId} successful.`)
+        } catch (err) {
+          console.error(
+            `PersonalGanttView: Update mutation failed for task ID ${originalItem.originalTaskId}. Reverting optimistic update.`,
+            err
+          )
+          // Revert optimistic update on error
+          setOptimisticGanttTasks(prev =>
+            prev.map(t => (t.id === task.id ? (originalItem as CustomGanttTask) : t))
+          )
+        }
+      } else {
+        console.log(`PersonalGanttView: No changes detected for task ${task.id}. Skipping update.`)
+      }
+    },
+    [optimisticGanttTasks, updatePersonalGanttTask]
+  )
+
+  const handleTaskDelete = useCallback(
+    async (task: GanttTaskReact) => {
+      const conf = window.confirm("Are you sure you want to delete " + task.name + " ?")
+      if (conf) {
+        const originalItem = optimisticGanttTasks.find(t => t.id === task.id)
+        if (!originalItem || originalItem.originalType !== "TASK") {
+          alert("Only tasks can be deleted from the Gantt chart.")
+          return false
+        }
+        setOptimisticGanttTasks(prev => prev.filter(t => t.id !== task.id))
+        try {
+          await deleteTask(originalItem.originalTaskId)
+        } catch (err) {
+          refetchPersonalGanttData() // Refetch to restore state on error
+        }
+        return true
+      }
+      return false
+    },
+    [optimisticGanttTasks, deleteTask, refetchPersonalGanttData]
+  )
+
+  const handleProgressChange = useCallback(
+    async (task: GanttTaskReact) => {
+      const originalItem = optimisticGanttTasks.find(t => t.id === task.id)
+      if (!originalItem || originalItem.originalType !== "TASK") return
+
+      const roundedNewProgress = Math.round(task.progress || 0)
+      if (originalItem.progress !== roundedNewProgress) {
+        setOptimisticGanttTasks(prev =>
+          prev.map(t => (t.id === task.id ? { ...t, progress: roundedNewProgress } : t))
+        )
+        try {
+          await updatePersonalGanttTask({
+            id: originalItem.originalTaskId,
+            type: "TASK",
+            progress: roundedNewProgress,
+            displayOrder: originalItem.displayOrder, // <-- ADD THE displayOrder HERE AS WELL
+          })
+        } catch (err) {
+          // Revert optimistic update
+          setOptimisticGanttTasks(prev =>
+            prev.map(t => (t.id === task.id ? (originalItem as CustomGanttTask) : t))
+          )
+        }
+      }
+    },
+    [optimisticGanttTasks, updatePersonalGanttTask]
+  )
+
+  const handleAddTask = useCallback(
+    async (newTaskData: any) => {
+      try {
+        await createPersonalGanttTask(newTaskData)
+        setIsCreateTaskOpen(false)
+      } catch (err) {
+        console.error("Error creating Gantt item:", err)
+      }
+    },
+    [createPersonalGanttTask]
+  )
+
+  if (ganttDataLoading && optimisticGanttTasks.length === 0) {
+    return <LoadingPlaceholder message="Loading Gantt data..." />
+  }
+
+  const error = ganttDataError || mutationError
+  if (error) {
+    return <ErrorPlaceholder error={error} onRetry={refetchPersonalGanttData} />
+  }
+
+  console.log("Gantt component rendering with tasks:", optimisticGanttTasks)
+  return (
+    <div className="relative px-6">
+      <div className="flex items-center gap-3 py-6">
+        <Button
+          onClick={() => setIsCreateTaskOpen(true)}
+          className="bg-[#4ab5ae] text-white h-9 rounded-md"
+          disabled={isMutating}
+        >
+          {isMutating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+          + Add item
+        </Button>
+
+        <div className="flex rounded-md shadow-sm ml-4" role="group">
+          <Button
+            variant={viewMode === ViewMode.Day ? "default" : "outline"}
+            onClick={() => setViewMode(ViewMode.Day)}
+            className="rounded-r-none h-9"
+            disabled={isMutating}
+          >
+            Day
+          </Button>
+          <Button
+            variant={viewMode === ViewMode.Week ? "default" : "outline"}
+            onClick={() => setViewMode(ViewMode.Week)}
+            className="rounded-none h-9 border-l-0"
+            disabled={isMutating}
+          >
+            Week
+          </Button>
+          <Button
+            variant={viewMode === ViewMode.Month ? "default" : "outline"}
+            onClick={() => setViewMode(ViewMode.Month)}
+            className="rounded-none h-9 border-l-0"
+            disabled={isMutating}
+          >
+            Month
+          </Button>
+          <Button
+            variant={viewMode === ViewMode.Year ? "default" : "outline"}
+            onClick={() => setViewMode(ViewMode.Year)}
+            className="rounded-l-none h-9 border-l-0"
+            disabled={isMutating}
+          >
+            Year
+          </Button>
+        </div>
+
+        <div className="ml-auto relative w-[260px]">
+          <Input className="h-9" placeholder="Search tasks..." disabled={isMutating} />
+        </div>
+      </div>
+
+      <div className="overflow-x-auto">
+        {isCreateTaskOpen && (
+          <RightSideModal onClose={() => setIsCreateTaskOpen(false)}>
+            <TaskForm
+              onAddTask={handleAddTask}
+              onClose={() => setIsCreateTaskOpen(false)}
+              availableSections={sectionFilterOptions}
+              isMutating={isMutating}
+            />
+          </RightSideModal>
+        )}
+        {optimisticGanttTasks.length > 0 && (
+          <Gantt
+            tasks={[...optimisticGanttTasks]}
+            viewMode={viewMode}
+            onDateChange={handleTaskChange}
+            onDelete={handleTaskDelete}
+            onProgressChange={handleProgressChange}
+            listCellWidth="200px"
+            columnWidth={dynamicColumnWidth}
+            readOnly={isMutating}
+          />
+        )}
+      </div>
+    </div>
+  )
+}
+
+interface RightSideModalProps {
+  children: React.ReactNode
+  onClose: () => void
+}
+const RightSideModal: React.FC<RightSideModalProps> = ({ children, onClose }) => {
+  return (
+    <div className="fixed inset-0 z-50 overflow-hidden">
+      <div className="absolute inset-0 bg-gray-900 bg-opacity-50 transition-opacity" onClick={onClose}></div>
+      <div className="fixed inset-y-0 right-0 w-full max-w-md bg-white shadow-xl flex flex-col transition-transform duration-300 ease-in-out transform translate-x-0">
+        <div className="flex items-center justify-between p-4 border-b">
+          <h2 className="text-lg font-semibold">Create New Task</h2>
+          <Button variant="ghost" onClick={onClose} className="text-gray-500 hover:text-gray-700">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-6 w-6"
+              fill="none"
+              viewBox="0 0 24"
+              stroke="currentColor"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </Button>
+        </div>
+        <div className="flex-grow p-4 overflow-y-auto">{children}</div>
+      </div>
+    </div>
+  )
+}
+
+interface TaskFormProps {
+  onAddTask: (task: any) => void
+  onClose: () => void
+  availableSections: PersonalSectionGanttFilterOption[]
+  isMutating: boolean
+}
+const TaskForm: React.FC<TaskFormProps> = ({ onAddTask, onClose, availableSections, isMutating }) => {
+  const [name, setName] = useState("")
+  const [start, setStart] = useState<Date>(new Date())
+  const [end, setEnd] = useState<Date>(new Date(new Date().setDate(new Date().getDate() + 1)))
+  const [progress, setProgress] = useState(0)
+  const [sectionId, setSectionId] = useState<string | undefined>(undefined)
+
+  useEffect(() => {
+    if (availableSections.length > 0 && !sectionId) {
+      setSectionId(availableSections[0].id)
+    }
+  }, [availableSections, sectionId])
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!name.trim() || !start || !end || !sectionId) {
+      alert("Please fill in all fields.")
+      return
+    }
+
+    const newTaskData = {
+      startDate: start.toISOString(),
+      endDate: end.toISOString(),
+      name: name,
+      type: "task",
+      progress: progress,
+      personalSectionId: sectionId,
+    }
+
+    onAddTask(newTaskData)
+    onClose()
+  }
+
+  return (
+    <div className="space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <label htmlFor="taskName" className="block text-sm font-medium text-gray-700">
+            Name:
+          </label>
+          <Input
+            id="taskName"
+            type="text"
+            value={name}
+            onChange={e => setName(e.target.value)}
+            className="mt-1 block w-full"
+            required
+            disabled={isMutating}
+          />
+        </div>
+        <div>
+          <label htmlFor="startDate" className="block text-sm font-medium text-gray-700">
+            Start Date:
+          </label>
+          <Input
+            id="startDate"
+            type="date"
+            value={start.toISOString().split("T")[0]}
+            onChange={e => setStart(new Date(e.target.value))}
+            className="mt-1 block w-full"
+            required
+            disabled={isMutating}
+          />
+        </div>
+        <div>
+          <label htmlFor="endDate" className="block text-sm font-medium text-gray-700">
+            End Date:
+          </label>
+          <Input
+            id="endDate"
+            type="date"
+            value={end.toISOString().split("T")[0]}
+            onChange={e => setEnd(new Date(e.target.value))}
+            className="mt-1 block w-full"
+            required
+            disabled={isMutating}
+          />
+        </div>
+        <div>
+          <label htmlFor="progress" className="block text-sm font-medium text-gray-700">
+            Progress (%):
+          </label>
+          <Input
+            id="progress"
+            type="number"
+            value={progress}
+            onChange={e => setProgress(Number(e.target.value))}
+            min="0"
+            max="100"
+            className="mt-1 block w-full"
+            disabled={isMutating}
+          />
+        </div>
+        <div>
+          <label htmlFor="sectionSelect" className="block text-sm font-medium text-gray-700">
+            Section:
+          </label>
+          <select
+            id="sectionSelect"
+            value={sectionId || ""}
+            onChange={e => setSectionId(e.target.value)}
+            className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md border"
+            required
+            disabled={isMutating}
+          >
+            <option value="">Select Section</option>
+            {availableSections.map(sectionOption => (
+              <option key={sectionOption.id} value={sectionOption.id}>
+                {sectionOption.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="flex justify-end gap-2 mt-6">
+          <Button type="button" variant="outline" onClick={onClose} disabled={isMutating}>
+            Cancel
+          </Button>
+          <Button type="submit" className="bg-[#4ab5ae] text-white" disabled={isMutating}>
+            {isMutating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            Create Item
+          </Button>
+        </div>
+      </form>
+    </div>
+  )
+}
+
+export default PersonalGanttView
+
+//hooks/personal/usePersonalGanttData.ts
+
+
+import { useQuery } from "@apollo/client"
+import { useCallback, useMemo } from "react"
+import { GET_MY_GANTT_DATA_QUERY } from "@/graphql/queries/personal/getMyGanttData"
+
+// --- Type Definitions specific to Personal Gantt ---
+export interface CustomGanttTask {
+  id: string
+  name: string
+  start: Date
+  end: Date
+  progress: number
+  type: string // "task" or "project" (for section groups)
+  project?: string // The ID of the parent task/project for the gantt library
+  personalSectionId?: string // The ID of the parent section
+  hideChildren?: boolean
+  displayOrder?: number
+  description?: string
+  originalTaskId: string // The ID of the actual Task or Section object
+  originalType: "TASK" | "SECTION" // To differentiate when updating
+}
+
+export interface PersonalSectionGanttFilterOption {
+  id: string
+  name: string
+}
+
+export interface PersonalGanttDataResponse {
+  getMyGanttData: {
+    sections: PersonalSectionGanttFilterOption[]
+    tasks: Array<{
+      id: string
+      name: string
+      start: string // ISO date string
+      end: string // ISO date string
+      progress: number
+      type: string
+      personalSectionId?: string
+      hideChildren?: boolean
+      displayOrder?: number
+      description?: string
+      originalTaskId: string
+      originalType: "TASK" | "SECTION"
+    }>
+  } | null
+}
+
+// --- Main Hook ---
+export function usePersonalGanttData() {
+  const { data, loading, error, refetch } = useQuery<PersonalGanttDataResponse>(GET_MY_GANTT_DATA_QUERY, {
+    fetchPolicy: "network-only",
+  })
+
+  // LOG 1: Raw data from the server
+  console.log("[usePersonalGanttData] Raw data object from useQuery:", data)
+
+  const transformedGanttData = data?.getMyGanttData
+
+  const ganttTasks: CustomGanttTask[] = useMemo(() => {
+    if (!transformedGanttData?.tasks) return []
+
+    // LOG 2: Tasks array before any processing
+    console.log("[usePersonalGanttData] Raw tasks array before mapping:", transformedGanttData.tasks)
+
+    const mappedTasks = transformedGanttData.tasks.map(task => ({
+      ...task,
+      start: new Date(task.start),
+      end: new Date(task.end),
+      progress: task.progress || 0,
+      hideChildren: task.hideChildren || false,
+      displayOrder: task.displayOrder || 1,
+      originalTaskId: task.originalTaskId,
+      originalType: task.originalType as "TASK" | "SECTION",
+    }))
+
+    const projects = mappedTasks.filter(t => t.type === "project")
+    const childTasks = mappedTasks.filter(t => t.type !== "project")
+
+    const sortedProjects = projects.sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0))
+
+    const finalHierarchicalTasks: CustomGanttTask[] = []
+
+    sortedProjects.forEach(project => {
+      // Add the parent project (section)
+      finalHierarchicalTasks.push(project)
+
+      // Find, link, and sort its children
+      const children = childTasks
+        .filter(task => task.personalSectionId === project.id)
+        .map(task => ({
+          ...task,
+          project: project.id, // Assign section ID to project property for nesting
+        }))
+        .sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0))
+
+      // Add the children immediately after the parent
+      finalHierarchicalTasks.push(...children)
+    })
+
+    // Handle any tasks that couldn't be parented (orphans)
+    const orphanedTasks = childTasks
+      .filter(task => !sortedProjects.some(p => p.id === task.personalSectionId))
+      .sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0))
+
+    finalHierarchicalTasks.push(...orphanedTasks)
+
+    // Force the library to respect our order by re-assigning displayOrder sequentially.
+    const tasksForGantt = finalHierarchicalTasks.map((task, index) => ({
+      ...task,
+      displayOrder: index + 1,
+    }))
+
+    // LOG 3: Final processed and structured tasks array WITH NEW displayOrder
+    console.log(
+      "[usePersonalGanttData] Final processed tasks array being returned from useMemo:",
+      tasksForGantt
+    )
+
+    return tasksForGantt
+  }, [transformedGanttData?.tasks])
+
+  const sectionFilterOptions: PersonalSectionGanttFilterOption[] = useMemo(() => {
+    return transformedGanttData?.sections || []
+  }, [transformedGanttData?.sections])
+
+  const refetchPersonalGanttData = useCallback(() => {
+    refetch()
+  }, [refetch])
+
+  return {
+    ganttTasks,
+    sectionFilterOptions,
+    loading,
+    error,
+    refetchPersonalGanttData,
+  }
+}
+//hooks/personal/usePersonalGanttMutations.ts
+
+
+import { useMutation } from "@apollo/client"
+import { useCallback } from "react"
+import {
+  CREATE_PERSONAL_GANTT_TASK_MUTATION,
+  UPDATE_PERSONAL_GANTT_TASK_MUTATION,
+  UPDATE_PERSONAL_SECTION_MUTATION,
+} from "@/graphql/mutations/personal/personalGanttMutations"
+
+// --- Input Interfaces for Mutations ---
+interface CreatePersonalGanttTaskVariables {
+  input: {
+    personalSectionId: string
+    name: string
+    description?: string | null
+    startDate: string // ISO string
+    endDate: string // ISO string
+    progress?: number | null
+    type: "task" // Personal Gantt only supports 'task' type
+  }
+}
+
+interface UpdatePersonalGanttTaskVariables {
+  input: {
+    id: string // ID of the original Task
+    type: "TASK" // Prisma model name
+    name?: string | null
+    description?: string | null
+    startDate?: string | null
+    endDate?: string | null
+    progress?: number | null
+    displayOrder?: number | null // <-- ADD THIS
+  }
+}
+
+interface UpdatePersonalSectionVariables {
+  input: {
+    id: string
+    name?: string | null
+  }
+}
+
+// --- Main Hook ---
+export function usePersonalGanttMutations() {
+  // --- Apollo useMutation Hooks ---
+  const [createGanttTaskMutation, { loading: createGanttTaskLoading, error: createGanttTaskError }] =
+    useMutation<{ createPersonalGanttTask: any }, CreatePersonalGanttTaskVariables>(
+      CREATE_PERSONAL_GANTT_TASK_MUTATION
+    )
+
+  // NOTE: The custom `update` function is removed, as it's no longer needed with this approach.
+  const [updateGanttTaskMutation, { loading: updateGanttTaskLoading, error: updateGanttTaskError }] =
+    useMutation<any, UpdatePersonalGanttTaskVariables>(UPDATE_PERSONAL_GANTT_TASK_MUTATION)
+
+  const [updateSectionMutation, { loading: updateSectionLoading, error: updateSectionError }] = useMutation<
+    { updatePersonalSection: any },
+    UpdatePersonalSectionVariables
+  >(UPDATE_PERSONAL_SECTION_MUTATION)
+
+  // --- Exposed Functions ---
+
+  const createPersonalGanttTask = useCallback(
+    async (input: CreatePersonalGanttTaskVariables["input"]): Promise<any> => {
+      console.log("usePersonalGanttMutations: Attempting to create task with input:", input)
+      try {
+        const response = await createGanttTaskMutation({
+          variables: {
+            input: {
+              ...input,
+              progress: input.progress ?? 0,
+              description: input.description ?? null,
+            },
+          },
+        })
+        console.log("usePersonalGanttMutations: Create task successful. Response:", response.data)
+        return response.data?.createPersonalGanttTask
+      } catch (err: any) {
+        console.error("usePersonalGanttMutations: Failed to create task.", { error: err, input })
+        throw err
+      }
+    },
+    [createGanttTaskMutation]
+  )
+
+  const updatePersonalGanttTask = useCallback(
+    async (input: UpdatePersonalGanttTaskVariables["input"]): Promise<any> => {
+      console.log("usePersonalGanttMutations: Attempting to update task with input:", input)
+      try {
+        const response = await updateGanttTaskMutation({
+          variables: { input },
+        })
+        console.log("usePersonalGanttMutations: Update task successful. Response:", response.data)
+        return response.data?.updatePersonalGanttTask
+      } catch (err: any) {
+        console.error("usePersonalGanttMutations: Failed to update task.", { error: err, input })
+        throw err
+      }
+    },
+    [updateGanttTaskMutation]
+  )
+
+  const updatePersonalSectionName = useCallback(
+    async (sectionId: string, name: string): Promise<any> => {
+      console.log(`usePersonalGanttMutations: Attempting to update section ${sectionId} with new name: "${name}"`)
+      try {
+        const response = await updateSectionMutation({
+          variables: {
+            input: {
+              id: sectionId,
+              name: name,
+            },
+          },
+        })
+        console.log(`usePersonalGanttMutations: Update section successful. Response:`, response.data)
+        return response.data?.updatePersonalSection
+      } catch (err: any) {
+        console.error("usePersonalGanttMutations: Failed to update section.", { error: err, sectionId, name })
+        throw err
+      }
+    },
+    [updateSectionMutation]
+  )
+
+  return {
+    createPersonalGanttTask,
+    updatePersonalGanttTask,
+    updatePersonalSectionName,
+    isMutating: createGanttTaskLoading || updateGanttTaskLoading || updateSectionLoading,
+    mutationError: createGanttTaskError || updateGanttTaskError || updateSectionError,
+  }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// hooks/personal/usePersonalGanttData.ts
+
+import { useQuery } from "@apollo/client"
+import { useCallback, useMemo } from "react"
+import { GET_MY_GANTT_DATA_QUERY } from "@/graphql/queries/personal/getMyGanttData"
+
+// --- Type Definitions specific to Personal Gantt ---
+export interface CustomGanttTask {
+  id: string
+  name: string
+  start: Date
+  end: Date
+  progress: number
+  type: string // "task" or "project" (for section groups)
+  project?: string // The ID of the parent task/project for the gantt library
+  personalSectionId?: string // The ID of the parent section
+  hideChildren?: boolean
+  displayOrder?: number
+  description?: string
+  originalTaskId: string // The ID of the actual Task or Section object
+  originalType: "TASK" | "SECTION" // To differentiate when updating
+}
+
+export interface PersonalSectionGanttFilterOption {
+  id: string
+  name: string
+}
+
+export interface PersonalGanttDataResponse {
+  getMyGanttData: {
+    sections: PersonalSectionGanttFilterOption[]
+    tasks: Array<{
+      id: string
+      name: string
+      start: string // ISO date string
+      end: string // ISO date string
+      progress: number
+      type: string
+      personalSectionId?: string
+      hideChildren?: boolean
+      displayOrder?: number
+      description?: string
+      originalTaskId: string
+      originalType: "TASK" | "SECTION"
+    }>
+  } | null
+}
+
+// --- Main Hook ---
+export function usePersonalGanttData() {
+  const { data, loading, error, refetch } = useQuery<PersonalGanttDataResponse>(GET_MY_GANTT_DATA_QUERY, {
+    fetchPolicy: "network-only",
+  })
+
+  // LOG 1: Raw data from the server
+  console.log("[usePersonalGanttData] Raw data object from useQuery:", data)
+
+  const transformedGanttData = data?.getMyGanttData
+
+  const ganttTasks: CustomGanttTask[] = useMemo(() => {
+    if (!transformedGanttData?.tasks) return []
+
+    // LOG 2: Tasks array before any processing
+    console.log("[usePersonalGanttData] Raw tasks array before mapping:", transformedGanttData.tasks)
+
+    const mappedTasks = transformedGanttData.tasks.map(task => ({
+      ...task,
+      start: new Date(task.start),
+      end: new Date(task.end),
+      progress: task.progress || 0,
+      hideChildren: task.hideChildren || false,
+      displayOrder: task.displayOrder || 1,
+      originalTaskId: task.originalTaskId,
+      originalType: task.originalType as "TASK" | "SECTION",
+    }))
+
+    const projects = mappedTasks.filter(t => t.type === "project")
+    const childTasks = mappedTasks.filter(t => t.type !== "project")
+
+    const sortedProjects = projects.sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0))
+
+    const finalHierarchicalTasks: CustomGanttTask[] = []
+
+    sortedProjects.forEach(project => {
+      // Add the parent project (section)
+      finalHierarchicalTasks.push(project)
+
+      // Find, link, and sort its children
+      const children = childTasks
+        .filter(task => task.personalSectionId === project.id)
+        .map(task => ({
+          ...task,
+          project: project.id, // Assign section ID to project property for nesting
+        }))
+        .sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0))
+
+      // Add the children immediately after the parent
+      finalHierarchicalTasks.push(...children)
+    })
+
+    // Handle any tasks that couldn't be parented (orphans)
+    const orphanedTasks = childTasks
+      .filter(task => !sortedProjects.some(p => p.id === task.personalSectionId))
+      .sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0))
+
+    finalHierarchicalTasks.push(...orphanedTasks)
+
+    // LOG 3: Final processed and structured tasks array with original displayOrder from server
+    console.log(
+      "[usePersonalGanttData] Final processed tasks array being returned from useMemo:",
+      finalHierarchicalTasks
+    )
+
+    return finalHierarchicalTasks
+  }, [transformedGanttData?.tasks])
+
+  const sectionFilterOptions: PersonalSectionGanttFilterOption[] = useMemo(() => {
+    return transformedGanttData?.sections || []
+  }, [transformedGanttData?.sections])
+
+  const refetchPersonalGanttData = useCallback(() => {
+    refetch()
+  }, [refetch])
+
+  return {
+    ganttTasks,
+    sectionFilterOptions,
+    loading,
+    error,
+    refetchPersonalGanttData,
+  }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    getMyGanttData: async (_parent: unknown, _args: {}, context: GraphQLContext) => {
+      log("[getMyGanttData Query]", "called")
+      if (!context.user?.id) {
+        throw new GraphQLError("Authentication required", { extensions: { code: "UNAUTHENTICATED" } })
+      }
+      const userId = context.user.id
+
+      try {
+        const personalSections = await prisma.personalSection.findMany({
+          where: { userId },
+          select: { id: true, name: true, order: true },
+          orderBy: { order: "asc" },
+        })
+
+        const personalTasks = await prisma.task.findMany({
+          where: {
+            personalUserId: userId,
+            OR: [{ startDate: { not: null } }, { endDate: { not: null } }, { dueDate: { not: null } }],
+          },
+        })
+
+        const ganttTasks: any[] = []
+        let displayOrder = 1
+
+        personalSections.forEach(section => {
+          ganttTasks.push({
+            id: section.id,
+            name: section.name,
+            start: new Date(), // Placeholder, will be adjusted
+            end: new Date(), // Placeholder, will be adjusted
+            progress: 100,
+            type: "project",
+            hideChildren: false,
+            displayOrder: displayOrder++,
+            originalTaskId: section.id,
+            originalType: "SECTION",
+          })
+        })
+
+        const sectionDateRanges: { [key: string]: { start: Date; end: Date } } = {}
+
+        personalTasks.forEach(task => {
+          const startDate = task.startDate || task.createdAt
+          const endDate = task.endDate || task.dueDate || new Date(new Date(startDate).setDate(startDate.getDate() + 1))
+
+          ganttTasks.push({
+            id: task.id,
+            name: task.title,
+            start: startDate.toISOString(),
+            end: endDate.toISOString(),
+            progress: task.completed ? 100 : task.completionPercentage ?? 0,
+            type: "task",
+            personalSectionId: task.personalSectionId,
+            displayOrder: displayOrder++,
+            description: task.description,
+            originalTaskId: task.id,
+            originalType: "TASK",
+          })
+
+          if (task.personalSectionId) {
+            if (!sectionDateRanges[task.personalSectionId]) {
+              sectionDateRanges[task.personalSectionId] = { start: startDate, end: endDate }
+            } else {
+              if (startDate < sectionDateRanges[task.personalSectionId].start) {
+                sectionDateRanges[task.personalSectionId].start = startDate
+              }
+              if (endDate > sectionDateRanges[task.personalSectionId].end) {
+                sectionDateRanges[task.personalSectionId].end = endDate
+              }
+            }
+          }
+        })
+
+        // Adjust section dates
+        ganttTasks.forEach(gt => {
+          if (gt.originalType === "SECTION" && sectionDateRanges[gt.id]) {
+            gt.start = sectionDateRanges[gt.id].start.toISOString()
+            gt.end = sectionDateRanges[gt.id].end.toISOString()
+          }
+        })
+
+        return {
+          sections: personalSections,
+          tasks: ganttTasks,
+        }
+      } catch (error) {
+        log("[getMyGanttData Query]", "Error fetching personal Gantt data:", error)
+        throw error
+      }
+    },

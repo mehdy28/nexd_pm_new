@@ -1,6 +1,7 @@
 // graphql/resolvers/projectSectionResolver.ts
 
 import { prisma } from "@/lib/prisma";
+import { GraphQLError } from "graphql"
 
 function log(prefix: string, message: string, data?: any) {
   const timestamp = new Date().toISOString();
@@ -9,6 +10,11 @@ function log(prefix: string, message: string, data?: any) {
   } else {
     console.log(`${timestamp} ${prefix} ${message}`);
   }
+}
+
+interface ReorderSectionInput {
+  id: string
+  order: number
 }
 
 interface GraphQLContext {
@@ -281,7 +287,82 @@ export const projectSectionResolver = {
         throw error;
       }
     },
+
+    reorderProjectSections: async (
+      _: any,
+      { projectId, sections }: { projectId: string; sections: ReorderSectionInput[] },
+      context: any
+    ) => {
+      const userId = context.user.id;
+
+      if (!projectId || !sections || sections.length === 0) {
+        throw new GraphQLError("Project ID and sections are required.", {
+          extensions: { code: "BAD_USER_INPUT" },
+        })
+      }
+
+      try {
+        // --- ADDED SECURITY CHECK ---
+        // Ensure the user is actually a member of the project they are modifying.
+        const projectMember = await prisma.projectMember.findFirst({
+          where: {
+            projectId: projectId,
+            userId: userId,
+          },
+        })
+
+        if (!projectMember) {
+          throw new GraphQLError("You are not authorized to perform this action.", {
+            extensions: { code: "FORBIDDEN" },
+          })
+        }
+
+        // Use a transaction to update all sections at once.
+        // This ensures that if one update fails, all are rolled back.
+        await prisma.$transaction(
+          sections.map(section =>
+            prisma.section.updateMany({
+              where: {
+                id: section.id,
+                projectId: projectId, // Ensure we only update sections within this project
+              },
+              data: {
+                order: section.order,
+              },
+            })
+          )
+        )
+
+        // On success, fetch the updated sections to return them in the new order
+        const updatedSections = await prisma.section.findMany({
+          where: {
+            projectId: projectId,
+          },
+          orderBy: {
+            order: "asc",
+          },
+        })
+
+        return updatedSections
+      } catch (error: any) {
+        // If the error is one we already threw (like GraphQLError), re-throw it.
+        if (error instanceof GraphQLError) {
+          throw error
+        }
+
+        // For unexpected database errors, log them and throw a generic server error.
+        console.error("Failed to reorder project sections:", error)
+        throw new GraphQLError("An internal error occurred while reordering sections.", {
+          extensions: { code: "INTERNAL_SERVER_ERROR" },
+        })
+      }
+    },
+
+
   },
 };
 
 export default projectSectionResolver;
+
+
+

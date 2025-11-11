@@ -15,6 +15,7 @@ export const GET_MY_GANTT_DATA_QUERY = gql`
         end
         progress
         type
+        project # The ID of the parent project/section
         personalSectionId # parent section ID
         hideChildren
         displayOrder

@@ -18,7 +18,8 @@ export const GET_PERSONAL_TASK_DETAILS_QUERY = gql`
       description
       status
       priority
-      dueDate
+      endDate
+      startDate
       points
       completed
       assignee {
