@@ -1,4 +1,3 @@
-// components/board/personal/personal-kanban-board.tsx
 "use client"
 
 import { useMemo, useRef, useState, useCallback, useEffect } from "react"
@@ -193,7 +192,14 @@ export function PersonalKanbanBoard({
         const toCol = next.find(c => c.id === toColumnId)!
         const [moved] = fromCol.cards.splice(fromIndex, 1)
 
-        toCol.cards.splice(toIndex, 0, moved)
+        // *** CHANGE HERE: If moving to a new column, add the card to the TOP. ***
+        if (fromColumnId !== toColumnId) {
+          toCol.cards.unshift(moved)
+        } else {
+          // If staying in the same column, respect the precise drop index.
+          toCol.cards.splice(toIndex, 0, moved)
+        }
+
         return next
       })
 
@@ -201,6 +207,7 @@ export function PersonalKanbanBoard({
       if (fromColumnId !== toColumnId) {
         onUpdateCard(fromColumnId, activeId, { personalSectionId: toColumnId })
       }
+      // NOTE: A mutation for reordering within the same column would be needed here.
     }
   }
 
@@ -285,7 +292,7 @@ export function PersonalKanbanBoard({
                                 }
                               : c
                           )
-                        )
+						)
                       }}
                       onDeleteCard={() => onDeleteCard(column.id, card.id)}
                       isMutating={isMutating}

@@ -1,10 +1,8 @@
-// hooks/personal/usePersonalTaskMutations.ts
 import { useMutation, useApolloClient, gql } from "@apollo/client"
 import { useCallback } from "react"
 import { CREATE_PERSONAL_TASK_MUTATION } from "@/graphql/mutations/personal/createPersonalTask"
 import { UPDATE_PERSONAL_TASK_MUTATION } from "@/graphql/mutations/personal/updatePersonalTask"
 import { DELETE_PERSONAL_TASK_MUTATION } from "@/graphql/mutations/personal/deletePersonalTask"
-import { GET_TASK_DETAILS_QUERY } from "@/graphql/queries/getTaskDetails"
 import { Priority } from "@prisma/client"
 import { TaskStatusUI, TaskUI } from "./useMyTasksAndSections"
 
@@ -242,9 +240,10 @@ export function usePersonalTaskmutations() {
                         )
                         return existingTaskRefs
                       }
-                      const updatedTasks = [...existingTaskRefs, { __ref: newTaskRef }]
+                      // *** CHANGE HERE: Add the new task to the BEGINNING of the array ***
+                      const updatedTasks = [{ __ref: newTaskRef }, ...existingTaskRefs]
                       console.log(
-                        `🔄 [updateTask Cache Update] New section task count changed from ${existingTaskRefs.length} to ${updatedTasks.length}.`
+                        `🔄 [updateTask Cache Update] New section task count changed from ${existingTaskRefs.length} to ${updatedTasks.length}. Task added to the top.`
                       )
                       return updatedTasks
                     },

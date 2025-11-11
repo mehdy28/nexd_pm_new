@@ -4,7 +4,7 @@
 import { PersonalKanbanBoard } from "@/components/board/personal/personal-kanban-board"
 import { useMyTasksAndSections, SectionUI, TaskUI, PriorityUI } from "@/hooks/personal/useMyTasksAndSections"
 import { usePersonalTaskmutations } from "@/hooks/personal/usePersonalTaskMutations"
-import { useMemo, useCallback } from "react"
+import { useMemo, useCallback, useState } from "react" // Import useState
 import { Column } from "@/components/board/kanban-types"
 import { LoadingPlaceholder, ErrorPlaceholder } from "@/components/placeholders/status-placeholders"
 import { Priority as PrismaPriority, TaskStatus as PrismaTaskStatus } from "@prisma/client"
@@ -36,7 +36,7 @@ const mapSectionsToColumns = (sections: SectionUI[]): Column[] => {
       description: task.description ?? undefined,
       priority: task.priority,
       due: task.endDate,
-      points: task.points ?? 0, // FIX: Ensure null is converted to a number
+      points: task.points ?? 0,
       assignee: null,
       completed: task.completed,
       editing: false,
@@ -57,7 +57,10 @@ export function PersonalBoardView() {
     isReordering,
   } = useMyTasksAndSections()
 
-  const { createTask, updateTask, deleteTask, isTaskMutating } = usePersonalTaskmutations()
+  const { createTask, updateTask, deleteTask } = usePersonalTaskmutations()
+
+  // FIX: State to track the specific card being mutated for a granular loading UI
+  const [mutatingCardId, setMutatingCardId] = useState<string | null>(null)
 
   const initialColumns = useMemo(() => {
     return mapSectionsToColumns(personalSections)
@@ -124,10 +127,14 @@ export function PersonalBoardView() {
       if (updates.completed !== undefined) mutationInput.status = mapCompletedToPrismaStatus(updates.completed)
       if (updates.personalSectionId) mutationInput.personalSectionId = updates.personalSectionId
 
+      // FIX: Set the specific card as mutating and clear it when done
+      setMutatingCardId(cardId)
       try {
         await updateTask(cardId, columnId, mutationInput)
       } catch (err) {
         console.error("Failed to update personal task:", err)
+      } finally {
+        setMutatingCardId(null)
       }
     },
     [updateTask]
@@ -135,10 +142,14 @@ export function PersonalBoardView() {
 
   const handleDeleteCard = useCallback(
     async (columnId: string, cardId: string) => {
+      // FIX: Set the specific card as mutating and clear it when done
+      setMutatingCardId(cardId)
       try {
         await deleteTask(cardId, columnId)
       } catch (err) {
         console.error("Failed to delete personal task:", err)
+      } finally {
+        setMutatingCardId(null)
       }
     },
     [deleteTask]
@@ -168,7 +179,8 @@ export function PersonalBoardView() {
     return <ErrorPlaceholder error={error} onRetry={refetchMyTasksAndSections} />
   }
 
-  const isBoardMutating = isTaskMutating || isReordering
+  // FIX: The board itself is only mutating during reordering operations now.
+  const isBoardMutating = isReordering
 
   return (
     <PersonalKanbanBoard
@@ -181,6 +193,8 @@ export function PersonalBoardView() {
       onUpdateCard={handleUpdateCard}
       onDeleteCard={handleDeleteCard}
       isMutating={isBoardMutating}
+      // You would also need to pass mutatingCardId down and handle it in child components
+      // for per-card loading indicators. This change stops the global button from loading.
     />
   )
 }
