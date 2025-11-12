@@ -627,6 +627,7 @@ type TaskListView {
   priority: Priority!
   dueDate: DateTime
   endDate: DateTime
+  startDate: DateTime
   points: Int
   completionPercentage: Float
   assignee: UserLookupPartial

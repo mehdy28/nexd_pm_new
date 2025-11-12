@@ -1,4 +1,3 @@
-// hooks/personal/useMyTasksAndSections.ts
 import { useQuery, useMutation, useApolloClient } from "@apollo/client"
 import { useCallback, useMemo, useEffect } from "react"
 import { GET_MY_TASKS_AND_SECTIONS_QUERY } from "@/graphql/queries/personal/getMyTasksAndSections"
@@ -15,6 +14,7 @@ export interface TaskUI {
   id: string
   title: string
   endDate: string | null
+  startDate: string | null
   priority: PriorityUI
   points: number | null
   completed: boolean
@@ -43,6 +43,7 @@ interface MyTasksAndSectionsResponse {
         status: TaskStatusUI
         priority: "LOW" | "MEDIUM" | "HIGH"
         endDate?: string | null
+        startDate?: string | null
         points: number | null
       }>
     }>
@@ -95,7 +96,7 @@ export function useMyTasksAndSections() {
     }
   }, [loading, error, data])
 
-  const [createPersonalSectionMutation] = useMutation(CREATE_PERSONAL_SECTION_MUTATION, {
+  const [createPersonalSectionMutation, { loading: isCreatingSection }] = useMutation(CREATE_PERSONAL_SECTION_MUTATION, {
     refetchQueries: [{ query: GET_MY_TASKS_AND_SECTIONS_QUERY }],
   })
 
@@ -123,7 +124,9 @@ export function useMyTasksAndSections() {
       tasks: sec.tasks.map(task => ({
         id: task.id,
         title: task.title,
-        endDate: task.endDate || null,
+        // *** FIX HERE: Consistently format the date at the data mapping layer. ***
+        endDate: task.endDate ? new Date(task.endDate).toISOString().split("T")[0] : null,
+        startDate: task.startDate ? new Date(task.startDate).toISOString().split("T")[0] : null,
         priority: mapPriorityToUI(task.priority),
         points: task.points,
         completed: mapTaskStatusToUI(task.status),
@@ -265,7 +268,8 @@ export function useMyTasksAndSections() {
           variables: { sections: sectionsToReorder },
         })
         console.log(`[reorderSections] Mutation successful.`)
-      } catch (err) {
+      } catch (err)
+ {
         console.error("Fucking failed to reorder sections:", err)
         // On error, revert the optimistic update by refetching from the server
         console.log(`[reorderSections] Reverting optimistic update by refetching data.`)
@@ -281,6 +285,7 @@ export function useMyTasksAndSections() {
     loading,
     error,
     isReordering,
+    isCreatingSection,
     refetchMyTasksAndSections: refetch,
     createSection,
     updateSection,

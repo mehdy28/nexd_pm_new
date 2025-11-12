@@ -1,4 +1,3 @@
-// PersonalBoardView.tsx
 "use client"
 
 import { PersonalKanbanBoard } from "@/components/board/personal/personal-kanban-board"
@@ -35,7 +34,8 @@ const mapSectionsToColumns = (sections: SectionUI[]): Column[] => {
       title: task.title,
       description: task.description ?? undefined,
       priority: task.priority,
-      due: task.endDate,
+      endDate: task.endDate,
+      startDate: task.startDate,
       points: task.points ?? 0,
       assignee: null,
       completed: task.completed,
@@ -55,6 +55,7 @@ export function PersonalBoardView() {
     deleteSection,
     reorderSections,
     isReordering,
+    isCreatingSection, // *** CHANGE HERE: Get the new loading state. ***
   } = useMyTasksAndSections()
 
   const { createTask, updateTask, deleteTask } = usePersonalTaskmutations()
@@ -124,6 +125,7 @@ export function PersonalBoardView() {
       if (updates.priority !== undefined) mutationInput.priority = mapPriorityToPrisma(updates.priority)
       if (updates.points !== undefined) mutationInput.points = updates.points
       if (updates.endDate !== undefined) mutationInput.dueDate = updates.endDate
+      if (updates.startDate !== undefined) mutationInput.dueDate = updates.startDate
       if (updates.completed !== undefined) mutationInput.status = mapCompletedToPrismaStatus(updates.completed)
       if (updates.personalSectionId) mutationInput.personalSectionId = updates.personalSectionId
 
@@ -193,6 +195,7 @@ export function PersonalBoardView() {
       onUpdateCard={handleUpdateCard}
       onDeleteCard={handleDeleteCard}
       isMutating={isBoardMutating}
+      isCreatingColumn={isCreatingSection} // *** CHANGE HERE: Pass the new prop down. ***
       // You would also need to pass mutatingCardId down and handle it in child components
       // for per-card loading indicators. This change stops the global button from loading.
     />

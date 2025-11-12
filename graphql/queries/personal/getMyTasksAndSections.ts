@@ -13,6 +13,7 @@ export const GET_MY_TASKS_AND_SECTIONS_QUERY = gql`
           status
           priority
           endDate
+          startDate
           points
           completed
           personalSectionId

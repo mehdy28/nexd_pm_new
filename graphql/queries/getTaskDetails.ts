@@ -20,6 +20,8 @@ export const GET_TASK_DETAILS_QUERY = gql`
       status
       priority
       dueDate
+      endDate
+      startDate
       points
       completed
       assignee {

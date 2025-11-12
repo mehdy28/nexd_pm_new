@@ -76,6 +76,7 @@ export const personalResolver = {
             description: task.description,
             status: task.status,
             priority: task.priority,
+            startDate: task.startDate?.toISOString().split("T")[0] || null,
             endDate: task.endDate?.toISOString().split("T")[0] || null,
             points: task.points,
             completed: task.status === "DONE",

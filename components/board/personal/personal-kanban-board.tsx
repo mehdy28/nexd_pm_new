@@ -27,6 +27,7 @@ import { Loader2 } from "lucide-react"
 import { useTaskDetails } from "@/hooks/personal/useTaskDetails"
 import { TaskDetailSheet } from "@/components/modals/task-detail-sheet"
 import { TaskUI } from "@/hooks/personal/useMyTasksAndSections"
+import type { TaskStatus } from "@prisma/client"
 
 type OverlayState =
   | {
@@ -43,6 +44,22 @@ type OverlayState =
     }
   | null
 
+// This type represents the shape of the task object used by the generic TaskDetailSheet.
+// It helps resolve the conflict between the hook's TaskUI and the sheet's expected props.
+type SheetTaskUI = {
+  id: string
+  title: string
+  description: string | null
+  priority: "LOW" | "MEDIUM" | "HIGH"
+  startDate: string | null
+  endDate: string | null
+  points: number | null
+  sectionId: string
+  assignee?: any | null
+  status?: TaskStatus
+  completed?: boolean
+}
+
 interface PersonalKanbanBoardProps {
   initialColumns: Column[]
   onColumnsChange: (newColumns: Column[]) => void
@@ -53,6 +70,7 @@ interface PersonalKanbanBoardProps {
   onUpdateCard: (columnId: string, cardId: string, updates: Partial<TaskUI & { personalSectionId?: string }>) => void
   onDeleteCard: (columnId: string, cardId: string) => void
   isMutating: boolean
+  isCreatingColumn: boolean
 }
 
 export function PersonalKanbanBoard({
@@ -65,6 +83,7 @@ export function PersonalKanbanBoard({
   onUpdateCard,
   onDeleteCard,
   isMutating,
+  isCreatingColumn,
 }: PersonalKanbanBoardProps) {
   const [columns, setColumns] = useState<Column[]>(initialColumns)
   const [drawerOpen, setDrawerOpen] = useState(false)
@@ -99,7 +118,8 @@ export function PersonalKanbanBoard({
         description: taskDetails.description,
         priority: taskDetails.priority,
         points: taskDetails.points,
-        due: taskDetails.dueDate,
+        endDate: taskDetails.endDate,
+        startDate: taskDetails.startDate,
         assignee: null,
         completed: taskDetails.status === "DONE",
         editing: false,
@@ -110,14 +130,15 @@ export function PersonalKanbanBoard({
   }, [taskDetails])
 
   const handleUpdateTask = useCallback(
-    async (sectionId: string, taskId: string, updates: Partial<TaskUI>) => {
+    async (sectionId: string, taskId: string, updates: Partial<SheetTaskUI>) => {
+      // The updates from the sheet are compatible with what onUpdateCard expects.
       await onUpdateCard(sectionId, taskId, updates)
     },
     [onUpdateCard]
   )
 
   const handleDeleteRequest = useCallback(
-    (sectionId: string, task: TaskUI) => {
+    (sectionId: string, task: { id: string }) => {
       onDeleteCard(sectionId, task.id)
       setDrawerOpen(false)
     },
@@ -154,16 +175,19 @@ export function PersonalKanbanBoard({
     if (!overId || activeId === overId) return
 
     if (activeType === "column") {
-      setColumns(currentColumns => {
-        const fromIndex = currentColumns.findIndex(c => c.id === activeId)
-        const toIndex = currentColumns.findIndex(c => c.id === overId)
-        if (fromIndex === -1 || toIndex === -1) return currentColumns
+      // *** FIX STARTS HERE ***
+      const fromIndex = columns.findIndex(c => c.id === activeId)
+      const toIndex = columns.findIndex(c => c.id === overId)
 
-        const reorderedColumns = arrayMove(currentColumns, fromIndex, toIndex)
+      if (fromIndex !== -1 && toIndex !== -1 && fromIndex !== toIndex) {
+        const reorderedColumns = arrayMove(columns, fromIndex, toIndex)
+        // First, update the local state for a smooth UI transition
+        setColumns(reorderedColumns)
+        // THEN, call the function prop to trigger the mutation (the side effect)
         onColumnsChange(reorderedColumns)
-        return reorderedColumns
-      })
+      }
       return
+      // *** FIX ENDS HERE ***
     }
 
     if (activeType === "card") {
@@ -192,7 +216,7 @@ export function PersonalKanbanBoard({
         const toCol = next.find(c => c.id === toColumnId)!
         const [moved] = fromCol.cards.splice(fromIndex, 1)
 
-        // *** CHANGE HERE: If moving to a new column, add the card to the TOP. ***
+        // FIX: If moving to a new column, add the card to the TOP.
         if (fromColumnId !== toColumnId) {
           toCol.cards.unshift(moved)
         } else {
@@ -218,13 +242,16 @@ export function PersonalKanbanBoard({
     return { sectionId: selected.columnId, taskId: selected.cardId }
   }, [selected])
 
-  const initialTaskForSheet = useMemo(() => {
+  const initialTaskForSheet: SheetTaskUI | null = useMemo(() => {
     if (!editingCardLocal || !selected) return null
     return {
       ...editingCardLocal,
       id: editingCardLocal.id,
+      description: editingCardLocal.description || null, // Ensure description is string or null
       sectionId: selected.columnId,
       status: editingCardLocal.completed ? "DONE" : "TODO",
+      startDate: editingCardLocal.startDate,
+      endDate: editingCardLocal.endDate,
     }
   }, [editingCardLocal, selected])
 
@@ -234,9 +261,11 @@ export function PersonalKanbanBoard({
         <Button
           onClick={() => onCreateColumn("New Column")}
           className="bg-[#4ab5ae] text-white h-9 rounded-md"
-          disabled={isBoardMutating}
+          // Disable if the board is mutating OR a column is being created.
+          disabled={isBoardMutating || isCreatingColumn}
         >
-          {isMutating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}+ Add column
+          {/* Only show spinner when a column is being created. */}
+          {isCreatingColumn ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}+ Add column
         </Button>
         <div className="ml-auto relative w-[260px]">
           <Input className="h-9" placeholder="Search tasks..." disabled={isBoardMutating} />
@@ -292,7 +321,7 @@ export function PersonalKanbanBoard({
                                 }
                               : c
                           )
-						)
+                        )
                       }}
                       onDeleteCard={() => onDeleteCard(column.id, card.id)}
                       isMutating={isMutating}

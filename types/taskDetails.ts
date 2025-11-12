@@ -41,6 +41,8 @@ export interface TaskDetailsUI {
   status: TaskStatusUI;
   priority: PriorityUI;
   dueDate: string | null;
+  startDate: string | null;
+  endDate: string | null;
   points: number | null;
   completed: boolean;
   assignee: UserAvatarPartial | null;

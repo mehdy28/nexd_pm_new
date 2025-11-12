@@ -69,7 +69,8 @@ type TaskUI = {
   title: string;
   description: string | null;
   priority: PriorityUI;
-  due: string | null;
+  startDate: string | null;
+  endDate: string | null;
   points: number | null;
   sectionId: string; // Required for callbacks like delete
   assignee?: UserAvatarPartial | null; // Project-specific, but optional for personal
@@ -131,7 +132,6 @@ const getDownloadableUrl = (url: string) => {
 
 interface TaskDetailSheetProps {
   sheetTask: { sectionId: string; taskId: string } | null;
-  initialTaskData: TaskUI | null;
   onClose: () => void;
   onUpdateTask: (sectionId: string, taskId: string, updates: Partial<TaskUI>) => Promise<void>;
   onRequestDelete: (sectionId: string, task: TaskUI) => void;
@@ -141,7 +141,6 @@ interface TaskDetailSheetProps {
 
 export function TaskDetailSheet({
   sheetTask,
-  initialTaskData,
   onClose,
   onUpdateTask,
   onRequestDelete,
@@ -169,16 +168,16 @@ export function TaskDetailSheet({
   } = useTaskDetails(sheetTask?.taskId || null);
 
   useEffect(() => {
-    if (initialTaskData) {
-      setEditingTaskLocal(initialTaskData);
+    if (taskDetails) {
+      setEditingTaskLocal(taskDetails);
       setActiveTab("description");
     } else {
       setEditingTaskLocal(null);
     }
-  }, [initialTaskData]);
+  }, [taskDetails]);
 
   useEffect(() => {
-    if (descriptionContentEditableRef.current && activeTab === "description" && initialTaskData && editingTaskLocal) {
+    if (descriptionContentEditableRef.current && activeTab === "description" && taskDetails && editingTaskLocal) {
       const div = descriptionContentEditableRef.current;
       if (!editingTaskLocal.description?.trim()) {
         if (div.textContent?.trim() !== 'Add a detailed description...') {
@@ -194,22 +193,23 @@ export function TaskDetailSheet({
         }
       }
     }
-  }, [editingTaskLocal?.description, initialTaskData, activeTab]);
+  }, [editingTaskLocal?.description, taskDetails, activeTab]);
 
   const handleSheetSave = useCallback(async () => {
-    if (!sheetTask || !editingTaskLocal || !initialTaskData) return;
-    const originalTask = initialTaskData;
+    if (!sheetTask || !editingTaskLocal || !taskDetails) return;
+    const originalTask = taskDetails;
     const updates: Partial<TaskUI> = {};
     if (editingTaskLocal.title !== originalTask.title) updates.title = editingTaskLocal.title;
     if (editingTaskLocal.description !== originalTask.description) updates.description = editingTaskLocal.description;
     if (editingTaskLocal.priority !== originalTask.priority) updates.priority = editingTaskLocal.priority;
     if (editingTaskLocal.points !== originalTask.points) updates.points = editingTaskLocal.points;
-    if (editingTaskLocal.due !== originalTask.due) updates.due = editingTaskLocal.due;
+    if (editingTaskLocal.startDate !== originalTask.startDate) updates.startDate = editingTaskLocal.startDate;
+    if (editingTaskLocal.endDate !== originalTask.endDate) updates.endDate = editingTaskLocal.endDate;
     if (editingTaskLocal.assignee?.id !== originalTask.assignee?.id) updates.assignee = editingTaskLocal.assignee;
     if (Object.keys(updates).length > 0) {
       await onUpdateTask(sheetTask.sectionId, sheetTask.taskId, updates);
     }
-  }, [sheetTask, editingTaskLocal, initialTaskData, onUpdateTask]);
+  }, [sheetTask, editingTaskLocal, taskDetails, onUpdateTask]);
 
   const handleEditorCommand = useCallback((command: string, value?: string) => {
     if (descriptionContentEditableRef.current) {
@@ -271,14 +271,18 @@ export function TaskDetailSheet({
   return (
     <Sheet open={!!sheetTask} onOpenChange={(open) => (!open ? onClose() : null)}>
       <SheetContent side="right" className="w-full sm:max-w-[800px] bg-gray-100 border-l p-0 flex flex-col h-full max-h-screen">
-        {initialTaskData && editingTaskLocal ? (
+        {taskDetailsLoading ? (
+            <div className="flex items-center justify-center p-6 text-muted-foreground flex-1">
+              <Loader2 className="h-6 w-6 animate-spin text-teal-500" />
+            </div>
+        ) : taskDetails && editingTaskLocal ? (
           <>
             <SheetHeader className="p-6 pt-0 pb-0 border-b bg-white flex-shrink-0 sticky top-0 z-20">
               <SheetTitle className="sr-only">Edit Task</SheetTitle><SheetDescription className="sr-only">View and modify task details.</SheetDescription>
               <div className="flex justify-between items-center">
               <Input value={editingTaskLocal.title} onChange={(e) => setEditingTaskLocal(prev => prev ? { ...prev, title: e.target.value } : null)} className={cn("text-2xl font-bold mt-2", jiraInputStyle, "text-gray-800")} disabled={isTaskMutating}/>
                 <div className="flex gap-2">
-                  <Button variant="ghost" size="icon" className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50" onClick={() => onRequestDelete(initialTaskData.sectionId, initialTaskData)} title="Delete task"><Trash2 className="h-4 w-4" /></Button>
+                  <Button variant="ghost" size="icon" className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50" onClick={() => onRequestDelete(taskDetails.sectionId, taskDetails)} title="Delete task"><Trash2 className="h-4 w-4" /></Button>
                   <SheetClose asChild><Button variant="ghost" size="icon" className="h-8 w-8"><X className="h-4 w-4 text-gray-500" /><span className="sr-only">Close</span></Button></SheetClose>
                 </div>
               </div>
@@ -295,7 +299,7 @@ export function TaskDetailSheet({
                   </div>
                 </div>
                 <div className="flex-1 h-full min-h-0">
-                  {taskDetailsLoading ? ( <div className="flex items-center justify-center h-full"><Loader2 className="h-6 w-6 animate-spin text-teal-500" /></div> ) : taskDetailsError ? ( <div className="p-6 text-red-600">Error: {taskDetailsError.message}</div> ) : !taskDetails ? ( <div className="p-6 text-muted-foreground">No task details found.</div> ) : ( <>
+                  {taskDetailsError ? ( <div className="p-6 text-red-600">Error: {taskDetailsError.message}</div> ) : ( <>
                   {activeTab === "description" && (
                     <div className="px-6 py-4  h-full overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
                       <div className="mb-2 p-1 rounded-md bg-white border border-gray-200 flex gap-1 flex-wrap">
@@ -391,61 +395,56 @@ export function TaskDetailSheet({
               </div>
 
               <div className="lg:col-span-1 border-l border-gray-200 bg-white pl-6 pr-6 mb-2 mr-2  py-6 flex flex-col flex-shrink-0 min-h-0 rounded-lg">
-                <div className="space-y-4 flex-grow overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100 min-h-0">
-                  <h3 className="text-base font-semibold text-gray-800 mb-4">Details</h3>
-                  <div className="flex items-center gap-4 text-sm">
-                    <UserRoundIcon className="h-4 w-4 text-gray-500" />
-                    <div className="flex-1">
-                      <Label htmlFor="assignee-select" className="sr-only">Assignee</Label>
-                      <Select value={editingTaskLocal.assignee?.id || "null"} onValueChange={(v) => setEditingTaskLocal(prev => prev ? { ...prev, assignee: availableAssignees.find(a => a.id === v) || null } : null)} disabled={isTaskMutating}>
-                        <SelectTrigger id="assignee-select" className={cn("w-full text-gray-700 hover:bg-gray-50 rounded-md py-2 px-3 transition-colors", jiraSelectTriggerStyle)}>
-                          <SelectValue placeholder="Unassigned">
-                            <div className="flex items-center gap-2">
-                              <Avatar className="h-6 w-6"><AvatarImage src={editingTaskLocal.assignee?.avatar || undefined} /><AvatarFallback className="text-xs bg-gray-100 text-gray-700">{`${editingTaskLocal.assignee?.firstName?.[0] || ''}${editingTaskLocal.assignee?.lastName?.[0] || ''}` || '?'}</AvatarFallback></Avatar>
-                              <span>{editingTaskLocal.assignee?.firstName} {editingTaskLocal.assignee?.lastName || 'Unassigned'}</span>
-                            </div>
-                          </SelectValue>
-                        </SelectTrigger>
-                        <SelectContent className="bg-white border-border">
-                          <SelectItem value="null"><div className="flex items-center gap-2"><Avatar className="h-6 w-6 border bg-gray-100"><AvatarImage src={undefined} /><AvatarFallback className="text-xs text-gray-700">?</AvatarFallback></Avatar><span>Unassigned</span></div></SelectItem>
-                          <DropdownMenuSeparator />
-                          {availableAssignees.map((a) => (<SelectItem key={a.id} value={a.id}><div className="flex items-center gap-2"><Avatar className="h-6 w-6"><AvatarImage src={a.avatar || undefined} /><AvatarFallback className="text-xs bg-gray-100 text-gray-700">{`${a.firstName?.[0] || ''}${a.lastName?.[0] || ''}` || '?'}</AvatarFallback></Avatar><span>{a.firstName} {a.lastName}</span></div></SelectItem>))}
-                        </SelectContent>
-                      </Select>
-                    </div>
+                <div className="space-y-6 flex-grow overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100 min-h-0">
+                  <h3 className="text-base font-semibold text-gray-800">Details</h3>
+                  <div>
+                    <Label htmlFor="assignee-select" className="text-sm font-medium text-gray-700 flex items-center gap-2 mb-1">
+                      <UserRoundIcon className="h-4 w-4 text-gray-500" /> Assignee
+                    </Label>
+                    <Select value={editingTaskLocal.assignee?.id || "null"} onValueChange={(v) => setEditingTaskLocal(prev => prev ? { ...prev, assignee: availableAssignees.find(a => a.id === v) || null } : null)} disabled={isTaskMutating}>
+                      <SelectTrigger id="assignee-select" className={cn("w-full text-gray-700 hover:bg-gray-50 rounded-md py-2 px-3 transition-colors border", jiraSelectTriggerStyle)}>
+                        <SelectValue placeholder="Unassigned">
+                          <div className="flex items-center gap-2">
+                            <Avatar className="h-6 w-6"><AvatarImage src={editingTaskLocal.assignee?.avatar || undefined} /><AvatarFallback className="text-xs bg-gray-100 text-gray-700">{`${editingTaskLocal.assignee?.firstName?.[0] || ''}${editingTaskLocal.assignee?.lastName?.[0] || ''}` || '?'}</AvatarFallback></Avatar>
+                            <span>{editingTaskLocal.assignee?.firstName} {editingTaskLocal.assignee?.lastName || 'Unassigned'}</span>
+                          </div>
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent className="bg-white border-border">
+                        <SelectItem value="null"><div className="flex items-center gap-2"><Avatar className="h-6 w-6 border bg-gray-100"><AvatarImage src={undefined} /><AvatarFallback className="text-xs text-gray-700">?</AvatarFallback></Avatar><span>Unassigned</span></div></SelectItem>
+                        <DropdownMenuSeparator />
+                        {availableAssignees.map((a) => (<SelectItem key={a.id} value={a.id}><div className="flex items-center gap-2"><Avatar className="h-6 w-6"><AvatarImage src={a.avatar || undefined} /><AvatarFallback className="text-xs bg-gray-100 text-gray-700">{`${a.firstName?.[0] || ''}${a.lastName?.[0] || ''}` || '?'}</AvatarFallback></Avatar><span>{a.firstName} {a.lastName}</span></div></SelectItem>))}
+                      </SelectContent>
+                    </Select>
                   </div>
-                  <div className="flex items-center gap-4 text-sm">
-                    <TagIcon className="h-4 w-4 text-gray-500" />
-                    <div className="flex-1">
-                      <Label htmlFor="priority-select" className="sr-only">Priority</Label>
-                      <Select value={editingTaskLocal.priority} onValueChange={(v: PriorityUI) => setEditingTaskLocal(prev => prev ? { ...prev, priority: v } : null)} disabled={isTaskMutating}>
-                        <SelectTrigger id="priority-select" className={cn("w-full text-gray-700 hover:bg-gray-50 rounded-md py-2 px-3 transition-colors", jiraSelectTriggerStyle)}>
-                          <SelectValue><div className="inline-flex items-center gap-2"><span className={cn("h-2 w-2 rounded-full", priorityDot[editingTaskLocal.priority])} /><span>{editingTaskLocal.priority}</span></div></SelectValue>
-                        </SelectTrigger>
-                        <SelectContent className="bg-white border-border">{(["LOW", "MEDIUM", "HIGH"] as PriorityUI[]).map((p) => (<SelectItem key={p} value={p}><div className="flex items-center gap-2"><span className={cn("h-2 w-2 rounded-full", priorityDot[p])} />{p}</div></SelectItem>))}</SelectContent>
-                      </Select>
-                    </div>
+                  <div>
+                    <Label htmlFor="priority-select" className="text-sm font-medium text-gray-700 flex items-center gap-2 mb-1">
+                      <TagIcon className="h-4 w-4 text-gray-500" /> Priority
+                    </Label>
+                    <Select value={editingTaskLocal.priority} onValueChange={(v: PriorityUI) => setEditingTaskLocal(prev => prev ? { ...prev, priority: v } : null)} disabled={isTaskMutating}>
+                      <SelectTrigger id="priority-select" className={cn("w-full text-gray-700 hover:bg-gray-50 rounded-md py-2 px-3 transition-colors border", jiraSelectTriggerStyle)}>
+                        <SelectValue><div className="inline-flex items-center gap-2"><span className={cn("h-2 w-2 rounded-full", priorityDot[editingTaskLocal.priority])} /><span>{editingTaskLocal.priority}</span></div></SelectValue>
+                      </SelectTrigger>
+                      <SelectContent className="bg-white border-border">{(["LOW", "MEDIUM", "HIGH"] as PriorityUI[]).map((p) => (<SelectItem key={p} value={p}><div className="flex items-center gap-2"><span className={cn("h-2 w-2 rounded-full", priorityDot[p])} />{p}</div></SelectItem>))}</SelectContent>
+                    </Select>
                   </div>
-                  <div className="flex items-center gap-4 text-sm">
-                    <ListOrdered className="h-4 w-4 text-gray-500" />
-                    <div className="flex-1 flex items-center bg-gray-50 p-2 rounded-md hover:bg-gray-100 transition-colors">
-                      <Label htmlFor="story-points-input" className="sr-only">Story Points</Label>
-                      <Input id="story-points-input" type="number" value={editingTaskLocal.points ?? ""} onChange={(e) => setEditingTaskLocal(prev => prev ? { ...prev, points: Number.isNaN(Number.parseInt(e.target.value)) ? 0 : Number.parseInt(e.target.value) } : null)} className={cn("w-full text-gray-700", jiraInputStyle)} min={0} placeholder="Add points" disabled={isTaskMutating}/>
-                    </div>
+                  <div>
+                    <Label htmlFor="story-points-input" className="text-sm font-medium text-gray-700 flex items-center gap-2 mb-1">
+                        <ListOrdered className="h-4 w-4 text-gray-500" /> Story Points
+                    </Label>
+                    <Input id="story-points-input" type="number" value={editingTaskLocal.points ?? ""} onChange={(e) => setEditingTaskLocal(prev => prev ? { ...prev, points: Number.isNaN(Number.parseInt(e.target.value)) ? 0 : Number.parseInt(e.target.value) } : null)} className="w-full text-gray-700 border bg-gray-50 p-2 rounded-md hover:bg-gray-100 transition-colors" min={0} placeholder="Add points" disabled={isTaskMutating}/>
                   </div>
-                  <div className="flex items-center gap-4 text-sm">
-                    <CalendarIcon className="h-4 w-4 text-gray-500" />
-                    <div className="flex-1 flex items-center bg-gray-50 p-2 rounded-md hover:bg-gray-100 transition-colors">
-                      <Label htmlFor="start-date-input" className="sr-only">Start Date</Label>
-                      <Input id="start-date-input" type="date" value={""} onChange={(e) => {}} className={cn("w-full text-gray-700", jiraInputStyle)} placeholder="Set start date" disabled={isTaskMutating}/>
-                    </div>
+                  <div>
+                    <Label htmlFor="start-date-input" className="text-sm font-medium text-gray-700 flex items-center gap-2 mb-1">
+                        <CalendarIcon className="h-4 w-4 text-gray-500" /> Start Date
+                    </Label>
+                    <Input id="start-date-input" type="date" value={editingTaskLocal.startDate || ""} onChange={(e) => setEditingTaskLocal(prev => prev ? { ...prev, startDate: e.target.value } : null)} className="w-full text-gray-700 border bg-gray-50 p-2 rounded-md hover:bg-gray-100 transition-colors" placeholder="Set start date" disabled={isTaskMutating}/>
                   </div>
-                  <div className="flex items-center gap-4 text-sm">
-                    <ClockIcon className="h-4 w-4 text-gray-500" />
-                    <div className="flex-1 flex items-center bg-gray-50 p-2 rounded-md hover:bg-gray-100 transition-colors">
-                      <Label htmlFor="due-date-input" className="sr-only">Due Date</Label>
-                      <Input id="due-date-input" type="date" value={editingTaskLocal.due || ""} onChange={(e) => setEditingTaskLocal(prev => prev ? { ...prev, due: e.target.value } : null)} className={cn("w-full text-gray-700", jiraInputStyle)} placeholder="Set due date" disabled={isTaskMutating}/>
-                    </div>
+                  <div>
+                    <Label htmlFor="end-date-input" className="text-sm font-medium text-gray-700 flex items-center gap-2 mb-1">
+                        <ClockIcon className="h-4 w-4 text-gray-500" /> End Date
+                    </Label>
+                    <Input id="end-date-input" type="date" value={editingTaskLocal.endDate || ""} onChange={(e) => setEditingTaskLocal(prev => prev ? { ...prev, endDate: e.target.value } : null)} className="w-full text-gray-700 border bg-gray-50 p-2 rounded-md hover:bg-gray-100 transition-colors" placeholder="Set end date" disabled={isTaskMutating}/>
                   </div>
                 </div>
                 <div className="mt-8 flex flex-col gap-2 flex-shrink-0">
@@ -462,7 +461,7 @@ export function TaskDetailSheet({
               Loading task details or no task selected.
             </SheetDescription>
             <div className="flex items-center justify-center p-6 text-muted-foreground flex-1">
-              No task selected or data loading...
+              No task selected or data could not be loaded.
             </div>
           </>
         )}

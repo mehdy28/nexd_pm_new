@@ -16,6 +16,7 @@ export function useTaskDetails(taskId: string | null) {
   const { data, loading, error, refetch } = useQuery(GET_TASK_DETAILS_QUERY, {
     variables: { id: taskId },
     skip: !taskId,
+    fetchPolicy: "network-only", // Ensures fresh data is fetched from the network
   });
 
   const [createCommentMutation, { loading: creatingComment }] = useMutation(CREATE_TASK_COMMENT_MUTATION);

@@ -7,12 +7,13 @@ export type Card = {
   id: string
   title: string
   description?: string
-  priority: Priority // Changed to required as it's required in TaskUI (PriorityUI)
-  due: string | null // Changed to required string | null to match TaskUI
-  points: number // Changed to required to match TaskUI
+  priority: Priority
+  points: number
+  startDate: string | null
+  endDate: string | null
   editing?: boolean // Client-side specific
-  assignee: UserAvatarPartial | null; // Added from TaskUI
-  completed: boolean; // Added from TaskUI
+  assignee: UserAvatarPartial | null
+  completed: boolean
 }
 
 export type Column = {
