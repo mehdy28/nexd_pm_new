@@ -124,8 +124,8 @@ export function PersonalBoardView() {
       if (updates.description !== undefined) mutationInput.description = updates.description
       if (updates.priority !== undefined) mutationInput.priority = mapPriorityToPrisma(updates.priority)
       if (updates.points !== undefined) mutationInput.points = updates.points
-      if (updates.endDate !== undefined) mutationInput.dueDate = updates.endDate
-      if (updates.startDate !== undefined) mutationInput.dueDate = updates.startDate
+      if (updates.endDate !== undefined) mutationInput.endDate = updates.endDate
+      if (updates.startDate !== undefined) mutationInput.startDate = updates.startDate
       if (updates.completed !== undefined) mutationInput.status = mapCompletedToPrismaStatus(updates.completed)
       if (updates.personalSectionId) mutationInput.personalSectionId = updates.personalSectionId
 

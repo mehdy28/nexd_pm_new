@@ -89,12 +89,11 @@ export function PersonalKanbanBoard({
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [selected, setSelected] = useState<{ columnId: string; cardId: string } | null>(null)
   const [overlay, setOverlay] = useState<OverlayState>(null)
-  const [editingCardLocal, setEditingCardLocal] = useState<Card | null>(null)
 
   const rowRef = useRef<HTMLDivElement | null>(null)
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
 
-  const { taskDetails, isMutating: isTaskDetailsMutating } = useTaskDetails(selected?.cardId || null)
+  const { isMutating: isTaskDetailsMutating } = useTaskDetails(selected?.cardId || null)
 
   const openDrawer = useCallback((columnId: string, cardId: string) => {
     setSelected({ columnId, cardId })
@@ -110,28 +109,34 @@ export function PersonalKanbanBoard({
     setColumns(initialColumns)
   }, [initialColumns])
 
-  useEffect(() => {
-    if (taskDetails) {
-      setEditingCardLocal({
-        id: taskDetails.id,
-        title: taskDetails.title,
-        description: taskDetails.description,
-        priority: taskDetails.priority,
-        points: taskDetails.points,
-        endDate: taskDetails.endDate,
-        startDate: taskDetails.startDate,
-        assignee: null,
-        completed: taskDetails.status === "DONE",
-        editing: false,
-      })
-    } else {
-      setEditingCardLocal(null)
-    }
-  }, [taskDetails])
-
   const handleUpdateTask = useCallback(
     async (sectionId: string, taskId: string, updates: Partial<SheetTaskUI>) => {
-      // The updates from the sheet are compatible with what onUpdateCard expects.
+      // Create an update object that is compatible with the `Card` type.
+      const cardCompatibleUpdates: Partial<Card> = { ...updates }
+
+      // Coerce `description` from `string | null` to `string | undefined`.
+      if ("description" in updates) {
+        cardCompatibleUpdates.description = updates.description === null ? undefined : updates.description
+      }
+
+      // Coerce `points` from `number | null` to `number`.
+      if ("points" in updates) {
+        cardCompatibleUpdates.points = updates.points ?? 0
+      }
+
+      // Optimistically update the local state for an instant UI change on the card.
+      setColumns(prev =>
+        prev.map(column =>
+          column.id === sectionId
+            ? {
+                ...column,
+                cards: column.cards.map(card => (card.id === taskId ? { ...card, ...cardCompatibleUpdates } : card)),
+              }
+            : column
+        )
+      )
+
+      // Then, trigger the actual mutation in the background.
       await onUpdateCard(sectionId, taskId, updates)
     },
     [onUpdateCard]
@@ -241,19 +246,6 @@ export function PersonalKanbanBoard({
     if (!selected) return null
     return { sectionId: selected.columnId, taskId: selected.cardId }
   }, [selected])
-
-  const initialTaskForSheet: SheetTaskUI | null = useMemo(() => {
-    if (!editingCardLocal || !selected) return null
-    return {
-      ...editingCardLocal,
-      id: editingCardLocal.id,
-      description: editingCardLocal.description || null, // Ensure description is string or null
-      sectionId: selected.columnId,
-      status: editingCardLocal.completed ? "DONE" : "TODO",
-      startDate: editingCardLocal.startDate,
-      endDate: editingCardLocal.endDate,
-    }
-  }, [editingCardLocal, selected])
 
   return (
     <div className="page-scroller">
@@ -382,7 +374,6 @@ export function PersonalKanbanBoard({
 
       <TaskDetailSheet
         sheetTask={sheetTaskProp}
-        initialTaskData={initialTaskForSheet}
         onClose={closeDrawer}
         onUpdateTask={handleUpdateTask}
         onRequestDelete={handleDeleteRequest}

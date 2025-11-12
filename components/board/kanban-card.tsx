@@ -71,8 +71,8 @@ export function KanbanCard({
         <Avatar className="h-6 w-6 border-2 border-background shadow-sm">
           <AvatarFallback className="text-[10px] font-medium bg-primary/10 text-primary">ff</AvatarFallback>
         </Avatar>
-        <span className="text-muted-foreground font-medium flex-1">{card.due || "No due date"}</span>
-        <Button
+        <span className="text-muted-foreground font-medium flex-1">{card.endDate || "No due date"}</span>
+        {/* <Button
           size="sm"
           variant="ghost"
           className="h-7 px-3 text-xs font-medium hover:bg-primary/10 hover:text-primary transition-colors opacity-0 group-hover:opacity-100"
@@ -82,7 +82,7 @@ export function KanbanCard({
           }}
         >
           Edit
-        </Button>
+        </Button> */}
       </div>
     </div>
   )

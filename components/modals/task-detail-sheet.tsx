@@ -120,6 +120,28 @@ const safeFormatDistanceToNow = (dateInput: string | number | Date | null | unde
   }
 };
 
+const formatDateForDisplay = (dateString: string | null | undefined) => {
+  if (!dateString) return "None";
+  try {
+    return new Date(dateString).toLocaleDateString();
+  } catch {
+    return "Invalid Date";
+  }
+};
+
+// Helper to format an ISO date string into YYYY-MM-DD for date inputs
+const formatDateForInput = (isoDateString: string | null | undefined): string => {
+  if (!isoDateString) return ""; // Return empty string if no date
+  try {
+    const date = new Date(isoDateString);
+    if (isNaN(date.getTime())) return "";
+    // Extracts the YYYY-MM-DD part from the ISO string
+    return date.toISOString().slice(0, 10);
+  } catch (error) {
+    return ""; // Return empty string on error
+  }
+};
+
 // Helper to transform a Cloudinary URL to force download
 const getDownloadableUrl = (url: string) => {
     const parts = url.split('/upload/');
@@ -272,9 +294,15 @@ export function TaskDetailSheet({
     <Sheet open={!!sheetTask} onOpenChange={(open) => (!open ? onClose() : null)}>
       <SheetContent side="right" className="w-full sm:max-w-[800px] bg-gray-100 border-l p-0 flex flex-col h-full max-h-screen">
         {taskDetailsLoading ? (
-            <div className="flex items-center justify-center p-6 text-muted-foreground flex-1">
-              <Loader2 className="h-6 w-6 animate-spin text-teal-500" />
-            </div>
+            <>
+              <SheetHeader className="p-6 pb-0 sr-only">
+                <SheetTitle>Loading Task</SheetTitle>
+                <SheetDescription>Please wait while the task details are being loaded.</SheetDescription>
+              </SheetHeader>
+              <div className="flex items-center justify-center p-6 text-muted-foreground flex-1">
+                <Loader2 className="h-6 w-6 animate-spin text-teal-500" />
+              </div>
+            </>
         ) : taskDetails && editingTaskLocal ? (
           <>
             <SheetHeader className="p-6 pt-0 pb-0 border-b bg-white flex-shrink-0 sticky top-0 z-20">
@@ -438,13 +466,13 @@ export function TaskDetailSheet({
                     <Label htmlFor="start-date-input" className="text-sm font-medium text-gray-700 flex items-center gap-2 mb-1">
                         <CalendarIcon className="h-4 w-4 text-gray-500" /> Start Date
                     </Label>
-                    <Input id="start-date-input" type="date" value={editingTaskLocal.startDate || ""} onChange={(e) => setEditingTaskLocal(prev => prev ? { ...prev, startDate: e.target.value } : null)} className="w-full text-gray-700 border bg-gray-50 p-2 rounded-md hover:bg-gray-100 transition-colors" placeholder="Set start date" disabled={isTaskMutating}/>
+                    <Input id="start-date-input" type="date" value={formatDateForInput(editingTaskLocal.startDate)} onChange={(e) => setEditingTaskLocal(prev => prev ? { ...prev, startDate: e.target.value } : null)} className="w-full text-gray-700 border bg-gray-50 p-2 rounded-md hover:bg-gray-100 transition-colors" placeholder="Set start date" disabled={isTaskMutating}/>
                   </div>
                   <div>
                     <Label htmlFor="end-date-input" className="text-sm font-medium text-gray-700 flex items-center gap-2 mb-1">
                         <ClockIcon className="h-4 w-4 text-gray-500" /> End Date
                     </Label>
-                    <Input id="end-date-input" type="date" value={editingTaskLocal.endDate || ""} onChange={(e) => setEditingTaskLocal(prev => prev ? { ...prev, endDate: e.target.value } : null)} className="w-full text-gray-700 border bg-gray-50 p-2 rounded-md hover:bg-gray-100 transition-colors" placeholder="Set end date" disabled={isTaskMutating}/>
+                    <Input id="end-date-input" type="date" value={formatDateForInput(editingTaskLocal.endDate)} onChange={(e) => setEditingTaskLocal(prev => prev ? { ...prev, endDate: e.target.value } : null)} className="w-full text-gray-700 border bg-gray-50 p-2 rounded-md hover:bg-gray-100 transition-colors" placeholder="Set end date" disabled={isTaskMutating}/>
                   </div>
                 </div>
                 <div className="mt-8 flex flex-col gap-2 flex-shrink-0">
@@ -456,10 +484,10 @@ export function TaskDetailSheet({
           </>
         ) : (
           <>
-            <SheetTitle className="sr-only">Task Details</SheetTitle>
-            <SheetDescription className="sr-only">
-              Loading task details or no task selected.
-            </SheetDescription>
+            <SheetHeader className="p-6 pb-0 sr-only">
+              <SheetTitle>Task Details</SheetTitle>
+              <SheetDescription>No task is currently selected or its data could not be loaded.</SheetDescription>
+            </SheetHeader>
             <div className="flex items-center justify-center p-6 text-muted-foreground flex-1">
               No task selected or data could not be loaded.
             </div>
@@ -478,7 +506,7 @@ function ParsedActivityLogItem({ activity }: { activity: ActivityUI }) {
     let accentColor = "bg-gray-50";
 
     try {
-        const data = activity.data;
+        const data = activity.data as any;
 
         if (!data || typeof data !== 'object') {
             throw new Error("Activity data is missing or not an object.");
@@ -487,6 +515,7 @@ function ParsedActivityLogItem({ activity }: { activity: ActivityUI }) {
         switch (activity.type) {
             case 'TASK_CREATED':
                 action = "created the task";
+                details = `with title "${data.title}"`;
                 icon = <PlusCircle className="h-4 w-4 text-green-600" />;
                 accentColor = "bg-green-50";
                 break;
@@ -497,31 +526,43 @@ function ParsedActivityLogItem({ activity }: { activity: ActivityUI }) {
                 break;
             case 'ASSIGNEE_CHANGED':
                 action = "changed the assignee";
-                details = `${(data as any).oldAssignee || 'Unassigned'} → ${(data as any).newAssignee || 'Unassigned'}`;
+                details = `${data.oldValue || 'Unassigned'} → ${data.newValue || 'Unassigned'}`;
                 icon = <UserRoundIcon className="h-4 w-4 text-emerald-500" />;
                 accentColor = "bg-emerald-50";
                 break;
-            case 'PRIORITY_CHANGED':
+            case 'PRIORITY_UPDATED':
                 action = "changed the priority";
-                details = `${(data as any).oldPriority} → ${(data as any).newPriority}`;
+                details = `${data.oldValue} → ${data.newValue}`;
                 icon = <TagIcon className="h-4 w-4 text-orange-500" />;
                 accentColor = "bg-orange-50";
                 break;
             case 'POINTS_UPDATED':
                 action = "updated story points";
-                details = `${(data as any).oldPoints ?? 'No'} points → ${(data as any).newPoints ?? 'No'} points`;
+                details = `${data.oldValue ?? 'No'} points → ${data.newValue ?? 'No'} points`;
                 icon = <ListOrdered className="h-4 w-4 text-purple-500" />;
                 accentColor = "bg-purple-50";
                 break;
             case 'STATUS_CHANGED':
                  action = "changed the status";
-                 details = `${(data as any).oldStatus} → ${(data as any).newStatus}`;
+                 details = `${data.oldValue} → ${data.newValue}`;
                  icon = <CheckCircle2 className="h-4 w-4 text-green-600" />;
                  accentColor = "bg-green-50";
                  break;
+            case 'DUE_DATE_UPDATED':
+                action = "updated the due date";
+                details = `${formatDateForDisplay(data.oldValue)} → ${formatDateForDisplay(data.newValue)}`;
+                icon = <CalendarIcon className="h-4 w-4 text-red-500" />;
+                accentColor = "bg-red-50";
+                break;
+            case 'TASK_UPDATED':
+                action = `updated the ${data.field}`;
+                details = `from "${data.oldValue}" to "${data.newValue}"`;
+                icon = <Pencil className="h-4 w-4 text-blue-500" />;
+                accentColor = "bg-blue-50";
+                break;
              case 'COMMENT_ADDED':
                  action = "added a new comment";
-                 details = `"${(data as any).content}"`;
+                 details = `"${data.content}"`;
                  icon = <MessageSquareIcon className="h-4 w-4 text-gray-500" />;
                  accentColor = "bg-gray-50";
                  break;
