@@ -252,16 +252,16 @@ export function PersonalKanbanBoard({
       <div className="flex items-center  pr-6 pl-6 pt-3 gap-3">
         <Button
           onClick={() => onCreateColumn("New Column")}
-          className="bg-[#4ab5ae] text-white h-9 rounded-md"
+          className="bg-[#4ab5ae] text-white hover:bg-[#419d97] h-9 rounded-md"
           // Disable if the board is mutating OR a column is being created.
           disabled={isBoardMutating || isCreatingColumn}
         >
           {/* Only show spinner when a column is being created. */}
           {isCreatingColumn ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}+ Add column
         </Button>
-        <div className="ml-auto relative w-[260px]">
+        {/* <div className="ml-auto relative w-[260px]">
           <Input className="h-9" placeholder="Search tasks..." disabled={isBoardMutating} />
-        </div>
+        </div> */}
       </div>
 
       <DndContext

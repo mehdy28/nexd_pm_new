@@ -9,8 +9,8 @@ import { TaskStatusUI, TaskUI } from "./useMyTasksAndSections"
 // --- Mutation Variable Interfaces ---
 interface CreatePersonalTaskVariables {
   input: {
-    personalSectionId: string
-    title: string
+    personalSectionId?: string
+    title?: string
     description?: string | null
     status?: "TODO" | "DONE"
     priority?: Priority
@@ -73,6 +73,9 @@ export function usePersonalTaskmutations() {
           status: input.status || "TODO",
           title: input.title,
           personalSectionId: personalSectionId,
+          completed: false,
+          sprintId: null,
+          assignee: null,
         },
       }
       console.log(`[createTask] Optimistic response payload:`, optimisticResponsePayload)

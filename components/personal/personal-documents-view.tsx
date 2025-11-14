@@ -177,10 +177,10 @@ export function PersonalDocumentsView() {
                     className="hidden"
                     onChange={handleFileChange}
                   />
-                  <Button variant="outline" className="h-9 bg-transparent" onClick={handleUploadClick}>
+                  {/* <Button variant="outline" className="h-9 bg-transparent" onClick={handleUploadClick}>
                     <Upload className="mr-1 h-4 w-4" /> Upload PDF
-                  </Button>
-                  <Button className="h-9 btn-primary" onClick={handleCreateDoc}>
+                  </Button> */}
+                  <Button className="h-9 btn-primary bg-[#4ab5ae] text-white hover:bg-[#419d97]" onClick={handleCreateDoc}>
                     <Plus className="mr-1 h-4 w-4" /> New Document
                   </Button>
                 </div>
@@ -278,10 +278,10 @@ export function PersonalDocumentsView() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="8">8</SelectItem>
-                      <SelectItem value="12">12</SelectItem>
-                      <SelectItem value="20">20</SelectItem>
-                      <SelectItem value="40">40</SelectItem>
+                      <SelectItem value="8" className="data-[state=checked]:bg-[#4ab5ae] data-[state=checked]:text-white data-[state=checked]:hover:bg-[#419d97]">8</SelectItem>
+                      <SelectItem value="12" className="data-[state=checked]:bg-[#4ab5ae] data-[state=checked]:text-white data-[state=checked]:hover:bg-[#419d97]">12</SelectItem>
+                      <SelectItem value="20" className="data-[state=checked]:bg-[#4ab5ae] data-[state=checked]:text-white data-[state=checked]:hover:bg-[#419d97]">20</SelectItem>
+                      <SelectItem value="40" className="data-[state=checked]:bg-[#4ab5ae] data-[state=checked]:text-white data-[state=checked]:hover:bg-[#419d97]">40</SelectItem>
                     </SelectContent>
                   </Select>
                   <Button

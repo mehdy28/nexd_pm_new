@@ -91,7 +91,7 @@ export function PromptList({
                 placeholder="Search prompts..."
               />
               <div className="flex items-center justify-start gap-2 md:justify-end">
-                <Button className="h-9 btn-primary" onClick={onCreatePrompt}>
+                <Button className="h-9 btn-primary bg-[#4ab5ae] text-white hover:bg-[#419d97]" onClick={onCreatePrompt}>
                   <Plus className="mr-1 h-4 w-4" />
                   New Prompt
                 </Button>
@@ -140,10 +140,10 @@ export function PromptList({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="6">6</SelectItem>
-                    <SelectItem value="9">9</SelectItem>
-                    <SelectItem value="12">12</SelectItem>
-                    <SelectItem value="24">24</SelectItem>
+                    <SelectItem value="6" className="data-[state=checked]:bg-[#4ab5ae] data-[state=checked]:text-white data-[state=checked]:hover:bg-[#419d97]">6</SelectItem>
+                    <SelectItem value="9" className="data-[state=checked]:bg-[#4ab5ae] data-[state=checked]:text-white data-[state=checked]:hover:bg-[#419d97]">9</SelectItem>
+                    <SelectItem value="12" className="data-[state=checked]:bg-[#4ab5ae] data-[state=checked]:text-white data-[state=checked]:hover:bg-[#419d97]">12</SelectItem>
+                    <SelectItem value="24" className="data-[state=checked]:bg-[#4ab5ae] data-[state=checked]:text-white data-[state=checked]:hover:bg-[#419d97]">24</SelectItem>
                   </SelectContent>
                 </Select>
                 <Button

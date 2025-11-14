@@ -995,6 +995,7 @@ input UpdateGanttTaskInput {
   endDate: DateTime
   assigneeId: ID
   progress: Int
+  displayOrder: Int
 }
 input CreatePersonalGanttTaskInput {
   personalSectionId: ID!

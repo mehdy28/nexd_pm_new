@@ -447,12 +447,14 @@ export function PersonalListView() {
   return (
     <div className="p-6 pt-3">
       <div className="flex items-center gap-3">
-        <Button onClick={addSection} disabled={isSectionMutating} className="bg-[#4ab5ae] text-white h-9 rounded-md">
-          {isSectionMutating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}+ Add section
+        <Button onClick={addSection} 
+       /// disabled={isSectionMutating}
+         className="bg-[#4ab5ae] text-white hover:bg-[#419d97] h-9 rounded-md">
+          {isSectionMutating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}+ Add section 
         </Button>
-        <div className="ml-auto relative w-[260px]">
+        {/* <div className="ml-auto relative w-[260px]">
           <Input className="h-9" placeholder="Search tasks..." />
-        </div>
+        </div> */}
       </div>
 
       {selectedCount > 0 && (
@@ -492,14 +494,14 @@ export function PersonalListView() {
                     if (e.key === "Enter") (e.target as HTMLInputElement).blur()
                     if (e.key === "Escape") setEditingSectionId(null)
                   }}
-                  disabled={isSectionMutating}
+                  //disabled={isSectionMutating}
                 />
               ) : (
                 <button
                   className="text-sm font-semibold text-left hover:underline"
                   onClick={() => setEditingSectionId(section.id)}
                   title="Rename section"
-                  disabled={isSectionMutating}
+                  //disabled={isSectionMutating}
                 >
                   {section.title}
                 </button>
@@ -510,15 +512,18 @@ export function PersonalListView() {
                   <Button
                     variant="outline"
                     size="sm"
+                    className="bg-[#4ab5ae] text-white hover:bg-[#419d97]"
                     onClick={() => openNewTask(section.id)}
-                    disabled={isTaskMutating}
+                    //disabled={isTaskMutating}
                   >
                     + Add task
                   </Button>
                 )}
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0" disabled={isSectionMutating}>
+                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0"
+                     //disabled={isSectionMutating}
+                     >
                       <EllipsisVertical className="h-4 w-4" />
                     </Button>
                   </DropdownMenuTrigger>
@@ -563,7 +568,7 @@ export function PersonalListView() {
                               }))
                             }
                             placeholder="Task title"
-                            disabled={isTaskMutating}
+                           // disabled={isTaskMutating}
                           />
                         </div>
                         <div className="space-y-2">
@@ -577,7 +582,7 @@ export function PersonalListView() {
                                 [section.id]: { ...(p[section.id] as NewTaskForm), endDate: e.target.value },
                               }))
                             }
-                            disabled={isTaskMutating}
+                            //disabled={isTaskMutating}
                           />
                         </div>
                         <div className="space-y-2">
@@ -590,7 +595,7 @@ export function PersonalListView() {
                                 [section.id]: { ...(p[section.id] as NewTaskForm), priority: v },
                               }))
                             }
-                            disabled={isTaskMutating}
+                            //disabled={isTaskMutating}
                           >
                             <SelectTrigger>
                               <SelectValue placeholder="Priority" />
@@ -626,23 +631,23 @@ export function PersonalListView() {
                                 }))
                               }
                               min={0}
-                              disabled={isTaskMutating}
+                             // disabled={isTaskMutating}
                             />
                             <Button
                               aria-label="Create task"
                               onClick={() => saveNewTask(section.id)}
-                              className="h-9 bg-emerald-600 hover:bg-emerald-700 text-white"
-                              disabled={isTaskMutating || !newTask[section.id]?.title.trim()}
+                              className="h-9 bg-[#4ab5ae] text-white hover:bg-[#419d97]"
+                             // disabled={isTaskMutating || !newTask[section.id]?.title.trim()}
                             >
-                              {isTaskMutating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                              {isTaskMutating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null} 
                               Create
                             </Button>
                             <Button
                               aria-label="Cancel task creation"
                               variant="ghost"
-                              className="h-9 bg-red-600 hover:bg-red-700 text-white"
+                              className="h-9 bg-red-500 hover:bg-red-600 text-white"
                               onClick={() => cancelNewTask(section.id)}
-                              disabled={isTaskMutating}
+                              //disabled={isTaskMutating}
                             >
                               Cancel
                             </Button>
@@ -701,7 +706,7 @@ export function PersonalListView() {
                           id="deleteTasks"
                           checked={deleteTasksConfirmed}
                           onCheckedChange={(checked: boolean) => setDeleteTasksConfirmed(checked)}
-                          disabled={isSectionMutating}
+                          //disabled={isSectionMutating}
                         />
                         <Label htmlFor="deleteTasks">Delete all {sectionToDelete.tasks.length} tasks</Label>
                       </div>
@@ -714,14 +719,14 @@ export function PersonalListView() {
                               if (checked) setReassignToSectionOption(otherSections[0]?.id || null)
                               else setReassignToSectionOption(null)
                             }}
-                            disabled={isSectionMutating}
+                            //disabled={isSectionMutating}
                           />
                           <Label htmlFor="reassignTasks">Reassign tasks to:</Label>
                           {!deleteTasksConfirmed && !!reassignToSectionOption && (
                             <Select
                               value={reassignToSectionOption || undefined}
                               onValueChange={v => setReassignToSectionOption(v)}
-                              disabled={isSectionMutating}
+                              //disabled={isSectionMutating}
                             >
                               <SelectTrigger className="w-[180px] h-9">
                                 <SelectValue placeholder="Select section" />
@@ -752,9 +757,9 @@ export function PersonalListView() {
             <div className="mt-4 flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2">
               <Button
                 variant="outline"
-                className="mt-2 sm:mt-0"
+                className="mt-2 bg-[#4ab5ae] text-white hover:bg-[#419d97] sm:mt-0"
                 onClick={() => setDeleteSectionModalOpen(false)}
-                disabled={isSectionMutating}
+                //disabled={isSectionMutating}
               >
                 Cancel
               </Button>
@@ -802,16 +807,16 @@ export function PersonalListView() {
                 variant="outline"
                 className="mt-2 sm:mt-0"
                 onClick={() => setDeleteTaskModalOpen(false)}
-                disabled={isTaskMutating}
+                //disabled={isTaskMutating}
               >
                 Cancel
               </Button>
               <Button
                 className="bg-red-600 hover:bg-red-700 text-white"
                 onClick={handleConfirmTaskDelete}
-                disabled={isTaskMutating}
+                //disabled={isTaskMutating}
               >
-                {isTaskMutating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Delete Task"}
+                isTaskMutating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Delete Task"} 
               </Button>
             </div>
           </div>

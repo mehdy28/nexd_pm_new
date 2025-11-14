@@ -1,505 +1,262 @@
-// components/tasks/gantt-view.tsx
-"use client";
+"use client"
 
-import React, { useState, useMemo, useEffect, useCallback, useRef } from "react";
-import { Gantt, Task as GanttTaskReact, ViewMode } from "gantt-task-react";
-import "gantt-task-react/dist/index.css";
+import React, { useState, useMemo, useEffect, useCallback } from "react"
+import { Gantt, Task as GanttTaskReact, ViewMode } from "gantt-task-react"
+import "gantt-task-react/dist/index.css"
 
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { ChevronDown, Loader2 } from "lucide-react";
+} from "@/components/ui/dropdown-menu"
+import { ChevronDown, Loader2 } from "lucide-react"
 
-import { useGanttData, CustomGanttTask, SprintGanttFilterOption } from "@/hooks/useGanttData";
-import { useGanttMutations } from "@/hooks/useGanttMutations";
-import { LoadingPlaceholder, ErrorPlaceholder } from "@/components/placeholders/status-placeholders";
+import { useGanttData, CustomGanttTask, SprintGanttFilterOption } from "@/hooks/useGanttData"
+import { useProjectGanttMutations } from "@/hooks/useProjectGanttMutations"
+import { LoadingPlaceholder, ErrorPlaceholder } from "@/components/placeholders/status-placeholders"
 
 interface GanttViewProps {
-  projectId: string;
+  projectId: string
 }
 
-// Helper to determine start/end date for a parent sprint based on its children tasks/milestones
 export function getStartEndDateForParent(tasks: CustomGanttTask[], parentId: string) {
-  const children = tasks.filter(t => t.sprint === parentId);
+  const children = tasks.filter(t => t.project === parentId)
   if (children.length === 0) {
-    const parent = tasks.find(t => t.id === parentId);
-    return parent ? [parent.start, parent.end] : [new Date(), new Date()];
+    const parent = tasks.find(t => t.id === parentId)
+    return parent ? [parent.start, parent.end] : [new Date(), new Date()]
   }
-  let start = children[0].start;
-  let end = children[0].end;
+  let start = children[0].start
+  let end = children[0].end
 
   for (let i = 0; i < children.length; i++) {
-    const task = children[i];
+    const task = children[i]
     if (start.getTime() > task.start.getTime()) {
-      start = task.start;
+      start = task.start
     }
     if (end.getTime() < task.end.getTime()) {
-      end = task.end;
+      end = task.end
     }
   }
-  return [start, end];
-}
-
-// Custom hook for debouncing functions (now only used for full refetches, if still needed)
-function useDebounce(callback: () => void, delay: number) {
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-  useEffect(() => {
-    // Clear timeout on unmount
-    return () => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-      }
-    };
-  }, []);
-
-  const debouncedCallback = useCallback(() => {
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-    }
-    timeoutRef.current = setTimeout(() => {
-      callback();
-    }, delay);
-  }, [callback, delay]);
-
-  return debouncedCallback;
+  return [start, end]
 }
 
 const GanttView: React.FC<GanttViewProps> = ({ projectId }) => {
-  // --- Component State ---
-  const [isCreateTaskOpen, setIsCreateTaskOpen] = useState(false);
-  const [viewMode, setViewMode] = useState<ViewMode>(ViewMode.Week);
-  const [internalSelectedSprintId, setInternalSelectedSprintId] = useState<string | undefined>(undefined);
-  // State for optimistic UI updates
-  const [optimisticGanttTasks, setOptimisticGanttTasks] = useState<CustomGanttTask[]>([]);
-
-  // --- Refs for debugging re-renders ---
-  const renderCount = useRef(0);
-  useEffect(() => {
-    renderCount.current += 1;
-    console.log(`[GanttView - Render Cycle #${renderCount.current}] Component rendered.`);
-  });
-
-  // Log the state of optimisticGanttTasks at the beginning of each render
-  console.log(
-    `[GanttView - Render State] optimisticGanttTasks contains ${optimisticGanttTasks.length} items.`,
-    JSON.parse(JSON.stringify(optimisticGanttTasks.map(t => ({ id: t.id, name: t.name, originalTaskId: t.originalTaskId }))))
-  );
+  const [isCreateTaskOpen, setIsCreateTaskOpen] = useState(false)
+  const [viewMode, setViewMode] = useState<ViewMode>(ViewMode.Week)
+  const [optimisticGanttTasks, setOptimisticGanttTasks] = useState<CustomGanttTask[]>([])
+  const [selectedSprintId, setSelectedSprintId] = useState<string | undefined>(undefined)
 
   const {
-    ganttTasks, // Original tasks from Apollo hook
+    ganttTasks,
     sprintFilterOptions,
     loading: ganttDataLoading,
     error: ganttDataError,
     refetchGanttData,
-    defaultSelectedSprintId: suggestedDefaultSprintId,
-  } = useGanttData(projectId, internalSelectedSprintId);
+    defaultSelectedSprintId,
+  } = useGanttData(projectId, selectedSprintId)
 
-  const {
-    createGanttTask,
-    updateGanttTask,
-    updateSprintDates,
-    isMutating, // Combined mutation loading state
-    createGanttTaskLoading, // Individual mutation loading states
-    updateGanttTaskLoading,
-    updateSprintLoading,
-    mutationError,
-  } = useGanttMutations(projectId, internalSelectedSprintId);
-
-  // Debounce refetching logic for date/progress changes - only used for sprint changes now
-  const debouncedRefetchGanttData = useDebounce(refetchGanttData, 700); // Debounce for 700ms
-
-  // Effect to update optimisticGanttTasks when actual ganttTasks change from Apollo
-  useEffect(() => {
-    console.groupCollapsed("[Effect: Sync Apollo Data]");
-    console.log("  Effect triggered due to change in 'ganttTasks', 'ganttDataLoading', or 'ganttDataError'.");
-    console.log(`  Current ganttDataLoading: ${ganttDataLoading}`);
-    console.log(`  Incoming 'ganttTasks' from Apollo has ${ganttTasks?.length || 0} items.`);
-
-    if (ganttTasks && ganttTasks.length > 0) {
-      if (JSON.stringify(ganttTasks) !== JSON.stringify(optimisticGanttTasks)) {
-        console.log(
-          "  SERVER DATA MISMATCH: Apollo 'ganttTasks' is different from local 'optimisticGanttTasks'. Updating local state to match server."
-        );
-        console.log("  Data from server (ganttTasks):", JSON.parse(JSON.stringify(ganttTasks)));
-        console.log(
-          "  Current local data (optimisticGanttTasks):",
-          JSON.parse(JSON.stringify(optimisticGanttTasks))
-        );
-        setOptimisticGanttTasks(ganttTasks);
-      } else {
-        console.log(
-          "  SERVER DATA MATCH: Apollo 'ganttTasks' is identical to local 'optimisticGanttTasks'. No state update needed."
-        );
-      }
-    } else if (!ganttDataLoading && !ganttDataError) {
-      if (optimisticGanttTasks.length > 0) {
-        console.log("  Apollo data is empty/unavailable. Clearing local 'optimisticGanttTasks'.");
-        setOptimisticGanttTasks([]);
-      } else {
-        console.log("  Apollo data is empty, and local state is already empty. No change.");
-      }
-    }
-    console.groupEnd();
-  }, [ganttTasks, ganttDataLoading, ganttDataError, optimisticGanttTasks]);
+  const { createGanttTask, updateGanttTask, deleteTask, isMutating, mutationError } = useProjectGanttMutations(
+    projectId,
+    selectedSprintId
+  )
 
   useEffect(() => {
-    if (internalSelectedSprintId === undefined && suggestedDefaultSprintId) {
-      console.log(
-        `[GanttView - State Effect] Initializing internalSelectedSprintId to suggestedDefaultSprintId: ${suggestedDefaultSprintId}`
-      );
-      setInternalSelectedSprintId(suggestedDefaultSprintId);
+    if (selectedSprintId === undefined && defaultSelectedSprintId) {
+      setSelectedSprintId(defaultSelectedSprintId)
     }
-  }, [suggestedDefaultSprintId, internalSelectedSprintId]);
+  }, [defaultSelectedSprintId, selectedSprintId])
+
+  useEffect(() => {
+    if (ganttTasks && !isMutating) {
+      setOptimisticGanttTasks(ganttTasks)
+    }
+  }, [ganttTasks, isMutating])
 
   const dynamicColumnWidth = useMemo(() => {
     switch (viewMode) {
       case ViewMode.Day:
-        return 150;
+        return 150
       case ViewMode.Week:
-        return 250;
+        return 250
       case ViewMode.Month:
-        return 300;
+        return 300
       case ViewMode.Year:
-        return 500;
+        return 500
       default:
-        return 150;
+        return 150
     }
-  }, [viewMode]);
+  }, [viewMode])
 
   const handleTaskChange = useCallback(
     async (task: GanttTaskReact) => {
-      console.group(`[CALLBACK: handleTaskChange] triggered for Task ID=${task.id}`);
-      console.log("  [1] Event data from Gantt library:", JSON.parse(JSON.stringify(task)));
+      const originalItem = optimisticGanttTasks.find(t => t.id === task.id)
+      if (!originalItem || originalItem.originalType !== "TASK") return
 
-      if (task.type === "project") {
-        // It's a sprint group
-        const sprintToUpdate = sprintFilterOptions.find(s => s.id === task.id);
-        if (sprintToUpdate) {
-          console.log(`  [2] Item is a SPRINT ('project' type). Found sprint: "${sprintToUpdate.name}"`);
-          setOptimisticGanttTasks(prev => {
-            const newState = prev.map(t => (t.id === task.id ? { ...t, start: task.start, end: task.end } : t));
-            console.log("  [3] Optimistically updating sprint dates in UI state.");
-            return newState;
-          });
+      const input: any = {
+        id: originalItem.originalTaskId,
+        type: originalItem.originalType,
+        displayOrder: originalItem.displayOrder,
+      }
+      let hasChanges = false
+      if (originalItem.start.toISOString() !== task.start.toISOString()) {
+        input.startDate = task.start.toISOString()
+        hasChanges = true
+      }
+      if (originalItem.end.toISOString() !== task.end.toISOString()) {
+        input.endDate = task.end.toISOString()
+        hasChanges = true
+      }
+      if (task.name !== originalItem.name) {
+        input.name = task.name
+        hasChanges = true
+      }
 
-          console.log(
-            `  [4] Calling 'updateSprintDates' mutation for ID ${
-              sprintToUpdate.id
-            } with Start: ${task.start.toISOString()}, End: ${task.end.toISOString()}`
-          );
-          try {
-            await updateSprintDates(sprintToUpdate.id, task.start, task.end);
-            console.log("  [5] SUCCESS: 'updateSprintDates' mutation completed.");
-            console.log("  [6] Triggering immediate refetchGanttData() to sync all data.");
-            refetchGanttData();
-          } catch (err) {
-            console.error("  [5] ERROR: 'updateSprintDates' mutation failed:", err);
-          }
-        } else {
-          console.warn(
-            `  [2] Item is a SPRINT ('project' type), but no matching sprint found in sprintFilterOptions for ID: ${task.id}`
-          );
-        }
-      } else {
-        // It's a regular task or milestone
-        console.log("  [2] Item is a TASK or MILESTONE.");
-        const originalItem = optimisticGanttTasks.find(t => t.id === task.id);
+      if (hasChanges) {
+        setOptimisticGanttTasks(prev =>
+          prev.map(t =>
+            t.id === task.id
+              ? {
+                  ...t,
+                  start: task.start,
+                  end: task.end,
+                  name: task.name,
+                }
+              : t
+          )
+        )
 
-        if (!originalItem) {
-          console.error(
-            `  [3] FATAL ERROR: Could not find original task in 'optimisticGanttTasks' with ID: ${task.id}. Cannot process update. This is likely the cause of your bug.`
-          );
-          console.log("      Current 'optimisticGanttTasks' IDs:", optimisticGanttTasks.map(t => t.id));
-          console.groupEnd();
-          return;
-        }
-
-        console.log("  [3] Found original item in local state:", JSON.parse(JSON.stringify(originalItem)));
-        console.log(`      -> Original DB ID (originalTaskId): ${originalItem.originalTaskId}`);
-        console.log(`      -> Original DB Type (originalType): ${originalItem.originalType}`);
-
-        const input: {
-          id: string;
-          type: "TASK" | "MILESTONE";
-          startDate?: string | null;
-          endDate?: string | null;
-          name?: string | null;
-        } = {
-          id: originalItem.originalTaskId,
-          type: originalItem.originalType,
-        };
-
-        let hasChanges = false;
-        let updatedOptimisticTask = { ...originalItem };
-
-        const currentStart = originalItem.start.toISOString().split("T")[0];
-        const newStart = task.start.toISOString().split("T")[0];
-        if (currentStart !== newStart) {
-          input.startDate = task.start.toISOString();
-          updatedOptimisticTask.start = task.start;
-          hasChanges = true;
-          console.log(`  [4a] Change detected: Start date "${currentStart}" -> "${newStart}"`);
-        }
-
-        const currentEnd = originalItem.end.toISOString().split("T")[0];
-        const newEnd = task.end.toISOString().split("T")[0];
-        if (currentEnd !== newEnd) {
-          input.endDate = task.end.toISOString();
-          updatedOptimisticTask.end = task.end;
-          hasChanges = true;
-          console.log(`  [4b] Change detected: End date "${currentEnd}" -> "${newEnd}"`);
-        }
-
-        if (task.name !== originalItem.name) {
-          input.name = task.name;
-          updatedOptimisticTask.name = task.name;
-          hasChanges = true;
-          console.log(`  [4c] Change detected: Name "${originalItem.name}" -> "${task.name}"`);
-        }
-
-        if (hasChanges) {
-          console.log("  [5] Changes were detected. Proceeding with update.");
-          setOptimisticGanttTasks(prev => {
-            const newState = prev.map(t => (t.id === updatedOptimisticTask.id ? updatedOptimisticTask : t));
-            console.log(
-              "  [6] Optimistically updating item in UI state.",
-              JSON.parse(JSON.stringify(updatedOptimisticTask))
-            );
-            return newState;
-          });
-
-          try {
-            console.log("  [7] Calling 'updateGanttTask' mutation with input:", input);
-            await updateGanttTask(input);
-            console.log("  [8] SUCCESS: 'updateGanttTask' mutation completed. The Apollo cache should now be updated automatically.");
-          } catch (err) {
-            console.error("  [8] ERROR: 'updateGanttTask' mutation failed:", err);
-            // NOTE: Here you might want to revert the optimistic update.
-          }
-        } else {
-          console.log("  [5] No changes detected. Skipping update.");
+        try {
+          await updateGanttTask(input)
+        } catch (err) {
+          setOptimisticGanttTasks(prev =>
+            prev.map(t => (t.id === task.id ? (originalItem as CustomGanttTask) : t))
+          )
         }
       }
-      console.groupEnd();
     },
-    [optimisticGanttTasks, sprintFilterOptions, updateGanttTask, updateSprintDates, refetchGanttData]
-  );
+    [optimisticGanttTasks, updateGanttTask]
+  )
 
   const handleTaskDelete = useCallback(
-    (task: GanttTaskReact) => {
-      console.log("[GanttView - Callback] handleTaskDelete: Deletion requested for task:", task);
-      if (createGanttTaskLoading || updateSprintLoading) {
-        console.warn("[GanttView - Callback] handleTaskDelete: Creation or Sprint mutation already in progress, deferring task delete.");
-        return false;
-      }
-
-      const conf = window.confirm("Are you sure you want to delete " + task.name + " ?");
+    async (task: GanttTaskReact) => {
+      const conf = window.confirm("Are you sure you want to delete " + task.name + " ?")
       if (conf) {
-        const originalItem = optimisticGanttTasks.find(t => t.id === task.id);
-        if (!originalItem) {
-          console.warn(`[GanttView - Callback] handleTaskDelete: Original item not found for deletion ID: ${task.id}`);
-          return false;
+        const originalItem = optimisticGanttTasks.find(t => t.id === task.id)
+        if (!originalItem || originalItem.originalType !== "TASK") {
+          alert("Only tasks can be deleted from the Gantt chart.")
+          return false
         }
-
-        console.log(
-          `[GanttView - Callback] handleTaskDelete: Attempting to delete ${originalItem.originalType} with ID: ${originalItem.originalTaskId}`
-        );
-        if (originalItem.originalType === "TASK") {
-          setOptimisticGanttTasks(prev => {
-            const newState = prev.filter(t => t.id !== task.id);
-            console.log("  Optimistically removed task from UI.");
-            return newState;
-          });
-          // TODO: Call actual delete mutation here
-          console.log("[GanttView - Callback] handleTaskDelete: Task deletion (simulated). Calling refetchGanttData().");
-          refetchGanttData();
-          return true;
-        } else {
-          alert(`Deletion of ${originalItem.originalType} (milestones or sprints) not yet supported.`);
-          console.log(`[GanttView - Callback] handleTaskDelete: Deletion of ${originalItem.originalType} is not supported.`);
-          return false;
+        setOptimisticGanttTasks(prev => prev.filter(t => t.id !== task.id))
+        try {
+          await deleteTask(originalItem.originalTaskId)
+        } catch (err) {
+          // Revert on error
+          refetchGanttData()
         }
+        return true
       }
-      console.log("[GanttView - Callback] handleTaskDelete: Deletion cancelled by user.");
-      return conf;
+      return false
     },
-    [optimisticGanttTasks, refetchGanttData, createGanttTaskLoading, updateSprintLoading]
-  );
+    [optimisticGanttTasks, deleteTask, refetchGanttData]
+  )
 
   const handleProgressChange = useCallback(
     async (task: GanttTaskReact) => {
-      console.groupCollapsed(`[CALLBACK: handleProgressChange] for Task ID=${task.id}`);
-      console.log(`  Gantt library event reported: New Progress=${task.progress}`);
+      const originalItem = optimisticGanttTasks.find(t => t.id === task.id)
+      if (!originalItem || originalItem.originalType !== "TASK") return
 
-      const originalItem = optimisticGanttTasks.find(t => t.id === task.id);
-      if (!originalItem) {
-        console.warn(`  Original item not found for progress update ID: ${task.id}. Cannot process update.`);
-        console.groupEnd();
-        return;
-      }
-      if (originalItem.originalType !== "TASK") {
-        console.warn(`  Item ID ${task.id} is of type "${originalItem.originalType}", not "TASK". Skipping progress update.`);
-        console.groupEnd();
-        return;
-      }
-
-      const roundedOriginalProgress = Math.round(originalItem.progress || 0);
-      const roundedNewProgress = Math.round(task.progress || 0);
-
-      if (roundedOriginalProgress !== roundedNewProgress) {
-        setOptimisticGanttTasks(prev => {
-          const newState = prev.map(t => (t.id === task.id ? { ...t, progress: roundedNewProgress } : t));
-          console.log(
-            `  Optimistically updated task progress in UI from ${roundedOriginalProgress}% to ${roundedNewProgress}%.`
-          );
-          return newState;
-        });
+      const roundedNewProgress = Math.round(task.progress || 0)
+      if (originalItem.progress !== roundedNewProgress) {
+        setOptimisticGanttTasks(prev =>
+          prev.map(t => (t.id === task.id ? { ...t, progress: roundedNewProgress } : t))
+        )
 
         try {
-          console.log(`  Detected progress change for task (${originalItem.originalTaskId}). Calling 'updateGanttTask'.`);
           await updateGanttTask({
             id: originalItem.originalTaskId,
             type: "TASK",
             progress: roundedNewProgress,
-          });
-          console.log("  SUCCESS: Task progress updated. Apollo cache should be updated.");
+            displayOrder: originalItem.displayOrder,
+          })
         } catch (err) {
-          console.error("  ERROR: updating task progress:", err);
+          setOptimisticGanttTasks(prev =>
+            prev.map(t => (t.id === task.id ? (originalItem as CustomGanttTask) : t))
+          )
         }
-      } else {
-        console.log(
-          `  No significant progress change detected for task ${task.id} (original=${roundedOriginalProgress}%, new=${roundedNewProgress}%). Skipping update.`
-        );
       }
-      console.groupEnd();
     },
     [optimisticGanttTasks, updateGanttTask]
-  );
-
-  const handleDoubleClick = useCallback((task: GanttTaskReact) => {
-    console.log("[GanttView - Callback] handleDoubleClick: Task double clicked:", task);
-    alert("Double clicked task: " + task.name + " (ID: " + task.id + ")");
-  }, []);
+  )
 
   const handleAddTask = useCallback(
-    async (newTaskData: {
-      name: string;
-      start: Date;
-      end: Date;
-      progress: number;
-      type: "task" | "milestone" | "project";
-      sprint: string;
-      projectId: string;
-    }) => {
-      console.groupCollapsed("[CALLBACK: handleAddTask]");
-      console.log("  [1] New task data from form:", newTaskData);
-
-      if (createGanttTaskLoading || updateSprintLoading) {
-        console.warn("  [2] A mutation is already in progress, deferring add task.");
-        console.groupEnd();
-        return;
-      }
-
-      const input: any = {
-        projectId: newTaskData.projectId,
-        sprintId: newTaskData.sprint,
-        name: newTaskData.name,
-        startDate: newTaskData.start.toISOString(),
-        endDate: newTaskData.end.toISOString(),
-      };
-
-      if (newTaskData.type === "task") {
-        input.type = "task";
-        input.progress = newTaskData.progress;
-      } else if (newTaskData.type === "milestone") {
-        input.type = "milestone";
-        // Milestones only have one date in some models, ensure endDate is the one sent
-        input.endDate = newTaskData.end.toISOString();
-        input.startDate = newTaskData.end.toISOString(); // Often start and end are the same
-      } else {
-        console.warn("  [2] Cannot create 'project' type from this modal. Aborting.");
-        console.groupEnd();
-        return;
-      }
-
+    async (newTaskData: any) => {
       try {
-        console.log("  [2] Calling 'createGanttTask' mutation with input:", input);
-        await createGanttTask(input);
-        console.log("  [3] SUCCESS: 'createGanttTask' mutation completed. Closing modal.");
-        setIsCreateTaskOpen(false);
-        // Refetch is handled by the mutation's configuration.
+        await createGanttTask(newTaskData)
+        setIsCreateTaskOpen(false)
       } catch (err) {
-        console.error("  [3] ERROR creating Gantt item:", err);
+        console.error("Error creating Gantt item:", err)
       }
-      console.groupEnd();
     },
-    [createGanttTask, createGanttTaskLoading, updateSprintLoading]
-  );
+    [createGanttTask]
+  )
 
-  const handleSprintSelectionChange = useCallback(
-    (sprintId: string) => {
-      console.log(
-        `[GanttView - Callback] handleSprintSelectionChange: Changing selected sprint from "${internalSelectedSprintId}" to "${
-          sprintId || "All Sprints"
-        }".`
-      );
-      setInternalSelectedSprintId(sprintId);
-    },
-    [internalSelectedSprintId]
-  );
+  const handleExpanderClick = (task: GanttTaskReact) => {
+    setOptimisticGanttTasks(prevTasks =>
+      prevTasks.map(t => (t.id === task.id ? { ...t, hideChildren: !t.hideChildren } : t))
+    )
+  }
+
+  const handleSprintSelectionChange = useCallback((sprintId: string) => {
+    setSelectedSprintId(sprintId)
+  }, [])
 
   const currentSprintName = useMemo(() => {
-    if (sprintFilterOptions.length === 0) {
-      return "No Sprints";
-    }
-    const activeSprintId = internalSelectedSprintId || suggestedDefaultSprintId;
-    const foundSprint = sprintFilterOptions.find(s => s.id === activeSprintId);
-    return foundSprint?.name || "Select Sprint";
-  }, [internalSelectedSprintId, sprintFilterOptions, suggestedDefaultSprintId]);
-
-  const isBlockingUI = ganttDataLoading || createGanttTaskLoading || updateSprintLoading;
-  const readOnlyGanttChart = ganttDataLoading || createGanttTaskLoading || updateSprintLoading;
-  const error = ganttDataError || mutationError;
+    if (sprintFilterOptions.length === 0) return "No Sprints"
+    const activeSprintId = selectedSprintId || defaultSelectedSprintId
+    const foundSprint = sprintFilterOptions.find(s => s.id === activeSprintId)
+    return foundSprint?.name || "Select Sprint"
+  }, [selectedSprintId, sprintFilterOptions, defaultSelectedSprintId])
 
   if (ganttDataLoading && optimisticGanttTasks.length === 0) {
-    return <LoadingPlaceholder message="Loading Gantt data..." />;
+    return <LoadingPlaceholder message="Loading Gantt data..." />
   }
 
+  const error = ganttDataError || mutationError
   if (error) {
-    return <ErrorPlaceholder error={error} onRetry={refetchGanttData} />;
+    return <ErrorPlaceholder error={error} onRetry={refetchGanttData} />
   }
 
-
-  console.log("[GanttView - Render Branch] Rendering main Gantt chart component.");
   return (
     <div className="relative px-6">
       <div className="flex items-center gap-3 py-6">
         <Button
           onClick={() => setIsCreateTaskOpen(true)}
-          className="bg-[#4ab5ae] text-white h-9 rounded-md"
-          disabled={isBlockingUI}
+          className="bg-[#4ab5ae] text-white hover:bg-[#419d97] h-9 rounded-md"
+         // disabled={isMutating}
         >
-          {isBlockingUI ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+          {/* {isMutating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null} */}
           + Add item
         </Button>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" className="h-9 rounded-md gap-2 bg-transparent" disabled={isBlockingUI}>
+            <Button variant="outline" className="h-9 rounded-md gap-2 bg-transparent" 
+            //disabled={isMutating}
+            >
               {currentSprintName} <ChevronDown className="h-4 w-4 text-muted-foreground" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start">
             <DropdownMenuLabel>Sprints</DropdownMenuLabel>
             {sprintFilterOptions.map(sprint => (
-              <DropdownMenuItem key={sprint.id} onClick={() => handleSprintSelectionChange(sprint.id)} disabled={isBlockingUI}>
+              <DropdownMenuItem
+                key={sprint.id}
+                onClick={() => handleSprintSelectionChange(sprint.id)}
+                //disabled={isMutating}
+              >
                 {sprint.name}
               </DropdownMenuItem>
             ))}
@@ -511,7 +268,7 @@ const GanttView: React.FC<GanttViewProps> = ({ projectId }) => {
             variant={viewMode === ViewMode.Day ? "default" : "outline"}
             onClick={() => setViewMode(ViewMode.Day)}
             className="rounded-r-none h-9"
-            disabled={isBlockingUI}
+            //disabled={isMutating}
           >
             Day
           </Button>
@@ -519,7 +276,7 @@ const GanttView: React.FC<GanttViewProps> = ({ projectId }) => {
             variant={viewMode === ViewMode.Week ? "default" : "outline"}
             onClick={() => setViewMode(ViewMode.Week)}
             className="rounded-none h-9 border-l-0"
-            disabled={isBlockingUI}
+           // disabled={isMutating}
           >
             Week
           </Button>
@@ -527,7 +284,7 @@ const GanttView: React.FC<GanttViewProps> = ({ projectId }) => {
             variant={viewMode === ViewMode.Month ? "default" : "outline"}
             onClick={() => setViewMode(ViewMode.Month)}
             className="rounded-none h-9 border-l-0"
-            disabled={isBlockingUI}
+           // disabled={isMutating}
           >
             Month
           </Button>
@@ -535,15 +292,17 @@ const GanttView: React.FC<GanttViewProps> = ({ projectId }) => {
             variant={viewMode === ViewMode.Year ? "default" : "outline"}
             onClick={() => setViewMode(ViewMode.Year)}
             className="rounded-l-none h-9 border-l-0"
-            disabled={isBlockingUI}
+           // disabled={isMutating}
           >
             Year
           </Button>
         </div>
 
-        <div className="ml-auto relative w-[260px]">
-          <Input className="h-9" placeholder="Search tasks..." disabled={isBlockingUI} />
-        </div>
+        {/* <div className="ml-auto relative w-[260px]">
+          <Input className="h-9" placeholder="Search tasks..."
+          // disabled={isMutating}
+            />
+        </div> */}
       </div>
 
       <div className="overflow-x-auto">
@@ -553,23 +312,26 @@ const GanttView: React.FC<GanttViewProps> = ({ projectId }) => {
               onAddTask={handleAddTask}
               onClose={() => setIsCreateTaskOpen(false)}
               availableSprints={sprintFilterOptions}
-              currentProjectId={projectId}
-              isMutating={isBlockingUI}
+              //isMutating={isMutating}
+              projectId={projectId}
             />
           </RightSideModal>
         )}
-
         {optimisticGanttTasks.length > 0 ? (
           <Gantt
-            tasks={optimisticGanttTasks}
+            tasks={[...optimisticGanttTasks]
+              .sort((a, b) => a.displayOrder - b.displayOrder)
+              .map(task => ({
+                ...task,
+                isDisabled: isMutating,
+              }))}
             viewMode={viewMode}
             onDateChange={handleTaskChange}
             onDelete={handleTaskDelete}
             onProgressChange={handleProgressChange}
-            onDoubleClick={handleDoubleClick}
+            onExpanderClick={handleExpanderClick}
             listCellWidth="200px"
             columnWidth={dynamicColumnWidth}
-            readOnly={readOnlyGanttChart}
           />
         ) : (
           <div className="flex items-center justify-center h-48 border rounded-md">
@@ -578,15 +340,13 @@ const GanttView: React.FC<GanttViewProps> = ({ projectId }) => {
         )}
       </div>
     </div>
-  );
-};
-
-// RightSideModal component (unchanged)
-interface RightSideModalProps {
-  children: React.ReactNode;
-  onClose: () => void;
+  )
 }
 
+interface RightSideModalProps {
+  children: React.ReactNode
+  onClose: () => void
+}
 const RightSideModal: React.FC<RightSideModalProps> = ({ children, onClose }) => {
   return (
     <div className="fixed inset-0 z-50 overflow-hidden">
@@ -609,70 +369,49 @@ const RightSideModal: React.FC<RightSideModalProps> = ({ children, onClose }) =>
         <div className="flex-grow p-4 overflow-y-auto">{children}</div>
       </div>
     </div>
-  );
-};
-
-interface TaskFormProps {
-  onAddTask: (task: {
-    name: string;
-    start: Date;
-    end: Date;
-    progress: number;
-    type: "task" | "milestone" | "project";
-    sprint: string;
-    projectId: string;
-  }) => void;
-  onClose: () => void;
-  availableSprints: SprintGanttFilterOption[];
-  currentProjectId: string;
-  isMutating: boolean;
+  )
 }
 
-const TaskForm: React.FC<TaskFormProps> = ({ onAddTask, onClose, availableSprints, currentProjectId, isMutating }) => {
-  const [name, setName] = useState("");
-  const [start, setStart] = useState<Date>(new Date());
-  const [end, setEnd] = useState<Date>(new Date());
-  const [progress, setProgress] = useState(0);
-  const [type, setType] = useState<"task" | "milestone" | "project">("task");
-  const [sprintId, setSprintId] = useState<string | undefined>(undefined);
+interface TaskFormProps {
+  onAddTask: (task: any) => void
+  onClose: () => void
+  availableSprints: SprintGanttFilterOption[]
+  isMutating: boolean
+  projectId: string
+}
+const TaskForm: React.FC<TaskFormProps> = ({ onAddTask, onClose, availableSprints, isMutating, projectId }) => {
+  const [name, setName] = useState("")
+  const [start, setStart] = useState<Date>(new Date())
+  const [end, setEnd] = useState<Date>(new Date(new Date().setDate(new Date().getDate() + 1)))
+  const [progress, setProgress] = useState(0)
+  const [sprintId, setSprintId] = useState<string | undefined>(undefined)
 
   useEffect(() => {
     if (availableSprints.length > 0 && !sprintId) {
-      setSprintId(availableSprints[0].id);
+      setSprintId(availableSprints[0].id)
     }
-  }, [availableSprints, sprintId]);
+  }, [availableSprints, sprintId])
 
   const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!name.trim() || !start || !end) {
-      alert("Please fill in name, start date, and end date.");
-      return;
-    }
-
-    if (!sprintId && type !== "project") {
-      alert("Please select a sprint for tasks and milestones.");
-      return;
+    e.preventDefault()
+    if (!name.trim() || !start || !end || !sprintId) {
+      alert("Please fill in all fields.")
+      return
     }
 
     const newTaskData = {
-      start: start,
-      end: end,
+      startDate: start.toISOString(),
+      endDate: end.toISOString(),
       name: name,
-      type: type,
+      type: "task",
       progress: progress,
-      sprint: sprintId || "",
-      projectId: currentProjectId,
-    };
+      sprintId: sprintId,
+      projectId: projectId,
+    }
 
-    onAddTask(newTaskData);
-    setName("");
-    setStart(new Date());
-    setEnd(new Date());
-    setProgress(0);
-    setType("task");
-    setSprintId(availableSprints.length > 0 ? availableSprints[0].id : undefined);
-  };
+    onAddTask(newTaskData)
+    onClose()
+  }
 
   return (
     <div className="space-y-4">
@@ -688,7 +427,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ onAddTask, onClose, availableSprint
             onChange={e => setName(e.target.value)}
             className="mt-1 block w-full"
             required
-            disabled={isMutating}
+            //disabled={isMutating}
           />
         </div>
         <div>
@@ -702,7 +441,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ onAddTask, onClose, availableSprint
             onChange={e => setStart(new Date(e.target.value))}
             className="mt-1 block w-full"
             required
-            disabled={isMutating}
+           // disabled={isMutating}
           />
         </div>
         <div>
@@ -716,75 +455,58 @@ const TaskForm: React.FC<TaskFormProps> = ({ onAddTask, onClose, availableSprint
             onChange={e => setEnd(new Date(e.target.value))}
             className="mt-1 block w-full"
             required
-            disabled={isMutating}
+            //disabled={isMutating}
           />
         </div>
-        {type === "task" && (
-          <div>
-            <label htmlFor="progress" className="block text-sm font-medium text-gray-700">
-              Progress (%):
-            </label>
-            <Input
-              id="progress"
-              type="number"
-              value={progress}
-              onChange={e => setProgress(Number(e.target.value))}
-              min="0"
-              max="100"
-              className="mt-1 block w-full"
-              disabled={isMutating}
-            />
-          </div>
-        )}
         <div>
-          <label htmlFor="taskType" className="block text-sm font-medium text-gray-700">
-            Type:
+          <label htmlFor="progress" className="block text-sm font-medium text-gray-700">
+            Progress (%):
+          </label>
+          <Input
+            id="progress"
+            type="number"
+            value={progress}
+            onChange={e => setProgress(Number(e.target.value))}
+            min="0"
+            max="100"
+            className="mt-1 block w-full"
+            //disabled={isMutating}
+          />
+        </div>
+        <div>
+          <label htmlFor="sprintSelect" className="block text-sm font-medium text-gray-700">
+            Sprint:
           </label>
           <select
-            id="taskType"
-            value={type}
-            onChange={e => setType(e.target.value as "task" | "milestone" | "project")}
+            id="sprintSelect"
+            value={sprintId || ""}
+            onChange={e => setSprintId(e.target.value)}
             className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md border"
-            disabled={isMutating}
+            required
+           // disabled={isMutating}
           >
-            <option value="task">Task</option>
-            <option value="milestone">Milestone</option>
+            <option value="">Select Sprint</option>
+            {availableSprints.map(sprintOption => (
+              <option key={sprintOption.id} value={sprintOption.id}>
+                {sprintOption.name}
+              </option>
+            ))}
           </select>
         </div>
-        {type !== "project" && (
-          <div>
-            <label htmlFor="sprintSelect" className="block text-sm font-medium text-gray-700">
-              Sprint:
-            </label>
-            <select
-              id="sprintSelect"
-              value={sprintId || ""}
-              onChange={e => setSprintId(e.target.value)}
-              className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md border"
-              required
-              disabled={isMutating}
-            >
-              <option value="">Select Sprint</option>
-              {availableSprints.map(sprintOption => (
-                <option key={sprintOption.id} value={sprintOption.id}>
-                  {sprintOption.name}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
         <div className="flex justify-end gap-2 mt-6">
-          <Button type="button" variant="outline" onClick={onClose} disabled={isMutating}>
+          <Button type="button" variant="outline" onClick={onClose} 
+          //disabled={isMutating}
+          >
             Cancel
           </Button>
           <Button type="submit" className="bg-[#4ab5ae] text-white" disabled={isMutating}>
-            {isMutating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            {/* {isMutating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null} */}
             Create Item
           </Button>
         </div>
       </form>
     </div>
-  );
-};
+  )
+}
 
-export default GanttView;
+export default GanttView

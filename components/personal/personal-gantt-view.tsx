@@ -262,7 +262,7 @@ const PersonalGanttView: React.FC<PersonalGanttViewProps> = () => {
       <div className="flex items-center gap-3 py-6">
         <Button
           onClick={() => setIsCreateTaskOpen(true)}
-          className="bg-[#4ab5ae] text-white h-9 rounded-md"
+          className="bg-[#4ab5ae] text-white hover:bg-[#419d97] h-9 rounded-md"
           disabled={isMutating}
         >
           {isMutating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
@@ -304,9 +304,9 @@ const PersonalGanttView: React.FC<PersonalGanttViewProps> = () => {
           </Button>
         </div>
 
-        <div className="ml-auto relative w-[260px]">
+        {/* <div className="ml-auto relative w-[260px]">
           <Input className="h-9" placeholder="Search tasks..." disabled={isMutating} />
-        </div>
+        </div> */}
       </div>
 
       <div className="overflow-x-auto">
@@ -359,7 +359,7 @@ const RightSideModal: React.FC<RightSideModalProps> = ({ children, onClose }) =>
               xmlns="http://www.w3.org/2000/svg"
               className="h-6 w-6"
               fill="none"
-              viewBox="0 0 24"
+              viewBox="0 0 24 24"
               stroke="currentColor"
             >
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />

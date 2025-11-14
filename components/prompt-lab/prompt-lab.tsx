@@ -1016,7 +1016,7 @@ function EditorPanel({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="saas-section-header rounded-t-lg">
+      <div className="saas-section-header pr-4 rounded-t-lg">
         {/* NEW: Display version name */}
         <h2 className="text-xl font-bold mb-2 px-3 pt-2 overflow-hidden whitespace-nowrap text-ellipsis">{currentVersionName}</h2>
         <div className="grid flex-1 grid-cols-1 gap-3 md:grid-cols-2">
@@ -1031,7 +1031,7 @@ function EditorPanel({
             disabled={!isEditingEnabled}
           />
           <select
-            className="h-10 rounded-md border bg-background px-3 p-4 text-sm"
+            className="h-10 rounded-md border bg-background px-3  text-sm"
             value={localModel}
             onChange={(e) => {
               console.log(`[EditorPanel ${componentId}] [Trace: SelectModel] Model select changed (local state):`, e.target.value);
@@ -1152,7 +1152,7 @@ function EditorPanel({
               console.log(`[EditorPanel ${componentId}] [Trace: SaveButton] Save button clicked.`);
               onSnapshot(pendingNotes || `Version saved on ${new Date().toLocaleString()}`);
             }}
-            className="btn-primary"
+            className="btn-primary bg-[#4ab5ae] text-white hover:bg-[#419d97]"
             disabled={isSnapshotting || !isEditingEnabled}
           >
             {isSnapshotting ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <GitCommit className="mr-1 h-4 w-4" />}

@@ -8,11 +8,11 @@ export const CREATE_PERSONAL_TASK_MUTATION = gql`
       description
       status
       priority
-      dueDate
+      endDate
       points
       completed # Derived field
       sprintId # Will be null for personal tasks
-      sectionId # Will be null for personal tasks, use personalSectionId from input
+      personalSectionId # Will be null for personal tasks, use personalSectionId from input
       assignee {
         id
         firstName
