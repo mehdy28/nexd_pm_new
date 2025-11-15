@@ -1,6 +1,6 @@
 import { useMutation } from "@apollo/client";
 import { 
-  CREATE_PROMPT_MUTATION,
+  CREATE_PROMPT_FROM_WIREFRAME_MUTATION,
   GENERATE_PROMPT_FROM_WIREFRAME_MUTATION
 } from "@/graphql/mutations/promptMutations";
 
@@ -19,7 +19,7 @@ export const useGeneratePromptContent = () => {
 // --- Hook to use the createPrompt mutation ---
 export const useCreatePrompt = () => {
   const [createPrompt, { data, loading, error }] = useMutation(
-    CREATE_PROMPT_MUTATION
+    CREATE_PROMPT_FROM_WIREFRAME_MUTATION
   );
 
   return { createPrompt, data, loading, error };

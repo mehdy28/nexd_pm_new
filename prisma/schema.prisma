@@ -453,6 +453,7 @@ model Wireframe {
   personalUser User?    @relation("UserPersonalWireframes", fields: [userId], references: [id], onDelete: Cascade)
   comments  Comment[]
   activities Activity[]
+  prompts   Prompt[]
 
   @@map("wireframes")
 }
@@ -541,6 +542,8 @@ model Prompt {
   versions    Json     @default("[]")
   projectId   String?
   userId      String?
+  wireframeId String?
+  wireframe   Wireframe? @relation(fields: [wireframeId], references: [id], onDelete: SetNull)
   project     Project? @relation("ProjectPrompts", fields: [projectId], references: [id], onDelete: Cascade)
   user        User?    @relation("UserPersonalPrompts", fields: [userId], references: [id], onDelete: Cascade)
   comments    Comment[]

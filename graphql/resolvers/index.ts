@@ -1,32 +1,35 @@
-import { userResolver } from "./userResolver"
-import setupResolver from "./setupResolver"
-import workspaceResolver from "./workspaceResolver"
+import { userResolver } from "./userResolver";
+import setupResolver from "./setupResolver";
+import workspaceResolver from "./workspaceResolver";
 
 // Project-specific resolvers
-import projectResolver from "./projectResolver"
-import projectSectionResolver from "./projectSectionResolver"
-import taskResolver from "./taskResolver"
-import { sprintResolvers } from "./sprintResolver"
-import documentResolvers from "./documentResolver"
-import wireframeResolvers from "./wireframeResolver"
-import promptResolvers from "./promptResolver"
-import promptVariableResolver from "./promptVariableResolver"
-import lookupResolvers from "./lookupResolvers"
-import { projectDashboardResolvers } from "./projectDashboardResolver"
+import projectResolver from "./projectResolver";
+import projectSectionResolver from "./projectSectionResolver";
+import taskResolver from "./taskResolver";
+import { sprintResolvers } from "./sprintResolver";
+import documentResolvers from "./documentResolver";
+import wireframeResolvers from "./wireframeResolver";
+import promptResolvers from "./promptResolver";
+import promptVariableResolver from "./promptVariableResolver";
+import lookupResolvers from "./lookupResolvers";
+import { projectDashboardResolvers } from "./projectDashboardResolver";
 
 // Personal/User-specific resolvers
-import personalResolver from "./personal/personalResolver"
-import personalSectionResolver from "./personal/personalSectionResolver"
-import personalTaskResolver from "./personal/personalTaskResolver"
-import personalDocumentResolvers from "./personal/personalDocumentResolver"
-import personalWireframeResolvers from "./personal/personalWireframeResolver"
-import personalPromptResolvers from "./personal/personalPromptResolver"
+import personalResolver from "./personal/personalResolver";
+import personalSectionResolver from "./personal/personalSectionResolver";
+import personalTaskResolver from "./personal/personalTaskResolver";
+import personalDocumentResolvers from "./personal/personalDocumentResolver";
+import personalWireframeResolvers from "./personal/personalWireframeResolver";
+import personalPromptResolvers from "./personal/personalPromptResolver";
 
 // Messaging and Ticketing resolvers
-import { messagingResolvers } from "./messagingResolver"
+import { messagingResolvers } from "./messagingResolver";
 
 // Member management resolvers
-import { memberManagementResolvers } from "./memberManagementResolver"
+import { memberManagementResolvers } from "./memberManagementResolver";
+
+import promptResolversAi from "./promptResolverAi";
+
 
 export const resolvers = {
   Query: {
@@ -51,7 +54,7 @@ export const resolvers = {
     ...personalWireframeResolvers.Query,
     ...personalPromptResolvers.Query,
     ...personalTaskResolver.Query,
-    
+
     // Messaging & Tickets
     ...messagingResolvers.Query,
   },
@@ -59,7 +62,7 @@ export const resolvers = {
     // Setup & User
     ...setupResolver.Mutation,
     ...userResolver.Mutation,
-    
+
     // Member Management
     ...memberManagementResolvers.Mutation,
 
@@ -81,6 +84,11 @@ export const resolvers = {
 
     // Messaging & Tickets
     ...messagingResolvers.Mutation,
+
+    // Prompt AI
+    ...promptResolversAi.Mutation,
+
+    
   },
   Subscription: {
     // Real-time Messaging & Tickets
@@ -96,4 +104,4 @@ export const resolvers = {
     ...promptResolvers.Project,
   },
   User: promptResolvers.User,
-}
+};

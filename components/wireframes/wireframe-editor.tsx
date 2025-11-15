@@ -5,9 +5,9 @@ import React, {
   useMemo,
   useState,
   useEffect,
-  useRef,
 } from "react";
 import { Wand2, Loader2 } from "lucide-react";
+import { exportToBlob } from "@excalidraw/excalidraw";
 
 import type { ExcalidrawAPI } from "./escalidraw/excalidraw";
 import ExcalidrawWrapper from "./escalidraw/ExcalidrawWrapper";
@@ -19,6 +19,7 @@ import {
 } from "@excalidraw/excalidraw/types";
 
 import { useWireframeDetails, useProjectWireframes } from "@/hooks/useWireframes";
+import { GeneratePromptModal } from "@/components/modals/GeneratePromptModal";
 
 // --- Type definitions ---
 interface WireframeAppState
@@ -97,6 +98,7 @@ const WireframeEditorPage: React.FC<WireframeEditorPageProps> = memo(
     console.log(`LOG: [WireframeEditorPage] Rendering with wireframeId: ${wireframeId}`);
     const [excalidrawAPI, setExcalidrawAPI] = useState<ExcalidrawAPI | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [wireframeImageForModal, setWireframeImageForModal] = useState<string | null>(null);
     const [hasMounted, setHasMounted] = useState(false);
 
     const { wireframe, loading, error } = useWireframeDetails(wireframeId);
@@ -211,19 +213,55 @@ const WireframeEditorPage: React.FC<WireframeEditorPageProps> = memo(
     // --- Back Callback ---
     const editorOnBack = useCallback(() => {
       console.log("LOG: [WireframeEditorPage] Back button clicked. Flushing pending saves.");
-      // Flush any pending debounced changes before navigating back
       debouncedSaveWireframeData.flush();
       debouncedSaveWireframeName.flush();
       onBack();
-    }, [onBack, debouncedSaveWireframeData, debouncedSaveWireframeName]); // Dependencies are correctly ordered now
+    }, [onBack, debouncedSaveWireframeData, debouncedSaveWireframeName]);
 
-    const handleOpenModal = () => {
-      setIsModalOpen(true);
-    };
+    const handleOpenModal = useCallback(async () => {
+      if (!excalidrawAPI) {
+        console.warn("LOG: [WireframeEditorPage] Cannot generate prompt: Excalidraw API not ready.");
+        return;
+      }
+      console.log("LOG: [WireframeEditorPage] Generating image for prompt modal using exportToBlob...");
+      try {
+        const blob = await exportToBlob({
+          elements: excalidrawAPI.getSceneElements(),
+          appState: {
+            ...excalidrawAPI.getAppState(),
+            gridSize: null, // Hide grid for cleaner image
+            viewBackgroundColor: 'transparent',
+          },
+          files: excalidrawAPI.getFiles(),
+          mimeType: "image/png",
+        });
 
-    const handleCloseModal = () => {
+        if (!blob) {
+          console.error("LOG: [WireframeEditorPage] exportToBlob returned null or undefined.");
+          return;
+        }
+
+        // Convert Blob to base64 Data URL
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const base64data = reader.result as string;
+          setWireframeImageForModal(base64data);
+          setIsModalOpen(true);
+        };
+        reader.onerror = (error) => {
+          console.error("LOG: [WireframeEditorPage] FileReader error:", error);
+        };
+        reader.readAsDataURL(blob);
+
+      } catch (error) {
+        console.error("LOG: [WireframeEditorPage] Failed to export wireframe to blob:", error);
+      }
+    }, [excalidrawAPI]);
+
+    const handleCloseModal = useCallback(() => {
       setIsModalOpen(false);
-    };
+      setWireframeImageForModal(null);
+    }, []);
 
     const excalidrawInitialData = useMemo(() => {
       console.log("LOG: [WireframeEditorPage] Recalculating excalidrawInitialData...");
@@ -347,6 +385,13 @@ const WireframeEditorPage: React.FC<WireframeEditorPageProps> = memo(
             style={{ height: '100%', width: '100%' }}
           />
         </div>
+        
+        <GeneratePromptModal
+            isOpen={isModalOpen}
+            onClose={handleCloseModal}
+            wireframeImageBase64={wireframeImageForModal}
+            wireframeId={wireframeId}
+        />
       </div>
     );
   }

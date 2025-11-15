@@ -6,14 +6,14 @@ export const GENERATE_PROMPT_FROM_WIREFRAME_MUTATION = gql`
   }
 `;
 
-export const CREATE_PROMPT_MUTATION = gql`
-  mutation CreatePrompt($input: CreatePromptInput!) {
-    createPrompt(input: $input) {
+export const CREATE_PROMPT_FROM_WIREFRAME_MUTATION = gql`
+  mutation CreatePromptFromWireframe($input: CreatePromptFromWireframeInput!) {
+    createPromptFromWireframe(input: $input) {
       id
       title
       description
       model
-      projectId
+      wireframeId
       content {
         id
         type

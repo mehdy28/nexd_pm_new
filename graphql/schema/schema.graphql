@@ -485,6 +485,8 @@ type Prompt {
   projectId: ID
   project: Project
   user: User
+  wireframeId: ID
+  wireframe: Wireframe
   comments: [Comment!]!
   activities: [Activity!]!
   variables: [PromptVariable!]!
@@ -1095,6 +1097,22 @@ input CreatePromptInput {
   variables: [CreatePromptVariableInput!]
   versions: [CreateVersionInput!]
 }
+
+input CreatePromptFromWireframeInput {
+  wireframeId: ID!
+  title: String!
+  content: [CreateContentBlockInput!]
+  context: String
+  description: String
+  category: String
+  tags: [String!]
+  isPublic: Boolean
+  model: String
+  variables: [CreatePromptVariableInput!]
+  versions: [CreateVersionInput!]
+}
+
+
 input UpdatePromptInput {
   id: ID!
   title: String
@@ -1335,6 +1353,10 @@ type Mutation {
   snapshotPrompt(input: SnapshotPromptInput!): Prompt!
   restorePromptVersion(input: RestorePromptVersionInput!): Prompt!
   updateVersionDescription(input: UpdateVersionDescriptionInput!): Prompt!
+
+
+  # Prompts (Ai)
+  createPromptFromWireframe(input: CreatePromptFromWireframeInput!): Prompt!
 
   # Comments
   createTaskComment(taskId: ID!, content: String!): Comment!

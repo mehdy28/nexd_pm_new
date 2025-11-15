@@ -7,14 +7,14 @@ interface GeneratePromptModalProps {
   isOpen: boolean;
   onClose: () => void;
   wireframeImageBase64: string | null;
-  projectId?: string | null;
+  wireframeId?: string | null;
 }
 
 export const GeneratePromptModal: React.FC<GeneratePromptModalProps> = ({
   isOpen,
   onClose,
   wireframeImageBase64,
-  projectId,
+  wireframeId,
 }) => {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -54,14 +54,14 @@ export const GeneratePromptModal: React.FC<GeneratePromptModalProps> = ({
   };
 
   const handleCreatePrompt = async () => {
-    if (!generatedContent || !title) return;
+    if (!generatedContent || !title || !wireframeId) return;
 
     const input = {
       title,
       description,
       context: description,
       content: [{ type: "text", value: generatedContent }],
-      projectId: projectId || null,
+      wireframeId: wireframeId,
       variables: [],
       versions: [],
       model: 'gemini-pro-vision'
@@ -144,7 +144,7 @@ export const GeneratePromptModal: React.FC<GeneratePromptModalProps> = ({
           </button>
           <button
             onClick={handleCreatePrompt}
-            disabled={!generatedContent || !title || isCreating}
+            disabled={!generatedContent || !title || isCreating || !wireframeId}
             className="px-4 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 disabled:bg-gray-400 flex items-center"
           >
             {isCreating && <Loader2 className="animate-spin mr-2" />}
