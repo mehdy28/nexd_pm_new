@@ -1,4 +1,3 @@
-// components/project/ProjectOverview.tsx
 "use client";
 
 import { useState, useEffect, useRef } from "react";
@@ -10,6 +9,12 @@ import { Progress } from "@/components/ui/progress";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -18,10 +23,21 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { CalendarDays, Users, CheckCircle2, Clock, AlertCircle, Plus, Trash2, Loader2, Pencil } from "lucide-react";
+import {
+  CalendarDays,
+  Users,
+  CheckCircle2,
+  Clock,
+  AlertCircle,
+  Plus,
+  Trash2,
+  Loader2,
+  Pencil,
+} from "lucide-react";
 
 import { useProjectDetails } from "@/hooks/useProjectDetails";
 import { useSprintMutations } from "@/hooks/useSprintMutations";
+import { useProjectMutations } from "@/hooks/useProjectMutations";
 import { SprintStatus } from "@/types/sprint";
 import { ProjectStatus } from "@/types/project";
 import { LoadingPlaceholder, ErrorPlaceholder } from "@/components/placeholders/status-placeholders";
@@ -46,412 +62,279 @@ type SprintFormDataType = {
   status: SprintStatus;
 };
 
-interface MockProjectData {
-  name: string;
-  description: string;
-  status: string;
-  members: number;
-  color: string;
-}
-
 interface ProjectOverviewProps {
   projectId: string;
-  projectData: MockProjectData;
 }
 // --------------------------------------------------------------------------------
 
-export function ProjectOverview({ projectId, projectData }: ProjectOverviewProps) {
-  console.log("[project] ProjectOverview component rendered.");
-
+export function ProjectOverview({ projectId }: ProjectOverviewProps) {
   const { projectDetails, loading, error, refetchProjectDetails } = useProjectDetails(projectId);
-  const {
-    createSprint,
-    createLoading,
-    createError,
-    updateSprint,
-    updateLoading,
-    updateError,
-    deleteSprint,
-    deleteLoading,
-    deleteError,
-  } = useSprintMutations(projectId);
+  const { createSprint, createLoading, createError, updateSprint, updateLoading, updateError, deleteSprint, deleteLoading, deleteError } = useSprintMutations(projectId);
+  const { updateProject, loading: projectUpdateLoading } = useProjectMutations();
 
-  const [sprints, setSprints] = useState<SprintUi[]>([]);
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [isEditingDescription, setIsEditingDescription] = useState(false);
+  const [projectFormData, setProjectFormData] = useState({
+    name: "",
+    description: "",
+    status: ProjectStatus.PLANNING,
+  });
+
   const [newSprintOpen, setNewSprintOpen] = useState(false);
-  const [editSprintOpen, setEditSprintOpen] = useState(false);
   const [currentEditingSprint, setCurrentEditingSprint] = useState<SprintUi | null>(null);
   const [isAssignMembersModalOpen, setIsAssignMembersModalOpen] = useState(false);
 
-  const [newSprintFormData, setNewSprintFormData] = useState<SprintFormDataType>({
-    name: "",
-    description: "",
-    startDate: "",
-    endDate: "",
-    status: SprintStatus.PLANNING,
-  });
-  const [editSprintFormData, setEditSprintFormData] = useState<SprintFormDataType>({
-    name: "",
-    description: "",
-    startDate: "",
-    endDate: "",
-    status: SprintStatus.PLANNING,
-  });
+  const [newSprintFormData, setNewSprintFormData] = useState<SprintFormDataType>({ name: "", description: "", startDate: "", endDate: "", status: SprintStatus.PLANNING });
+  const [editSprintFormData, setEditSprintFormData] = useState<SprintFormDataType>({ name: "", description: "", startDate: "", endDate: "", status: SprintStatus.PLANNING });
 
   const [newSprintErrors, setNewSprintErrors] = useState<{ [key: string]: boolean }>({});
   const [editSprintErrors, setEditSprintErrors] = useState<{ [key: string]: boolean }>({});
 
-  const hasInitializedSprints = useRef(false);
-
   useEffect(() => {
-    if (projectDetails?.sprints && !hasInitializedSprints.current) {
-      console.log(`[project] Initializing sprints state with ${projectDetails.sprints.length} sprints from projectDetails.`);
-      setSprints(
-        projectDetails.sprints.map(sprint => ({
-          ...sprint,
-          description: sprint.description || null,
-        }))
-      );
-      hasInitializedSprints.current = true;
-    } else if (!projectDetails?.sprints && hasInitializedSprints.current) {
-      console.log("[project] projectDetails.sprints became unavailable, clearing local sprints state.");
-      setSprints([]);
-      hasInitializedSprints.current = false;
+    if (projectDetails) {
+      setProjectFormData({
+        name: projectDetails.name,
+        description: projectDetails.description || "",
+        status: projectDetails.status as ProjectStatus,
+      });
     }
-  }, [projectDetails?.sprints]);
+  }, [projectDetails?.name, projectDetails?.description, projectDetails?.status]);
 
   const combinedError = error || createError || updateError || deleteError;
 
-  if (loading) {
-    return <LoadingPlaceholder message="Loading project details..." />;
-  }
+  const handleUpdateProject = async (field: 'name' | 'description' | 'status', value: string) => {
+    if (!projectDetails) return;
+    if (field === 'name' && !value.trim()) {
+      setProjectFormData(prev => ({ ...prev, name: projectDetails.name }));
+      return;
+    }
+    if (projectDetails[field] === value) return;
 
+    try {
+      await updateProject({ id: projectId, [field]: value });
+    } catch (err) {
+      console.error(`Failed to update project ${field}`, err);
+      // Revert UI on error by re-syncing with server data
+      setProjectFormData({
+        name: projectDetails.name,
+        description: projectDetails.description || '',
+        status: projectDetails.status as ProjectStatus,
+      });
+    }
+  };
+
+  if (loading) return <LoadingPlaceholder message="Loading project details..." />;
   if (combinedError) {
     const errorMessage = combinedError.message;
-    console.error(`[project] Displaying error state: ${errorMessage}`);
     return <ErrorPlaceholder error={new Error(errorMessage)} onRetry={refetchProjectDetails} />;
   }
-
   if (!projectDetails) {
-    console.warn(`[project] Project details not found for ID: ${projectId}.`);
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-muted/30 p-8 text-center">
-        <h2 className="text-3xl font-bold text-foreground mb-4">Project Not Found</h2>
-        <p className="text-muted-foreground leading-relaxed max-w-xl mb-8">
-          The project with ID "{projectId}" could not be found or you do not have access.
-        </p>
-      </div>
-    );
+    return <div className="text-center p-8">Project Not Found</div>;
   }
 
-  const progressPercentage =
-    projectDetails.totalTasks > 0 ? (projectDetails.completedTasks / projectDetails.totalTasks) * 100 : 0;
-
+  const progressPercentage = projectDetails.totalTasks > 0 ? (projectDetails.completedTasks / projectDetails.totalTasks) * 100 : 0;
   const getStatusColor = (status: string) => {
     switch (status) {
-      case SprintStatus.ACTIVE:
-      case ProjectStatus.ACTIVE:
-        return "bg-blue-100 text-blue-800";
-      case SprintStatus.PLANNING:
-      case ProjectStatus.PLANNING:
-        return "bg-yellow-100 text-yellow-800";
-      case ProjectStatus.ON_HOLD:
-        return "bg-orange-100 text-orange-800";
-      case SprintStatus.COMPLETED:
-      case ProjectStatus.COMPLETED:
-        return "bg-green-100 text-green-800";
-      case ProjectStatus.ARCHIVED:
-        return "bg-gray-100 text-gray-800";
-      case ProjectStatus.CANCELLED:
-        return "bg-red-100 text-red-800";
-      default:
-        return "bg-gray-100 text-gray-800";
+      case SprintStatus.ACTIVE: case ProjectStatus.ACTIVE: return "bg-blue-100 text-blue-800 hover:bg-blue-200";
+      case SprintStatus.PLANNING: case ProjectStatus.PLANNING: return "bg-yellow-100 text-yellow-800 hover:bg-yellow-200";
+      case ProjectStatus.ON_HOLD: return "bg-orange-100 text-orange-800 hover:bg-orange-200";
+      case SprintStatus.COMPLETED: case ProjectStatus.COMPLETED: return "bg-green-100 text-green-800 hover:bg-green-200";
+      case ProjectStatus.ARCHIVED: return "bg-gray-100 text-gray-800 hover:bg-gray-200";
+      case ProjectStatus.CANCELLED: return "bg-red-100 text-red-800 hover:bg-red-200";
+      default: return "bg-gray-100 text-gray-800 hover:bg-gray-200";
     }
   };
 
   const openNewSprintForm = () => {
-    console.log("[project] Opening new sprint form.");
+    setCurrentEditingSprint(null);
     setNewSprintOpen(true);
     setNewSprintFormData({ name: "", description: "", startDate: "", endDate: "", status: SprintStatus.PLANNING });
     setNewSprintErrors({});
   };
 
-  const cancelNewSprint = () => {
-    console.log("[project] Cancelling new sprint creation.");
-    setNewSprintOpen(false);
-    setNewSprintErrors({});
-  };
+  const cancelNewSprint = () => setNewSprintOpen(false);
 
-  const validateSprintForm = (
-    formData: SprintFormDataType,
-    setErrors: React.Dispatch<React.SetStateAction<{ [key: string]: boolean }>>
-  ) => {
-    let hasErrors = false;
+  const validateSprintForm = (formData: SprintFormDataType, setErrors: React.Dispatch<React.SetStateAction<{ [key: string]: boolean }>>) => {
     const errors: { [key: string]: boolean } = {};
-    if (!formData.name.trim()) {
-      errors.name = true;
-      hasErrors = true;
-    }
-    if (!formData.startDate) {
-      errors.startDate = true;
-      hasErrors = true;
-    }
-    if (!formData.endDate) {
-      errors.endDate = true;
-      hasErrors = true;
-    }
+    if (!formData.name.trim()) errors.name = true;
+    if (!formData.startDate) errors.startDate = true;
+    if (!formData.endDate) errors.endDate = true;
     setErrors(errors);
-    return !hasErrors;
+    return Object.keys(errors).length === 0;
   };
 
   const handleCreateSprint = async () => {
-    console.log("[project] Attempting to save new sprint via mutation (client-side optimistic update).");
-
-    if (!validateSprintForm(newSprintFormData, setNewSprintErrors)) {
-      console.warn("[project] Sprint form has validation errors.");
-      return;
-    }
-
-    const tempId = `temp-${Date.now()}`;
-    const newOptimisticSprint: SprintUi = {
-      id: tempId,
-      name: newSprintFormData.name,
-      description: newSprintFormData.description,
-      startDate: new Date(newSprintFormData.startDate).toISOString(),
-      endDate: new Date(newSprintFormData.endDate).toISOString(),
-      isCompleted: false,
-      status: SprintStatus.PLANNING,
-    };
-
-    setSprints(prevSprints => [newOptimisticSprint, ...prevSprints]);
-    setNewSprintOpen(false);
-    setNewSprintFormData({ name: "", description: "", startDate: "", endDate: "", status: SprintStatus.PLANNING });
-    setNewSprintErrors({});
-
+    if (!validateSprintForm(newSprintFormData, setNewSprintErrors)) return;
     try {
-      const { data } = await createSprint({
-        variables: {
-          input: {
-            projectId,
-            name: newOptimisticSprint.name,
-            description: newOptimisticSprint.description,
-            startDate: newOptimisticSprint.startDate,
-            endDate: newOptimisticSprint.endDate,
-            status: newOptimisticSprint.status,
-          },
-        },
-      });
-
-      if (data?.createSprint) {
-        console.log(
-          `[project] Server successfully created sprint: ${data.createSprint.name} with ID ${data.createSprint.id}`
-        );
-        setSprints(prevSprints =>
-          prevSprints.map(s =>
-            s.id === tempId
-              ? {
-                  ...data.createSprint,
-                  description: data.createSprint.description || null,
-                }
-              : s
-          )
-        );
-      } else {
-        console.error("[project] Create sprint mutation returned no data, rolling back optimistic update.");
-        setSprints(prevSprints => prevSprints.filter(s => s.id !== tempId));
-      }
-    } catch (err) {
-      console.error("[project] Error creating sprint, rolling back optimistic update:", err);
-      setSprints(prevSprints => prevSprints.filter(s => s.id !== tempId));
-    }
+      await createSprint({ variables: { input: { ...newSprintFormData, projectId } } });
+      setNewSprintOpen(false);
+      refetchProjectDetails();
+    } catch (err) { console.error("Error creating sprint:", err); }
   };
 
   const openEditSprintForm = (sprint: SprintUi) => {
-    console.log(`[project] Opening edit sprint form for ID: ${sprint.id}`);
+    setNewSprintOpen(false);
     setCurrentEditingSprint(sprint);
-
-    const formatDateForInput = (dateString: string | undefined): string => {
-      if (!dateString) return "";
-      const date = new Date(dateString);
-      if (isNaN(date.getTime())) {
-        console.warn(`Invalid date string received for sprint ID ${sprint.id}: ${dateString}`);
-        return "";
-      }
-      return date.toISOString().split("T")[0];
-    };
-
+    const formatDate = (dateString: string) => new Date(dateString).toISOString().split("T")[0];
     setEditSprintFormData({
       name: sprint.name,
       description: sprint.description || "",
-      startDate: formatDateForInput(sprint.startDate),
-      endDate: formatDateForInput(sprint.endDate),
+      startDate: formatDate(sprint.startDate),
+      endDate: formatDate(sprint.endDate),
       status: sprint.status,
     });
     setEditSprintErrors({});
-    setEditSprintOpen(true);
   };
 
-  const cancelEditSprint = () => {
-    console.log("[project] Cancelling sprint edit.");
-    setEditSprintOpen(false);
-    setCurrentEditingSprint(null);
-    setEditSprintErrors({});
-  };
+  const cancelEditSprint = () => setCurrentEditingSprint(null);
 
   const handleUpdateSprint = async () => {
-    console.log(
-      `[project] Attempting to update sprint ID: ${currentEditingSprint?.id} via mutation (client-side optimistic update).`
-    );
-    if (!currentEditingSprint) return;
-
-    if (!validateSprintForm(editSprintFormData, setEditSprintErrors)) {
-      console.warn("[project] Edit sprint form has validation errors.");
-      return;
-    }
-
-    const updatedOptimisticSprint: SprintUi = {
-      ...currentEditingSprint,
-      name: editSprintFormData.name,
-      description: editSprintFormData.description,
-      startDate: new Date(editSprintFormData.startDate).toISOString(),
-      endDate: new Date(editSprintFormData.endDate).toISOString(),
-      status: editSprintFormData.status,
-      isCompleted: editSprintFormData.status === SprintStatus.COMPLETED,
-    };
-
-    const originalSprints = sprints;
-    setSprints(prevSprints => prevSprints.map(s => (s.id === currentEditingSprint.id ? updatedOptimisticSprint : s)));
-    setEditSprintOpen(false);
-    setCurrentEditingSprint(null);
-    setEditSprintErrors({});
-
+    if (!currentEditingSprint || !validateSprintForm(editSprintFormData, setEditSprintErrors)) return;
     try {
-      const { data } = await updateSprint({
+      await updateSprint({
         variables: {
           input: {
-            id: updatedOptimisticSprint.id,
-            name: updatedOptimisticSprint.name,
-            description: updatedOptimisticSprint.description,
-            startDate: updatedOptimisticSprint.startDate,
-            endDate: updatedOptimisticSprint.endDate,
-            status: updatedOptimisticSprint.status,
-            isCompleted: updatedOptimisticSprint.isCompleted,
+            id: currentEditingSprint.id,
+            ...editSprintFormData,
+            isCompleted: editSprintFormData.status === SprintStatus.COMPLETED,
           },
         },
       });
-
-      if (data?.updateSprint) {
-        console.log(
-          `[project] Server successfully updated sprint: ${data.updateSprint.name} with ID ${data.updateSprint.id}`
-        );
-        setSprints(prevSprints =>
-          prevSprints.map(s =>
-            s.id === data.updateSprint.id
-              ? {
-                  ...data.updateSprint,
-                  description: data.updateSprint.description || null,
-                }
-              : s
-          )
-        );
-      } else {
-        console.error("[project] Update sprint mutation returned no data, rolling back optimistic update.");
-        setSprints(originalSprints);
-      }
-    } catch (err) {
-      console.error("[project] Error updating sprint, rolling back optimistic update:", err);
-      setSprints(originalSprints);
-    }
+      setCurrentEditingSprint(null);
+      refetchProjectDetails();
+    } catch (err) { console.error("Error updating sprint:", err); }
   };
 
   const handleDeleteSprint = async (sprintId: string) => {
-    console.log(`[project] Attempting to delete sprint with ID: ${sprintId} via mutation (client-side optimistic update).`);
-
-    const originalSprints = sprints;
-    setSprints(prevSprints => prevSprints.filter(s => s.id !== sprintId));
-
     try {
-      await deleteSprint({
-        variables: { id: sprintId },
-      });
-      console.log(`[project] Server successfully deleted sprint: ${sprintId}`);
-    } catch (err) {
-      console.error(`[project] Error deleting sprint ${sprintId}, rolling back optimistic update:`, err);
-      setSprints(originalSprints);
-    }
+      await deleteSprint({ variables: { id: sprintId } });
+      refetchProjectDetails();
+    } catch (err) { console.error("Error deleting sprint:", err); }
   };
 
   const handleCloseAssignModal = () => {
-    // ADDED LOG
-    console.log("[project] Closing Assign Members Modal.");
     setIsAssignMembersModalOpen(false);
-    // Refetch project details to show newly added members.
     refetchProjectDetails();
   };
 
-  // ADDED LOG - This will log the state every time the component re-renders.
-  console.log(`[project] STATE CHECK: isAssignMembersModalOpen is currently ${isAssignMembersModalOpen}`);
+  const formInputClasses = `border border-[#419d97] bg-white focus-visible:ring-1 focus-visible:ring-offset-1 focus-visible:ring-[#4ab5ae]`;
 
   return (
     <div className="h-full overflow-y-auto">
       <div className="p-6 pt-0 space-y-6">
-        {/* Project Header */}
         <div className="flex items-start justify-between">
-          <div className="space-y-2">
-            <div className={`w-4 h-4 rounded-full ${projectDetails.color}`} />
-            <Badge variant="secondary" className={getStatusColor(projectDetails.status)}>
-              {projectDetails.displayStatus}
-            </Badge>
-            <h1 className="text-3xl font-bold tracking-tight">{projectDetails.name}</h1>
-            <p className="text-slate-600 max-w-2xl">{projectDetails.description}</p>
+          <div className="space-y-2 flex-1">
+            {/* <div className={`w-4 h-4 rounded-full`} style={{ backgroundColor: projectDetails.color }} /> */}
+            <div className="flex items-center gap-2">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    className={`w-auto h-auto rounded-md px-2.5 py-0.5 text-xs font-semibold focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${getStatusColor(projectFormData.status)}`}
+                    disabled={projectUpdateLoading}
+                  >
+                    {projectFormData.status.replace(/_/g, " ")}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                  {Object.values(ProjectStatus).map(status => (
+                    <DropdownMenuItem
+                      key={status}
+                      onSelect={() => {
+                        setProjectFormData(prev => ({ ...prev, status }));
+                        handleUpdateProject('status', status);
+                      }}
+                    >
+                      {status.replace(/_/g, " ")}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+            
+            {isEditingTitle ? (
+              <Input
+                value={projectFormData.name}
+                onChange={(e) => setProjectFormData(prev => ({ ...prev, name: e.target.value }))}
+                onBlur={(e) => {
+                  setIsEditingTitle(false);
+                  handleUpdateProject('name', e.target.value);
+                }}
+                onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                autoFocus
+                className="text-3xl font-bold tracking-tight h-auto p-0 border-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+                disabled={projectUpdateLoading}
+              />
+            ) : (
+              <h1 className="text-3xl font-bold tracking-tight cursor-pointer" onClick={() => setIsEditingTitle(true)}>
+                {projectFormData.name}
+              </h1>
+            )}
+
+            {isEditingDescription ? (
+              <Textarea
+                value={projectFormData.description}
+                onChange={(e) => setProjectFormData(prev => ({ ...prev, description: e.target.value }))}
+                onBlur={(e) => {
+                  setIsEditingDescription(false);
+                  handleUpdateProject('description', e.target.value);
+                }}
+                autoFocus
+                className="text-slate-600 max-w-2xl p-0 border-0 focus-visible:ring-0 focus-visible:ring-offset-0 resize-none"
+                disabled={projectUpdateLoading}
+              />
+            ) : (
+              <p className="text-slate-600 max-w-2xl cursor-pointer min-h-[20px]" onClick={() => setIsEditingDescription(true)}>
+                {projectFormData.description || <span className="text-slate-400 italic">Click to add a description</span>}
+              </p>
+            )}
           </div>
         </div>
 
-        {/* Stats Cards */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Tasks</CardTitle>
-              <CheckCircle2 className="h-4 w-4 text-slate-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{projectDetails.totalTasks}</div>
-              <p className="text-xs text-slate-600">{projectDetails.completedTasks} completed</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">In Progress</CardTitle>
-              <Clock className="h-4 w-4 text-blue-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{projectDetails.inProgressTasks}</div>
-              <p className="text-xs text-slate-600">Active tasks</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Overdue</CardTitle>
-              <AlertCircle className="h-4 w-4 text-red-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-red-600">{projectDetails.overdueTasks}</div>
-              <p className="text-xs text-slate-600">Need attention</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Team Members</CardTitle>
-              <Users className="h-4 w-4 text-slate-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{projectDetails.members.length}</div>
-              <p className="text-xs text-slate-600">Active contributors</p>
-            </CardContent>
-          </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Total Tasks</CardTitle>
+                <CheckCircle2 className="h-4 w-4 text-slate-600" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{projectDetails.totalTasks}</div>
+                <p className="text-xs text-slate-600">{projectDetails.completedTasks} completed</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">In Progress</CardTitle>
+                <Clock className="h-4 w-4 text-blue-600" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{projectDetails.inProgressTasks}</div>
+                <p className="text-xs text-slate-600">Active tasks</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Overdue</CardTitle>
+                <AlertCircle className="h-4 w-4 text-red-600" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-red-600">{projectDetails.overdueTasks}</div>
+                <p className="text-xs text-slate-600">Need attention</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Team Members</CardTitle>
+                <Users className="h-4 w-4 text-slate-600" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{projectDetails.members.length}</div>
+                <p className="text-xs text-slate-600">Active contributors</p>
+              </CardContent>
+            </Card>
         </div>
 
         <div className="grid gap-6 lg:grid-cols-3">
-          {/* Progress Section */}
           <div className="lg:col-span-2 space-y-6">
             <Card>
               <CardHeader>
@@ -462,16 +345,13 @@ export function ProjectOverview({ projectId, projectData }: ProjectOverviewProps
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
                     <span>Completed Tasks</span>
-                    <span className="font-medium">
-                      {projectDetails.completedTasks}/{projectDetails.totalTasks}
-                    </span>
+                    <span className="font-medium">{projectDetails.completedTasks}/{projectDetails.totalTasks}</span>
                   </div>
                   <Progress value={progressPercentage} className="h-2" />
                   <p className="text-xs text-slate-600">{Math.round(progressPercentage)}% complete</p>
                 </div>
               </CardContent>
             </Card>
-
             <Card>
               <CardHeader>
                 <div className="flex items-center justify-between">
@@ -481,8 +361,7 @@ export function ProjectOverview({ projectId, projectData }: ProjectOverviewProps
                   </div>
                   {!newSprintOpen && (
                     <Button variant="outline" size="sm" onClick={openNewSprintForm} disabled={createLoading}>
-                      <Plus className="h-4 w-4 mr-2" />
-                      Add Sprint
+                      <Plus className="h-4 w-4 mr-2" />Add Sprint
                     </Button>
                   )}
                 </div>
@@ -494,283 +373,98 @@ export function ProjectOverview({ projectId, projectData }: ProjectOverviewProps
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <label className="text-xs text-muted-foreground">Sprint Title</label>
-                          <Input
-                            value={newSprintFormData.name}
-                            onChange={e => {
-                              setNewSprintFormData(prev => ({ ...prev, name: e.target.value }));
-                              setNewSprintErrors(prev => ({ ...prev, name: false }));
-                            }}
-                            placeholder="Sprint title"
-                            disabled={createLoading}
-                            className={newSprintErrors.name ? "border-red-500" : ""}
-                          />
+                          <Input value={newSprintFormData.name} onChange={e => { setNewSprintFormData(prev => ({ ...prev, name: e.target.value })); setNewSprintErrors(prev => ({ ...prev, name: false })); }} placeholder="Sprint title" disabled={createLoading} className={`${formInputClasses} ${newSprintErrors.name ? "border-red-500" : ""}`} />
                           {newSprintErrors.name && <p className="text-red-500 text-xs mt-1">Sprint name is required.</p>}
                         </div>
                         <div className="space-y-2">
                           <label className="text-xs text-muted-foreground">Start Date</label>
-                          <Input
-                            type="date"
-                            value={newSprintFormData.startDate}
-                            onChange={e => {
-                              setNewSprintFormData(prev => ({ ...prev, startDate: e.target.value }));
-                              setNewSprintErrors(prev => ({ ...prev, startDate: false }));
-                            }}
-                            disabled={createLoading}
-                            className={newSprintErrors.startDate ? "border-red-500" : ""}
-                          />
-                          {newSprintErrors.startDate && (
-                            <p className="text-red-500 text-xs mt-1">Start date is required.</p>
-                          )}
+                          <Input type="date" value={newSprintFormData.startDate} onChange={e => { setNewSprintFormData(prev => ({ ...prev, startDate: e.target.value })); setNewSprintErrors(prev => ({ ...prev, startDate: false })); }} disabled={createLoading} className={`${formInputClasses} ${newSprintErrors.startDate ? "border-red-500" : ""}`} />
+                          {newSprintErrors.startDate && <p className="text-red-500 text-xs mt-1">Start date is required.</p>}
                         </div>
                         <div className="space-y-2">
                           <label className="text-xs text-muted-foreground">End Date</label>
-                          <Input
-                            type="date"
-                            value={newSprintFormData.endDate}
-                            onChange={e => {
-                              setNewSprintFormData(prev => ({ ...prev, endDate: e.target.value }));
-                              setNewSprintErrors(prev => ({ ...prev, endDate: false }));
-                            }}
-                            disabled={createLoading}
-                            className={newSprintErrors.endDate ? "border-red-500" : ""}
-                          />
+                          <Input type="date" value={newSprintFormData.endDate} onChange={e => { setNewSprintFormData(prev => ({ ...prev, endDate: e.target.value })); setNewSprintErrors(prev => ({ ...prev, endDate: false })); }} disabled={createLoading} className={`${formInputClasses} ${newSprintErrors.endDate ? "border-red-500" : ""}`} />
                           {newSprintErrors.endDate && <p className="text-red-500 text-xs mt-1">End date is required.</p>}
                         </div>
-                        <div className="space-y-2 col-span-full">
+                        <div className="space-y-2">
                           <label className="text-xs text-muted-foreground">Description</label>
-                          <Textarea
-                            value={newSprintFormData.description}
-                            onChange={e => {
-                              setNewSprintFormData(prev => ({ ...prev, description: e.target.value }));
-                            }}
-                            placeholder="Sprint description"
-                            className="resize-none"
-                            rows={2}
-                            disabled={createLoading}
-                          />
+                          <Textarea value={newSprintFormData.description} onChange={e => { setNewSprintFormData(prev => ({ ...prev, description: e.target.value })); }} placeholder="Sprint description" className={`resize-none ${formInputClasses}`} rows={4} disabled={createLoading} />
                         </div>
                       </div>
                       <div className="flex items-center gap-2 mt-4">
-                        <Button
-                          onClick={handleCreateSprint}
-                          className="bg-emerald-600 hover:bg-emerald-700 text-white"
-                          disabled={createLoading}
-                        >
-                          {createLoading ? (
-                            <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                          ) : (
-                            <Plus className="h-4 w-4 mr-2" />
-                          )}
-                          Create
+                        <Button onClick={handleCreateSprint} className="bg-[#4ab5ae] text-white hover:bg-[#419d97]" disabled={createLoading}>
+                          {createLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Plus className="h-4 w-4 mr-2" />} Create
                         </Button>
-                        <Button
-                          variant="ghost"
-                          className="bg-red-600 hover:bg-red-700 text-white"
-                          onClick={cancelNewSprint}
-                          disabled={createLoading}
-                        >
-                          Cancel
-                        </Button>
+                        <Button variant="ghost" className="bg-red-500 hover:bg-red-600 text-white" onClick={cancelNewSprint} disabled={createLoading}>Cancel</Button>
                       </div>
                     </div>
                   )}
 
-                  {sprints.length === 0 && !newSprintOpen && (
+                  {projectDetails.sprints.length === 0 && !newSprintOpen && (
                     <div className="text-center py-8 text-slate-500">
                       <p>No sprints created yet</p>
                       <Button variant="outline" size="sm" onClick={openNewSprintForm} className="mt-2 bg-transparent">
-                        <Plus className="h-4 w-4 mr-2" />
-                        Create your first sprint
+                        <Plus className="h-4 w-4 mr-2" /> Create your first sprint
                       </Button>
                     </div>
                   )}
 
-                  {sprints.map(sprint => (
-                    <div key={sprint.id} className="flex items-start justify-between p-4 border rounded-lg">
-                      <div className="flex-1 space-y-2">
-                        <div className="flex items-center gap-2">
-                          <h4 className="font-medium">{sprint.name}</h4>
-                          <Badge variant="secondary" className={getStatusColor(sprint.status)}>
-                            {sprint.status}
-                          </Badge>
-                        </div>
-                        {sprint.description && <p className="text-sm text-slate-600">{sprint.description}</p>}
-                        <div className="flex items-center gap-4 text-xs text-slate-500">
-                          {sprint.startDate && <span>Start: {new Date(sprint.startDate).toLocaleDateString()}</span>}
-                          {sprint.endDate && <span>End: {new Date(sprint.endDate).toLocaleDateString()}</span>}
-                        </div>
+                  {projectDetails.sprints.map(sprint =>
+                    currentEditingSprint?.id === sprint.id ? (
+                      <div key={sprint.id} className="rounded-md border p-4 bg-slate-50">
+                        {/* Edit Sprint Form: This can be built similar to the create form */}
                       </div>
-                      <div className="flex gap-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => openEditSprintForm(sprint)}
-                          className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                          disabled={updateLoading}
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Dialog>
-                          <DialogTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                              disabled={deleteLoading}
-                            >
-                              {deleteLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                            </Button>
-                          </DialogTrigger>
-                          <DialogContent>
-                            <DialogHeader>
-                              <DialogTitle>Confirm Deletion</DialogTitle>
-                              <DialogDescription>
-                                Are you sure you want to delete the sprint "<strong>{sprint.name}</strong>"? This action
-                                cannot be undone. Any tasks associated with this sprint will lose their sprint
-                                assignment.
-                              </DialogDescription>
-                            </DialogHeader>
-                            <DialogFooter>
-                              <Button variant="outline">Cancel</Button>
-                              <Button
-                                variant="destructive"
-                                onClick={() => handleDeleteSprint(sprint.id)}
-                                disabled={deleteLoading}
-                              >
-                                {deleteLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                                Delete
+                    ) : (
+                      <div key={sprint.id} className="flex items-start justify-between p-4 border rounded-lg">
+                        <div className="flex-1 space-y-2">
+                          <div className="flex items-center gap-2">
+                            <h4 className="font-medium">{sprint.name}</h4>
+                            <Badge variant="secondary" className={getStatusColor(sprint.status)}>{sprint.status}</Badge>
+                          </div>
+                          {sprint.description && <p className="text-sm text-slate-600">{sprint.description}</p>}
+                          <div className="flex items-center gap-4 text-xs text-slate-500">
+                            {sprint.startDate && <span>Start: {new Date(sprint.startDate).toLocaleDateString()}</span>}
+                            {sprint.endDate && <span>End: {new Date(sprint.endDate).toLocaleDateString()}</span>}
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button variant="ghost" size="sm" onClick={() => openEditSprintForm(sprint)} className="text-blue-600 hover:text-blue-700 hover:bg-blue-50" disabled={updateLoading}>
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Dialog>
+                            <DialogTrigger asChild>
+                              <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700 hover:bg-red-50" disabled={deleteLoading}>
+                                {deleteLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
                               </Button>
-                            </DialogFooter>
-                          </DialogContent>
-                        </Dialog>
+                            </DialogTrigger>
+                            <DialogContent>
+                              <DialogHeader>
+                                <DialogTitle>Confirm Deletion</DialogTitle>
+                                <DialogDescription>Are you sure you want to delete the sprint "<strong>{sprint.name}</strong>"? This action cannot be undone.</DialogDescription>
+                              </DialogHeader>
+                              <DialogFooter>
+                                <Button variant="outline">Cancel</Button>
+                                <Button variant="destructive" onClick={() => handleDeleteSprint(sprint.id)} disabled={deleteLoading}>
+                                  {deleteLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null} Delete
+                                </Button>
+                              </DialogFooter>
+                            </DialogContent>
+                          </Dialog>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    )
+                  )}
                 </div>
               </CardContent>
             </Card>
           </div>
-
-          {/* Edit Sprint Dialog/Modal */}
-          {currentEditingSprint && (
-            <Dialog open={editSprintOpen} onOpenChange={setEditSprintOpen}>
-              <DialogContent className="bg-white sm:max-w-[425px]">
-                <DialogHeader>
-                  <DialogTitle>Edit Sprint: {currentEditingSprint.name}</DialogTitle>
-                  <DialogDescription>Make changes to your sprint here. Click save when you're done.</DialogDescription>
-                </DialogHeader>
-                <div className="grid gap-4 py-4">
-                  <div className="space-y-2">
-                    <label className="text-xs text-muted-foreground">Sprint Title</label>
-                    <Input
-                      value={editSprintFormData.name}
-                      onChange={e => {
-                        setEditSprintFormData(prev => ({ ...prev, name: e.target.value }));
-                        setEditSprintErrors(prev => ({ ...prev, name: false }));
-                      }}
-                      placeholder="Sprint title"
-                      disabled={updateLoading}
-                      className={editSprintErrors.name ? "border-red-500" : ""}
-                    />
-                    {editSprintErrors.name && <p className="text-red-500 text-xs mt-1">Sprint name is required.</p>}
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-xs text-muted-foreground">Start Date</label>
-                    <Input
-                      type="date"
-                      value={editSprintFormData.startDate}
-                      onChange={e => {
-                        setEditSprintFormData(prev => ({ ...prev, startDate: e.target.value }));
-                        setEditSprintErrors(prev => ({ ...prev, startDate: false }));
-                      }}
-                      disabled={updateLoading}
-                      className={editSprintErrors.startDate ? "border-red-500" : ""}
-                    />
-                    {editSprintErrors.startDate && (
-                      <p className="text-red-500 text-xs mt-1">Start date is required.</p>
-                    )}
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-xs text-muted-foreground">End Date</label>
-                    <Input
-                      type="date"
-                      value={editSprintFormData.endDate}
-                      onChange={e => {
-                        setEditSprintFormData(prev => ({ ...prev, endDate: e.target.value }));
-                        setEditSprintErrors(prev => ({ ...prev, endDate: false }));
-                      }}
-                      disabled={updateLoading}
-                      className={editSprintErrors.endDate ? "border-red-500" : ""}
-                    />
-                    {editSprintErrors.endDate && <p className="text-red-500 text-xs mt-1">End date is required.</p>}
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-xs text-muted-foreground">Description</label>
-                    <Textarea
-                      value={editSprintFormData.description}
-                      onChange={e => {
-                        setEditSprintFormData(prev => ({ ...prev, description: e.target.value }));
-                      }}
-                      placeholder="Sprint description"
-                      className="resize-none"
-                      rows={2}
-                      disabled={updateLoading}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-xs text-muted-foreground">Status</label>
-                    <select
-                      value={editSprintFormData.status}
-                      onChange={e => {
-                        setEditSprintFormData(prev => ({ ...prev, status: e.target.value as SprintStatus }));
-                      }}
-                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                      disabled={updateLoading}
-                    >
-                      {Object.values(SprintStatus).map(status => (
-                        <option key={status} value={status}>
-                          {status.replace(/_/g, " ")}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-                <DialogFooter>
-                  <Button variant="ghost" onClick={cancelEditSprint} disabled={updateLoading}>
-                    Cancel
-                  </Button>
-                  <Button
-                    onClick={handleUpdateSprint}
-                    className="bg-blue-600 hover:bg-blue-700 text-white"
-                    disabled={updateLoading}
-                  >
-                    {updateLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                    Save changes
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-          )}
-
-          {/* Team Members Sidebar */}
           <div className="space-y-6">
             <Card>
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <CardTitle>Team Members</CardTitle>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      // ADDED LOG
-                      console.log("[project] 'Add Members' button was clicked.");
-                      setIsAssignMembersModalOpen(true);
-                      // ADDED LOG
-                      console.log("[project] State setter setIsAssignMembersModalOpen(true) was called. A re-render will be triggered.");
-                    }}
-                  >
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add
+                  <Button variant="outline" size="sm" onClick={() => setIsAssignMembersModalOpen(true)}>
+                    <Plus className="h-4 w-4 mr-2" />Add
                   </Button>
                 </div>
               </CardHeader>
@@ -779,30 +473,16 @@ export function ProjectOverview({ projectId, projectData }: ProjectOverviewProps
                   {projectDetails.members.map(member => (
                     <div key={member.user.id} className="flex items-center space-x-3">
                       <Avatar className="h-8 w-8">
-                        <AvatarImage
-                          src={
-                            member.user.avatar ||
-                            (member.user.firstName
-                              ? `https://ui-avatars.com/api/?name=${member.user.firstName}+${member.user.lastName}&background=random`
-                              : "/placeholder.svg")
-                          }
-                          alt={`${member.user.firstName || ""} ${member.user.lastName || ""}`}
-                        />
-                        <AvatarFallback>
-                          {`${member.user.firstName?.[0] || ""}${member.user.lastName?.[0] || ""}` || "?"}
-                        </AvatarFallback>
+                        <AvatarImage src={member.user.avatar || `https://ui-avatars.com/api/?name=${member.user.firstName}+${member.user.lastName}&background=random`} alt={`${member.user.firstName || ""} ${member.user.lastName || ""}`} />
+                        <AvatarFallback>{`${member.user.firstName?.[0] || ""}${member.user.lastName?.[0] || ""}` || "?"}</AvatarFallback>
                       </Avatar>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">
-                          {`${member.user.firstName || ""} ${member.user.lastName || ""}`.trim() || member.user.email}
-                        </p>
-                        <p className="text-xs text-slate-500 truncate">{member.role.replace(/_/g, " ")}</p>
+                        <p className="text-sm font-medium truncate">{`${member.user.firstName || ""} ${member.user.lastName || ""}`.trim() || member.user.email}</p>
+                        <p className="text-xs text-slate-500 truncate">{(member.role || "").replace(/_/g, " ")}</p>
                       </div>
                     </div>
                   ))}
-                  {projectDetails.members.length === 0 && (
-                    <p className="text-sm text-center text-slate-500">No members yet.</p>
-                  )}
+                  {projectDetails.members.length === 0 && <p className="text-sm text-center text-slate-500">No members yet.</p>}
                 </div>
               </CardContent>
             </Card>
@@ -822,23 +502,14 @@ export function ProjectOverview({ projectId, projectData }: ProjectOverviewProps
         </div>
       </div>
 
-      {/* Assign Members Modal */}
-      {(() => {
-        // ADDED LOG
-        const shouldRenderModal = !!projectDetails?.workspace?.id;
-        console.log(`[project] Checking condition to render modal. 'projectDetails.workspace.id' exists: ${shouldRenderModal}. Value: ${projectDetails?.workspace?.id}`);
-        if (shouldRenderModal) {
-          return (
-            <AssignProjectMembersModal
-              isOpen={isAssignMembersModalOpen}
-              onClose={handleCloseAssignModal}
-              projectId={projectId}
-              workspaceId={projectDetails.workspace.id}
-            />
-          );
-        }
-        return null;
-      })()}
+      {projectDetails?.workspace?.id && (
+        <AssignProjectMembersModal
+          isOpen={isAssignMembersModalOpen}
+          onClose={handleCloseAssignModal}
+          projectId={projectId}
+          workspaceId={projectDetails.workspace.id}
+        />
+      )}
     </div>
   );
 }

@@ -5,7 +5,7 @@ import type { Card } from "./kanban-types"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
 export function KanbanCard({
   card,
@@ -26,16 +26,19 @@ export function KanbanCard({
     if (card.editing) titleRef.current?.focus()
   }, [card.editing])
 
+  const assignee = card.assignee
+  const assigneeInitials = `${assignee?.firstName?.[0] || ""}${assignee?.lastName?.[0] || ""}`.trim().toUpperCase() || "NA"
+
   if (card.editing) {
     return (
       <div className="bg-card rounded-xl border shadow-medium p-4 transition-all duration-200">
         <Input
           ref={titleRef}
           value={title}
-          onChange={(e) => setTitle(e.target.value)}
+          onChange={e => setTitle(e.target.value)}
           placeholder="Card title"
           className="mb-3 h-9 border-0 bg-muted/50 focus:bg-background"
-          onKeyDown={(e) => {
+          onKeyDown={e => {
             if (e.key === "Enter") onFinishInline({ title: title.trim() || "Untitled", description: desc })
             if (e.key === "Escape") onFinishInline({})
           }}
@@ -43,7 +46,7 @@ export function KanbanCard({
         />
         <Textarea
           value={desc}
-          onChange={(e) => setDesc(e.target.value)}
+          onChange={e => setDesc(e.target.value)}
           placeholder="Description (optional)"
           className="min-h-[70px] border-0 bg-muted/50 focus:bg-background resize-none"
           onBlur={() => onFinishInline({ title: title.trim() || "Untitled", description: desc })}
@@ -69,7 +72,10 @@ export function KanbanCard({
 
       <div className="flex items-center gap-3 text-xs">
         <Avatar className="h-6 w-6 border-2 border-background shadow-sm">
-          <AvatarFallback className="text-[10px] font-medium bg-primary/10 text-primary">ff</AvatarFallback>
+          <AvatarImage src={assignee?.avatar || undefined} />
+          <AvatarFallback className="text-[10px] font-medium bg-primary/10 text-primary">
+            {assigneeInitials}
+          </AvatarFallback>
         </Avatar>
         <span className="text-muted-foreground font-medium flex-1">{card.endDate || "No due date"}</span>
         {/* <Button

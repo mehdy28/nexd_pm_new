@@ -79,8 +79,8 @@ export function PromptList({
 
   return (
     <>
-      <div className="flex h-full flex-col p-4">
-        <div className="saas-card flex flex-1 flex-col overflow-hidden p-4">
+      <div className="flex h-full flex-col p-2">
+        <div className="saas-card flex flex-1 flex-col overflow-hidden p-2">
           {/* Controls */}
           <div className="mb-4 shrink-0 border-b pb-4">
             <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_auto] md:items-center">

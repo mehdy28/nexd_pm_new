@@ -1,3 +1,4 @@
+// components/board/kanban-sortable-column.tsx
 "use client"
 
 import type React from "react"
@@ -10,6 +11,7 @@ export function KanbanSortableColumn({
   column,
   onAddCard,
   onTitleChange,
+  onDeleteColumn,
   onStartTitleEdit,
   onStopTitleEdit,
   children,
@@ -17,6 +19,7 @@ export function KanbanSortableColumn({
   column: Column
   onAddCard: () => void
   onTitleChange: (title: string) => void
+  onDeleteColumn: () => void
   onStartTitleEdit: () => void
   onStopTitleEdit: () => void
   children: React.ReactNode
@@ -44,6 +47,7 @@ export function KanbanSortableColumn({
         column={column}
         onAddCard={onAddCard}
         onTitleChange={onTitleChange}
+        onDeleteColumn={onDeleteColumn}
         onStartTitleEdit={onStartTitleEdit}
         onStopTitleEdit={onStopTitleEdit}
         // Drag handle (header grip)

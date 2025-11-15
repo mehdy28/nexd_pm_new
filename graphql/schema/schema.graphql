@@ -1146,6 +1146,12 @@ input ConfirmAttachmentInput {
   taskId: ID!
 }
 
+
+input GeneratePromptFromWireframeInput {
+  imageBase64: String!
+  context: String!
+}
+
 # ----------------------------------
 # NEW MESSAGING INPUTS
 # ----------------------------------
@@ -1188,6 +1194,17 @@ input ReorderProjectSectionInput {
   id: ID!
   order: Int!
 }
+
+
+
+input UpdateProjectInput {
+  id: ID!
+  name: String
+  description: String
+  color: String
+  status: ProjectStatus
+}
+
 
 # ----------------------------------
 # Root Queries
@@ -1261,6 +1278,8 @@ type Mutation {
 
   # Project
   createProject(workspaceId: ID!, name: String!, description: String): Project!
+  updateProject(input: UpdateProjectInput!): Project!
+  deleteProject(id: ID!): Project!
 
   # Project Sections
   createProjectSection(projectId: ID!, name: String!, order: Int): Section!
@@ -1346,6 +1365,12 @@ type Mutation {
   addProjectMembers(projectId: ID!, members: [ProjectMemberInput!]!): [ProjectMemberDetails!]!
   updateProjectMemberRole(memberId: ID!, role: ProjectRole!): ProjectMemberDetails!
   removeProjectMembers(memberIds: [ID!]!): [ProjectMemberDetails!]!
+
+
+  # Ai Prompt
+  generatePromptFromWireframe(input: GeneratePromptFromWireframeInput!): String!
+
+
 }
 
 # ----------------------------------

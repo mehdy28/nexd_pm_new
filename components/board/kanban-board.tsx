@@ -32,8 +32,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { useTaskDetails } from "@/hooks/useTaskDetails"
-import { UserAvatarPartial, TaskUI } from "@/hooks/useProjectTasksAndSections"
+import { TaskUI } from "@/hooks/useProjectTasksAndSections"
 import { TaskDetailSheet } from "../modals/task-detail-sheet"
+import { UserAvatarPartial } from "@/types/useProjectTasksAndSections"
+
 
 type OverlayState =
   | {

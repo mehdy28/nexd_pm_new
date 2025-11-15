@@ -52,6 +52,17 @@ const priorityDot: Record<PriorityUI, string> = {
   HIGH: "bg-red-500",
 }
 
+const formatDateForInput = (isoDateString: string | null | undefined): string => {
+  if (!isoDateString) return ""
+  try {
+    const date = new Date(isoDateString)
+    if (isNaN(date.getTime())) return ""
+    return date.toISOString().slice(0, 10)
+  } catch (error) {
+    return ""
+  }
+}
+
 export function PersonalListView() {
   console.log("[PersonalListView] Component rendering or re-rendering.")
 
@@ -400,7 +411,9 @@ export function PersonalListView() {
       if (hasTasks && !deleteTasksConfirmed) {
         reassignId = reassignToSectionOption
         if (!reassignId) {
-          console.warn("[PersonalListView] handleConfirmDeleteSection aborted: tasks exist but no reassign section selected.")
+          console.warn(
+            "[PersonalListView] handleConfirmDeleteSection aborted: tasks exist but no reassign section selected."
+          )
           setIsSectionMutating(false)
           return
         }
@@ -432,14 +445,14 @@ export function PersonalListView() {
     if (deleteTaskModalOpen && customTaskModalRef.current) customTaskModalRef.current.focus()
   }, [deleteTaskModalOpen])
 
-  const allSelected = useMemo(
-    () => selectedCount > 0 && selectedCount === allTaskIds.length,
-    [selectedCount, allTaskIds]
-  )
-  const otherSections = useMemo(
-    () => sections.filter(s => s.id !== sectionToDelete?.id),
-    [sections, sectionToDelete]
-  )
+  const allSelected = useMemo(() => selectedCount > 0 && selectedCount === allTaskIds.length, [
+    selectedCount,
+    allTaskIds,
+  ])
+  const otherSections = useMemo(() => sections.filter(s => s.id !== sectionToDelete?.id), [
+    sections,
+    sectionToDelete,
+  ])
 
   if (loading && !sections?.length) return <LoadingPlaceholder message="Loading your tasks..." />
   if (error) return <ErrorPlaceholder error={error} onRetry={refetchMyTasksAndSections} />
@@ -447,14 +460,13 @@ export function PersonalListView() {
   return (
     <div className="p-6 pt-3">
       <div className="flex items-center gap-3">
-        <Button onClick={addSection} 
-       /// disabled={isSectionMutating}
-         className="bg-[#4ab5ae] text-white hover:bg-[#419d97] h-9 rounded-md">
-          {isSectionMutating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}+ Add section 
+        <Button
+          onClick={addSection}
+          /// disabled={isSectionMutating}
+          className="bg-[#4ab5ae] text-white hover:bg-[#419d97] h-9 rounded-md"
+        >
+          {isSectionMutating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}+ Add section
         </Button>
-        {/* <div className="ml-auto relative w-[260px]">
-          <Input className="h-9" placeholder="Search tasks..." />
-        </div> */}
       </div>
 
       {selectedCount > 0 && (
@@ -467,7 +479,20 @@ export function PersonalListView() {
       )}
 
       <div className="mt-4 w-full rounded-md overflow-x-auto">
-        <Separator />
+        <div className="grid grid-cols-[40px_1fr_150px_120px_80px_96px] items-center gap-2 px-10 py-2 text-xs font-medium text-muted-foreground border-b">
+          <div className="flex items-center">
+            <Checkbox
+              checked={allSelected}
+              onCheckedChange={checked => toggleSelectAll(!!checked)}
+              aria-label="Select all tasks"
+            />
+          </div>
+          <div>Task</div>
+          <div>Due Date</div>
+          <div>Priority</div>
+          <div>Points</div>
+          <div className="justify-self-end pr-2">Actions</div>
+        </div>
         {sections.map(section => (
           <div key={section.id} className="w-full">
             <div className="flex w-full items-center gap-2 px-5 py-4">
@@ -521,9 +546,12 @@ export function PersonalListView() {
                 )}
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0"
-                     //disabled={isSectionMutating}
-                     >
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-8 p-0"
+                      //disabled={isSectionMutating}
+                    >
                       <EllipsisVertical className="h-4 w-4" />
                     </Button>
                   </DropdownMenuTrigger>
@@ -568,7 +596,7 @@ export function PersonalListView() {
                               }))
                             }
                             placeholder="Task title"
-                           // disabled={isTaskMutating}
+                            // disabled={isTaskMutating}
                           />
                         </div>
                         <div className="space-y-2">
@@ -631,15 +659,15 @@ export function PersonalListView() {
                                 }))
                               }
                               min={0}
-                             // disabled={isTaskMutating}
+                              // disabled={isTaskMutating}
                             />
                             <Button
                               aria-label="Create task"
                               onClick={() => saveNewTask(section.id)}
                               className="h-9 bg-[#4ab5ae] text-white hover:bg-[#419d97]"
-                             // disabled={isTaskMutating || !newTask[section.id]?.title.trim()}
+                              // disabled={isTaskMutating || !newTask[section.id]?.title.trim()}
                             >
-                              {isTaskMutating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null} 
+                              {isTaskMutating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                               Create
                             </Button>
                             <Button
@@ -666,7 +694,6 @@ export function PersonalListView() {
 
       <TaskDetailSheet
         sheetTask={sheetTask}
-        initialTaskData={sheetData?.task || null}
         onClose={closeSheet}
         onUpdateTask={updateTask}
         onRequestDelete={openDeleteTaskModal}
@@ -816,7 +843,7 @@ export function PersonalListView() {
                 onClick={handleConfirmTaskDelete}
                 //disabled={isTaskMutating}
               >
-                isTaskMutating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Delete Task"} 
+                {isTaskMutating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Delete Task"}
               </Button>
             </div>
           </div>
@@ -853,7 +880,7 @@ function TaskRow({ task, selected, onSelect, onToggleCompleted, onUpdate, onOpen
   }
 
   return (
-    <div className="grid grid-cols-[40px_1fr_160px_140px_100px_96px] items-center gap-2 px-10 py-2 hover:bg-muted/40 focus-within:bg-emerald-50/50 focus-within:ring-1 focus-within:ring-emerald-200 rounded-md">
+    <div className="grid grid-cols-[40px_1fr_150px_120px_80px_96px] items-center gap-2 px-10 py-2 hover:bg-muted/40 focus-within:bg-emerald-50/50 focus-within:ring-1 focus-within:ring-emerald-200 rounded-md">
       <div className="flex items-center">
         <Checkbox checked={selected} onCheckedChange={v => onSelect(!!v)} aria-label="Select task" />
       </div>
@@ -884,15 +911,15 @@ function TaskRow({ task, selected, onSelect, onToggleCompleted, onUpdate, onOpen
           onFocus={e => e.currentTarget.select()}
         />
       </div>
-      <div className="justify-self-end w-[160px]">
+      <div>
         <Input
           type="date"
-          defaultValue={task.endDate || ""}
+          defaultValue={formatDateForInput(task.endDate)}
           onBlur={e => handleBlur("endDate", e.target.value)}
           className="h-8"
         />
       </div>
-      <div className="justify-self-end w-[140px]">
+      <div>
         <Select value={task.priority} onValueChange={(v: PriorityUI) => onUpdate({ priority: v })}>
           <SelectTrigger className="h-8">
             <div
@@ -914,7 +941,7 @@ function TaskRow({ task, selected, onSelect, onToggleCompleted, onUpdate, onOpen
           </SelectContent>
         </Select>
       </div>
-      <div className="justify-self-end w-[100px]">
+      <div>
         <Input
           className={cellInput}
           type="number"
@@ -931,7 +958,7 @@ function TaskRow({ task, selected, onSelect, onToggleCompleted, onUpdate, onOpen
           min={0}
         />
       </div>
-      <div className="flex items-center justify-end gap-2 pr-2 w-[96px]">
+      <div className="flex items-center justify-end gap-2 pr-2">
         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onOpen} title="Open task">
           <Pencil className="h-4 w-4" />
         </Button>

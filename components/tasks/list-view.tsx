@@ -1,3 +1,4 @@
+//components/tasks/list-view.tsx
 "use client"
 
 import { useMemo, useState, useEffect, useCallback, useRef } from "react"
@@ -41,7 +42,7 @@ import { LoadingPlaceholder, ErrorPlaceholder } from "@/components/placeholders/
 type NewTaskForm = {
   title: string
   assigneeId?: string | null
-  due?: string | null
+  endDate?: string | null
   priority: PriorityUI
   points?: number | null
   description?: string | null
@@ -57,6 +58,17 @@ const priorityDot: Record<PriorityUI, string> = {
   LOW: "bg-green-500",
   MEDIUM: "bg-orange-500",
   HIGH: "bg-red-500",
+}
+
+const formatDateForInput = (isoDateString: string | null | undefined): string => {
+  if (!isoDateString) return ""
+  try {
+    const date = new Date(isoDateString)
+    if (isNaN(date.getTime())) return ""
+    return date.toISOString().slice(0, 10)
+  } catch (error) {
+    return ""
+  }
 }
 
 interface ListViewProps {
@@ -91,7 +103,7 @@ export function ListView({ projectId }: ListViewProps) {
     toggleTaskCompleted: toggleTaskCompletedMutation,
     deleteTask: deleteTaskMutation,
     isTaskMutating,
-  } = useProjectTaskMutations(projectId) // Removed stale sprintId
+  } = useProjectTaskMutations(projectId, internalSelectedSprintId) // Pass sprintId to hook
 
   // --- REMOVED `useState` for `sections`. The hook's data is the source of truth. ---
 
@@ -168,14 +180,14 @@ export function ListView({ projectId }: ListViewProps) {
       const taskToUpdate = sections.find(s => s.id === sectionId)?.tasks.find(t => t.id === taskId)
       if (!taskToUpdate) return
 
-      // No optimistic UI update. The mutation hook will update the cache, triggering a re-render.
       try {
-        await toggleTaskCompletedMutation(taskId, taskToUpdate.status, internalSelectedSprintId || null)
+        // The hook's toggle function now knows how to call updateTask correctly
+        await toggleTaskCompletedMutation(taskId, sectionId, taskToUpdate.status)
       } catch (err) {
         console.error(`[toggleTaskCompleted] Failed to toggle task "${taskId}" completion:`, err)
       }
     },
-    [sections, toggleTaskCompletedMutation, internalSelectedSprintId]
+    [sections, toggleTaskCompletedMutation]
   )
 
   const updateTask = useCallback(
@@ -185,21 +197,22 @@ export function ListView({ projectId }: ListViewProps) {
       if (updates.description !== undefined) mutationInput.description = updates.description
       if (updates.priority !== undefined) mutationInput.priority = updates.priority
       if (updates.points !== undefined) mutationInput.points = updates.points
-      if (updates.due !== undefined) mutationInput.dueDate = updates.due
+      if (updates.startDate !== undefined) mutationInput.startDate = updates.startDate
+      if (updates.endDate !== undefined) mutationInput.endDate = updates.endDate
       if (updates.assignee !== undefined) mutationInput.assigneeId = updates.assignee?.id || null
+
       const newStatus = updates.completed !== undefined ? (updates.completed ? "DONE" : "TODO") : undefined
       if (newStatus !== undefined) mutationInput.status = newStatus
 
-      // No optimistic UI update. The mutation hook will update the cache.
       if (Object.keys(mutationInput).length > 0) {
         try {
-          await updateTaskMutation(taskId, mutationInput, internalSelectedSprintId || null)
+          await updateTaskMutation(taskId, sectionId, mutationInput)
         } catch (err) {
           console.error(`[updateTask] Failed to update task "${taskId}":`, err)
         }
       }
     },
-    [updateTaskMutation, internalSelectedSprintId]
+    [updateTaskMutation]
   )
 
   const openDeleteTaskModal = useCallback((sectionId: string, task: TaskUI) => {
@@ -213,21 +226,20 @@ export function ListView({ projectId }: ListViewProps) {
 
   const handleConfirmTaskDelete = useCallback(async () => {
     if (!taskToDelete) return
-    const taskId = taskToDelete.task.id
+    const { sectionId, task } = taskToDelete
 
-    // No local state update. The refetch on the delete mutation will handle the UI change.
     try {
-      await deleteTaskMutation(taskId, internalSelectedSprintId || null)
+      await deleteTaskMutation(task.id, sectionId)
     } catch (err) {
-      console.error(`[handleConfirmTaskDelete] Failed to delete task "${taskId}":`, err)
+      console.error(`[handleConfirmTaskDelete] Failed to delete task "${task.id}":`, err)
     } finally {
       setDeleteTaskModalOpen(false)
       setTaskToDelete(null)
-      if (sheetTask?.taskId === taskId) {
+      if (sheetTask?.taskId === task.id) {
         closeSheet()
       }
     }
-  }, [taskToDelete, deleteTaskMutation, sheetTask, closeSheet, internalSelectedSprintId])
+  }, [taskToDelete, deleteTaskMutation, sheetTask, closeSheet])
 
   const allTaskIds = useMemo(() => sections.flatMap(s => s.tasks.map(t => t.id)), [sections])
 
@@ -256,13 +268,23 @@ export function ListView({ projectId }: ListViewProps) {
 
     setSelected({})
     try {
+      // To bulk delete, we need the sectionId for each task
       for (const taskId of Array.from(toDelete)) {
-        await deleteTaskMutation(taskId, internalSelectedSprintId || null)
+        let sectionIdForTask: string | undefined
+        for (const section of sections) {
+          if (section.tasks.some(t => t.id === taskId)) {
+            sectionIdForTask = section.id
+            break
+          }
+        }
+        if (sectionIdForTask) {
+          await deleteTaskMutation(taskId, sectionIdForTask)
+        }
       }
     } catch (err) {
       console.error("[bulkDeleteSelected] Failed to bulk delete tasks:", err)
     }
-  }, [selected, deleteTaskMutation, internalSelectedSprintId])
+  }, [selected, deleteTaskMutation, sections])
 
   const openNewTask = useCallback(
     (sectionId: string) => {
@@ -272,7 +294,7 @@ export function ListView({ projectId }: ListViewProps) {
         [sectionId]: p[sectionId] || {
           title: "",
           assigneeId: null,
-          due: null,
+          endDate: null,
           priority: "MEDIUM",
           points: null,
           description: null,
@@ -297,7 +319,7 @@ export function ListView({ projectId }: ListViewProps) {
           title: form.title,
           description: form.description,
           assigneeId: form.assigneeId,
-          dueDate: form.due,
+          endDate: form.endDate,
           priority: form.priority,
           points: form.points,
           sprintId: internalSelectedSprintId || null,
@@ -433,7 +455,21 @@ export function ListView({ projectId }: ListViewProps) {
       )}
 
       <div className="mt-4 w-full rounded-md overflow-x-auto">
-        <Separator />
+        <div className="grid grid-cols-[40px_1fr_200px_150px_120px_80px_96px] items-center gap-2 px-10 py-2 text-xs font-medium text-muted-foreground border-b">
+          <div className="flex items-center">
+            <Checkbox
+              checked={allSelected}
+              onCheckedChange={checked => toggleSelectAll(!!checked)}
+              aria-label="Select all tasks"
+            />
+          </div>
+          <div>Task</div>
+          <div>Assignee</div>
+          <div>Due Date</div>
+          <div>Priority</div>
+          <div>Points</div>
+          <div className="justify-self-end pr-2">Actions</div>
+        </div>
         {sections.map(section => (
           <div key={section.id} className="w-full">
             <div className="flex w-full items-center gap-2 px-5 py-4">
@@ -478,6 +514,7 @@ export function ListView({ projectId }: ListViewProps) {
                   <Button
                     variant="outline"
                     size="sm"
+                    className="bg-[#4ab5ae] text-white hover:bg-[#419d97]"
                     onClick={() => openNewTask(section.id)}
                     disabled={isTaskMutating}
                   >
@@ -486,7 +523,12 @@ export function ListView({ projectId }: ListViewProps) {
                 )}
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0" disabled={isSectionMutating}>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-8 p-0"
+                      disabled={isSectionMutating}
+                    >
                       <EllipsisVertical className="h-4 w-4" />
                     </Button>
                   </DropdownMenuTrigger>
@@ -568,11 +610,11 @@ export function ListView({ projectId }: ListViewProps) {
                           <label className="text-xs text-muted-foreground">Due date</label>
                           <Input
                             type="date"
-                            value={newTask[section.id]?.due || ""}
+                            value={newTask[section.id]?.endDate || ""}
                             onChange={e =>
                               setNewTask(p => ({
                                 ...p,
-                                [section.id]: { ...(p[section.id] as NewTaskForm), due: e.target.value },
+                                [section.id]: { ...(p[section.id] as NewTaskForm), endDate: e.target.value },
                               }))
                             }
                             disabled={isTaskMutating}
@@ -629,7 +671,7 @@ export function ListView({ projectId }: ListViewProps) {
                             <Button
                               aria-label="Create task"
                               onClick={() => saveNewTask(section.id)}
-                              className="h-9 bg-emerald-600 hover:bg-emerald-700 text-white"
+                              className="h-9 bg-[#4ab5ae] text-white hover:bg-[#419d97]"
                               disabled={isTaskMutating || !newTask[section.id]?.title.trim()}
                             >
                               {isTaskMutating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}Create
@@ -637,7 +679,7 @@ export function ListView({ projectId }: ListViewProps) {
                             <Button
                               aria-label="Cancel task creation"
                               variant="ghost"
-                              className="h-9 bg-red-600 hover:bg-red-700 text-white"
+                              className="h-9 bg-red-500 hover:bg-red-600 text-white"
                               onClick={() => cancelNewTask(section.id)}
                               disabled={isTaskMutating}
                             >
@@ -658,7 +700,6 @@ export function ListView({ projectId }: ListViewProps) {
 
       <TaskDetailSheet
         sheetTask={sheetTask}
-        initialTaskData={sheetData?.task || null}
         onClose={closeSheet}
         onUpdateTask={updateTask}
         onRequestDelete={openDeleteTaskModal}
@@ -838,7 +879,7 @@ function TaskRow({ task, selected, onSelect, onToggleCompleted, onChange, onOpen
   const assigneeName = `${assignee?.firstName || ""} ${assignee?.lastName || ""}`.trim() || "Unassigned"
 
   return (
-    <div className="grid grid-cols-[40px_1fr_180px_160px_140px_100px_96px] items-center gap-2 px-10 py-2 hover:bg-muted/40 focus-within:bg-emerald-50/50 focus-within:ring-1 focus-within:ring-emerald-200 rounded-md">
+    <div className="grid grid-cols-[40px_1fr_200px_150px_120px_80px_96px] items-center gap-2 px-10 py-2 hover:bg-muted/40 focus-within:bg-emerald-50/50 focus-within:ring-1 focus-within:ring-emerald-200 rounded-md">
       <div className="flex items-center">
         <Checkbox checked={selected} onCheckedChange={v => onSelect(!!v)} aria-label="Select task" />
       </div>
@@ -865,7 +906,7 @@ function TaskRow({ task, selected, onSelect, onToggleCompleted, onChange, onOpen
           onFocus={e => e.currentTarget.select()}
         />
       </div>
-      <div className="justify-self-end w-[180px]">
+      <div>
         <Select
           value={assignee?.id || "null"}
           onValueChange={v => onChange({ assignee: v === "null" ? null : assignees.find(a => a.id === v) })}
@@ -900,10 +941,15 @@ function TaskRow({ task, selected, onSelect, onToggleCompleted, onChange, onOpen
           </SelectContent>
         </Select>
       </div>
-      <div className="justify-self-end w-[160px]">
-        <Input type="date" value={task.due || ""} onChange={e => onChange({ due: e.target.value })} className="h-8" />
+      <div>
+        <Input
+          type="date"
+          value={formatDateForInput(task.endDate)}
+          onChange={e => onChange({ endDate: e.target.value })}
+          className="h-8"
+        />
       </div>
-      <div className="justify-self-end w-[140px]">
+      <div>
         <Select value={task.priority} onValueChange={(v: PriorityUI) => onChange({ priority: v })}>
           <SelectTrigger className="h-8">
             <div
@@ -925,7 +971,7 @@ function TaskRow({ task, selected, onSelect, onToggleCompleted, onChange, onOpen
           </SelectContent>
         </Select>
       </div>
-      <div className="justify-self-end w-[100px]">
+      <div>
         <Input
           className={cellInput}
           type="number"
@@ -938,7 +984,7 @@ function TaskRow({ task, selected, onSelect, onToggleCompleted, onChange, onOpen
           min={0}
         />
       </div>
-      <div className="flex items-center justify-end gap-2 pr-2 w-[96px]">
+      <div className="flex items-center justify-end gap-2 pr-2">
         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onOpen} title="Open task">
           <Pencil className="h-4 w-4" />
         </Button>

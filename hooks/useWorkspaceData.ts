@@ -38,7 +38,7 @@ interface WorkspaceData {
 }
 
 interface GetWorkspaceDataResponse {
-  getWorkspaceData: WorkspaceData | null;
+  getWorkspaceData: WorkspaceData ;
 }
 
 export function useWorkspaceData() {

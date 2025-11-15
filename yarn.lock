@@ -1580,6 +1580,11 @@
     teeny-request "^9.0.0"
     uuid "^8.0.0"
 
+"@google/generative-ai@^0.24.1":
+  version "0.24.1"
+  resolved "https://registry.yarnpkg.com/@google/generative-ai/-/generative-ai-0.24.1.tgz#634a3c06f8ea7a6125c1b0d6c1e66bb11afb52c9"
+  integrity sha512-MqO+MLfM6kjxcKoy0p1wRzG3b4ZZXtPI+z2IE26UogS2Cm/XHO+7gGRBh6gcJsOiIVoH93UwKvW4HdgiOZCy9Q==
+
 "@graphql-tools/executor@^1.4.0":
   version "1.4.11"
   resolved "https://registry.yarnpkg.com/@graphql-tools/executor/-/executor-1.4.11.tgz#27e07fca7b66226d903ed12c0d369349211b619b"

@@ -9,7 +9,7 @@ export const UPDATE_PROJECT_TASK_MUTATION = gql`
       description
       status
       priority
-      dueDate
+      endDate
       points
       completed # Derived field
       sprintId # <--- ADD THIS

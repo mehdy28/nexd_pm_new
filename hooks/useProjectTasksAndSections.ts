@@ -7,7 +7,6 @@ import { DELETE_PROJECT_SECTION_MUTATION } from "@/graphql/mutations/deleteProje
 import { REORDER_PROJECT_SECTIONS_MUTATION } from "@/graphql/mutations/reorderProjectSections" // <-- Import new mutation
 
 import { UserAvatarPartial } from "@/types/useProjectTasksAndSections"
-import { TaskStatus } from "@prisma/client"
 
 // --- Type Definitions ---
 export type PriorityUI = "LOW" | "MEDIUM" | "HIGH"
@@ -23,14 +22,14 @@ export interface TaskUI {
   id: string
   title: string
   assignee: UserAvatarPartial | null
-  due: string | null
+  endDate: string | null
   priority: PriorityUI
   points: number | null
   completed: boolean
   description?: string | null
   status: TaskStatusUI
   sprintId?: string | null
-  sectionId?: string | undefined 
+  sectionId?: string | undefined
 }
 
 export interface SectionUI {
@@ -58,7 +57,7 @@ interface ProjectTasksAndSectionsResponse {
         description?: string | null
         status: TaskStatusUI
         priority: "LOW" | "MEDIUM" | "HIGH"
-        dueDate?: string | null
+        endDate?: string | null
         points: number | null
         assignee: UserAvatarPartial | null
         sprintId?: string | null
@@ -100,14 +99,25 @@ export function useProjectTasksAndSections(projectId: string, sprintIdFromProps?
     {
       variables: { projectId, sprintId: sprintIdFromProps },
       skip: !projectId,
-      fetchPolicy: "cache-and-network",
+      fetchPolicy: "network-only",
     }
   )
 
+  useEffect(() => {
+    console.groupCollapsed(`[useProjectTasksAndSections] Query State Change (Project: ${projectId})`)
+    console.log("Query Variables:", { projectId, sprintId: sprintIdFromProps })
+    console.log("Loading state:", loading)
+    console.log("Error state:", error)
+    console.log("Raw GraphQL Data from useQuery:", data)
+    console.groupEnd()
+  }, [data, loading, error, projectId, sprintIdFromProps])
+
+
   // --- Section Mutations ---
-  const [createProjectSectionMutation] = useMutation(CREATE_PROJECT_SECTION_MUTATION, {
+  const [createProjectSectionMutation, { loading: isCreatingSection }] = useMutation(CREATE_PROJECT_SECTION_MUTATION, {
     refetchQueries: ["GetProjectTasksAndSections"],
   })
+
 
   const [updateProjectSectionMutation] = useMutation(UPDATE_PROJECT_SECTION_MUTATION) // Manual cache update is better
 
@@ -125,15 +135,22 @@ export function useProjectTasksAndSections(projectId: string, sprintIdFromProps?
   const transformedData = data?.getProjectTasksAndSections
 
   const sections: SectionUI[] = useMemo(() => {
-    if (!transformedData) return []
-    return transformedData.sections.map(sec => ({
+    console.groupCollapsed(`[useProjectTasksAndSections] Transforming Data into UI State`)
+    if (!transformedData) {
+      console.log("No transformedData available. Returning empty array.")
+      console.groupEnd()
+      return []
+    }
+    console.log("Input (raw sections from GraphQL):", transformedData.sections)
+
+    const uiSections = transformedData.sections.map(sec => ({
       id: sec.id,
       title: sec.name,
       tasks: sec.tasks.map(task => ({
         id: task.id,
         title: task.title,
         assignee: task.assignee,
-        due: task.dueDate || null,
+        endDate: task.endDate || null,
         priority: mapPriorityToUI(task.priority),
         points: task.points,
         completed: mapTaskStatusToUI(task.status),
@@ -143,6 +160,10 @@ export function useProjectTasksAndSections(projectId: string, sprintIdFromProps?
       })),
       editing: false,
     }))
+
+    console.log("Output (sections formatted for UI):", uiSections)
+    console.groupEnd()
+    return uiSections
   }, [transformedData])
 
   const projectMembers: ProjectMemberFullDetails[] = useMemo(() => {
@@ -159,46 +180,64 @@ export function useProjectTasksAndSections(projectId: string, sprintIdFromProps?
   const createSection = useCallback(
     async (name: string, order?: number) => {
       const numSections = sections.length
-      await createProjectSectionMutation({
-        variables: {
-          projectId: projectId,
-          name,
-          order: order ?? numSections,
-        },
-      })
+      const variables = {
+        projectId: projectId,
+        name,
+        order: order ?? numSections,
+      }
+      console.log("[useProjectTasksAndSections] Calling createSection with variables:", variables)
+      await createProjectSectionMutation({ variables })
     },
     [projectId, createProjectSectionMutation, sections.length]
   )
 
   const updateSection = useCallback(
     async (id: string, name: string) => {
+      const variables = { id, name }
+      const optimisticResponse = {
+        updateProjectSection: { __typename: "Section", id, name },
+      }
+      console.group(`[useProjectTasksAndSections] Calling updateSection for section ID: ${id}`)
+      console.log("Variables:", variables)
+      console.log("Optimistic Response:", optimisticResponse)
+
       await updateProjectSectionMutation({
-        variables: { id, name },
-        optimisticResponse: {
-          updateProjectSection: { __typename: "Section", id, name },
-        },
+        variables: variables,
+        optimisticResponse: optimisticResponse,
         update: (cache, { data: mutationData }) => {
+          console.group(`[useProjectTasksAndSections] Cache update for updateSection (ID: ${id})`)
           const idToUpdate = mutationData?.updateProjectSection.id
-          if (!idToUpdate) return
+          console.log("Mutation data received by update function:", mutationData)
+          if (!idToUpdate) {
+            console.log("No ID to update found in mutation data. Aborting cache update.")
+            console.groupEnd()
+            return
+          }
+
+          const cacheId = cache.identify({ __typename: "Section", id: idToUpdate })
+          console.log(`Modifying cache for fragment with ID: ${cacheId}`)
           cache.modify({
-            id: cache.identify({ __typename: "Section", id: idToUpdate }),
+            id: cacheId,
             fields: {
               name() {
+                console.log(`Updating 'name' field in cache to: '${mutationData?.updateProjectSection.name}'`)
                 return mutationData?.updateProjectSection.name
               },
             },
           })
+          console.groupEnd()
         },
       })
+      console.groupEnd()
     },
     [updateProjectSectionMutation]
   )
 
   const deleteSection = useCallback(
     async (id: string, options: { deleteTasks: boolean; reassignToSectionId?: string | null }) => {
-      await deleteProjectSectionMutation({
-        variables: { id, options },
-      })
+      const variables = { id, options }
+      console.log("[useProjectTasksAndSections] Calling deleteSection with variables:", variables)
+      await deleteProjectSectionMutation({ variables })
     },
     [deleteProjectSectionMutation]
   )
@@ -206,11 +245,17 @@ export function useProjectTasksAndSections(projectId: string, sprintIdFromProps?
   // --- NEW: Reorder Sections Function ---
   const reorderSections = useCallback(
     async (sectionsToReorder: ReorderSectionInput[]) => {
+      console.group(`[useProjectTasksAndSections] Calling reorderSections for project ID: ${projectId}`)
+      console.log("Input: Sections with new order:", sectionsToReorder)
+
       const queryOptions = {
         query: GET_PROJECT_TASKS_AND_SECTIONS_QUERY,
         variables: { projectId, sprintId: sprintIdFromProps },
       }
+
       const originalQuery = client.readQuery<ProjectTasksAndSectionsResponse>(queryOptions)
+      console.log("State of cache BEFORE optimistic update:", originalQuery)
+
 
       // Optimistically update the cache
       if (originalQuery?.getProjectTasksAndSections) {
@@ -221,7 +266,7 @@ export function useProjectTasksAndSections(projectId: string, sprintIdFromProps?
           .map(s => sectionMap.get(s.id))
           .filter((s): s is NonNullable<typeof s> => s != null)
 
-        client.writeQuery({
+        const newCacheData = {
           ...queryOptions,
           data: {
             getProjectTasksAndSections: {
@@ -229,20 +274,29 @@ export function useProjectTasksAndSections(projectId: string, sprintIdFromProps?
               sections: reorderedSections,
             },
           },
-        })
+        }
+
+        console.log("Data being written to cache for optimistic update:", newCacheData.data)
+        client.writeQuery(newCacheData)
+
+        const updatedCache = client.readQuery<ProjectTasksAndSectionsResponse>(queryOptions)
+        console.log("State of cache AFTER optimistic update:", updatedCache)
+      } else {
+        console.warn("Could not find original query in cache. Skipping optimistic update.")
       }
 
       try {
-        await reorderProjectSectionsMutation({
-          variables: {
-            projectId,
-            sections: sectionsToReorder,
-          },
-        })
+        const mutationVariables = { projectId, sections: sectionsToReorder }
+        console.log("Executing reorderProjectSectionsMutation with variables:", mutationVariables)
+        await reorderProjectSectionsMutation({ variables: mutationVariables })
+        console.log("Reorder mutation successful.")
       } catch (err) {
         console.error("Failed to reorder sections:", err)
+        console.log("Reverting optimistic update by refetching from server.")
         refetch() // On error, revert by refetching from the server
         throw err
+      } finally {
+        console.groupEnd()
       }
     },
     [client, reorderProjectSectionsMutation, refetch, projectId, sprintIdFromProps]
@@ -256,6 +310,7 @@ export function useProjectTasksAndSections(projectId: string, sprintIdFromProps?
     isReordering, // <-- Expose loading state
     refetchProjectTasksAndSections: refetch,
     createSection,
+    isCreatingSection,
     updateSection,
     deleteSection,
     reorderSections, // <-- Expose the new function

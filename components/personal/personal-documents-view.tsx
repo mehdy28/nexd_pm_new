@@ -124,7 +124,7 @@ export function PersonalDocumentsView() {
 
   return (
     <>
-      <div className="h-full w-full overflow-hidden p-4 flex flex-col">
+      <div className="h-full w-full overflow-hidden p-2 flex flex-col">
         {showEditor && selectedDocument ? (
           <div className="flex h-full min-h-0 flex-col gap-1">
             <div className="flex items-center gap-2">

@@ -1,15 +1,23 @@
+// components/board/kanban-column.tsx
 "use client"
 
-import { Plus, Ellipsis, GripVertical } from "lucide-react"
+import { Plus, Ellipsis, GripVertical, Trash2 } from "lucide-react"
 import type { Column } from "./kanban-types"
 import { Input } from "@/components/ui/input"
 import React from "react"
 import { useDroppable } from "@dnd-kit/core"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 
 export function KanbanColumn({
   column,
   onAddCard,
   onTitleChange,
+  onDeleteColumn,
   onStartTitleEdit,
   onStopTitleEdit,
   children,
@@ -18,6 +26,7 @@ export function KanbanColumn({
   column: Column
   onAddCard: () => void
   onTitleChange: (title: string) => void
+  onDeleteColumn: () => void
   onStartTitleEdit: () => void
   onStopTitleEdit: () => void
   children: React.ReactNode
@@ -53,8 +62,8 @@ export function KanbanColumn({
               ref={inputRef}
               defaultValue={column.title}
               className="h-8"
-              onBlur={(e) => onTitleChange(e.target.value.trim() || "Untitled")}
-              onKeyDown={(e) => {
+              onBlur={e => onTitleChange(e.target.value.trim() || "Untitled")}
+              onKeyDown={e => {
                 if (e.key === "Enter") onTitleChange((e.target as HTMLInputElement).value.trim() || "Untitled")
                 if (e.key === "Escape") onStopTitleEdit()
               }}
@@ -79,13 +88,22 @@ export function KanbanColumn({
           >
             <Plus className="h-4 w-4" />
           </button>
-          <button
-            aria-label="More"
-            className="inline-flex h-7 w-7 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100"
-            title="More"
-          >
-            <Ellipsis className="h-4 w-4" />
-          </button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                aria-label="More"
+                className="inline-flex h-7 w-7 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100"
+                title="More"
+              >
+                <Ellipsis className="h-4 w-4" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={onDeleteColumn} className="text-red-600">
+                <Trash2 className="h-4 w-4 mr-2" /> Delete Column
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 

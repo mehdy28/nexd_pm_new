@@ -1,203 +1,253 @@
 // hooks/useProjectTaskMutations.ts
-import { useMutation } from "@apollo/client";
-import { useCallback } from "react";
-import { CREATE_PROJECT_TASK_MUTATION } from "@/graphql/mutations/createProjectTask";
-import { UPDATE_PROJECT_TASK_MUTATION } from "@/graphql/mutations/updateProjectTask";
-import { GET_PROJECT_TASKS_AND_SECTIONS_QUERY } from "@/graphql/queries/getProjectTasksAndSections";
-import { GET_PROJECT_DETAILS_QUERY } from "@/graphql/queries/getProjectDetails";
-import { GET_TASK_DETAILS_QUERY } from "@/graphql/queries/getTaskDetails";
-import { PriorityUI, TaskStatusUI, SectionUI, TaskUI } from "./useProjectTasksAndSections";
-import { Priority, TaskStatus } from "@prisma/client";
-import { gql } from "@apollo/client";
-
-// --- Cached Query Type ---
-type GetProjectTasksAndSectionsQueryType = {
-  getProjectTasksAndSections: { sections: SectionUI[] };
-};
+import { useMutation, useApolloClient, gql } from "@apollo/client"
+import { useCallback } from "react"
+import { CREATE_PROJECT_TASK_MUTATION } from "@/graphql/mutations/createProjectTask"
+import { UPDATE_PROJECT_TASK_MUTATION } from "@/graphql/mutations/updateProjectTask"
+import { DELETE_PROJECT_TASK_MUTATION } from "@/graphql/mutations/deleteProjectTask"
+import { Priority, TaskStatus } from "@prisma/client"
+import { TaskStatusUI } from "./useProjectTasksAndSections"
 
 // --- Mutation Variable Interfaces ---
 interface CreateProjectTaskVariables {
   input: {
-    projectId: string;
-    sectionId: string;
-    title: string;
-    description?: string | null;
-    status?: TaskStatus;
-    priority?: Priority;
-    dueDate?: string | null;
-    startDate?: string | null;
-    endDate?: string | null;
-    assigneeId?: string | null;
-    sprintId?: string | null;
-    points?: number | null;
-    parentId?: string | null;
-  };
+    projectId: string
+    sectionId: string
+    title: string
+    description?: string | null
+    status?: TaskStatus
+    priority?: Priority
+    endDate?: string | null
+    assigneeId?: string | null
+    sprintId?: string | null
+    points?: number | null
+  }
 }
 
 interface UpdateProjectTaskVariables {
   input: {
-    id: string;
-    title?: string | null;
-    description?: string | null;
-    status?: TaskStatus;
-    priority?: Priority;
-    dueDate?: string | null;
-    startDate?: string | null;
-    endDate?: string | null;
-    assigneeId?: string | null;
-    sprintId?: string | null;
-    points?: number | null;
-    parentId?: string | null;
-    sectionId?: string | null; // Added for card moves
-  };
+    id: string
+    title?: string | null
+    description?: string | null
+    status?: TaskStatus
+    priority?: Priority
+    endDate?: string | null
+    assigneeId?: string | null
+    sprintId?: string | null
+    points?: number | null
+    sectionId?: string | null
+  }
 }
 
-// --- Helper Functions ---
-const mapPriorityToPrisma = (priority: PriorityUI): Priority => {
-  switch (priority) {
-    case "LOW": return "LOW";
-    case "MEDIUM": return "MEDIUM";
-    case "HIGH": return "HIGH";
-  }
-};
-
 // --- Main Hook ---
-export function useProjectTaskMutations(projectId: string) { // Removed stale sprintId from hook signature
-  const [createProjectTaskApolloMutation, { loading: createLoading, error: createError }] = useMutation<any, CreateProjectTaskVariables>(CREATE_PROJECT_TASK_MUTATION);
-  const [updateProjectTaskApolloMutation, { loading: updateLoading, error: updateError }] = useMutation<any, UpdateProjectTaskVariables>(UPDATE_PROJECT_TASK_MUTATION);
-  const [deleteProjectTaskApolloMutation, { loading: deleteLoading, error: deleteError }] = useMutation<any, { id: string }>(
-    gql`mutation DeleteProjectTask($id: ID!) { deleteProjectTask(id: $id) { id } }`
-  );
+export function useProjectTaskMutations(projectId: string, currentSprintId?: string | null) {
+  const client = useApolloClient()
 
-  const getGeneralRefetchQueries = useCallback((sprintId: string | null) => [
-    { query: GET_PROJECT_TASKS_AND_SECTIONS_QUERY, variables: { projectId, sprintId: sprintId } },
-    { query: GET_PROJECT_DETAILS_QUERY, variables: { projectId } },
-  ], [projectId]);
+  const [createProjectTaskApolloMutation, { loading: createLoading, error: createError }] = useMutation(
+    CREATE_PROJECT_TASK_MUTATION
+  )
 
-  const createTask = useCallback(async (sectionId: string, input: Omit<CreateProjectTaskVariables['input'], 'projectId' | 'sectionId'>) => {
-    // This is not on the critical path for drag-and-drop, so refetch is acceptable here.
-    const sprintId = input.sprintId ?? null;
-    return await createProjectTaskApolloMutation({
-      variables: {
-        input: { projectId, sectionId, ...input }
-      },
-      refetchQueries: getGeneralRefetchQueries(sprintId)
-    });
-  }, [projectId, createProjectTaskApolloMutation, getGeneralRefetchQueries]);
+  const [updateProjectTaskApolloMutation, { loading: updateLoading, error: updateError }] = useMutation(
+    UPDATE_PROJECT_TASK_MUTATION
+  )
 
-  const updateTask = useCallback(async (
-    taskId: string,
-    input: Omit<UpdateProjectTaskVariables['input'], 'id'>,
-    sprintIdForCache: string | null // Accept the fresh sprintId here
-  ) => {
-    const variables: UpdateProjectTaskVariables['input'] = { id: taskId, ...input };
+  const [deleteProjectTaskApolloMutation, { loading: deleteLoading, error: deleteError }] = useMutation(
+    DELETE_PROJECT_TASK_MUTATION
+  )
 
-    return await updateProjectTaskApolloMutation({
-      variables: { input: variables },
-      // REMOVED: refetchQueries to prevent flicker
-      // ADDED: manual cache update to solve stale closure and prevent flicker
-      update: (cache, { data }) => {
-        const updatedTask = data?.updateProjectTask;
-        if (!updatedTask) return;
+  const createTask = useCallback(
+    async (sectionId: string, input: Omit<CreateProjectTaskVariables["input"], "projectId" | "sectionId">) => {
+      const optimisticId = `optimistic-${Date.now()}`
 
-        const queryOptions = {
-          query: GET_PROJECT_TASKS_AND_SECTIONS_QUERY,
-          variables: { projectId, sprintId: sprintIdForCache },
-        };
+      const mutationVariables = {
+        input: {
+          projectId,
+          sectionId,
+          ...input,
+          sprintId: input.sprintId ?? currentSprintId,
+        },
+      }
 
-        const existingData = cache.readQuery<GetProjectTasksAndSectionsQueryType>(queryOptions);
-        if (!existingData) {
-          console.warn(`Cache update skipped: Could not find query for sprintId: ${sprintIdForCache}`);
-          return;
-        }
+      const optimisticResponsePayload = {
+        createProjectTask: {
+          __typename: "TaskListView",
+          id: optimisticId,
+          title: input.title,
+          description: input.description || null,
+          status: input.status || "TODO",
+          priority: input.priority || "MEDIUM",
+          endDate: input.endDate || null,
+          points: input.points || null,
+          assignee: null,
+          sprintId: mutationVariables.input.sprintId,
+          sectionId: sectionId,
+          completed: false,
+        },
+      }
 
-        const newSections = existingData.getProjectTasksAndSections.sections.map(section => {
-          const originalCards = section.cards ?? [];
-          // Remove the card from every section to handle moves
-          let newCards = originalCards.filter(card => card.id !== updatedTask.id);
+      return createProjectTaskApolloMutation({
+        variables: mutationVariables,
+        optimisticResponse: optimisticResponsePayload,
+        update: (cache, { data }) => {
+          const newTask = data?.createProjectTask
+          if (!newTask) return
 
-          // If this is the destination section, add the updated card
-          if (section.id === (updatedTask.sectionId || input.sectionId)) {
-            newCards.push(updatedTask);
-          }
+          const sectionCacheId = cache.identify({ __typename: "SectionWithTasks", id: sectionId })
+          if (!sectionCacheId) return
 
-          return { ...section, cards: newCards };
-        });
-
-        cache.writeQuery({
-          ...queryOptions,
-          data: {
-            getProjectTasksAndSections: {
-              ...existingData.getProjectTasksAndSections,
-              sections: newSections,
+          cache.modify({
+            id: sectionCacheId,
+            fields: {
+              tasks(existingTasks = [], { readField }) {
+                const withoutOptimistic = existingTasks.filter(t => readField("id", t) !== optimisticId)
+                const newTaskRef = cache.identify(newTask)
+                return [...withoutOptimistic, { __ref: newTaskRef }]
+              },
             },
+          })
+        },
+      })
+    },
+    [projectId, currentSprintId, createProjectTaskApolloMutation]
+  )
+
+  const updateTask = useCallback(
+    async (taskId: string, currentSectionId: string, input: Omit<UpdateProjectTaskVariables["input"], "id">) => {
+      console.log(`🚀 [updateTask] Initiated. Task ID: ${taskId}, Input:`, input)
+
+      // WORKAROUND: Remove sprintId from the fragment to ensure the read succeeds even if the cache is inconsistent.
+      const fragment = gql`
+        fragment ExistingProjectTaskData on TaskListView {
+          id
+          title
+          description
+          status
+          priority
+          endDate
+          points
+          completed
+          sectionId
+          assignee {
+            id
+            firstName
+            lastName
+            avatar
+            __typename
+          }
+        }
+      `
+      const fragmentId = `TaskListView:${taskId}`
+      const taskFragment = client.readFragment({ id: fragmentId, fragment })
+      console.log(`📦 [updateTask] Fragment read result for ${fragmentId}:`, taskFragment)
+
+      if (!taskFragment) {
+        console.error(`❌ [updateTask] FATAL: Could not find task ${taskId} in cache. Aborting optimistic update.`)
+        return updateProjectTaskApolloMutation({ variables: { input: { id: taskId, ...input } } })
+      }
+
+      const optimisticResponsePayload = {
+        __typename: "TaskListView",
+        ...taskFragment,
+        // WORKAROUND: Manually add sprintId back to the payload using the hook's current sprintId.
+        // This ensures the object being written to the cache is complete.
+        sprintId: (taskFragment as any).sprintId || currentSprintId,
+        ...input,
+      }
+      console.log("✨ [updateTask] Constructed optimistic response payload:", optimisticResponsePayload)
+
+      try {
+        return await updateProjectTaskApolloMutation({
+          variables: { input: { id: taskId, ...input } },
+          optimisticResponse: {
+            updateProjectTask: optimisticResponsePayload,
           },
-        });
-      },
-    });
-  }, [projectId, updateProjectTaskApolloMutation]);
+          update: (cache, { data }) => {
+            const updatedTask = data?.updateProjectTask
+            if (!updatedTask) return
+
+            const newSectionId = input.sectionId
+            if (newSectionId && newSectionId !== currentSectionId) {
+              const oldSectionCacheId = cache.identify({ __typename: "SectionWithTasks", id: currentSectionId })
+              if (oldSectionCacheId) {
+                cache.modify({
+                  id: oldSectionCacheId,
+                  fields: {
+                    tasks: (existingTaskRefs = [], { readField }) =>
+                      existingTaskRefs.filter(ref => readField("id", ref) !== updatedTask.id),
+                  },
+                })
+              }
+
+              const newSectionCacheId = cache.identify({ __typename: "SectionWithTasks", id: newSectionId })
+              if (newSectionCacheId) {
+                cache.modify({
+                  id: newSectionCacheId,
+                  fields: {
+                    tasks(existingTaskRefs = [], { readField }) {
+                      const newTaskRef = cache.identify(updatedTask)
+                      if (existingTaskRefs.some(ref => readField("id", ref) === updatedTask.id)) {
+                        return existingTaskRefs
+                      }
+                      return [{ __ref: newTaskRef }, ...existingTaskRefs]
+                    },
+                  },
+                })
+              }
+            }
+          },
+        })
+      } catch (error) {
+        console.error(`❌ [updateTask] Error during mutation for task ${taskId}:`, error)
+        throw error
+      }
+    },
+    [updateProjectTaskApolloMutation, client, currentSprintId]
+  )
 
   const toggleTaskCompleted = useCallback(
-    async (taskId: string, currentStatus: TaskStatusUI, sprintIdForCache: string | null) => {
-      const newStatus = currentStatus === "DONE" ? "TODO" : "DONE";
-      return await updateProjectTaskApolloMutation({
-        variables: {
-          input: {
+    async (taskId: string, sectionId: string, currentStatus: TaskStatusUI) => {
+      const newStatus = currentStatus === "DONE" ? "TODO" : "DONE"
+      return updateTask(taskId, sectionId, { status: newStatus })
+    },
+    [updateTask]
+  )
+
+  const deleteTask = useCallback(
+    async (taskId: string, sectionId: string) => {
+      return deleteProjectTaskApolloMutation({
+        variables: { id: taskId },
+        optimisticResponse: {
+          deleteProjectTask: {
+            __typename: "TaskListView",
             id: taskId,
-            status: newStatus,
           },
         },
         update: (cache, { data }) => {
-          const updatedTask = data?.updateProjectTask;
-          if (!updatedTask) return;
+          const deletedTask = data?.deleteProjectTask
+          if (!deletedTask || !deletedTask.id) return
 
-          const queryOptions = {
-            query: GET_PROJECT_TASKS_AND_SECTIONS_QUERY,
-            variables: { projectId, sprintId: sprintIdForCache },
-          };
-
-          const existingData = cache.readQuery<GetProjectTasksAndSectionsQueryType>(queryOptions);
-          if (!existingData) {
-            console.warn(`Cache update for toggle skipped: Could not find query for sprintId: ${sprintIdForCache}`);
-            return;
+          if (sectionId) {
+            const sectionCacheId = cache.identify({ __typename: "SectionWithTasks", id: sectionId })
+            if (sectionCacheId) {
+              cache.modify({
+                id: sectionCacheId,
+                fields: {
+                  tasks: (existingTaskRefs = [], { readField }) =>
+                    existingTaskRefs.filter(ref => readField("id", ref) !== deletedTask.id),
+                },
+              })
+            }
           }
 
-          const newSections = existingData.getProjectTasksAndSections.sections.map(section => {
-            const taskIndex = section.cards.findIndex(card => card.id === taskId);
-            if (taskIndex === -1) {
-              return section;
-            }
-
-            const newCards = [
-              ...section.cards.slice(0, taskIndex),
-              updatedTask,
-              ...section.cards.slice(taskIndex + 1),
-            ];
-            return { ...section, cards: newCards };
-          });
-
-          cache.writeQuery({
-            ...queryOptions,
-            data: {
-              getProjectTasksAndSections: {
-                ...existingData.getProjectTasksAndSections,
-                sections: newSections,
-              },
-            },
-          });
+          const taskCacheId = cache.identify({ __typename: "TaskListView", id: deletedTask.id })
+          if (taskCacheId) {
+            cache.evict({ id: taskCacheId })
+            cache.gc()
+          }
         },
-      });
+      })
     },
-    [projectId, updateProjectTaskApolloMutation]
-  );
-
-  const deleteTask = useCallback(async (taskId: string, sprintId: string | null) => {
-    // Refetch is acceptable for deletion.
-    return await deleteProjectTaskApolloMutation({
-      variables: { id: taskId },
-      refetchQueries: getGeneralRefetchQueries(sprintId),
-    });
-  }, [deleteProjectTaskApolloMutation, getGeneralRefetchQueries]);
+    [deleteProjectTaskApolloMutation]
+  )
 
   return {
     createTask,
@@ -206,5 +256,5 @@ export function useProjectTaskMutations(projectId: string) { // Removed stale sp
     deleteTask,
     isTaskMutating: createLoading || updateLoading || deleteLoading,
     taskMutationError: createError || updateError || deleteError,
-  };
+  }
 }

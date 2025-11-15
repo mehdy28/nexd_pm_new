@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { TaskStatus, Priority, SprintStatus } from "@prisma/client"; // Added SprintStatus
+import { TaskStatus, Priority, SprintStatus, ProjectStatus, ProjectRole } from "@prisma/client";
 
 function log(prefix: string, message: string, data?: any) {
   const timestamp = new Date().toISOString();
@@ -21,6 +21,20 @@ interface CreateProjectArgs {
   description?: string;
 }
 
+interface UpdateProjectArgs {
+  input: {
+    id: string;
+    name?: string;
+    description?: string;
+    color?: string;
+    status?: ProjectStatus;
+  }
+}
+
+interface DeleteProjectArgs {
+  id: string;
+}
+
 interface GetProjectDetailsArgs {
   projectId: string;
 }
@@ -35,7 +49,6 @@ interface GetProjectTasksAndSectionsArgs {
   sprintId?: string | null;
 }
 
-// Input for updating a sprint
 interface UpdateSprintInput {
   id: string;
   name?: string | null;
@@ -43,7 +56,7 @@ interface UpdateSprintInput {
   startDate?: string | null;
   endDate?: string | null;
   isCompleted?: boolean;
-  status?: SprintStatus; // Use Prisma enum for status
+  status?: SprintStatus;
 }
 
 
@@ -126,7 +139,7 @@ export const projectResolver = {
           status: project.status,
           color: project.color,
           createdAt: project.createdAt.toISOString(),
-          workspace: { // ADD THIS
+          workspace: {
             id: project.workspaceId,
           },
 
@@ -180,7 +193,7 @@ export const projectResolver = {
         log("[getGanttData Query]", `Fetched ${projectSprints.length} sprints for project ${projectId}.`);
 
         const ganttTasks: any[] = [];
-        let currentDisplayOrder = 1; // Renamed to avoid conflict with `displayOrder` property
+        let currentDisplayOrder = 1;
 
         const sprintsToProcess = sprintId
           ? projectSprints.filter(s => s.id === sprintId)
@@ -197,8 +210,8 @@ export const projectResolver = {
             hideChildren: false,
             displayOrder: currentDisplayOrder++,
             description: sprint.description,
-            originalTaskId: sprint.id, // For sprint, originalTaskId is its own ID
-            originalType: "SPRINT", // Indicate it's a sprint
+            originalTaskId: sprint.id,
+            originalType: "SPRINT",
           });
 
           const tasks = await prisma.task.findMany({
@@ -217,8 +230,7 @@ export const projectResolver = {
               name: task.title,
               start: task.startDate ? task.startDate.toISOString() : sprint.startDate.toISOString(),
               end: task.endDate ? task.endDate.toISOString() : task.dueDate?.toISOString() || sprint.endDate.toISOString(),
-              // FIX: Use task.completionPercentage directly.
-              progress: Math.round(task.completionPercentage ?? 0), // Use completionPercentage, default to 0 if null
+              progress: Math.round(task.completionPercentage ?? 0),
               type: "task",
               sprint: sprint.id,
               displayOrder: currentDisplayOrder++,
@@ -229,8 +241,8 @@ export const projectResolver = {
                 lastName: task.assignee.lastName,
                 avatar: task.assignee.avatar,
               } : null,
-              originalTaskId: task.id, // Link to the actual Task ID
-              originalType: "TASK", // Indicate it's a task
+              originalTaskId: task.id,
+              originalType: "TASK",
             });
           }
 
@@ -251,8 +263,8 @@ export const projectResolver = {
               displayOrder: currentDisplayOrder++,
               description: milestone.description,
               assignee: null,
-              originalTaskId: milestone.id, // Link to the actual Milestone ID
-              originalType: "MILESTONE", // Indicate it's a milestone
+              originalTaskId: milestone.id,
+              originalType: "MILESTONE",
             });
           }
         }
@@ -370,7 +382,7 @@ export const projectResolver = {
             description: task.description,
             status: task.status,
             priority: task.priority,
-            dueDate: task.dueDate?.toISOString().split('T')[0] || null,
+            endDate: task.endDate?.toISOString().split('T')[0] || null,
             points: task.points,
             completed: task.status === 'DONE',
             sprintId: task.sprintId,
@@ -394,7 +406,7 @@ export const projectResolver = {
                 description: task.description,
                 status: task.status,
                 priority: task.priority,
-                dueDate: task.dueDate?.toISOString().split('T')[0] || null,
+                endDate: task.endDate?.toISOString().split('T')[0] || null,
                 points: task.points,
                 completed: task.status === 'DONE',
                 sprintId: task.sprintId,
@@ -546,6 +558,87 @@ export const projectResolver = {
       }
     },
 
+    updateProject: async (
+        _parent: unknown,
+        args: UpdateProjectArgs,
+        context: GraphQLContext
+    ) => {
+        log("[updateProject Mutation]", "called with args:", args);
+
+        if (!context.user?.id) {
+            log("[updateProject Mutation]", "No authenticated user found in context.");
+            throw new Error("Authentication required.");
+        }
+
+        const userId = context.user.id;
+        const { id, ...dataToUpdate } = args.input;
+
+        const member = await prisma.projectMember.findFirst({
+            where: {
+                projectId: id,
+                userId: userId,
+            },
+        });
+
+        if (!member || ![ProjectRole.OWNER, ProjectRole.ADMIN].includes(member.role)) {
+            log("[updateProject Mutation]", `User ${userId} does not have sufficient permissions for project ${id}.`);
+            throw new Error("Forbidden: You do not have permission to update this project.");
+        }
+
+        try {
+            const updatedProject = await prisma.project.update({
+                where: { id: id },
+                data: dataToUpdate,
+            });
+            log("[updateProject Mutation]", "Project updated successfully:", updatedProject);
+            return updatedProject;
+        } catch (error) {
+            log("[updateProject Mutation]", "Error updating project:", error);
+            throw new Error("Failed to update project.");
+        }
+    },
+
+    deleteProject: async (
+        _parent: unknown,
+        args: DeleteProjectArgs,
+        context: GraphQLContext
+    ) => {
+        log("[deleteProject Mutation]", "called with args:", args);
+
+        if (!context.user?.id) {
+            log("[deleteProject Mutation]", "No authenticated user found in context.");
+            throw new Error("Authentication required.");
+        }
+
+        const userId = context.user.id;
+        const { id } = args;
+
+        const member = await prisma.projectMember.findFirst({
+            where: {
+                projectId: id,
+                userId: userId,
+            },
+        });
+
+        if (!member || member.role !== ProjectRole.OWNER) {
+            log("[deleteProject Mutation]", `User ${userId} is not the owner of project ${id}.`);
+            throw new Error("Forbidden: Only the project owner can delete the project.");
+        }
+
+        try {
+            // Prisma's cascading delete will handle related models if the schema is configured correctly.
+            // If not, a $transaction would be required to delete related entities manually.
+            const deletedProject = await prisma.project.delete({
+                where: { id: id },
+            });
+            log("[deleteProject Mutation]", "Project deleted successfully:", deletedProject);
+            return deletedProject;
+        } catch (error) {
+            log("[deleteProject Mutation]", "Error deleting project:", error);
+            throw new Error("Failed to delete project.");
+        }
+    },
+
     updateSprint: async (_parent: unknown, args: { input: UpdateSprintInput }, context: GraphQLContext) => {
       log("[updateSprint Mutation]", "called with input:", args.input);
 
@@ -558,7 +651,6 @@ export const projectResolver = {
       const { id: sprintId, ...updates } = args.input;
 
       try {
-        // 1. Verify user access (must be project member)
         const sprint = await prisma.sprint.findUnique({
           where: { id: sprintId },
           select: {
@@ -578,7 +670,6 @@ export const projectResolver = {
         }
         log("[updateSprint Mutation]", `Access granted for user ${userId} to update sprint ${sprintId}.`);
 
-        // 2. Prepare data for update
         const dataToUpdate: any = {};
         for (const key in updates) {
           if (Object.prototype.hasOwnProperty.call(updates, key)) {
@@ -593,24 +684,21 @@ export const projectResolver = {
           }
         }
 
-        // 3. Perform the update
         const updatedSprint = await prisma.sprint.update({
           where: { id: sprintId },
           data: dataToUpdate,
         });
         log("[updateSprint Mutation]", "Sprint updated successfully:", { id: updatedSprint.id, updates: dataToUpdate });
 
-        // Return SprintDetails compatible object
         return {
           ...updatedSprint,
           startDate: updatedSprint.startDate.toISOString(),
           endDate: updatedSprint.endDate.toISOString(),
-          // Derive status for consistency with getProjectDetails
           status: updatedSprint.isCompleted ? "COMPLETED" : (
             new Date(updatedSprint.startDate) <= new Date() && new Date(updatedSprint.endDate) >= new Date() ? "ACTIVE" : "PLANNING"
           ),
-          tasks: [], // Not fetching tasks for this mutation response
-          milestones: [], // Not fetching milestones for this mutation response
+          tasks: [],
+          milestones: [],
         };
 
       } catch (error) {

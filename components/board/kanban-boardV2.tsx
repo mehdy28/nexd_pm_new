@@ -1,10 +1,10 @@
-// components/board/personal/personal-kanban-board.tsx
+//components/board/kanban-boardV2.tsx
 "use client"
 
 import { useMemo, useRef, useState, useCallback, useEffect } from "react"
-import type { Card, Column } from "../kanban-types"
-import { KanbanSortableColumn } from "../kanban-sortable-column"
-import { KanbanSortableCard } from "../kanban-sortable-card"
+import type { Card, Column } from "./kanban-types"
+import { KanbanSortableColumn } from "./kanban-sortable-column"
+import { KanbanSortableCard } from "./kanban-sortable-card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -24,11 +24,19 @@ import {
   horizontalListSortingStrategy,
   arrayMove,
 } from "@dnd-kit/sortable"
-import { Loader2 } from "lucide-react"
+import { ChevronDown, Loader2 } from "lucide-react"
 import { useTaskDetails } from "@/hooks/personal/useTaskDetails"
 import { TaskDetailSheet } from "@/components/modals/task-detail-sheet"
 import { TaskUI } from "@/hooks/personal/useMyTasksAndSections"
 import type { TaskStatus } from "@prisma/client"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { UserAvatarPartial } from "@/types/useProjectTasksAndSections"
 
 type OverlayState =
   | {
@@ -61,20 +69,28 @@ type SheetTaskUI = {
   completed?: boolean
 }
 
-interface PersonalKanbanBoardProps {
+interface KanbanBoardProps {
+  projectId?: string
+  sprintOptions: { id: string; name: string }[]
+  currentSprintId?: string
+  onSprintChange: (sprintId: string | undefined) => void
   initialColumns: Column[]
   onColumnsChange: (newColumns: Column[]) => void
   onCreateColumn: (title: string) => void
   onUpdateColumn: (columnId: string, title: string) => void
   onDeleteColumn: (columnId: string) => void
   onCreateCard: (columnId: string, title: string) => void
-  onUpdateCard: (columnId: string, cardId: string, updates: Partial<TaskUI & { personalSectionId?: string }>) => void
+  onUpdateCard: (columnId: string, cardId: string, updates: Partial<TaskUI & { sectionId?: string }>) => void
   onDeleteCard: (columnId: string, cardId: string) => void
   isMutating: boolean
   isCreatingColumn: boolean
+  availableAssignees: UserAvatarPartial[]
 }
 
-export function PersonalKanbanBoard({
+export function KanbanBoard({
+  sprintOptions,
+  currentSprintId,
+  onSprintChange,
   initialColumns,
   onColumnsChange,
   onCreateColumn,
@@ -85,7 +101,8 @@ export function PersonalKanbanBoard({
   onDeleteCard,
   isMutating,
   isCreatingColumn,
-}: PersonalKanbanBoardProps) {
+  availableAssignees,
+}: KanbanBoardProps) {
   const [columns, setColumns] = useState<Column[]>(initialColumns)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [selected, setSelected] = useState<{ columnId: string; cardId: string } | null>(null)
@@ -211,7 +228,9 @@ export function PersonalKanbanBoard({
       if (!toColumnId) return
 
       const fromIndex = indexOfCard(fromColumnId, activeId)
-      const toIndex = overIsColumn ? columns.find(c => c.id === toColumnId)!.cards.length : indexOfCard(toColumnId, overId)
+      const toIndex = overIsColumn
+        ? columns.find(c => c.id === toColumnId)!.cards.length
+        : indexOfCard(toColumnId, overId)
 
       if (fromColumnId === toColumnId && fromIndex === toIndex) return
 
@@ -235,11 +254,14 @@ export function PersonalKanbanBoard({
 
       // If card moved to a new column, notify the parent to trigger mutation
       if (fromColumnId !== toColumnId) {
-        onUpdateCard(fromColumnId, activeId, { personalSectionId: toColumnId })
+        onUpdateCard(fromColumnId, activeId, { sectionId: toColumnId })
       }
       // NOTE: A mutation for reordering within the same column would be needed here.
     }
   }
+  const currentSprintName = useMemo(() => {
+    return sprintOptions.find(s => s.id === currentSprintId)?.name || "All Sprints"
+  }, [currentSprintId, sprintOptions])
 
   const isBoardMutating = isMutating || isTaskDetailsMutating
 
@@ -260,6 +282,27 @@ export function PersonalKanbanBoard({
           {/* Only show spinner when a column is being created. */}
           {isCreatingColumn ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}+ Add column
         </Button>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" className="h-9 rounded-md gap-2 bg-transparent">
+              {currentSprintName}
+              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start">
+            <DropdownMenuLabel>Sprints</DropdownMenuLabel>
+            {sprintOptions.length > 0 ? (
+              sprintOptions.map(sprint => (
+                <DropdownMenuItem key={sprint.id} onClick={() => onSprintChange(sprint.id)}>
+                  {sprint.name}
+                </DropdownMenuItem>
+              ))
+            ) : (
+              <DropdownMenuItem disabled>No Sprints Available</DropdownMenuItem>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
         {/* <div className="ml-auto relative w-[260px]">
           <Input className="h-9" placeholder="Search tasks..." disabled={isBoardMutating} />
         </div> */}
@@ -378,7 +421,7 @@ export function PersonalKanbanBoard({
         onClose={closeDrawer}
         onUpdateTask={handleUpdateTask}
         onRequestDelete={handleDeleteRequest}
-        availableAssignees={[]}
+        availableAssignees={availableAssignees}
         isTaskMutating={isBoardMutating}
       />
     </div>

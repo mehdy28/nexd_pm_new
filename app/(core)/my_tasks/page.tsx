@@ -26,7 +26,7 @@ const TABS = [
 
 export default function MyTasksPage() {
   const sp = useSearchParams()
-  const initialTab = sp.get("tab") || "board"
+  const initialTab = sp.get("tab") || "list"
 
   useTopbarSetup({
     title: "My Tasks",

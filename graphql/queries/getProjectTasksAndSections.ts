@@ -19,7 +19,7 @@ export const GET_PROJECT_TASKS_AND_SECTIONS_QUERY = gql`
           description
           status
           priority
-          dueDate
+          endDate
           points
           completed # <--- ADD THIS (derived field for UI)
           sprintId # <--- ADD THIS

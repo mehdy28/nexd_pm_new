@@ -23,6 +23,7 @@
     "@dnd-kit/utilities": "latest",
     "@excalidraw/excalidraw": "latest",
     "@google-cloud/storage": "^7.17.2",
+    "@google/generative-ai": "^0.24.1",
     "@graphql-tools/schema": "^10.0.27",
     "@headlessui/react": "latest",
     "@heroicons/react": "latest",
