@@ -529,7 +529,6 @@ model Subscription {
 model Prompt {
   id          String   @id @default(cuid())
   title       String
-  content     Json     @default("[]")
   context     String   @default("")
   description String?
   category    String?
@@ -540,6 +539,7 @@ model Prompt {
   model       String?  @default("gpt-4o")
   variables   Json     @default("[]")
   versions    Json     @default("[]")
+  aiEnhancedContent String?  
   projectId   String?
   userId      String?
   wireframeId String?
@@ -548,9 +548,26 @@ model Prompt {
   user        User?    @relation("UserPersonalPrompts", fields: [userId], references: [id], onDelete: Cascade)
   comments    Comment[]
   activities  Activity[]
+  content     ContentBlock[] // <-- ADD THIS RELATION
 
   @@map("prompts")
 }
+
+// NEW MODEL FOR CONTENT BLOCKS
+model ContentBlock {
+  id            String   @id @default(cuid())
+  type          String   // e.g., "text", "variable"
+  value         String?
+  varId         String?
+  placeholder   String?
+  name          String?
+  order         Int
+  promptId      String
+  prompt        Prompt   @relation(fields: [promptId], references: [id], onDelete: Cascade)
+
+  @@map("content_blocks")
+}
+
 
 model TaskDependency {
   id              String         @id @default(cuid())

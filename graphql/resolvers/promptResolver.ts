@@ -1,6 +1,7 @@
+//graphql/resolvers/promptResolver.ts
 import { GraphQLResolveInfo } from 'graphql';
 import { prisma } from "@/lib/prisma";
-import { type Prompt, type PromptVariable, type Version, PromptVariableType, PromptVariableSource } from '@/components/prompt-lab/store';
+import { type Prompt, type PromptVariable, type Version, PromptVariableType, PromptVariableSource, Block } from '@/components/prompt-lab/store';
 
 interface GraphQLContext {
   prisma: typeof prisma;
@@ -134,7 +135,7 @@ const promptResolvers = {
   Query: {
     getProjectPrompts: async (
       _parent: any,
-      { projectId, skip = 0, take = 10, q }: { projectId?: string, skip?: number, take?: number, q?: string }, // ADDED: q
+      { projectId, skip = 0, take = 10, q }: { projectId?: string, skip?: number, take?: number, q?: string },
       context: GraphQLContext
     ): Promise<{ prompts: Prompt[], totalCount: number }> => {
       let finalWhereClause: any = {};
@@ -149,7 +150,6 @@ const promptResolvers = {
         };
       }
 
-      // ADDED: Handle search query 'q'
       if (q && q.trim() !== '') {
         finalWhereClause.title = {
           contains: q,
@@ -197,6 +197,9 @@ const promptResolvers = {
       const prompt = await prisma.prompt.findUnique({
         where: { id },
         include: {
+          content: {
+            orderBy: { order: 'asc' },
+          },
           user: {
             select: { id: true, firstName: true, lastName: true },
           },
@@ -206,7 +209,6 @@ const promptResolvers = {
         },
       });
       if (prompt) {
-        prompt.content = prompt.content || [];
         prompt.context = prompt.context || '';
         prompt.variables = prompt.variables || [];
         prompt.versions = (prompt.versions as Version[] || []).map(v => ({
@@ -252,7 +254,6 @@ const promptResolvers = {
         description: version.description || '',
       } as Version;
     },
-
 
     resolvePromptVariable: async (
       _parent: any,
@@ -385,7 +386,7 @@ const promptResolvers = {
       { input }: { input: {
         projectId?: string;
         title: string;
-        content?: any;
+        content?: Block[];
         context?: string;
         description?: string;
         category?: string;
@@ -397,37 +398,34 @@ const promptResolvers = {
       }},
       context: GraphQLContext
     ): Promise<Prompt> => {
-      const newPromptData = {
-        title: input.title,
-        content: input.content || [],
-        context: input.context || '',
-        description: input.description,
-        category: input.category,
-        tags: input.tags || [],
-        isPublic: input.isPublic || false,
-        model: input.model || 'gpt-4o',
-        userId: context.user?.id || 'anonymous',
-        projectId: input.projectId,
+      const { content, ...scalarData } = input;
+
+      const newPromptData: any = {
+        ...scalarData,
+        userId: context.user?.id,
         variables: (input.variables || []).map(v => ({...v, id: v.id || generateUniqueId()})),
         versions: (input.versions || []).map(v => ({...v, id: v.id || generateUniqueId()})),
       };
 
-      const newPrompt = await prisma.prompt.create({
-        data: newPromptData as any,
-      });
+      if (content && content.length > 0) {
+        newPromptData.content = {
+          create: content.map((block, index) => ({
+            type: block.type,
+            value: block.value,
+            varId: block.varId,
+            placeholder: block.placeholder,
+            name: block.name,
+            order: index,
+          }))
+        };
+      }
 
-      newPrompt.content = newPrompt.content || [];
-      newPrompt.context = newPrompt.context || '';
-      newPrompt.variables = newPrompt.variables || [];
-      newPrompt.versions = (newPrompt.versions as Version[] || []).map(v => ({
-        id: v.id,
-        createdAt: v.createdAt,
-        notes: v.notes,
-        description: v.description || '',
-        content: v.content || [],
-        context: v.context || '',
-        variables: v.variables || [],
-      }));
+      const newPrompt = await prisma.prompt.create({
+        data: newPromptData,
+        include: {
+          content: { orderBy: { order: 'asc' } },
+        },
+      });
 
       return newPrompt as unknown as Prompt;
     },
@@ -437,7 +435,7 @@ const promptResolvers = {
       { input }: { input: {
         id: string;
         title?: string;
-        content?: any;
+        content?: Block[];
         context?: string;
         description?: string;
         category?: string;
@@ -448,45 +446,45 @@ const promptResolvers = {
       }},
       context: GraphQLContext
     ): Promise<Prompt> => {
-      const existingPrompt = await prisma.prompt.findUnique({
-        where: { id: input.id },
+      const { id, content, ...scalarUpdates } = input;
+
+      const updatedPrompt = await prisma.$transaction(async (tx) => {
+        if (Object.keys(scalarUpdates).length > 0) {
+          await tx.prompt.update({
+            where: { id },
+            data: { ...scalarUpdates, updatedAt: new Date() },
+          });
+        }
+
+        if (content) {
+          await tx.contentBlock.deleteMany({ where: { promptId: id } });
+          if (content.length > 0) {
+            await tx.contentBlock.createMany({
+              data: content.map((block, index) => ({
+                type: block.type,
+                value: block.value,
+                varId: block.varId,
+                placeholder: block.placeholder,
+                name: block.name,
+                promptId: id,
+                order: index,
+              }))
+            });
+          }
+        }
+
+        return tx.prompt.findUnique({
+          where: { id },
+          include: {
+            content: { orderBy: { order: 'asc' } },
+          },
+        });
       });
 
-      if (!existingPrompt) {
-        throw new Error("Prompt not found.");
+      if (!updatedPrompt) {
+        throw new Error("Prompt not found after update.");
       }
-
-      const updateData: any = { updatedAt: new Date() };
-      if (input.title !== undefined) updateData.title = input.title;
-      if (input.content !== undefined) updateData.content = input.content;
-      if (input.context !== undefined) updateData.context = input.context;
-      if (input.description !== undefined) updateData.description = input.description;
-      if (input.category !== undefined) updateData.category = input.category;
-      if (input.tags !== undefined) updateData.tags = input.tags;
-      if (input.isPublic !== undefined) updateData.isPublic = input.isPublic;
-      if (input.model !== undefined) updateData.model = input.model;
-      if (input.variables !== undefined) {
-        updateData.variables = input.variables.map(v => ({ ...v, id: v.id || generateUniqueId() }));
-      }
-
-      const updatedPrompt = await prisma.prompt.update({
-        where: { id: input.id },
-        data: updateData,
-      });
-
-      updatedPrompt.content = updatedPrompt.content || [];
-      updatedPrompt.context = updatedPrompt.context || '';
-      updatedPrompt.variables = updatedPrompt.variables || [];
-      updatedPrompt.versions = (updatedPrompt.versions as Version[] || []).map(v => ({
-        id: v.id,
-        createdAt: v.createdAt,
-        notes: v.notes,
-        description: v.description || '',
-        content: v.content || [],
-        context: v.context || '',
-        variables: v.variables || [],
-      }));
-
+      
       return updatedPrompt as unknown as Prompt;
     },
 
@@ -495,31 +493,9 @@ const promptResolvers = {
       { id }: { id: string },
       context: GraphQLContext
     ): Promise<Prompt> => {
-      const existingPrompt = await prisma.prompt.findUnique({
-        where: { id },
-      });
-
-      if (!existingPrompt) {
-        throw new Error("Prompt not found.");
-      }
-
       const deletedPrompt = await prisma.prompt.delete({
         where: { id },
       });
-
-      deletedPrompt.content = deletedPrompt.content || [];
-      deletedPrompt.context = deletedPrompt.context || '';
-      deletedPrompt.variables = deletedPrompt.variables || [];
-      deletedPrompt.versions = (deletedPrompt.versions as Version[] || []).map(v => ({
-        id: v.id,
-        createdAt: v.createdAt,
-        notes: v.notes,
-        description: v.description || '',
-        content: v.content || [],
-        context: v.context || '',
-        variables: v.variables || [],
-      }));
-
       return deletedPrompt as unknown as Prompt;
     },
 
@@ -530,21 +506,22 @@ const promptResolvers = {
     ): Promise<Prompt> => {
       const prompt = await prisma.prompt.findUnique({
         where: { id: input.promptId },
+        include: {
+          content: { orderBy: { order: 'asc' } },
+        },
       });
 
       if (!prompt) {
         throw new Error("Prompt not found.");
       }
-
-      const currentContent = prompt.content as any || [];
-      const currentContext = prompt.context as string || '';
-      const currentVariables = (prompt.variables as PromptVariable[]) || [];
+      
+      const currentContent = prompt.content.map(({ promptId, ...block }) => block);
 
       const newVersion: Version = {
         id: generateUniqueId(),
-        content: currentContent,
-        context: currentContext,
-        variables: currentVariables.map(v => ({ ...v, id: v.id || generateUniqueId() })),
+        content: currentContent as Block[],
+        context: prompt.context || '',
+        variables: ((prompt.variables as PromptVariable[]) || []).map(v => ({ ...v, id: v.id || generateUniqueId() })),
         createdAt: new Date().toISOString(),
         notes: input.notes || `Version saved on ${new Date().toLocaleString()}`,
         description: "",
@@ -558,20 +535,8 @@ const promptResolvers = {
           versions: updatedVersions,
           updatedAt: new Date(),
         },
+        include: { content: { orderBy: { order: 'asc' } } },
       });
-
-      updatedPrompt.content = updatedPrompt.content || [];
-      updatedPrompt.context = updatedPrompt.context || '';
-      updatedPrompt.variables = updatedPrompt.variables || [];
-      updatedPrompt.versions = (updatedPrompt.versions as Version[] || []).map(v => ({
-        id: v.id,
-        createdAt: v.createdAt,
-        notes: v.notes,
-        description: v.description || '',
-        content: v.content || [],
-        context: v.context || '',
-        variables: v.variables || [],
-      }));
 
       return updatedPrompt as unknown as Prompt;
     },
@@ -595,31 +560,46 @@ const promptResolvers = {
       if (!versionToRestore) {
         throw new Error("Version not found.");
       }
+      
+      // **FIX**: Rename the destructured 'context' to avoid conflict with the argument 'context'
+      const { content, context: versionContext, variables } = versionToRestore;
 
-      const updatedPrompt = await prisma.prompt.update({
-        where: { id: input.promptId },
-        data: {
-          content: versionToRestore.content,
-          context: versionToRestore.context,
-          variables: versionToRestore.variables.map(v => ({ ...v, id: v.id || generateUniqueId() })),
-          updatedAt: new Date(),
-        },
+      const restoredPrompt = await prisma.$transaction(async (tx) => {
+        await tx.prompt.update({
+            where: { id: input.promptId },
+            data: {
+              context: versionContext, // **FIX**: Use the renamed variable
+              variables: variables.map(v => ({ ...v, id: v.id || generateUniqueId() })),
+              updatedAt: new Date(),
+            },
+        });
+
+        await tx.contentBlock.deleteMany({ where: { promptId: input.promptId } });
+        if (content && content.length > 0) {
+            await tx.contentBlock.createMany({
+                data: content.map((block, index) => ({
+                    type: block.type,
+                    value: block.value,
+                    varId: block.varId,
+                    placeholder: block.placeholder,
+                    name: block.name,
+                    promptId: input.promptId,
+                    order: index,
+                }))
+            });
+        }
+        
+        return tx.prompt.findUnique({
+            where: { id: input.promptId },
+            include: { content: { orderBy: { order: 'asc' } } }
+        });
       });
+      
+      if (!restoredPrompt) {
+          throw new Error("Failed to restore prompt.");
+      }
 
-      updatedPrompt.content = updatedPrompt.content || [];
-      updatedPrompt.context = updatedPrompt.context || '';
-      updatedPrompt.variables = updatedPrompt.variables || [];
-      updatedPrompt.versions = (updatedPrompt.versions as Version[] || []).map(v => ({
-        id: v.id,
-        createdAt: v.createdAt,
-        notes: v.notes,
-        description: v.description || '',
-        content: v.content || [],
-        context: v.context || '',
-        variables: v.variables || [],
-      }));
-
-      return updatedPrompt as unknown as Prompt;
+      return restoredPrompt as unknown as Prompt;
     },
 
     updateVersionDescription: async (
@@ -654,21 +634,9 @@ const promptResolvers = {
           versions: updatedVersions,
           updatedAt: new Date(),
         },
+        include: { content: { orderBy: { order: 'asc' } } }
       });
-
-      updatedPrompt.content = updatedPrompt.content || [];
-      updatedPrompt.context = updatedPrompt.context || '';
-      updatedPrompt.variables = updatedPrompt.variables || [];
-      updatedPrompt.versions = updatedVersions.map(v => ({
-        id: v.id,
-        createdAt: v.createdAt,
-        notes: v.notes,
-        description: v.description || '',
-        content: v.content || [],
-        context: v.context || '',
-        variables: v.variables || [],
-      }));
-
+      
       return updatedPrompt as unknown as Prompt;
     },
 

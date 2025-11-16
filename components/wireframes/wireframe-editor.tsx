@@ -5,6 +5,7 @@ import React, {
   useMemo,
   useState,
   useEffect,
+  useRef,
 } from "react";
 import { Wand2, Loader2 } from "lucide-react";
 import { exportToBlob } from "@excalidraw/excalidraw";
@@ -23,7 +24,7 @@ import { GeneratePromptModal } from "@/components/modals/GeneratePromptModal";
 
 // --- Type definitions ---
 interface WireframeAppState
-  extends Partial<Omit<ExcalidrawAppState, "collaborators">> {
+  extends Partial<Omit<Omit<ExcalidrawAppState, "collaborators">, "files">> {
   collaborators?: Map<SocketId, Readonly<Collaborator>> | object;
 }
 interface WireframeContent {
@@ -100,20 +101,53 @@ const WireframeEditorPage: React.FC<WireframeEditorPageProps> = memo(
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [wireframeImageForModal, setWireframeImageForModal] = useState<string | null>(null);
     const [hasMounted, setHasMounted] = useState(false);
+    const canSave = useRef(false);
 
     const { wireframe, loading, error } = useWireframeDetails(wireframeId);
     console.log(`LOG: [WireframeEditorPage] useWireframeDetails state:`, { loading, error, wireframe: !!wireframe });
 
-    const { updateWireframe } = useProjectWireframes(wireframe?.project?.id || "temp_project_for_editor");
+    const [stableInitialData, setStableInitialData] = useState<{
+        elements: ReadonlyArray<ExcalidrawElement>;
+        appState: Partial<ExcalidrawAppState>;
+    } | null>(null);
 
-    const [wireframeName, setWireframeName] = useState(wireframe?.title || "");
+    const projectIdRef = useRef<string | undefined | null>(wireframe?.project?.id);
+    if (wireframe && projectIdRef.current === undefined) {
+      projectIdRef.current = wireframe.project?.id || null;
+    }
+    
+    const { updateWireframe } = useProjectWireframes(
+      projectIdRef.current || undefined
+    );
+
+    const [wireframeName, setWireframeName] = useState("");
 
     useEffect(() => {
-      if (wireframe && wireframe.title !== wireframeName) {
-        console.log(`LOG: [WireframeEditorPage] useEffect syncing wireframeName from fetched data. New name: "${wireframe.title}"`);
-        setWireframeName(wireframe.title);
+      // Reset the save flag and stable data whenever the wireframe ID changes.
+      canSave.current = false;
+      setStableInitialData(null);
+    }, [wireframeId]);
+
+    useEffect(() => {
+      if (wireframe) {
+        if (wireframe.title !== wireframeName) {
+            console.log(`LOG: [WireframeEditorPage] useEffect syncing wireframeName from fetched data. New name: "${wireframe.title}"`);
+            setWireframeName(wireframe.title);
+        }
+
+        // Only compute and set the initial data ONCE when it first loads.
+        if (!stableInitialData) {
+            console.log("LOG: [WireframeEditorPage] Preparing STABLE initial data for Excalidraw component from fetched wireframe.");
+            const content = wireframe.data;
+            const elements = content.elements ?? [];
+            const appState = content.appState ?? {};
+            const preparedAppState: Partial<ExcalidrawAppState> = { ...appState };
+            delete preparedAppState.collaborators;
+            setStableInitialData({ elements, appState: preparedAppState });
+        }
       }
-    }, [wireframe, wireframeName]);
+    }, [wireframe]);
+
 
     useEffect(() => {
       console.log("LOG: [WireframeEditorPage] Component has mounted. Setting hasMounted to true.");
@@ -135,23 +169,34 @@ const WireframeEditorPage: React.FC<WireframeEditorPageProps> = memo(
 
       const filteredElements = elements.filter((element) => !element.isDeleted);
 
-      const appStateForSaving: any = { ...appState };
-
-      if (appStateForSaving.collaborators instanceof Map) {
-        appStateForSaving.collaborators = Array.from(appState.collaborators.values());
-      } else {
-        appStateForSaving.collaborators = [];
-      }
+      const appStateToSave: Partial<ExcalidrawAppState> = {};
+      const serializableAppStateKeys: (keyof ExcalidrawAppState)[] = [
+        "viewBackgroundColor", "currentItemStrokeColor", "currentItemBackgroundColor",
+        "currentItemFillStyle", "currentItemStrokeWidth", "currentItemStrokeStyle",
+        "currentItemRoughness", "currentItemOpacity", "currentItemFontFamily",
+        "currentItemFontSize", "currentItemTextAlign", "currentItemStartArrowhead",
+        "currentItemEndArrowhead", "currentItemRoundness", "gridSize", "zoom",
+        "scrollX", "scrollY"
+      ];
+      
+      serializableAppStateKeys.forEach(key => {
+        if (appState[key] !== undefined) {
+          (appStateToSave as any)[key] = appState[key];
+        }
+      });
 
       try {
         await updateWireframe(wireframeId, {
           title: currentTitle,
           data: {
             elements: filteredElements,
-            appState: appStateForSaving,
+            appState: appStateToSave,
           },
         });
         console.log("LOG: [WireframeEditorPage] Wireframe data saved successfully.");
+        // After a successful save, disable further saves until the next user interaction.
+        // This prevents the re-render caused by the data update from immediately triggering another save.
+        canSave.current = false;
       } catch (err) {
         console.error("LOG: [WireframeEditorPage] Error saving wireframe data:", err);
       }
@@ -190,10 +235,29 @@ const WireframeEditorPage: React.FC<WireframeEditorPageProps> = memo(
     const handleExcalidrawChange = useCallback(
       (elements: ReadonlyArray<ExcalidrawElement>, appState: ExcalidrawAppState) => {
         console.log("LOG: [WireframeEditorPage] handleExcalidrawChange triggered.");
+
+        if (!canSave.current) {
+          console.log("LOG: [WireframeEditorPage] Ignoring onChange event: save not enabled yet.");
+          return;
+        }
+        
         debouncedSaveWireframeData(elements, appState, wireframeName);
       },
       [debouncedSaveWireframeData, wireframeName]
     );
+    
+    const handlePointerDown = useCallback(() => {
+        if (!canSave.current) {
+            console.log("LOG: [WireframeEditorPage] First user interaction detected. Enabling save.");
+            canSave.current = true;
+        }
+    }, []);
+
+    // --- Handle Excalidraw API setup ---
+    const handleSetApi = useCallback((api: ExcalidrawAPI | null) => {
+        setExcalidrawAPI(api);
+    }, []);
+
 
     // --- Handle Wireframe Name Change Input ---
     const handleNameChange = useCallback(
@@ -263,45 +327,9 @@ const WireframeEditorPage: React.FC<WireframeEditorPageProps> = memo(
       setWireframeImageForModal(null);
     }, []);
 
-    const excalidrawInitialData = useMemo(() => {
-      console.log("LOG: [WireframeEditorPage] Recalculating excalidrawInitialData...");
-      const defaultData: {
-        elements: ReadonlyArray<ExcalidrawElement>;
-        appState: Partial<ExcalidrawAppState>;
-      } = {
-        elements: [],
-        appState: { collaborators: new Map(), viewBackgroundColor: "#ffffff" },
-      };
-
-      if (loading || !wireframe) {
-        console.log("LOG: [WireframeEditorPage] Data is loading or wireframe not found, returning default initial data.");
-        return defaultData;
-      }
-
-      const content = wireframe.data;
-      const elements = content.elements ?? [];
-      const appState = content.appState ?? {};
-
-      const preparedAppState: Partial<ExcalidrawAppState> = { ...appState };
-      if (Array.isArray(appState.collaborators)) {
-        preparedAppState.collaborators = new Map(
-          appState.collaborators.map((c: Collaborator) => [c.id, c])
-        );
-      } else if (!(appState.collaborators instanceof Map)) {
-        preparedAppState.collaborators = new Map();
-      }
-
-      console.log(
-        "LOG: [WireframeEditorPage] Preparing initial data for Excalidraw component from fetched wireframe."
-      );
-      return {
-        elements: elements,
-        appState: preparedAppState,
-      };
-    }, [wireframe, loading]);
-
-    if (!hasMounted || loading) {
-      console.log("LOG: [WireframeEditorPage] Rendering loading state.");
+    // Render loading state until wireframe data is fetched AND stable initial data is set.
+    if (!hasMounted || loading || !stableInitialData) {
+      console.log("LOG: [WireframeEditorPage] Rendering loading state (waiting for stableInitialData).");
       return (
         <div className="page-scroller grid h-full place-items-center p-4">
           <Loader2 className="h-8 w-8 animate-spin text-emerald-500" />
@@ -378,9 +406,10 @@ const WireframeEditorPage: React.FC<WireframeEditorPageProps> = memo(
           }}
         >
           <ExcalidrawWrapper
-            initialData={excalidrawInitialData}
+            initialData={stableInitialData}
             onChange={handleExcalidrawChange}
-            setApi={setExcalidrawAPI}
+            onPointerDown={handlePointerDown}
+            setApi={handleSetApi}
             api={excalidrawAPI}
             style={{ height: '100%', width: '100%' }}
           />

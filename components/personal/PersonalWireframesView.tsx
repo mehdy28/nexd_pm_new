@@ -20,8 +20,16 @@ import WireframeEditorComponent from "@/components/wireframes/wireframe-editor"
 import { usePersonalWireframes } from "@/hooks/personal/usePersonalWireframes"
 import { LoadingPlaceholder, ErrorPlaceholder } from "@/components/placeholders/status-placeholders"
 
-export function PersonalWireframesView() {
-  console.log("LOG: <PersonalWireframesView> component rendering.")
+// This new component encapsulates the List View logic.
+// It will only be mounted when the editor is NOT active.
+const WireframeListView = ({
+  onEdit,
+  onCreate,
+}: {
+  onEdit: (id: string) => void
+  onCreate: (id: string) => void
+}) => {
+  console.log("LOG: <WireframeListView> component rendering.")
   const {
     wireframes: pageItems,
     totalCount,
@@ -40,12 +48,10 @@ export function PersonalWireframesView() {
   } = usePersonalWireframes()
 
   const [selected, setSelected] = useState<Record<string, boolean>>({})
-  const [editingWireframeId, setEditingWireframeId] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<string | string[] | null>(null)
   const [renamingWireframeId, setRenamingWireframeId] = useState<string | null>(null)
   const [editingTitle, setEditingTitle] = useState("")
 
-  // Clear selection when page or data changes
   useEffect(() => {
     console.log("LOG: Clearing selection due to page/data change.")
     setSelected({})
@@ -65,13 +71,13 @@ export function PersonalWireframesView() {
     try {
       const newWireframe = await createWireframe("Untitled Wireframe", { nodes: [], edges: [] })
       if (newWireframe) {
-        console.log(`LOG: New wireframe created. Setting editingWireframeId to -> ${newWireframe.id}`)
-        setEditingWireframeId(newWireframe.id)
+        console.log(`LOG: New wireframe created. Calling onCreate with ID -> ${newWireframe.id}`)
+        onCreate(newWireframe.id)
       }
     } catch (err) {
       console.error("Failed to create new wireframe:", err)
     }
-  }, [createWireframe])
+  }, [createWireframe, onCreate])
 
   const handleStartRename = useCallback((id: string, currentTitle: string) => {
     setRenamingWireframeId(id)
@@ -113,15 +119,12 @@ export function PersonalWireframesView() {
       const idsToDelete = Array.isArray(deleteTarget) ? deleteTarget : [deleteTarget]
       await Promise.all(idsToDelete.map(id => deleteWireframe(id)))
       setSelected({})
-      if (editingWireframeId && idsToDelete.includes(editingWireframeId)) {
-        setEditingWireframeId(null)
-      }
     } catch (err) {
       console.error("Failed to delete wireframe(s):", err)
     } finally {
       setDeleteTarget(null)
     }
-  }, [deleteTarget, deleteWireframe, editingWireframeId])
+  }, [deleteTarget, deleteWireframe])
 
   const handleBulkDelete = useCallback(() => {
     const idsToDelete = Object.keys(selected).filter(id => selected[id])
@@ -142,20 +145,6 @@ export function PersonalWireframesView() {
     URL.revokeObjectURL(url)
   }, [selected, pageItems])
 
-  if (editingWireframeId) {
-    console.log(`LOG: Rendering <WireframeEditorComponent> for ID: ${editingWireframeId}`)
-    return (
-      <WireframeEditorComponent
-        wireframeId={editingWireframeId}
-        onBack={() => {
-          console.log("LOG: onBack triggered from editor. Returning to list view.")
-          setEditingWireframeId(null)
-          refetch()
-        }}
-      />
-    )
-  }
-
   if (loading && pageItems.length === 0) {
     return <LoadingPlaceholder message="Loading your wireframes..." />
   }
@@ -170,7 +159,6 @@ export function PersonalWireframesView() {
       ? `You are about to permanently delete ${deleteTarget.length} wireframes. This action cannot be undone.`
       : "You are about to permanently delete this wireframe. This action cannot be undone."
 
-  console.log("LOG: Rendering Wireframe List View.")
   return (
     <>
       <div className="flex h-full flex-col p-2">
@@ -221,10 +209,7 @@ export function PersonalWireframesView() {
                       />
                     </div>
                     <div
-                      onClick={() => {
-                        console.log(`LOG: Opening wireframe editor for ID: ${w.id}`)
-                        setEditingWireframeId(w.id)
-                      }}
+                      onClick={() => onEdit(w.id)}
                       title="Open wireframe"
                       className="block cursor-pointer"
                     >
@@ -350,6 +335,32 @@ export function PersonalWireframesView() {
     </>
   )
 }
+
+
+export function PersonalWireframesView() {
+  console.log("LOG: <PersonalWireframesView> component rendering.")
+  const [editingWireframeId, setEditingWireframeId] = useState<string | null>(null)
+
+  const handleEditorBack = useCallback(() => {
+    console.log("LOG: onBack triggered from editor. Returning to list view.")
+    setEditingWireframeId(null)
+    // No need to refetch here, the list will refetch on mount.
+  }, [])
+
+  if (editingWireframeId) {
+    console.log(`LOG: Rendering <WireframeEditorComponent> for ID: ${editingWireframeId}`)
+    return (
+      <WireframeEditorComponent
+        wireframeId={editingWireframeId}
+        onBack={handleEditorBack}
+      />
+    )
+  }
+
+  console.log("LOG: Rendering Wireframe List View.")
+  return <WireframeListView onEdit={setEditingWireframeId} onCreate={setEditingWireframeId} />
+}
+
 
 function timeAgo(ts: number) {
   const s = Math.floor((Date.now() - ts) / 1000)

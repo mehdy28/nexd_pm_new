@@ -458,6 +458,7 @@ type ContentBlock {
   varId: ID
   placeholder: String
   name: String
+  order: Int!
 }
 
 type Version {
@@ -482,6 +483,7 @@ type Prompt {
   createdAt: DateTime!
   updatedAt: DateTime!
   model: String
+  aiEnhancedContent: String
   projectId: ID
   project: Project
   user: User
@@ -1075,6 +1077,7 @@ input CreateContentBlockInput {
   varId: ID
   placeholder: String
   name: String
+  order: Int!
 }
 input UpdateContentBlockInput {
   id: ID!
@@ -1083,6 +1086,7 @@ input UpdateContentBlockInput {
   varId: ID
   placeholder: String
   name: String
+  order: Int
 }
 input CreatePromptInput {
   projectId: ID
@@ -1223,6 +1227,12 @@ input UpdateProjectInput {
   status: ProjectStatus
 }
 
+input UpdatePromptAiEnhancedContentInput {
+  promptId: ID!
+  versionId: ID!
+  content: String!
+}
+
 
 # ----------------------------------
 # Root Queries
@@ -1357,6 +1367,7 @@ type Mutation {
 
   # Prompts (Ai)
   createPromptFromWireframe(input: CreatePromptFromWireframeInput!): Prompt!
+  updatePromptAiEnhancedContent(input: UpdatePromptAiEnhancedContentInput!): String!
 
   # Comments
   createTaskComment(taskId: ID!, content: String!): Comment!

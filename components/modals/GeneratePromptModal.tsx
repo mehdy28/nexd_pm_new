@@ -1,3 +1,4 @@
+//components/modals/GeneratePromptModal.tsx
 "use client";
 import React, { useState } from "react";
 import { useCreatePrompt, useGeneratePromptContent } from "@/hooks/usePromptsAi";
@@ -60,7 +61,7 @@ export const GeneratePromptModal: React.FC<GeneratePromptModalProps> = ({
       title,
       description,
       context: description,
-      content: [{ type: "text", value: generatedContent }],
+      content: [{ type: "text", value: generatedContent, order: 0 }], // **FIX**: Add order field
       wireframeId: wireframeId,
       variables: [],
       versions: [],

@@ -26,3 +26,12 @@ export const CREATE_PROMPT_FROM_WIREFRAME_MUTATION = gql`
     }
   }
 `;
+
+
+
+
+export const UPDATE_PROMPT_AI_ENHANCED_CONTENT_MUTATION = gql`
+  mutation UpdatePromptAiEnhancedContent($input: UpdatePromptAiEnhancedContentInput!) {
+    updatePromptAiEnhancedContent(input: $input)
+  }
+`;

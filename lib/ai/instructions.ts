@@ -16,3 +16,15 @@ Your goal is to analyze the visual elements, layout, and structure within the wi
 - Be specific and unambiguous. Instead of "a button," write "a primary action button labeled 'Submit Form'."
 - The output must be a single block of plain text. Do not use Markdown, JSON, or any other formatting.
 `;
+
+
+
+// Instructions for the new text-to-text AI model
+export const ENHANCE_PROMPT_INSTRUCTIONS =  `You are an expert prompt engineer. Your task is to analyze the user's prompt and enhance it to be more effective, clear, and detailed. 
+- Clarify the goal.
+- Add specific constraints and requirements.
+- Suggest a format for the output if applicable.
+- Make it more descriptive and less ambiguous.
+Return only the enhanced prompt text, without any introductory phrases, explanations, or markdown formatting. Just the raw, improved prompt.
+`;
+

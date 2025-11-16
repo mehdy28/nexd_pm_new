@@ -49,15 +49,19 @@ interface ExcalidrawWrapperProps {
         elements: ReadonlyArray<ExcalidrawElement>,
         appState: ExcalidrawAppState
     ) => void;
+    onPointerDown?: (event: any) => void;
     setApi: (api: ExcalidrawAPI | null) => void;
     api: ExcalidrawAPI | null;
+    style?: React.CSSProperties;
 }
 
 const ExcalidrawWrapper: React.FC<ExcalidrawWrapperProps> = memo(({
     initialData,
     onChange,
+    onPointerDown,
     setApi,
-    api
+    api,
+    style
 }) => {
     console.log("LOG: [ExcalidrawWrapper] Rendering component.", { hasApi: !!api, hasInitialData: !!initialData });
     const [dynamicWelcomeScreenReady, setDynamicWelcomeScreenReady] = useState(false);
@@ -186,21 +190,6 @@ const ExcalidrawWrapper: React.FC<ExcalidrawWrapperProps> = memo(({
         };
     }, [api, onLoadLib]);
 
-    useEffect(() => {
-        if (api && initialData !== initialDataRef.current) {
-            console.log("LOG: [ExcalidrawWrapper] useEffect detected initialData prop change. Updating scene.");
-            const elements = initialData?.elements ?? [];
-            const appState = initialData?.appState ?? {};
-
-            api.updateScene({
-                elements: elements,
-                appState: appState,
-            });
-            initialDataRef.current = initialData;
-            console.log("LOG: [ExcalidrawWrapper] Scene updated with new initialData.");
-        }
-    }, [api, initialData]);
-
     const handleSetApi = useCallback((apiInstance: ExcalidrawAPI | null) => {
         console.log(`LOG: [ExcalidrawWrapper] excalidrawAPI callback fired. API is ${apiInstance ? 'available' : 'null'}.`);
         setApi(apiInstance);
@@ -214,12 +203,13 @@ const ExcalidrawWrapper: React.FC<ExcalidrawWrapperProps> = memo(({
     }, [onChange]);
 
     return (
-        <div style={{ display: "flex", flexDirection: "column", height: "100%", width: "100%" }}>
+        <div style={{ ...style, display: "flex", flexDirection: "column" }}>
             <div style={{ flexGrow: 1, position: "relative" }}>
                 <DynamicExcalidraw
                     excalidrawAPI={handleSetApi}
                     initialData={initialDataRef.current}
                     onChange={handleOnChange}
+                    onPointerDown={onPointerDown}
                     UIOptions={{ canvasActions: { loadScene: false } }}
                 >
                    {dynamicMainMenuReady && DynamicMainMenuComponent ? (

@@ -124,7 +124,7 @@ export const useWireframeDetails = (wireframeId: string | null) => {
     {
       variables: { id: wireframeId! },
       skip: !wireframeId,
-      fetchPolicy: "cache-and-network",
+      fetchPolicy: "network-only",
     }
   )
 
