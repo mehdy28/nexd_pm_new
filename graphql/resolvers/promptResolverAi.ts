@@ -1,4 +1,3 @@
-//graphql/resolvers/promptResolverAi.ts
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { GraphQLError } from "graphql";
 import { prisma } from "@/lib/prisma";
@@ -228,11 +227,10 @@ const promptResolversAi = {
         });
       }
     
-      // The 'versions' field is of type Json. We need to cast it.
-      const versions = prompt.versions as any[]; 
-      const versionExists = versions.some(v => v.id === versionId);
+      const versions = prompt.versions as any[];
+      const versionIndex = versions.findIndex(v => v.id === versionId);
     
-      if (!versionExists) {
+      if (versionIndex === -1) {
         throw new GraphQLError("Version not found for this prompt.", {
           extensions: { code: "NOT_FOUND" },
         });
@@ -240,7 +238,7 @@ const promptResolversAi = {
     
       // 4. Interact with Generative AI for Text Enhancement
       try {
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" }); // New text-to-text model
+        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
     
         const fullPromptForAI = `${ENHANCE_PROMPT_INSTRUCTIONS}
     
@@ -253,15 +251,23 @@ const promptResolversAi = {
         const response = await result.response;
         const enhancedText = response.text();
     
-        // 5. Update the prompt in the database
+        // 5. Update the specific version within the versions array
+        const updatedVersions = [...versions];
+        updatedVersions[versionIndex] = {
+          ...updatedVersions[versionIndex],
+          aiEnhancedContent: enhancedText,
+        };
+    
+        // 6. Save the updated versions array back to the database
         await prisma.prompt.update({
           where: { id: promptId },
           data: {
-            aiEnhancedContent: enhancedText,
+            versions: updatedVersions,
+            updatedAt: new Date(),
           },
         });
     
-        // 6. Return the new enhanced text
+        // 7. Return the new enhanced text
         return enhancedText;
     
       } catch (error: any) {

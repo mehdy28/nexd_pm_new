@@ -1,1378 +1,3 @@
-Yes, you need to update `graphql/resolvers/promptResolver.ts` to handle `content` as a relational model instead of a JSON blob. The other files (`usePersonalPrompts.ts`, `personal-prompt-lab-container.tsx`, `prompt-lab.tsx`) are structured to work with the data as-is and do not require changes.
-
-Your `create`, `update`, `details`, and versioning resolvers were trying to manipulate a JSON field, but now they must use Prisma's relational queries to manage the separate `ContentBlock` records.
-
-Here are the updated files.
-
-### 1. `graphql/resolvers/promptResolver.ts` (Updated)
-
-This file requires significant changes to use relational queries for the `content` field.
-
-```typescript
-//graphql/resolvers/promptResolver.ts
-import { GraphQLResolveInfo } from 'graphql';
-import { prisma } from "@/lib/prisma";
-import { type Prompt, type PromptVariable, type Version, PromptVariableType, PromptVariableSource, Block } from '@/components/prompt-lab/store';
-
-interface GraphQLContext {
-  prisma: typeof prisma;
-  user?: { id: string; email: string; role: string };
-}
-
-function generateUniqueId(): string {
-  return `svr_${Math.random().toString(36).slice(2)}${Date.now()}`;
-}
-
-function buildPrismaWhereClause(
-  sourceFilter: PromptVariableSource['filter'] | undefined,
-  projectId: string,
-  currentUserId: string | undefined,
-  entityType: PromptVariableSource['entityType']
-): any {
-  const where: any = {};
-
-  if (entityType !== 'USER' && entityType !== 'DATE_FUNCTION') {
-    where.projectId = projectId;
-  } else if (entityType === 'USER') {
-    where.id = currentUserId;
-  }
-
-  if (sourceFilter && sourceFilter.field && sourceFilter.operator) {
-    let value = sourceFilter.value;
-
-    if (sourceFilter.specialValue === 'CURRENT_USER_ID') {
-      value = currentUserId;
-    } else if (sourceFilter.specialValue === 'CURRENT_PROJECT_ID') {
-      value = projectId;
-    } else if (sourceFilter.specialValue === 'ACTIVE_SPRINT' && entityType === 'SPRINT') {
-        where.status = 'ACTIVE';
-        return where;
-    }
-
-    if (['status', 'priority', 'role'].includes(sourceFilter.field) && typeof value === 'string') {
-        value = value.toUpperCase();
-    }
-
-
-    switch (sourceFilter.operator) {
-      case 'EQ':
-        if (value !== undefined) where[sourceFilter.field] = value;
-        break;
-      case 'NEQ':
-        if (value !== undefined) where[sourceFilter.field] = { not: value };
-        break;
-      case 'GT':
-        if (value !== undefined) where[sourceFilter.field] = { gt: value };
-        break;
-      case 'LT':
-        if (value !== undefined) where[sourceFilter.field] = { lt: value };
-        break;
-      case 'GTE':
-        if (value !== undefined) where[sourceFilter.field] = { gte: value };
-        break;
-      case 'LTE':
-        if (value !== undefined) where[sourceFilter.field] = { lte: value };
-        break;
-      case 'CONTAINS':
-        if (typeof value === 'string') where[sourceFilter.field] = { contains: value, mode: 'insensitive' };
-        break;
-      case 'STARTS_WITH':
-        if (typeof value === 'string') where[sourceFilter.field] = { startsWith: value, mode: 'insensitive' };
-        break;
-      case 'ENDS_WITH':
-        if (typeof value === 'string') where[sourceFilter.field] = { endsWith: value, mode: 'insensitive' };
-        break;
-      case 'IN_LIST':
-        if (Array.isArray(value)) where[sourceFilter.field] = { in: value };
-        break;
-      default:
-        break;
-    }
-  }
-
-  return where;
-}
-
-function extractFieldValue(record: any, fieldPath: string): any {
-  if (!record || !fieldPath) return undefined;
-  return fieldPath.split('.').reduce((obj, key) => (obj && typeof obj === 'object' ? obj[key] : undefined), record);
-}
-
-async function applyAggregation(
-  records: any[],
-  source: PromptVariableSource,
-  context: GraphQLContext
-): Promise<string> {
-  const { aggregation, aggregationField, format } = source;
-
-  if (records.length === 0) return 'No data found';
-
-  switch (aggregation) {
-    case 'COUNT':
-      return String(records.length);
-    case 'SUM':
-    case 'AVERAGE': {
-      if (!aggregationField) return 'N/A (Aggregation field not specified)';
-      const values = records.map(r => Number(extractFieldValue(r, aggregationField))).filter(v => !isNaN(v));
-      if (values.length === 0) return 'N/A (No numeric data to aggregate)';
-      const sum = values.reduce((acc, val) => acc + val, 0);
-      return aggregation === 'SUM' ? String(sum) : String(sum / values.length);
-    }
-    case 'LIST_FIELD_VALUES': {
-      if (!aggregationField) return 'N/A (Aggregation field not specified)';
-      const values = records.map(r => extractFieldValue(r, aggregationField)).filter(Boolean);
-      if (values.length === 0) return 'No data found';
-      switch (format) {
-        case 'BULLET_POINTS': return values.map(v => `• ${v}`).join('\n');
-        case 'COMMA_SEPARATED': return values.join(', ');
-        case 'PLAIN_TEXT': return values.join('\n');
-        case 'JSON_ARRAY': return JSON.stringify(values);
-        default: return values.join('\n');
-      }
-    }
-    case 'LAST_UPDATED_FIELD_VALUE':
-    case 'FIRST_CREATED_FIELD_VALUE': {
-      if (!aggregationField) return 'N/A (Aggregation field not specified)';
-      const record = aggregation === 'LAST_UPDATED_FIELD_VALUE' ? records[0] : records[records.length - 1];
-      const value = extractFieldValue(record, aggregationField);
-      return value !== undefined ? String(value) : 'N/A';
-    }
-    default:
-      return 'N/A (Unsupported aggregation)';
-  }
-}
-
-const promptResolvers = {
-  Query: {
-    getProjectPrompts: async (
-      _parent: any,
-      { projectId, skip = 0, take = 10, q }: { projectId?: string, skip?: number, take?: number, q?: string },
-      context: GraphQLContext
-    ): Promise<{ prompts: Prompt[], totalCount: number }> => {
-      let finalWhereClause: any = {};
-      if (projectId) {
-        finalWhereClause = { projectId };
-      } else {
-        finalWhereClause = {
-          AND: [
-            { projectId: null },
-            { userId: context.user?.id || '' }
-          ]
-        };
-      }
-
-      if (q && q.trim() !== '') {
-        finalWhereClause.title = {
-          contains: q,
-          mode: 'insensitive',
-        };
-      }
-
-      const [prompts, totalCount] = await prisma.$transaction([
-        prisma.prompt.findMany({
-          where: finalWhereClause,
-          orderBy: { updatedAt: 'desc' },
-          skip,
-          take,
-          select: {
-            id: true,
-            title: true,
-            description: true,
-            tags: true,
-            isPublic: true,
-            createdAt: true,
-            updatedAt: true,
-            model: true,
-            projectId: true,
-          },
-        }),
-        prisma.prompt.count({ where: finalWhereClause }),
-      ]);
-
-      const mappedPrompts = prompts.map(p => ({
-        ...p,
-        content: [],
-        context: '',
-        variables: [],
-        versions: [],
-      })) as unknown as Prompt[];
-
-      return { prompts: mappedPrompts, totalCount };
-    },
-
-    getPromptDetails: async (
-      _parent: any,
-      { id }: { id: string },
-      context: GraphQLContext
-    ): Promise<Prompt> => {
-      const prompt = await prisma.prompt.findUnique({
-        where: { id },
-        include: {
-          content: {
-            orderBy: { order: 'asc' },
-          },
-          user: {
-            select: { id: true, firstName: true, lastName: true },
-          },
-          project: {
-            select: { id: true, name: true, workspaceId: true },
-          },
-        },
-      });
-      if (prompt) {
-        prompt.context = prompt.context || '';
-        prompt.variables = prompt.variables || [];
-        prompt.versions = (prompt.versions as Version[] || []).map(v => ({
-          id: v.id,
-          createdAt: v.createdAt,
-          notes: v.notes,
-          description: v.description || '',
-          content: v.content || [],
-          context: v.context || '',
-          variables: v.variables || [],
-        }));
-      }
-      return prompt as unknown as Prompt;
-    },
-
-    getPromptVersionContent: async (
-      _parent: any,
-      { promptId, versionId }: { promptId: string; versionId: string },
-      context: GraphQLContext
-    ): Promise<Version> => {
-      const prompt = await prisma.prompt.findUnique({
-        where: { id: promptId },
-        select: { versions: true },
-      });
-
-      if (!prompt) {
-        throw new Error("Prompt not found.");
-      }
-
-      const versions = (prompt.versions as Version[]) || [];
-      const version = versions.find((v) => v.id === versionId);
-
-      if (!version) {
-        throw new Error("Version not found within this prompt.");
-      }
-      return {
-        id: version.id,
-        content: version.content || [],
-        context: version.context || '',
-        variables: version.variables || [],
-        createdAt: version.createdAt,
-        notes: version.notes,
-        description: version.description || '',
-      } as Version;
-    },
-
-    resolvePromptVariable: async (
-      _parent: any,
-      { projectId, variableSource }: { projectId?: string; variableSource: any; promptVariableId?: string },
-      context: GraphQLContext
-    ): Promise<string> => {
-      const source = variableSource as PromptVariableSource;
-      const currentUserId = context.user?.id;
-
-      if (source.entityType === 'DATE_FUNCTION' && source.field === 'today') {
-        return new Date().toISOString().split('T')[0];
-      }
-
-      if (!projectId && source.entityType !== 'USER') {
-        return 'N/A (Project context required for this dynamic data)';
-      }
-
-      if (source.entityType === 'USER') {
-        const userWhere = buildPrismaWhereClause(source.filter, projectId || '', currentUserId, source.entityType);
-        const currentUser = await prisma.user.findUnique({ where: userWhere });
-        if (!currentUser) return 'N/A (Current user data not found)';
-        return extractFieldValue(currentUser, source.field || '') || 'N/A';
-      }
-
-      const project = await prisma.project.findUnique({
-        where: { id: projectId },
-        include: {
-            workspace: true,
-            members: {
-                include: { user: true }
-            }
-        }
-      });
-      if (!project) return 'N/A (Project not found)';
-
-
-      let prismaModel: any;
-      let include: any;
-      let orderBy: any;
-
-      switch (source.entityType) {
-        case 'PROJECT': {
-          if (!source.field) return 'N/A (Project field not specified)';
-          return extractFieldValue(project, source.field) || 'N/A';
-        }
-        case 'WORKSPACE': {
-          if (!project.workspace) return 'N/A (Workspace not found)';
-          if (!source.field) return 'N/A (Workspace field not specified)';
-          return extractFieldValue(project.workspace, source.field) || 'N/A';
-        }
-        case 'TASK': {
-          prismaModel = prisma.task;
-          const where = buildPrismaWhereClause(source.filter, projectId!, currentUserId, source.entityType);
-          include = { assignee: true, creator: true };
-          orderBy = { updatedAt: 'desc' };
-
-          if (source.aggregation) {
-            const records = await prismaModel.findMany({ where, include, orderBy });
-            return await applyAggregation(records, source, context);
-          } else {
-            const record = await prismaModel.findFirst({ where, include, orderBy });
-            if (!record) return 'N/A (Task not found)';
-            return extractFieldValue(record, source.field || '') || 'N/A';
-          }
-        }
-        case 'SPRINT': {
-          prismaModel = prisma.sprint;
-          const where = buildPrismaWhereClause(source.filter, projectId!, currentUserId, source.entityType);
-          orderBy = { startDate: 'desc' };
-
-          if (source.aggregation) {
-            const records = await prismaModel.findMany({ where, orderBy });
-            return await applyAggregation(records, source, context);
-          } else {
-            const record = await prismaModel.findFirst({ where, orderBy });
-            if (!record) return 'N/A (Sprint not found)';
-            return extractFieldValue(record, source.field || '') || 'N/A';
-          }
-        }
-        case 'DOCUMENT': {
-          prismaModel = prisma.document;
-          const where = buildPrismaWhereClause(source.filter, projectId!, currentUserId, source.entityType);
-          orderBy = { updatedAt: 'desc' };
-
-          if (source.aggregation) {
-            const records = await prismaModel.findMany({ where, orderBy });
-            return await applyAggregation(records, source, context);
-          } else {
-            const record = await prismaModel.findFirst({ where, orderBy });
-            if (!record) return 'N/A (Document not found)';
-            if (source.field === 'content' && typeof record.content === 'object') {
-                return JSON.stringify(record.content);
-            }
-            return extractFieldValue(record, source.field || '') || 'N/A';
-          }
-        }
-        case 'MEMBER': {
-            prismaModel = prisma.projectMember;
-            const where = buildPrismaWhereClause(source.filter, projectId!, currentUserId, source.entityType);
-            include = { user: true };
-            orderBy = { joinedAt: 'asc' };
-
-            if (source.aggregation === 'LIST_FIELD_VALUES' && source.aggregationField === 'user.fullName') {
-                const projectMembers = await prismaModel.findMany({ where, include, orderBy });
-                const fullNames = projectMembers
-                    .map((pm: any) => `${pm.user.firstName || ''} ${pm.user.lastName || ''}`.trim())
-                    .filter(Boolean);
-                if (fullNames.length === 0) return 'No members found';
-                return applyAggregation(fullNames.map(name => ({ name })), { ...source, aggregationField: 'name' }, context);
-            }
-
-            if (source.aggregation) {
-                const records = await prismaModel.findMany({ where, include, orderBy });
-                return await applyAggregation(records, source, context);
-            } else {
-                const record = await prismaModel.findFirst({ where, include, orderBy });
-                if (!record) return 'N/A (Member not found)';
-                return extractFieldValue(record, source.field || '') || 'N/A';
-            }
-        }
-        default:
-          return 'N/A (Unsupported entity type)';
-      }
-    },
-  },
-
-  Mutation: {
-    createPrompt: async (
-      _parent: any,
-      { input }: { input: {
-        projectId?: string;
-        title: string;
-        content?: Block[];
-        context?: string;
-        description?: string;
-        category?: string;
-        tags?: string[];
-        isPublic?: boolean;
-        model?: string;
-        variables?: PromptVariable[];
-        versions?: Version[];
-      }},
-      context: GraphQLContext
-    ): Promise<Prompt> => {
-      const { content, ...scalarData } = input;
-
-      const newPromptData: any = {
-        ...scalarData,
-        userId: context.user?.id,
-        variables: (input.variables || []).map(v => ({...v, id: v.id || generateUniqueId()})),
-        versions: (input.versions || []).map(v => ({...v, id: v.id || generateUniqueId()})),
-      };
-
-      if (content && content.length > 0) {
-        newPromptData.content = {
-          create: content.map((block, index) => ({
-            type: block.type,
-            value: block.value,
-            varId: block.varId,
-            placeholder: block.placeholder,
-            name: block.name,
-            order: index,
-          }))
-        };
-      }
-
-      const newPrompt = await prisma.prompt.create({
-        data: newPromptData,
-        include: {
-          content: { orderBy: { order: 'asc' } },
-        },
-      });
-
-      return newPrompt as unknown as Prompt;
-    },
-
-    updatePrompt: async (
-      _parent: any,
-      { input }: { input: {
-        id: string;
-        title?: string;
-        content?: Block[];
-        context?: string;
-        description?: string;
-        category?: string;
-        tags?: string[];
-        isPublic?: boolean;
-        model?: string;
-        variables?: PromptVariable[];
-      }},
-      context: GraphQLContext
-    ): Promise<Prompt> => {
-      const { id, content, ...scalarUpdates } = input;
-
-      const updatedPrompt = await prisma.$transaction(async (tx) => {
-        if (Object.keys(scalarUpdates).length > 0) {
-          await tx.prompt.update({
-            where: { id },
-            data: { ...scalarUpdates, updatedAt: new Date() },
-          });
-        }
-
-        if (content) {
-          await tx.contentBlock.deleteMany({ where: { promptId: id } });
-          if (content.length > 0) {
-            await tx.contentBlock.createMany({
-              data: content.map((block, index) => ({
-                type: block.type,
-                value: block.value,
-                varId: block.varId,
-                placeholder: block.placeholder,
-                name: block.name,
-                promptId: id,
-                order: index,
-              }))
-            });
-          }
-        }
-
-        return tx.prompt.findUnique({
-          where: { id },
-          include: {
-            content: { orderBy: { order: 'asc' } },
-          },
-        });
-      });
-
-      if (!updatedPrompt) {
-        throw new Error("Prompt not found after update.");
-      }
-      
-      return updatedPrompt as unknown as Prompt;
-    },
-
-    deletePrompt: async (
-      _parent: any,
-      { id }: { id: string },
-      context: GraphQLContext
-    ): Promise<Prompt> => {
-      const deletedPrompt = await prisma.prompt.delete({
-        where: { id },
-      });
-      return deletedPrompt as unknown as Prompt;
-    },
-
-    snapshotPrompt: async (
-      _parent: any,
-      { input }: { input: { promptId: string; notes?: string } },
-      context: GraphQLContext
-    ): Promise<Prompt> => {
-      const prompt = await prisma.prompt.findUnique({
-        where: { id: input.promptId },
-        include: {
-          content: { orderBy: { order: 'asc' } },
-        },
-      });
-
-      if (!prompt) {
-        throw new Error("Prompt not found.");
-      }
-      
-      const currentContent = prompt.content.map(({ promptId, ...block }) => block);
-
-      const newVersion: Version = {
-        id: generateUniqueId(),
-        content: currentContent as Block[],
-        context: prompt.context || '',
-        variables: ((prompt.variables as PromptVariable[]) || []).map(v => ({ ...v, id: v.id || generateUniqueId() })),
-        createdAt: new Date().toISOString(),
-        notes: input.notes || `Version saved on ${new Date().toLocaleString()}`,
-        description: "",
-      };
-
-      const updatedVersions = [newVersion, ...(prompt.versions as Version[] || [])];
-
-      const updatedPrompt = await prisma.prompt.update({
-        where: { id: input.promptId },
-        data: {
-          versions: updatedVersions,
-          updatedAt: new Date(),
-        },
-        include: { content: { orderBy: { order: 'asc' } } },
-      });
-
-      return updatedPrompt as unknown as Prompt;
-    },
-
-    restorePromptVersion: async (
-      _parent: any,
-      { input }: { input: { promptId: string; versionId: string } },
-      context: GraphQLContext
-    ): Promise<Prompt> => {
-      const prompt = await prisma.prompt.findUnique({
-        where: { id: input.promptId },
-      });
-
-      if (!prompt) {
-        throw new Error("Prompt not found.");
-      }
-
-      const versions = (prompt.versions as Version[]) || [];
-      const versionToRestore = versions.find((v) => v.id === input.versionId);
-
-      if (!versionToRestore) {
-        throw new Error("Version not found.");
-      }
-      
-      const { content, context, variables } = versionToRestore;
-
-      const restoredPrompt = await prisma.$transaction(async (tx) => {
-        await tx.prompt.update({
-            where: { id: input.promptId },
-            data: {
-              context: context,
-              variables: variables.map(v => ({ ...v, id: v.id || generateUniqueId() })),
-              updatedAt: new Date(),
-            },
-        });
-
-        await tx.contentBlock.deleteMany({ where: { promptId: input.promptId } });
-        if (content && content.length > 0) {
-            await tx.contentBlock.createMany({
-                data: content.map((block, index) => ({
-                    type: block.type,
-                    value: block.value,
-                    varId: block.varId,
-                    placeholder: block.placeholder,
-                    name: block.name,
-                    promptId: input.promptId,
-                    order: index,
-                }))
-            });
-        }
-        
-        return tx.prompt.findUnique({
-            where: { id: input.promptId },
-            include: { content: { orderBy: { order: 'asc' } } }
-        });
-      });
-      
-      if (!restoredPrompt) {
-          throw new Error("Failed to restore prompt.");
-      }
-
-      return restoredPrompt as unknown as Prompt;
-    },
-
-    updateVersionDescription: async (
-      _parent: any,
-      { input }: { input: { promptId: string; versionId: string; description: string } },
-      context: GraphQLContext
-    ): Promise<Prompt> => {
-      const prompt = await prisma.prompt.findUnique({
-        where: { id: input.promptId },
-      });
-
-      if (!prompt) {
-        throw new Error("Prompt not found.");
-      }
-
-      let versions = (prompt.versions as Version[]) || [];
-      const versionIndex = versions.findIndex((v) => v.id === input.versionId);
-
-      if (versionIndex === -1) {
-        throw new Error("Version not found.");
-      }
-
-      const updatedVersions = [...versions];
-      updatedVersions[versionIndex] = {
-        ...updatedVersions[versionIndex],
-        description: input.description,
-      };
-
-      const updatedPrompt = await prisma.prompt.update({
-        where: { id: input.promptId },
-        data: {
-          versions: updatedVersions,
-          updatedAt: new Date(),
-        },
-        include: { content: { orderBy: { order: 'asc' } } }
-      });
-      
-      return updatedPrompt as unknown as Prompt;
-    },
-  },
-
-  Project: {
-    totalTaskCount: async (parent: any, _args: any, context: GraphQLContext) => {
-      if (!parent.id) return 0;
-      return prisma.task.count({ where: { projectId: parent.id } });
-    },
-    completedTaskCount: async (parent: any, _args: any, context: GraphQLContext) => {
-      if (!parent.id) return 0;
-      return prisma.task.count({ where: { projectId: parent.id, status: 'DONE' } });
-    },
-  },
-
-  User: {
-    fullName: (parent: any) => `${parent.firstName || ''} ${parent.lastName || ''}`.trim(),
-  },
-};
-
-export default promptResolvers;
-```
-
-### 2. `hooks/personal/usePersonalPrompts.ts` (No Changes Needed)
-
-This file already handles `content` as an array of objects and passes it to the mutations correctly. No changes are required.
-
-```typescript
-//hooks/personal/usePersonalPrompts.ts
-"use client"
-
-import { useState, useEffect, useCallback, useMemo, useRef } from "react"
-import { useQuery, useMutation, useLazyQuery } from "@apollo/client"
-
-import {
-  GET_MY_PROMPTS_QUERY,
-  GET_PROMPT_DETAILS_QUERY,
-} from "@/graphql/queries/personal/personalPromptRelatedQueries"
-import {
-  CREATE_PROMPT_MUTATION,
-  UPDATE_PROMPT_MUTATION,
-  DELETE_PROMPT_MUTATION,
-  SNAPSHOT_PROMPT_MUTATION,
-  RESTORE_PROMPT_VERSION_MUTATION,
-} from "@/graphql/mutations/personal/personalPromptRelatedMutations"
-import {
-  Prompt,
-  PromptVariable,
-  Version,
-  Block,
-} from "@/components/prompt-lab/store"
-
-function cuid(prefix: string = ""): string {
-  const chars = "0123456789abcdefghijklmnopqrstuvwxyz"
-  let result = prefix + "c"
-  for (let i = 0; i < 24; i++) {
-    result += chars[Math.floor(Math.random() * chars.length)]
-  }
-  return result
-}
-
-interface UsePersonalPromptsHook {
-  prompts: Prompt[]
-  selectedPrompt: Prompt | null
-  loading: boolean
-  error: string | null
-  createPrompt: () => Promise<Prompt | undefined>
-  updatePrompt: (
-    id: string,
-    updates: Partial<Omit<Prompt, "id" | "createdAt" | "updatedAt" | "user" | "project" | "versions">>
-  ) => void
-  deletePrompt: (id: string) => void
-  snapshotPrompt: (promptId: string, notes?: string) => void
-  restorePromptVersion: (promptId: string, versionId: string) => void
-  selectPrompt: (id: string | null) => void
-  refetchPromptsList: () => Promise<any>
-  triggerInitialPromptsFetch: () => void
-}
-
-export function usePersonalPrompts(): UsePersonalPromptsHook {
-  const [prompts, setPrompts] = useState<Prompt[]>([])
-  const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [localLoading, setLocalLoading] = useState(true)
-  const [localError, setLocalError] = useState<string | null>(null)
-
-  const lastDetailedPromptData = useRef<Prompt | null>(null)
-
-  const selectPrompt = useCallback((id: string | null) => {
-    console.log("[usePersonalPrompts] [Trace: Select] selectPrompt called with ID:", id)
-    setSelectedId(id)
-    if (id === null) {
-      lastDetailedPromptData.current = null
-      console.log("[usePersonalPrompts] [Trace: Select] Deselected prompt, cleared lastDetailedPromptData.")
-    }
-  }, [])
-
-  const [
-    getMyPrompts,
-    { data: promptsListData, loading: listLoading, error: listError, refetch: apolloRefetchPromptsList },
-  ] = useLazyQuery(GET_MY_PROMPTS_QUERY, {
-    fetchPolicy: "network-only",
-    onCompleted: data => {
-      console.log(
-        "[usePersonalPrompts] [Trace: QueryListComplete] GET_MY_PROMPTS_QUERY onCompleted. Data length:",
-        data?.getMyPrompts.prompts.length,
-        "prompts."
-      )
-      setLocalError(null)
-      const mappedPrompts: Prompt[] =
-        data.getMyPrompts.prompts.map((p: any) => ({
-          id: p.id,
-          title: p.title,
-          description: p.description,
-          tags: p.tags,
-          isPublic: p.isPublic,
-          createdAt: p.createdAt,
-          updatedAt: p.updatedAt,
-          model: p.model || "gpt-4o",
-          content: [],
-          context: "",
-          projectId: p.projectId,
-          variables: [],
-          versions: [],
-        }))
-
-      setPrompts(prevPrompts => {
-        const prevPromptsMap = new Map(prevPrompts.map(p => [p.id, p]))
-        const mergedPrompts = mappedPrompts.map(newPrompt => {
-          const prevPrompt = prevPromptsMap.get(newPrompt.id)
-          if (prevPrompt) {
-            return {
-              ...newPrompt,
-              content:
-                prevPrompt.id === selectedId && lastDetailedPromptData.current?.id === selectedId
-                  ? lastDetailedPromptData.current.content
-                  : prevPrompt.content,
-              context:
-                prevPrompt.id === selectedId && lastDetailedPromptData.current?.id === selectedId
-                  ? lastDetailedPromptData.current.context
-                  : prevPrompt.context,
-              variables:
-                prevPrompt.id === selectedId && lastDetailedPromptData.current?.id === selectedId
-                  ? lastDetailedPromptData.current.variables
-                  : prevPrompt.variables,
-              versions:
-                prevPrompt.id === selectedId && lastDetailedPromptData.current?.id === selectedId
-                  ? lastDetailedPromptData.current.versions
-                  : prevPrompt.versions,
-            }
-          }
-          return newPrompt
-        })
-
-        const updatedPromptIds = new Set(mappedPrompts.map(p => p.id))
-        const filteredPrevPrompts = prevPrompts.filter(
-          prevPrompt => updatedPromptIds.has(prevPrompt.id) || prevPrompt.id === selectedId
-        )
-
-        const finalPrompts = Array.from(new Set([...filteredPrevPrompts, ...mergedPrompts].map(p => p.id)))
-          .map(id => {
-            if (id === selectedId && lastDetailedPromptData.current?.id === selectedId) {
-              return lastDetailedPromptData.current
-            }
-            return (
-              mergedPrompts.find(p => p.id === id) || filteredPrevPrompts.find(p => p.id === id)
-            )
-          })
-          .filter(Boolean) as Prompt[]
-
-        console.log(
-          "[usePersonalPrompts] [Trace: SetPromptsList] Updating prompts state from list. New count:",
-          finalPrompts.length
-        )
-        return finalPrompts.sort(
-          (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-        )
-      })
-    },
-    onError: err => {
-      console.error("[usePersonalPrompts] [Error: QueryList] Error fetching personal prompts list:", err)
-      setLocalError("Failed to load prompts list.")
-    },
-  })
-
-  const triggerInitialPromptsFetch = useCallback(() => {
-    console.log(
-      "[usePersonalPrompts] [Trace: TriggerFetch] Explicitly triggering GET_MY_PROMPTS_QUERY (network-only)."
-    )
-    getMyPrompts()
-    setPrompts([])
-    setSelectedId(null)
-    lastDetailedPromptData.current = null
-    setLocalError(null)
-  }, [getMyPrompts])
-
-  useEffect(() => {
-    if (selectedId === null && !promptsListData && !getMyPrompts.called) {
-      console.log("[usePersonalPrompts] [Trace: useEffectListFetch] Triggering initial list fetch (auto-load).")
-      getMyPrompts()
-    }
-  }, [getMyPrompts, selectedId, promptsListData])
-
-  const { data: promptDetailsData, loading: detailsLoading } = useQuery(GET_PROMPT_DETAILS_QUERY, {
-    variables: { id: selectedId },
-    skip: !selectedId,
-    fetchPolicy: "network-only",
-    onCompleted: data => {
-      if (data?.getPromptDetails) {
-        console.log(
-          "[usePersonalPrompts] [Trace: QueryDetailsComplete] GET_PROMPT_DETAILS_QUERY onCompleted. Details for ID:",
-          data.getPromptDetails.id
-        )
-        setLocalError(null)
-        const detailedPrompt: Prompt = {
-          id: data.getPromptDetails.id,
-          title: data.getPromptDetails.title,
-          content: (
-            data.getPromptDetails.content && Array.isArray(data.getPromptDetails.content)
-              ? data.getPromptDetails.content
-              : []
-          ) as Block[],
-          context: data.getPromptDetails.context,
-          description: data.getPromptDetails.description,
-          category: data.getPromptDetails.category,
-          tags: data.getPromptDetails.tags,
-          isPublic: data.getPromptDetails.isPublic,
-          createdAt: data.getPromptDetails.createdAt,
-          updatedAt: data.getPromptDetails.updatedAt,
-          model: data.getPromptDetails.model,
-          projectId: data.getPromptDetails.projectId,
-          variables: data.getPromptDetails.variables.map((v: PromptVariable) => ({
-            ...v,
-            id: v.id || cuid("db-var-"),
-          })),
-          versions: data.getPromptDetails.versions.map((v: any) => ({
-            ...v,
-            id: v.id || cuid("db-ver-"),
-            content: (v.content && Array.isArray(v.content) ? v.content : []) as Block[],
-          })),
-        }
-
-        lastDetailedPromptData.current = detailedPrompt
-
-        setPrompts(prevPrompts => prevPrompts.map(p => (p.id === detailedPrompt.id ? { ...detailedPrompt } : p)))
-      }
-    },
-    onError: err => {
-      console.error("[usePersonalPrompts] [Error: QueryDetails] Error fetching prompt details:", err)
-      setLocalError("Failed to load prompt details.")
-      setSelectedId(null)
-    },
-  })
-
-  const [createPromptMutation] = useMutation(CREATE_PROMPT_MUTATION, {
-    onCompleted: data => {
-      if (data?.createPrompt) {
-        const newPrompt: Prompt = {
-          id: data.createPrompt.id,
-          title: data.createPrompt.title,
-          content: (
-            data.createPrompt.content && Array.isArray(data.createPrompt.content)
-              ? data.createPrompt.content
-              : []
-          ) as Block[],
-          context: data.createPrompt.context,
-          description: data.createPrompt.description,
-          tags: data.createPrompt.tags,
-          isPublic: data.createPrompt.isPublic,
-          createdAt: data.createPrompt.createdAt,
-          updatedAt: data.createPrompt.updatedAt,
-          model: data.createPrompt.model,
-          projectId: data.createPrompt.projectId,
-          variables: data.createPrompt.variables.map((v: PromptVariable) => ({
-            ...v,
-            id: v.id || cuid("db-var-"),
-          })),
-          versions: data.createPrompt.versions.map((v: any) => ({
-            ...v,
-            id: v.id || cuid("db-ver-"),
-            content: (v.content && Array.isArray(v.content) ? v.content : []) as Block[],
-          })),
-        }
-        lastDetailedPromptData.current = newPrompt
-        setPrompts(prevPrompts =>
-          [newPrompt, ...prevPrompts].sort(
-            (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-          )
-        )
-        selectPrompt(newPrompt.id)
-      }
-    },
-    onError: err => {
-      console.error("[usePersonalPrompts] [Error: MutationCreate] Mutation Error: Create Prompt", err)
-      setLocalError("Failed to create prompt.")
-    },
-  })
-
-  const [updatePromptMutation] = useMutation(UPDATE_PROMPT_MUTATION, {
-    onCompleted: data => {
-      if (data?.updatePrompt) {
-        setPrompts(prevPrompts =>
-          prevPrompts
-            .map(p =>
-              p.id === data.updatePrompt.id
-                ? {
-                    ...p,
-                    title: data.updatePrompt.title,
-                    description: data.updatePrompt.description,
-                    tags: data.updatePrompt.tags,
-                    isPublic: data.updatePrompt.isPublic,
-                    model: data.updatePrompt.model,
-                    updatedAt: data.updatePrompt.updatedAt,
-                  }
-                : p
-            )
-            .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
-        )
-      }
-    },
-    onError: err => {
-      console.error("[usePersonalPrompts] [Error: MutationUpdate] Mutation Error: Update Prompt", err)
-      setLocalError("Failed to update prompt.")
-      if (selectedId) selectPrompt(selectedId)
-      else apolloRefetchPromptsList()
-    },
-  })
-
-  const [deletePromptMutation] = useMutation(DELETE_PROMPT_MUTATION, {
-    onCompleted: data => {
-      if (data?.deletePrompt.id) {
-        setPrompts(prevPrompts => prevPrompts.filter(p => p.id !== data.deletePrompt.id))
-        if (selectedId === data.deletePrompt.id) {
-          setSelectedId(null)
-          lastDetailedPromptData.current = null
-        }
-      }
-    },
-    onError: err => {
-      console.error("[usePersonalPrompts] [Error: MutationDelete] Mutation Error: Delete Prompt", err)
-      setLocalError("Failed to delete prompt.")
-      apolloRefetchPromptsList()
-    },
-  })
-
-  const [snapshotPromptMutation] = useMutation(SNAPSHOT_PROMPT_MUTATION, {
-    onCompleted: data => {
-      if (data?.snapshotPrompt) {
-        if (selectedId === data.snapshotPrompt.id) {
-          selectPrompt(selectedId)
-        } else {
-          setPrompts(prevPrompts =>
-            prevPrompts.map(p =>
-              p.id === data.snapshotPrompt.id ? { ...p, updatedAt: data.snapshotPrompt.updatedAt } : p
-            )
-          )
-        }
-      }
-    },
-    onError: err => {
-      console.error("[usePersonalPrompts] [Error: MutationSnapshot] Mutation Error: Snapshot Prompt", err)
-      setLocalError("Failed to save version.")
-      if (selectedId) selectPrompt(selectedId)
-    },
-  })
-
-  const [restorePromptVersionMutation] = useMutation(RESTORE_PROMPT_VERSION_MUTATION, {
-    onCompleted: data => {
-      if (data?.restorePromptVersion) {
-        if (selectedId === data.restorePromptVersion.id) {
-          selectPrompt(selectedId)
-        } else {
-          setPrompts(prevPrompts =>
-            prevPrompts.map(p =>
-              p.id === data.restorePromptVersion.id ? { ...p, updatedAt: new Date().toISOString() } : p
-            )
-          )
-        }
-      }
-    },
-    onError: err => {
-      console.error(
-        "[usePersonalPrompts] [Error: MutationRestore] Mutation Error: Restore Prompt Version",
-        err
-      )
-      setLocalError("Failed to restore version.")
-      if (selectedId) selectPrompt(selectedId)
-    },
-  })
-
-  useEffect(() => {
-    const isLoadingListForLibrary = listLoading && selectedId === null
-    setLocalLoading(isLoadingListForLibrary || (detailsLoading && !!selectedId))
-  }, [listLoading, detailsLoading, selectedId])
-
-  useEffect(() => {
-    if (listError) {
-      setLocalError(listError.message)
-    }
-  }, [listError])
-
-  const createPrompt = useCallback(async (): Promise<Prompt | undefined> => {
-    setLocalError(null)
-    try {
-      const defaultPrompt = {
-        title: "Untitled Prompt",
-        content: [],
-        context: "",
-        description: "",
-        category: "",
-        tags: [],
-        isPublic: false,
-        model: "gpt-4o",
-        projectId: null,
-        variables: [],
-      }
-
-      const { data } = await createPromptMutation({
-        variables: { input: defaultPrompt },
-      })
-
-      if (data?.createPrompt) {
-        return data.createPrompt as Prompt
-      }
-    } catch (err: any) {
-      console.error("[usePersonalPrompts] [Error: CreateGraphQL] Error creating prompt via GraphQL:", err)
-      setLocalError("Failed to create prompt.")
-    }
-    return undefined
-  }, [createPromptMutation])
-
-  const updatePrompt = useCallback(
-    (
-      id: string,
-      updates: Partial<Omit<Prompt, "id" | "createdAt" | "updatedAt" | "user" | "project" | "versions">>
-    ) => {
-      setLocalError(null)
-      setPrompts(prev => {
-        const updatedPrompts = prev.map(p =>
-          p.id === id
-            ? {
-                ...p,
-                ...updates,
-                updatedAt: new Date().toISOString(),
-                content: updates.content
-                  ? (updates.content && Array.isArray(updates.content) ? updates.content : []) as Block[]
-                  : p.content,
-                variables: updates.variables
-                  ? (updates.variables.map(v => ({ ...v, id: v.id || cuid("patch-var-") })) as PromptVariable[])
-                  : p.variables,
-              }
-            : p
-        )
-        const sorted = [...updatedPrompts].sort(
-          (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-        )
-        if (id === selectedId) {
-          const updatedSelectedPrompt = sorted.find(p => p.id === id)
-          if (updatedSelectedPrompt) {
-            lastDetailedPromptData.current = updatedSelectedPrompt
-          }
-        }
-        return sorted
-      })
-
-      updatePromptMutation({
-        variables: { input: { id, ...updates } },
-      }).catch(err => {
-        setLocalError("Failed to update prompt.")
-        if (selectedId) selectPrompt(selectedId)
-        else apolloRefetchPromptsList()
-      })
-    },
-    [updatePromptMutation, selectedId, selectPrompt, apolloRefetchPromptsList]
-  )
-
-  const deletePrompt = useCallback(
-    (id: string) => {
-      setLocalError(null)
-      setPrompts(prev => prev.filter(p => p.id !== id))
-      if (selectedId === id) {
-        setSelectedId(null)
-        lastDetailedPromptData.current = null
-      }
-
-      deletePromptMutation({ variables: { id } }).catch(err => {
-        setLocalError("Failed to delete prompt.")
-        apolloRefetchPromptsList()
-      })
-    },
-    [selectedId, deletePromptMutation, apolloRefetchPromptsList]
-  )
-
-  const snapshotPrompt = useCallback(
-    (promptId: string, notes?: string) => {
-      setLocalError(null)
-      snapshotPromptMutation({
-        variables: {
-          input: { promptId, notes: notes || `Version saved at ${new Date().toLocaleString()}` },
-        },
-      }).catch(err => {
-        setLocalError("Failed to save version.")
-        if (selectedId) selectPrompt(selectedId)
-      })
-    },
-    [snapshotPromptMutation, selectedId, selectPrompt]
-  )
-
-  const restorePromptVersion = useCallback(
-    (promptId: string, versionId: string) => {
-      setLocalError(null)
-      restorePromptVersionMutation({
-        variables: { input: { promptId, versionId } },
-      }).catch(err => {
-        setLocalError("Failed to restore version.")
-        if (selectedId) selectPrompt(selectedId)
-      })
-    },
-    [restorePromptVersionMutation, selectedId, selectPrompt]
-  )
-
-  const selectedPrompt = useMemo(() => {
-    const foundPrompt = prompts.find(p => p.id === selectedId) || null
-    if (foundPrompt && foundPrompt.id === lastDetailedPromptData.current?.id) {
-      return lastDetailedPromptData.current
-    }
-    return foundPrompt
-  }, [prompts, selectedId])
-
-  return {
-    prompts,
-    selectedPrompt,
-    loading: localLoading,
-    error: localError,
-    createPrompt,
-    updatePrompt,
-    deletePrompt,
-    snapshotPrompt,
-    restorePromptVersion,
-    selectPrompt,
-    refetchPromptsList: apolloRefetchPromptsList,
-    triggerInitialPromptsFetch,
-  }
-}
-```
-
-### 3. `components/personal/personal-prompt-lab-container.tsx` (No Changes Needed)
-
-This component orchestrates the hooks and does not directly interact with the data structure. No changes are required.
-
-```typescript
-//components/personal/personal-prompt-lab-container.tsx
-"use client"
-
-import { useState, useCallback } from "react"
-
-import { PromptList } from "../prompt-lab/prompt-list"
-import { PromptLab } from "../prompt-lab/prompt-lab"
-import { Button } from "../ui/button"
-import { LoadingPlaceholder, ErrorPlaceholder } from "@/components/placeholders/status-placeholders"
-
-import { usePersonalPromptsList } from "@/hooks/personal/usePersonalPromptsList"
-import { usePromptDetails } from "@/hooks/usePromptDetails"
-
-export function PersonalPromptLabContainer() {
-  console.log("[PersonalPromptLabContainer] [Trace: Render] Component rendering.")
-
-  // 1. Manage the selection state centrally
-  const [selectedPromptId, setSelectedPromptId] = useState<string | null>(null)
-
-  // 2. Consume usePersonalPromptsList hook for list operations
-  const {
-    prompts,
-    loadingList,
-    listError,
-    createPrompt: createPromptInList,
-    deletePrompt: deletePromptFromList,
-    triggerPromptsListFetch,
-    q,
-    setQ,
-    page,
-    setPage,
-    pageSize,
-    setPageSize,
-    totalPages,
-    totalPromptsCount,
-  } = usePersonalPromptsList(selectedPromptId)
-
-  // 3. Consume usePromptDetails hook for detail operations (projectId is undefined for personal prompts)
-  const {
-    selectedPromptDetails,
-    loadingDetails,
-    detailsError,
-    refetchPromptDetails,
-  } = usePromptDetails(selectedPromptId, undefined)
-
-  // 4. Centralized select/deselect logic
-  const selectPrompt = useCallback(
-    (id: string | null) => {
-      console.log("[PersonalPromptLabContainer] [Trace: Select] selectPrompt called with ID:", id)
-      setSelectedPromptId(id)
-      // When deselecting, ensure the list is refreshed or re-fetched if needed
-      if (id === null) {
-        triggerPromptsListFetch(true) // Force a network-only refetch of the list
-      }
-    },
-    [triggerPromptsListFetch]
-  )
-
-  // Handle create prompt action
-  const handleCreateNewPrompt = useCallback(async () => {
-    console.log(
-      "[PersonalPromptLabContainer] [Trace: HandleCreate] handleCreateNewPrompt: Initiating prompt creation."
-    )
-    try {
-      const newPrompt = await createPromptInList() // Use the create from the list hook
-      if (newPrompt) {
-        console.log("[PersonalPromptLabContainer] [Trace: HandleCreate] New prompt created:", newPrompt.id)
-        selectPrompt(newPrompt.id) // Select the newly created prompt
-      }
-    } catch (err) {
-      console.error("[PersonalPromptLabContainer] [Error: Create] Failed to create new prompt:", err)
-    }
-  }, [createPromptInList, selectPrompt])
-
-  // Handle delete prompt action
-  const handleDeletePrompt = useCallback(
-    async (id: string) => {
-      console.log(
-        "[PersonalPromptLabContainer] [Trace: HandleDelete] handleDeletePrompt: Initiating deletion for ID:",
-        id
-      )
-      await deletePromptFromList(id) // Use the delete from the list hook
-      if (selectedPromptId === id) {
-        console.log("[PersonalPromptLabContainer] [Trace: HandleDelete] Deselecting deleted prompt.")
-        selectPrompt(null) // Deselect if the deleted prompt was selected
-      }
-    },
-    [deletePromptFromList, selectedPromptId, selectPrompt]
-  )
-
-  // Handle "Back to List" action
-  const handleBack = () => {
-    console.log("[PersonalPromptLabContainer] [Trace: HandleBack] handleBack: Deselecting prompt.")
-    selectPrompt(null) // Deselect the prompt. This will trigger a list refetch via its useCallback.
-  }
-
-  const handleRetry = useCallback(() => {
-    console.log("[PersonalPromptLabContainer] [Trace: RetryButton] Retry button clicked.")
-    if (selectedPromptId) {
-      refetchPromptDetails() // Retry details fetch if a prompt is selected
-    } else {
-      triggerPromptsListFetch(true) // Retry list fetch if no prompt is selected
-    }
-  }, [selectedPromptId, refetchPromptDetails, triggerPromptsListFetch])
-
-  // Determine overall loading and error states
-  const isLoading = loadingList || loadingDetails
-  const error = listError || detailsError
-
-  // Determine message for global loader
-  let loaderMessage = "Loading..." // Default message
-  if (selectedPromptId) {
-    loaderMessage = "Loading prompt details..."
-  } else {
-    loaderMessage = "Loading your prompts..."
-  }
-
-  // --- Global Loader Conditional Rendering ---
-  if (isLoading && prompts.length === 0 && !listError && !detailsError) {
-    console.log(`[PersonalPromptLabContainer] [Trace: Render] Rendering GLOBAL LOADER. Message: "${loaderMessage}".`)
-    return <LoadingPlaceholder message={loaderMessage} />
-  }
-
-  // --- Error Handling (after global loading completes) ---
-  if (error) {
-    console.log("[PersonalPromptLabContainer] [Trace: Render] Rendering ERROR STATE. Error:", error)
-    return <ErrorPlaceholder error={new Error(error)} onRetry={handleRetry} />
-  }
-
-  // --- Main UI Rendering (after global loading and error checks) ---
-  if (selectedPromptId && selectedPromptDetails) {
-    console.log(
-      `[PersonalPromptLabContainer] [Trace: Render] Rendering PromptLab component with prompt ID: ${selectedPromptId}.`
-    )
-    return (
-      <PromptLab
-        prompt={selectedPromptDetails} // Pass the full details object
-        onBack={handleBack}
-        projectId={undefined} // No projectId for personal prompts
-      />
-    )
-  }
-
-  // Default view: Prompt List (when no prompt is selected and not loading/error)
-  console.log(
-    "[PersonalPromptLabContainer] [Trace: Render] Rendering PromptList component. Prompts count:",
-    prompts.length
-  )
-  return (
-    <PromptList
-      prompts={prompts}
-      onSelectPrompt={selectPrompt}
-      onCreatePrompt={handleCreateNewPrompt}
-      onDeletePrompt={handleDeletePrompt}
-      isLoading={loadingList}
-      isError={!!listError}
-      // Search and Pagination Props
-      q={q}
-      setQ={setQ}
-      page={page}
-      setPage={setPage}
-      pageSize={pageSize}
-      setPageSize={setPageSize}
-      totalPages={totalPages}
-      totalPromptsCount={totalPromptsCount}
-    />
-  )
-}
-```
-
-### 4. `components/prompt-lab/prompt-lab.tsx` (No Changes Needed)
-
-This component is already built to handle `content` as an array of block objects. No changes are required.
-
-```typescript
-//components/prompt-lab/prompt-lab.tsx
 'use client'
 
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react"
@@ -1381,7 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
-import { Copy, Plus, GitCommit, Text, Trash2, GripVertical, Loader2 } from "lucide-react"
+import { Copy, Plus, GitCommit, Text, Trash2, GripVertical, Loader2, Sparkles } from "lucide-react"
 import { DndProvider, useDrag, useDrop, useDragLayer } from 'react-dnd'
 import { HTML5Backend } from 'react-dnd-html5-backend'
 import { Tab } from "@headlessui/react"
@@ -1390,6 +15,7 @@ import { toast } from 'sonner';
 import { useDebounce } from 'use-debounce';
 import { usePromptDetails } from "@/hooks/usePromptDetails";
 import { LoadingPlaceholder, ErrorPlaceholder } from "@/components/placeholders/status-placeholders";
+import { useUpdatePromptAiEnhancedContent } from "@/hooks/usePromptsAi";
 
 
 function deepCompareBlocks(arr1: Block[], arr2: Block[]): boolean {
@@ -1541,6 +167,8 @@ export function PromptLab({ prompt, onBack, projectId }: { prompt: Prompt; onBac
     refetchPromptDetails
   } = usePromptDetails(prompt.id, projectId);
 
+  const { updatePrompt: enhancePrompt, enhancedContent: apiEnhancedResult } = useUpdatePromptAiEnhancedContent();
+
   const currentPrompt = selectedPromptDetails || prompt;
 
   const [selectedVersionId, setSelectedVersionId] = useState<string | null>(null)
@@ -1552,6 +180,9 @@ export function PromptLab({ prompt, onBack, projectId }: { prompt: Prompt; onBac
   const [pendingNotes, setPendingNotes] = useState("");
   const [isSnapshotting, setIsSnapshotting] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
+  const [isEnhancing, setIsEnhancing] = useState(false);
+  const [enhancedResult, setEnhancedResult] = useState<string | null>(null);
+  const [enhancementError, setEnhancementError] = useState<string | null>(null);
 
   // Memoized content, context, and variables for the editor.
   const editorContent = useMemo(() => {
@@ -1642,6 +273,23 @@ export function PromptLab({ prompt, onBack, projectId }: { prompt: Prompt; onBac
     }
   }, [currentPrompt, editorContent, editorContext, editorVariables, previewVariableValues, projectId]);
 
+  // Use an effect to set the enhanced result from the correct data source (active prompt vs. loaded version)
+  useEffect(() => {
+    if (selectedVersionId === null) {
+        // We are viewing the "Active" prompt
+        console.log('[PromptLab] [Trace: EnhanceEffect] Active prompt selected. Using aiEnhancedContent from main prompt details.');
+        setEnhancedResult(currentPrompt.aiEnhancedContent ?? null);
+    } else if (currentLoadedVersionContent?.id === selectedVersionId) {
+        // We are viewing a specific version and its content is loaded
+        console.log(`[PromptLab] [Trace: EnhanceEffect] Version ${selectedVersionId} selected. Using aiEnhancedContent from loaded version content.`);
+        setEnhancedResult(currentLoadedVersionContent.aiEnhancedContent ?? null);
+    } else {
+        // Version selected but content not loaded yet, or no version selected
+        console.log('[PromptLab] [Trace: EnhanceEffect] No matching content loaded. Clearing enhanced result.');
+        setEnhancedResult(null); // Clear if no specific content is loaded
+    }
+  }, [selectedVersionId, currentPrompt.aiEnhancedContent, currentLoadedVersionContent]);
+
   // selectedVersionMetadata is only for the metadata of the selected historical version
   const selectedVersionMetadata = useMemo(() => currentPrompt?.versions.find((v) => v.id === selectedVersionId) || null, [currentPrompt, selectedVersionId])
 
@@ -1730,6 +378,52 @@ export function PromptLab({ prompt, onBack, projectId }: { prompt: Prompt; onBac
     handleUpdatePrompt({ variables: updatedVariables });
   }, [currentPrompt.variables, handleUpdatePrompt]);
 
+  const handleEnhancePrompt = useCallback(async () => {
+    setIsEnhancing(true);
+    setEnhancedResult(null);
+    setEnhancementError(null);
+
+    // Determine which version ID to use for the mutation
+    let versionIdToEnhance: string | undefined;
+    if (selectedVersionId) {
+      versionIdToEnhance = selectedVersionId;
+    } else {
+      // If viewing the "Active" prompt, find the most recent version ID
+      const sortedVersions = [...currentPrompt.versions].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      versionIdToEnhance = sortedVersions[0]?.id;
+    }
+
+    if (!versionIdToEnhance) {
+      toast.error("Cannot enhance prompt", {
+        description: "Please save at least one version of this prompt before using the AI enhancement feature.",
+      });
+      setIsEnhancing(false);
+      return;
+    }
+
+    try {
+      const { data } = await enhancePrompt({
+        variables: {
+          input: {
+            promptId: currentPrompt.id,
+            versionId: versionIdToEnhance,
+            content: renderedPreview,
+          },
+        },
+      });
+      if (data?.updatePromptAiEnhancedContent) {
+        setEnhancedResult(data.updatePromptAiEnhancedContent);
+        toast.success("Prompt enhanced successfully!");
+      }
+    } catch (error: any) {
+      console.error("Error enhancing prompt:", error);
+      setEnhancementError(error.message || "An unknown error occurred while enhancing the prompt.");
+      toast.error("Enhancement Failed", { description: error.message });
+    } finally {
+      setIsEnhancing(false);
+    }
+  }, [currentPrompt, selectedVersionId, renderedPreview, enhancePrompt]);
+
   if (loadingDetails && !selectedPromptDetails) {
     return <LoadingPlaceholder message="Loading prompt details..." />
   }
@@ -1739,8 +433,12 @@ export function PromptLab({ prompt, onBack, projectId }: { prompt: Prompt; onBac
   }
 
   function copy(text: string) {
-    navigator.clipboard.writeText(text).catch(() => {})
-  }
+    navigator.clipboard.writeText(text).then(() => {
+        toast.success("Copied to clipboard!");
+    }).catch(() => {
+        toast.error("Failed to copy.");
+    });
+}
 
   return (
     <DndProvider backend={HTML5Backend}>
@@ -1910,25 +608,73 @@ export function PromptLab({ prompt, onBack, projectId }: { prompt: Prompt; onBac
                     </TabsContent>
 
                     <TabsContent value="preview" className="m-0 outline-none p-4 flex-1 flex flex-col">
-                      <div className="mb-2 flex items-center justify-between">
-                        <div className="text-sm font-medium">Preview</div>
-                        <Button size="sm" onClick={() => copy(renderedPreview)} className="h-8 btn-primary">
-                          <Copy className="mr-1 h-4 w-4" />
-                          Copy
-                        </Button>
+                      <div className="mb-4">
+                        <div className="mb-2 flex items-center justify-between">
+                            <div className="text-sm font-medium">Original Preview</div>
+                            <Button size="sm" onClick={() => copy(renderedPreview)} className="h-8 btn-primary">
+                            <Copy className="mr-1 h-4 w-4" />
+                            Copy
+                            </Button>
+                        </div>
+
+                        <pre
+                            className="font-mono whitespace-pre-wrap bg-[#f8f8f8] text-[#333] border border-[#e0e0e0] rounded-md p-2 w-full"
+                            style={{
+                            lineHeight: "1.5",
+                            whiteSpace: "pre-wrap",
+                            wordWrap: "break-word",
+                            }}
+                        >
+                            {renderedPreview}
+                        </pre>
                       </div>
 
-                      <pre
-                        className="font-mono whitespace-pre-wrap bg-[#f8f8f8] text-[#333] border border-[#e0e0e0] rounded-md p-2 w-full"
-                        style={{
-                          lineHeight: "1.5",
-                          whiteSpace: "pre-wrap",
-                          wordWrap: "break-word",
-                        }}
-                      >
-                        {renderedPreview}
-                      </pre>
+                      <div className="mt-4 pt-4 border-t">
+                        <Button onClick={handleEnhancePrompt} disabled={isEnhancing} className="btn-primary w-full sm:w-auto">
+                            {isEnhancing ? (
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            ) : (
+                                <Sparkles className="mr-2 h-4 w-4" />
+                            )}
+                            Enhance Prompt with AI
+                        </Button>
 
+                        <div className="mt-4">
+                            {isEnhancing && (
+                                <div className="flex items-center justify-center p-6 border rounded-md bg-slate-50">
+                                    <Loader2 className="mr-2 h-5 w-5 animate-spin text-slate-500" />
+                                    <span className="text-slate-600">Thinking...</span>
+                                </div>
+                            )}
+                            {enhancementError && (
+                                <div className="p-4 border rounded-md bg-red-50 text-red-700 border-red-200">
+                                    <h4 className="font-bold">Error</h4>
+                                    <p>{enhancementError}</p>
+                                </div>
+                            )}
+                            {enhancedResult && !isEnhancing && (
+                                <div>
+                                    <div className="mb-2 flex items-center justify-between">
+                                        <div className="text-sm font-medium text-green-700">AI Enhanced Result</div>
+                                        <Button size="sm" onClick={() => copy(enhancedResult)} className="h-8 btn-primary">
+                                        <Copy className="mr-1 h-4 w-4" />
+                                        Copy
+                                        </Button>
+                                    </div>
+                                    <pre
+                                        className="font-mono whitespace-pre-wrap bg-green-50 text-green-900 border border-green-200 rounded-md p-2 w-full"
+                                        style={{
+                                            lineHeight: "1.5",
+                                            whiteSpace: "pre-wrap",
+                                            wordWrap: "break-word",
+                                        }}
+                                    >
+                                        {enhancedResult}
+                                    </pre>
+                                </div>
+                            )}
+                        </div>
+                      </div>
                     </TabsContent>
 
                   </div>
@@ -3129,4 +1875,3 @@ function VersionsPanel({
     </div>
   )
 }
-```

@@ -1,4 +1,3 @@
-//graphql/resolvers/promptResolver.ts
 import { GraphQLResolveInfo } from 'graphql';
 import { prisma } from "@/lib/prisma";
 import { type Prompt, type PromptVariable, type Version, PromptVariableType, PromptVariableSource, Block } from '@/components/prompt-lab/store';
@@ -208,19 +207,38 @@ const promptResolvers = {
           },
         },
       });
-      if (prompt) {
-        prompt.context = prompt.context || '';
-        prompt.variables = prompt.variables || [];
-        prompt.versions = (prompt.versions as Version[] || []).map(v => ({
-          id: v.id,
-          createdAt: v.createdAt,
-          notes: v.notes,
-          description: v.description || '',
-          content: v.content || [],
-          context: v.context || '',
-          variables: v.variables || [],
-        }));
+
+      if (!prompt) {
+        throw new Error("Prompt not found.");
       }
+
+      const versions = (prompt.versions as any[] || []); // Use `any` for flexibility
+
+      if (versions.length > 0) {
+        // Sort to find the latest version reliably
+        const sortedVersions = [...versions].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        const latestVersion = sortedVersions[0];
+
+        // Override the prompt's "active" data with the latest version's data
+        prompt.content = latestVersion.content || [];
+        prompt.context = latestVersion.context || '';
+        prompt.variables = latestVersion.variables || [];
+        prompt.aiEnhancedContent = latestVersion.aiEnhancedContent || null;
+      }
+
+      // Ensure fields have default values
+      prompt.context = prompt.context || '';
+      prompt.variables = prompt.variables || [];
+
+      // Map versions to just metadata for the final response, as expected by the frontend hook
+      prompt.versions = versions.map(v => ({
+        id: v.id,
+        createdAt: v.createdAt,
+        notes: v.notes,
+        description: v.description || '',
+        // Explicitly DON'T include content, context, variables here for the list
+      }));
+
       return prompt as unknown as Prompt;
     },
 
@@ -238,7 +256,7 @@ const promptResolvers = {
         throw new Error("Prompt not found.");
       }
 
-      const versions = (prompt.versions as Version[]) || [];
+      const versions = (prompt.versions as any[]) || []; // Use any to access aiEnhancedContent
       const version = versions.find((v) => v.id === versionId);
 
       if (!version) {
@@ -246,12 +264,13 @@ const promptResolvers = {
       }
       return {
         id: version.id,
-        content: version.content || [],
-        context: version.context || '',
-        variables: version.variables || [],
         createdAt: version.createdAt,
         notes: version.notes,
         description: version.description || '',
+        content: version.content || [],
+        context: version.context || '',
+        variables: version.variables || [],
+        aiEnhancedContent: version.aiEnhancedContent || null,
       } as Version;
     },
 

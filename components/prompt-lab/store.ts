@@ -122,6 +122,7 @@ export type Prompt = {
   createdAt: string; // Changed from number to string (ISO date string) for consistency with backend
   updatedAt: string; // Changed from number to string (ISO date string) for consistency with backend
   projectId?: string;
+  aiEnhancedContent?: string;
   user?: { // Added user for completeness based on GET_PROMPT_DETAILS_QUERY
     id: string;
     firstName?: string;

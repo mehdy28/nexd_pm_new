@@ -26,6 +26,7 @@ interface VersionContent {
   content: Block[];
   context: string;
   variables: PromptVariable[];
+  aiEnhancedContent?: string | null;
 }
 
 interface UsePromptDetailsHook {
@@ -82,6 +83,7 @@ export function usePromptDetails(selectedPromptId: string | null, projectId: str
             updatedAt: data.getPromptDetails.updatedAt,
             model: data.getPromptDetails.model,
             projectId: data.getPromptDetails.projectId,
+            aiEnhancedContent: data.getPromptDetails.aiEnhancedContent, // <-- Add this field
             // Versions now only contain metadata (id, createdAt, notes, description)
             versions: data.getPromptDetails.versions.map((v: any) => ({
                ...v,
@@ -124,6 +126,7 @@ export function usePromptDetails(selectedPromptId: string | null, projectId: str
           content: (data.getPromptVersionContent.content && Array.isArray(data.getPromptVersionContent.content) ? data.getPromptVersionContent.content : []) as Block[],
           context: data.getPromptVersionContent.context || '',
           variables: data.getPromptVersionContent.variables.map((v: PromptVariable) => ({ ...v, id: v.id || cuid('db-var-') })),
+          aiEnhancedContent: data.getPromptVersionContent.aiEnhancedContent,
         });
       } else {
         setCurrentLoadedVersionContent(null);

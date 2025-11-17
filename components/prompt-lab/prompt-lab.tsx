@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
-import { Copy, Plus, GitCommit, Text, Trash2, GripVertical, Loader2 } from "lucide-react"
+import { Copy, Plus, GitCommit, Text, Trash2, GripVertical, Loader2, Sparkles } from "lucide-react"
 import { DndProvider, useDrag, useDrop, useDragLayer } from 'react-dnd'
 import { HTML5Backend } from 'react-dnd-html5-backend'
 import { Tab } from "@headlessui/react"
@@ -15,6 +15,7 @@ import { toast } from 'sonner';
 import { useDebounce } from 'use-debounce';
 import { usePromptDetails } from "@/hooks/usePromptDetails";
 import { LoadingPlaceholder, ErrorPlaceholder } from "@/components/placeholders/status-placeholders";
+import { useUpdatePromptAiEnhancedContent } from "@/hooks/usePromptsAi";
 
 
 function deepCompareBlocks(arr1: Block[], arr2: Block[]): boolean {
@@ -150,6 +151,17 @@ async function renderPrompt(
   return lines.join("\n");
 }
 
+const AnimatedDots = () => {
+    const [dots, setDots] = useState('');
+    useEffect(() => {
+        const interval = setInterval(() => {
+            setDots(d => (d.length >= 3 ? '' : d + '.'));
+        }, 300);
+        return () => clearInterval(interval);
+    }, []);
+    return <span className="ml-1 w-4 inline-block text-left">{dots}</span>;
+};
+
 /* ---------- MAIN COMPONENT ---------- */
 export function PromptLab({ prompt, onBack, projectId }: { prompt: Prompt; onBack: () => void; projectId?: string }) {
   const {
@@ -166,6 +178,8 @@ export function PromptLab({ prompt, onBack, projectId }: { prompt: Prompt; onBac
     refetchPromptDetails
   } = usePromptDetails(prompt.id, projectId);
 
+  const { updatePrompt: enhancePrompt, enhancedContent: apiEnhancedResult } = useUpdatePromptAiEnhancedContent();
+
   const currentPrompt = selectedPromptDetails || prompt;
 
   const [selectedVersionId, setSelectedVersionId] = useState<string | null>(null)
@@ -177,6 +191,13 @@ export function PromptLab({ prompt, onBack, projectId }: { prompt: Prompt; onBac
   const [pendingNotes, setPendingNotes] = useState("");
   const [isSnapshotting, setIsSnapshotting] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
+  const [isEnhancing, setIsEnhancing] = useState(false);
+  const [enhancedResult, setEnhancedResult] = useState<string | null>(null);
+  const [enhancementError, setEnhancementError] = useState<string | null>(null);
+  const [copiedStatus, setCopiedStatus] = useState<'original' | 'enhanced' | null>(null);
+
+  const enhancementPhases = useMemo(() => ['Thinking', 'Analysing', 'Preparing'], []);
+  const [currentPhaseIndex, setCurrentPhaseIndex] = useState<number>(-1);
 
   // Memoized content, context, and variables for the editor.
   const editorContent = useMemo(() => {
@@ -267,6 +288,45 @@ export function PromptLab({ prompt, onBack, projectId }: { prompt: Prompt; onBac
     }
   }, [currentPrompt, editorContent, editorContext, editorVariables, previewVariableValues, projectId]);
 
+  // Use an effect to set the enhanced result from the correct data source (active prompt vs. loaded version)
+  useEffect(() => {
+    if (selectedVersionId === null) {
+        // We are viewing the "Active" prompt
+        console.log('[PromptLab] [Trace: EnhanceEffect] Active prompt selected. Using aiEnhancedContent from main prompt details.');
+        setEnhancedResult(currentPrompt.aiEnhancedContent ?? null);
+    } else if (currentLoadedVersionContent?.id === selectedVersionId) {
+        // We are viewing a specific version and its content is loaded
+        console.log(`[PromptLab] [Trace: EnhanceEffect] Version ${selectedVersionId} selected. Using aiEnhancedContent from loaded version content.`);
+        setEnhancedResult(currentLoadedVersionContent.aiEnhancedContent ?? null);
+    } else {
+        // Version selected but content not loaded yet, or no version selected
+        console.log('[PromptLab] [Trace: EnhanceEffect] No matching content loaded. Clearing enhanced result.');
+        setEnhancedResult(null); // Clear if no specific content is loaded
+    }
+  }, [selectedVersionId, currentPrompt.aiEnhancedContent, currentLoadedVersionContent]);
+
+  // Effect to run the enhancement animation
+  useEffect(() => {
+      let interval: NodeJS.Timeout | undefined;
+      if (isEnhancing) {
+          setCurrentPhaseIndex(0);
+          interval = setInterval(() => {
+              setCurrentPhaseIndex(prevIndex => {
+                  if (prevIndex < enhancementPhases.length) {
+                      return prevIndex + 1;
+                  }
+                  clearInterval(interval!);
+                  return prevIndex;
+              });
+          }, 1500);
+      } else {
+          setCurrentPhaseIndex(-1);
+      }
+      return () => {
+          if (interval) clearInterval(interval);
+      };
+  }, [isEnhancing, enhancementPhases.length]);
+
   // selectedVersionMetadata is only for the metadata of the selected historical version
   const selectedVersionMetadata = useMemo(() => currentPrompt?.versions.find((v) => v.id === selectedVersionId) || null, [currentPrompt, selectedVersionId])
 
@@ -355,6 +415,62 @@ export function PromptLab({ prompt, onBack, projectId }: { prompt: Prompt; onBac
     handleUpdatePrompt({ variables: updatedVariables });
   }, [currentPrompt.variables, handleUpdatePrompt]);
 
+  const handleEnhancePrompt = useCallback(async () => {
+    setIsEnhancing(true);
+    setEnhancedResult(null);
+    setEnhancementError(null);
+
+    const minAnimationTime = enhancementPhases.length * 1500;
+    const startTime = Date.now();
+
+    // Determine which version ID to use for the mutation
+    let versionIdToEnhance: string | undefined;
+    if (selectedVersionId) {
+      versionIdToEnhance = selectedVersionId;
+    } else {
+      // If viewing the "Active" prompt, find the most recent version ID
+      const sortedVersions = [...currentPrompt.versions].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      versionIdToEnhance = sortedVersions[0]?.id;
+    }
+
+    if (!versionIdToEnhance) {
+      toast.error("Cannot enhance prompt", {
+        description: "Please save at least one version of this prompt before using the AI enhancement feature.",
+      });
+      setIsEnhancing(false);
+      return;
+    }
+
+    try {
+      const { data } = await enhancePrompt({
+        variables: {
+          input: {
+            promptId: currentPrompt.id,
+            versionId: versionIdToEnhance,
+            content: renderedPreview,
+          },
+        },
+      });
+      if (data?.updatePromptAiEnhancedContent) {
+        setEnhancedResult(data.updatePromptAiEnhancedContent);
+        toast.success("Prompt enhanced successfully!");
+      }
+    } catch (error: any) {
+      console.error("Error enhancing prompt:", error);
+      setEnhancementError(error.message || "An unknown error occurred while enhancing the prompt.");
+      toast.error("Enhancement Failed", { description: error.message });
+    } finally {
+        const elapsedTime = Date.now() - startTime;
+        const remainingTime = minAnimationTime - elapsedTime;
+
+        if (remainingTime > 0) {
+            setTimeout(() => setIsEnhancing(false), remainingTime);
+        } else {
+            setIsEnhancing(false);
+        }
+    }
+  }, [currentPrompt, selectedVersionId, renderedPreview, enhancePrompt, enhancementPhases]);
+
   if (loadingDetails && !selectedPromptDetails) {
     return <LoadingPlaceholder message="Loading prompt details..." />
   }
@@ -363,9 +479,15 @@ export function PromptLab({ prompt, onBack, projectId }: { prompt: Prompt; onBac
     return <ErrorPlaceholder error={detailsError} onRetry={refetchPromptDetails} />
   }
 
-  function copy(text: string) {
-    navigator.clipboard.writeText(text).catch(() => {})
-  }
+  function copy(text: string, type: 'original' | 'enhanced') {
+    navigator.clipboard.writeText(text).then(() => {
+        setCopiedStatus(type);
+        setTimeout(() => setCopiedStatus(null), 2000);
+        toast.success("Copied to clipboard!");
+    }).catch(() => {
+        toast.error("Failed to copy.");
+    });
+}
 
   return (
     <DndProvider backend={HTML5Backend}>
@@ -535,25 +657,103 @@ export function PromptLab({ prompt, onBack, projectId }: { prompt: Prompt; onBac
                     </TabsContent>
 
                     <TabsContent value="preview" className="m-0 outline-none p-4 flex-1 flex flex-col">
-                      <div className="mb-2 flex items-center justify-between">
-                        <div className="text-sm font-medium">Preview</div>
-                        <Button size="sm" onClick={() => copy(renderedPreview)} className="h-8 btn-primary">
-                          <Copy className="mr-1 h-4 w-4" />
-                          Copy
-                        </Button>
+                      <div className="mb-4">
+                        <div className="mb-2 flex items-center justify-between">
+                            <div className="text-sm font-medium">Original Preview</div>
+                            <Button size="sm" onClick={() => copy(renderedPreview, 'original')} className="h-8 btn-primary" disabled={copiedStatus === 'original'}>
+                                {copiedStatus === 'original' ? (
+                                    '✓ Copied!'
+                                ) : (
+                                    <>
+                                        <Copy className="mr-1 h-4 w-4" />
+                                        Copy
+                                    </>
+                                )}
+                            </Button>
+                        </div>
+
+                        <pre
+                            className="font-mono whitespace-pre-wrap bg-[#f8f8f8] text-[#333] border border-[#e0e0e0] rounded-md p-2 w-full"
+                            style={{
+                            lineHeight: "1.5",
+                            whiteSpace: "pre-wrap",
+                            wordWrap: "break-word",
+                            }}
+                        >
+                            {renderedPreview}
+                        </pre>
                       </div>
 
-                      <pre
-                        className="font-mono whitespace-pre-wrap bg-[#f8f8f8] text-[#333] border border-[#e0e0e0] rounded-md p-2 w-full"
-                        style={{
-                          lineHeight: "1.5",
-                          whiteSpace: "pre-wrap",
-                          wordWrap: "break-word",
-                        }}
-                      >
-                        {renderedPreview}
-                      </pre>
+                      <div className="mt-4 pt-4 border-t">
+                        <Button onClick={handleEnhancePrompt} disabled={isEnhancing} className="btn-primary w-full sm:w-auto">
+                            {isEnhancing ? (
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            ) : (
+                                <Sparkles className="mr-2 h-4 w-4" />
+                            )}
+                            Enhance Prompt with AI
+                        </Button>
 
+                        <div className="mt-4">
+                            {isEnhancing && (
+                                <div className="py-2 text-sm">
+                                    {enhancementPhases.map((phase, index) => {
+                                        if (index > currentPhaseIndex) return null;
+
+                                        const isCompleted = index < currentPhaseIndex;
+                                        const isActive = index === currentPhaseIndex && index < enhancementPhases.length;
+
+                                        return (
+                                            <div key={phase} className="flex items-center mb-2 last:mb-0 transition-opacity duration-300">
+                                                <div className="w-6 flex-shrink-0 flex items-center justify-center">
+                                                {isCompleted ? (
+                                                    <span className="text-green-500 font-bold">✓</span>
+                                                ) : isActive ? (
+                                                    <Loader2 className="h-4 w-4 animate-spin text-slate-500" />
+                                                ) : null}
+                                                </div>
+                                                <span className={`${isCompleted ? 'text-slate-400' : 'text-slate-700'}`}>{phase}</span>
+                                                {isActive && <AnimatedDots />}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                            {enhancementError && (
+                                <div className="p-4 border rounded-md bg-red-50 text-red-700 border-red-200">
+                                    <h4 className="font-bold">Error</h4>
+                                    <p>{enhancementError}</p>
+                                </div>
+                            )}
+                            {enhancedResult && !isEnhancing && (
+                                <div>
+                                    <div className="mb-2 flex items-center justify-between">
+                                        <div className="text-sm font-medium text-green-700">AI Enhanced Result</div>
+                                        <Button size="sm" onClick={() => copy(enhancedResult, 'enhanced')} className="h-8 btn-primary" disabled={copiedStatus === 'enhanced'}>
+                                            {copiedStatus === 'enhanced' ? (
+                                                '✓ Copied!'
+                                            ) : (
+                                                <>
+                                                    <Copy className="mr-1 h-4 w-4" />
+                                                    Copy
+                                                </>
+                                            )}
+                                        </Button>
+                                    </div>
+                                    <pre
+                                        className="font-mono whitespace-pre-wrap bg-green-50 text-green-900 border border-green-200 rounded-md p-2 w-full"
+                                        style={{
+                                            lineHeight: "1.5",
+                                            whiteSpace: "pre-wrap",
+                                            wordWrap: "break-word",
+                                        }}
+                                    >
+                                        {enhancedResult}
+                                    </pre>
+                                </div>
+                            )}
+                        </div>
+                      </div>
                     </TabsContent>
 
                   </div>
@@ -1702,38 +1902,6 @@ function VersionsPanel({
             />
         </div>
 
-        {/* Conditionally render version content, context, variables based on loading state */}
-        {loadingVersionContent ? (
-          <div className="flex justify-center items-center h-40">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          </div>
-        ) : (
-          <>
-            <div className="mb-4">
-                <label className="block text-sm font-medium mb-1">Version Content</label>
-                <Textarea
-                    readOnly
-                    value={JSON.stringify(displayContentForPanel.map(b => {
-                      const { __typename, ...rest } = b;
-                      return rest;
-                    }), null, 2) || ''}
-                    className="font-mono border border-gray-300 rounded-md p-2 text-sm resize-none"
-                    style={{ minHeight: '150px', height: 'auto', overflowY: 'hidden', background: 'transparent' }}
-                    placeholder="No content available for this version."
-                />
-            </div>
-
-            <div className="mb-4">
-                <label className="block text-sm font-medium mb-1">Version Context</label>
-                <Textarea
-                    readOnly
-                    value={displayContextForPanel || ''}
-                    className="font-mono border border-gray-300 rounded-md p-2 text-sm resize-none"
-                    style={{ minHeight: '100px', height: 'auto', overflowY: 'hidden', background: 'transparent' }}
-                    placeholder="No context available for this version."
-                />
-            </div>
-
             <div className="mb-4">
                 <label className="block text-sm font-medium mb-1">Variables in this Version</label>
                 {displayVariablesForPanel && displayVariablesForPanel.length > 0 ? (
@@ -1749,8 +1917,6 @@ function VersionsPanel({
                     <p className="text-sm text-gray-500">No variables for this version.</p>
                 )}
             </div>
-          </>
-        )}
     </div>
   )
 }

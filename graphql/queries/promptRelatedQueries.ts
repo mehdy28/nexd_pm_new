@@ -33,11 +33,22 @@ export const GET_PROMPT_DETAILS_QUERY = gql`
       updatedAt
       model
       projectId
+      aiEnhancedContent # Fetches the enhanced content from the latest version
       user {
         id
         firstName
         lastName
       }
+      # Fetches the active prompt's content
+      content {
+        id
+        type
+        value
+        varId
+        placeholder
+        name
+      }
+      context # Fetches the active prompt's context
       variables {
         id
         name
@@ -62,6 +73,7 @@ export const GET_PROMPT_VERSION_CONTENT_QUERY = gql`
   query GetPromptVersionContent($promptId: ID!, $versionId: ID!) {
     getPromptVersionContent(promptId: $promptId, versionId: $versionId) {
       id # The version ID
+      aiEnhancedContent
       content {
         id
         type

@@ -72,123 +72,123 @@ const personalPromptResolvers = {
       return { prompts: mappedPrompts, totalCount }
     },
 
-    getPromptDetails: async (
-      _parent: any,
-      { id }: { id: string },
-      context: GraphQLContext
-    ): Promise<Prompt> => {
-      const prompt = await prisma.prompt.findUnique({
-        where: { id },
-        include: {
-          content: {
-            orderBy: { order: "asc" },
-          },
-          user: {
-            select: { id: true, firstName: true, lastName: true },
-          },
-          project: {
-            select: { id: true, name: true, workspaceId: true },
-          },
-        },
-      })
-      if (!prompt) {
-        throw new GraphQLError("Prompt not found", { extensions: { code: "NOT_FOUND" } })
-      }
+    // getPromptDetails: async (
+    //   _parent: any,
+    //   { id }: { id: string },
+    //   context: GraphQLContext
+    // ): Promise<Prompt> => {
+    //   const prompt = await prisma.prompt.findUnique({
+    //     where: { id },
+    //     include: {
+    //       content: {
+    //         orderBy: { order: "asc" },
+    //       },
+    //       user: {
+    //         select: { id: true, firstName: true, lastName: true },
+    //       },
+    //       project: {
+    //         select: { id: true, name: true, workspaceId: true },
+    //       },
+    //     },
+    //   })
+    //   if (!prompt) {
+    //     throw new GraphQLError("Prompt not found", { extensions: { code: "NOT_FOUND" } })
+    //   }
 
-      prompt.context = prompt.context || ""
-      prompt.variables = prompt.variables || []
-      prompt.versions = (prompt.versions as Version[] || []).map(v => ({
-        id: v.id,
-        createdAt: v.createdAt,
-        notes: v.notes,
-        description: v.description || "",
-        content: v.content || [],
-        context: v.context || "",
-        variables: v.variables || [],
-      }))
+    //   prompt.context = prompt.context || ""
+    //   prompt.variables = prompt.variables || []
+    //   prompt.versions = (prompt.versions as Version[] || []).map(v => ({
+    //     id: v.id,
+    //     createdAt: v.createdAt,
+    //     notes: v.notes,
+    //     description: v.description || "",
+    //     content: v.content || [],
+    //     context: v.context || "",
+    //     variables: v.variables || [],
+    //   }))
 
-      return prompt as unknown as Prompt
-    },
+    //   return prompt as unknown as Prompt
+    // },
 
-    getPromptVersionContent: async (
-      _parent: any,
-      { promptId, versionId }: { promptId: string; versionId: string }
-    ): Promise<Version> => {
-      const prompt = await prisma.prompt.findUnique({
-        where: { id: promptId },
-        select: { versions: true },
-      })
+    // getPromptVersionContent: async (
+    //   _parent: any,
+    //   { promptId, versionId }: { promptId: string; versionId: string }
+    // ): Promise<Version> => {
+    //   const prompt = await prisma.prompt.findUnique({
+    //     where: { id: promptId },
+    //     select: { versions: true },
+    //   })
 
-      if (!prompt) {
-        throw new GraphQLError("Prompt not found", { extensions: { code: "NOT_FOUND" } })
-      }
+    //   if (!prompt) {
+    //     throw new GraphQLError("Prompt not found", { extensions: { code: "NOT_FOUND" } })
+    //   }
 
-      const versions = (prompt.versions as Version[]) || []
-      const version = versions.find(v => v.id === versionId)
+    //   const versions = (prompt.versions as Version[]) || []
+    //   const version = versions.find(v => v.id === versionId)
 
-      if (!version) {
-        throw new GraphQLError("Version not found within this prompt", { extensions: { code: "NOT_FOUND" } })
-      }
-      return {
-        id: version.id,
-        content: version.content || [],
-        context: version.context || "",
-        variables: version.variables || [],
-        createdAt: version.createdAt,
-        notes: version.notes,
-        description: version.description || "",
-      } as Version
-    },
+    //   if (!version) {
+    //     throw new GraphQLError("Version not found within this prompt", { extensions: { code: "NOT_FOUND" } })
+    //   }
+    //   return {
+    //     id: version.id,
+    //     content: version.content || [],
+    //     context: version.context || "",
+    //     variables: version.variables || [],
+    //     createdAt: version.createdAt,
+    //     notes: version.notes,
+    //     description: version.description || "",
+    //   } as Version
+    // },
 
-    resolvePromptVariable: async (
-      _parent: any,
-      {
-        workspaceId,
-        variableSource,
-      }: { workspaceId?: string; variableSource: any; promptVariableId?: string },
-      context: GraphQLContext
-    ): Promise<string> => {
-      const source = variableSource as PromptVariableSource
-      const currentUserId = context.user?.id
+    // resolvePromptVariable: async (
+    //   _parent: any,
+    //   {
+    //     workspaceId,
+    //     variableSource,
+    //   }: { workspaceId?: string; variableSource: any; promptVariableId?: string },
+    //   context: GraphQLContext
+    // ): Promise<string> => {
+    //   const source = variableSource as PromptVariableSource
+    //   const currentUserId = context.user?.id
 
-      if (!currentUserId) {
-        throw new GraphQLError("Authentication required", { extensions: { code: "UNAUTHENTICATED" } })
-      }
+    //   if (!currentUserId) {
+    //     throw new GraphQLError("Authentication required", { extensions: { code: "UNAUTHENTICATED" } })
+    //   }
 
-      if (source.entityType === "DATE_FUNCTION" && source.field === "today") {
-        return new Date().toISOString().split("T")[0]
-      }
+    //   if (source.entityType === "DATE_FUNCTION" && source.field === "today") {
+    //     return new Date().toISOString().split("T")[0]
+    //   }
 
-      if (source.entityType === "USER") {
-        const currentUser = await prisma.user.findUnique({ where: { id: currentUserId } })
-        if (!currentUser) return "N/A (Current user data not found)"
-        return (
-          source.field?.split(".").reduce((o, i) => (o ? o[i] : undefined), currentUser) || "N/A"
-        )
-      }
+    //   if (source.entityType === "USER") {
+    //     const currentUser = await prisma.user.findUnique({ where: { id: currentUserId } })
+    //     if (!currentUser) return "N/A (Current user data not found)"
+    //     return (
+    //       source.field?.split(".").reduce((o, i) => (o ? o[i] : undefined), currentUser) || "N/A"
+    //     )
+    //   }
 
-      if (source.entityType === "DOCUMENT") {
-        const record = await prisma.document.findFirst({
-          where: { userId: currentUserId },
-          orderBy: { updatedAt: "desc" },
-        })
-        if (!record) return "N/A (Personal document not found)"
-        if (source.field === "content" && typeof record.content === "object") {
-          return JSON.stringify(record.content)
-        }
-        return (
-          source.field?.split(".").reduce((o, i) => (o ? o[i] : undefined), record) || "N/A"
-        )
-      }
+    //   if (source.entityType === "DOCUMENT") {
+    //     const record = await prisma.document.findFirst({
+    //       where: { userId: currentUserId },
+    //       orderBy: { updatedAt: "desc" },
+    //     })
+    //     if (!record) return "N/A (Personal document not found)"
+    //     if (source.field === "content" && typeof record.content === "object") {
+    //       return JSON.stringify(record.content)
+    //     }
+    //     return (
+    //       source.field?.split(".").reduce((o, i) => (o ? o[i] : undefined), record) || "N/A"
+    //     )
+    //   }
 
-      if (
-        ["PROJECT", "SPRINT", "MEMBER", "TASK", "WORKSPACE"].includes(source.entityType)
-      ) {
-        return "N/A (Project context required for this data)"
-      }
+    //   if (
+    //     ["PROJECT", "SPRINT", "MEMBER", "TASK", "WORKSPACE"].includes(source.entityType)
+    //   ) {
+    //     return "N/A (Project context required for this data)"
+    //   }
 
-      return "N/A (Unsupported entity type in personal context)"
-    },
+    //   return "N/A (Unsupported entity type in personal context)"
+    // },
   },
 
   Mutation: {

@@ -469,6 +469,7 @@ type Version {
   createdAt: DateTime!
   notes: String
   description: String
+  aiEnhancedContent: String
 }
 
 type Prompt {
