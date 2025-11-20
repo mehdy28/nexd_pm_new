@@ -199,6 +199,19 @@ const promptResolvers = {
           content: {
             orderBy: { order: 'asc' },
           },
+          // FIX: Added 'variables' and 'versions' to the include clause
+          variables: true,
+          versions: {
+            select: {
+              id: true,
+              createdAt: true,
+              notes: true,
+              description: true,
+            },
+            orderBy: {
+              createdAt: 'desc',
+            },
+          },
           user: {
             select: { id: true, firstName: true, lastName: true },
           },
@@ -212,35 +225,67 @@ const promptResolvers = {
         throw new Error("Prompt not found.");
       }
 
-      const versions = (prompt.versions as any[] || []); // Use `any` for flexibility
-
-      if (versions.length > 0) {
-        // Sort to find the latest version reliably
-        const sortedVersions = [...versions].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-        const latestVersion = sortedVersions[0];
-
-        // Override the prompt's "active" data with the latest version's data
-        prompt.content = latestVersion.content || [];
-        prompt.context = latestVersion.context || '';
-        prompt.variables = latestVersion.variables || [];
-        prompt.aiEnhancedContent = latestVersion.aiEnhancedContent || null;
-      }
-
-      // Ensure fields have default values
-      prompt.context = prompt.context || '';
-      prompt.variables = prompt.variables || [];
-
-      // Map versions to just metadata for the final response, as expected by the frontend hook
-      prompt.versions = versions.map(v => ({
-        id: v.id,
-        createdAt: v.createdAt,
-        notes: v.notes,
-        description: v.description || '',
-        // Explicitly DON'T include content, context, variables here for the list
-      }));
+      // FIX: Removed all the incorrect logic that was overwriting the fetched data.
+      // The prompt object fetched directly from Prisma now contains the correct
+      // active content, variables, and version metadata.
 
       return prompt as unknown as Prompt;
     },
+
+
+    // getPromptDetails: async (
+    //   _parent: any,
+    //   { id }: { id: string },
+    //   context: GraphQLContext
+    // ): Promise<Prompt> => {
+    //   const prompt = await prisma.prompt.findUnique({
+    //     where: { id },
+    //     include: {
+    //       content: {
+    //         orderBy: { order: 'asc' },
+    //       },
+    //       user: {
+    //         select: { id: true, firstName: true, lastName: true },
+    //       },
+    //       project: {
+    //         select: { id: true, name: true, workspaceId: true },
+    //       },
+    //     },
+    //   });
+
+    //   if (!prompt) {
+    //     throw new Error("Prompt not found.");
+    //   }
+
+    //   const versions = (prompt.versions as any[] || []); // Use `any` for flexibility
+
+    //   if (versions.length > 0) {
+    //     // Sort to find the latest version reliably
+    //     const sortedVersions = [...versions].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    //     const latestVersion = sortedVersions[0];
+
+    //     // Override the prompt's "active" data with the latest version's data
+    //     prompt.content = latestVersion.content || [];
+    //     prompt.context = latestVersion.context || '';
+    //     prompt.variables = latestVersion.variables || [];
+    //     prompt.aiEnhancedContent = latestVersion.aiEnhancedContent || null;
+    //   }
+
+    //   // Ensure fields have default values
+    //   prompt.context = prompt.context || '';
+    //   prompt.variables = prompt.variables || [];
+
+    //   // Map versions to just metadata for the final response, as expected by the frontend hook
+    //   prompt.versions = versions.map(v => ({
+    //     id: v.id,
+    //     createdAt: v.createdAt,
+    //     notes: v.notes,
+    //     description: v.description || '',
+    //     // Explicitly DON'T include content, context, variables here for the list
+    //   }));
+
+    //   return prompt as unknown as Prompt;
+    // },
 
     getPromptVersionContent: async (
       _parent: any,
@@ -400,6 +445,8 @@ const promptResolvers = {
   },
 
   Mutation: {
+
+
     createPrompt: async (
       _parent: any,
       { input }: { input: {
@@ -413,90 +460,177 @@ const promptResolvers = {
         isPublic?: boolean;
         model?: string;
         variables?: PromptVariable[];
-        versions?: any[];
+        // 'versions' is no longer used from the input, but we keep it for destructuring
+        versions?: any[]; 
       }},
       context: GraphQLContext
     ): Promise<Prompt> => {
-      const { content, variables, versions, ...scalarData } = input;
+      const { content, variables, ...scalarData } = input;
 
+      // Prepare the data for nested creation once to avoid repetition.
+      const contentCreateData = content ? content.map((block, index) => ({
+        type: block.type,
+        value: block.value,
+        varId: block.varId,
+        placeholder: block.placeholder,
+        name: block.name,
+        order: index,
+      })) : [];
+      
+      const variablesCreateData = variables ? variables.map(v => {
+        const { id, ...rest } = v; // Exclude client-side temporary ID
+        return {
+          ...rest,
+          source: v.source || undefined,
+        };
+      }) : [];
+
+      // Construct the data payload for Prisma.
       const newPromptData: any = {
         ...scalarData,
         userId: context.user?.id,
+        // Create the top-level 'active' content and variables
+        content: {
+          create: contentCreateData
+        },
+        variables: {
+          create: variablesCreateData
+        },
+        // Automatically create the first version as a snapshot of the initial state.
+        versions: {
+          create: [
+            {
+              notes: "Initial version",
+              description: "", // Default description for the first version
+              context: input.context || '',
+              // Create the content and variables specific to this version
+              content: {
+                create: contentCreateData,
+              },
+              variables: {
+                create: variablesCreateData,
+              },
+            },
+          ],
+        },
       };
-
-      if (content) {
-        newPromptData.content = {
-          create: content.map((block, index) => ({
-            type: block.type,
-            value: block.value,
-            varId: block.varId,
-            placeholder: block.placeholder,
-            name: block.name,
-            order: index,
-          }))
-        };
-      }
-
-      if (variables) {
-        newPromptData.variables = {
-          create: variables.map(v => {
-            const { id, ...rest } = v;
-            return {
-              ...rest,
-              source: v.source || undefined,
-            };
-          })
-        };
-      }
-      
-      if (versions) {
-        newPromptData.versions = {
-          create: versions.map(version => {
-            const { id, content: versionContent, variables: versionVariables, ...restOfVersion } = version;
-            
-            const versionCreateData: any = { ...restOfVersion };
-
-            if (versionContent) {
-              versionCreateData.content = {
-                create: versionContent.map((block: Block, index: number) => ({
-                  type: block.type,
-                  value: block.value,
-                  varId: block.varId,
-                  placeholder: block.placeholder,
-                  name: block.name,
-                  order: index,
-                }))
-              };
-            }
-
-            if (versionVariables) {
-              versionCreateData.variables = {
-                create: versionVariables.map((v: PromptVariable) => {
-                  const { id: varId, ...rest } = v;
-                  return {
-                     ...rest,
-                     source: v.source || undefined
-                  };
-                })
-              };
-            }
-            
-            return versionCreateData;
-          })
-        };
-      }
 
       const newPrompt = await prisma.prompt.create({
         data: newPromptData,
         include: {
           content: { orderBy: { order: 'asc' } },
           variables: true,
-          versions: true,
+          // Eagerly load the created version and its nested relations
+          // to satisfy the GraphQL query and prevent null errors.
+          versions: {
+            include: {
+              content: { orderBy: { order: 'asc' } },
+              variables: true,
+            }
+          },
         },
       });
 
       return newPrompt as unknown as Prompt;
     },
+
+    // createPrompt: async (
+    //   _parent: any,
+    //   { input }: { input: {
+    //     projectId?: string;
+    //     title: string;
+    //     content?: Block[];
+    //     context?: string;
+    //     description?: string;
+    //     category?: string;
+    //     tags?: string[];
+    //     isPublic?: boolean;
+    //     model?: string;
+    //     variables?: PromptVariable[];
+    //     versions?: any[];
+    //   }},
+    //   context: GraphQLContext
+    // ): Promise<Prompt> => {
+    //   const { content, variables, versions, ...scalarData } = input;
+
+    //   const newPromptData: any = {
+    //     ...scalarData,
+    //     userId: context.user?.id,
+    //   };
+
+    //   if (content) {
+    //     newPromptData.content = {
+    //       create: content.map((block, index) => ({
+    //         type: block.type,
+    //         value: block.value,
+    //         varId: block.varId,
+    //         placeholder: block.placeholder,
+    //         name: block.name,
+    //         order: index,
+    //       }))
+    //     };
+    //   }
+
+    //   if (variables) {
+    //     newPromptData.variables = {
+    //       create: variables.map(v => {
+    //         const { id, ...rest } = v;
+    //         return {
+    //           ...rest,
+    //           source: v.source || undefined,
+    //         };
+    //       })
+    //     };
+    //   }
+      
+    //   if (versions) {
+    //     newPromptData.versions = {
+    //       create: versions.map(version => {
+    //         const { id, content: versionContent, variables: versionVariables, ...restOfVersion } = version;
+            
+    //         const versionCreateData: any = { ...restOfVersion };
+
+    //         if (versionContent) {
+    //           versionCreateData.content = {
+    //             create: versionContent.map((block: Block, index: number) => ({
+    //               type: block.type,
+    //               value: block.value,
+    //               varId: block.varId,
+    //               placeholder: block.placeholder,
+    //               name: block.name,
+    //               order: index,
+    //             }))
+    //           };
+    //         }
+
+    //         if (versionVariables) {
+    //           versionCreateData.variables = {
+    //             create: versionVariables.map((v: PromptVariable) => {
+    //               const { id: varId, ...rest } = v;
+    //               return {
+    //                  ...rest,
+    //                  source: v.source || undefined
+    //               };
+    //             })
+    //           };
+    //         }
+            
+    //         return versionCreateData;
+    //       })
+    //     };
+    //   }
+
+    //   const newPrompt = await prisma.prompt.create({
+    //     data: newPromptData,
+    //     include: {
+    //       content: { orderBy: { order: 'asc' } },
+    //       variables: true,
+    //       versions: true,
+    //     },
+    //   });
+
+    //   return newPrompt as unknown as Prompt;
+    // },
 
        
         updatePrompt: async (
@@ -676,8 +810,6 @@ const promptResolvers = {
 
       return updatedPrompt as unknown as Prompt;
     },
-
-
 
 
 

@@ -11,20 +11,30 @@ import {
 } from "@/graphql/mutations/personal/personalPromptRelatedMutations"
 import { Prompt, Block, PromptVariable } from "@/components/prompt-lab/store"
 
-function cuid(prefix: string = ""): string {
-  const chars = "01234789abcdefghijklmnopqrstuvwxyz"
-  let result = prefix + "c"
-  for (let i = 0; i < 24; i++) {
-    result += chars[Math.floor(Math.random() * chars.length)]
-  }
-  return result
+// This function should ideally be in a shared utility file.
+// It generates temporary keys for client-side state, not database IDs.
+function generateClientKey(prefix: string = ""): string {
+  return `${prefix}${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
 }
+
+// Defining the type for the optional initial data passed to createPrompt
+type PromptCreationData = Partial<{
+  title: string
+  content: Block[]
+  context: string
+  description: string
+  category: string
+  tags: string[]
+  isPublic: boolean
+  model: string
+  variables: Partial<PromptVariable>[]
+}>
 
 interface UsePersonalPromptsListHook {
   prompts: Prompt[]
   loadingList: boolean
   listError: string | null
-  createPrompt: () => Promise<Prompt | undefined>
+  createPrompt: (initialData?: PromptCreationData) => Promise<Prompt | undefined>
   deletePrompt: (id: string) => void
   triggerPromptsListFetch: (forceRefetch?: boolean) => void
   // Search and Pagination
@@ -69,7 +79,7 @@ export function usePersonalPromptsList(selectedId: string | null): UsePersonalPr
         "[usePersonalPromptsList] [Trace: QueryListComplete] GET_MY_PROMPTS_QUERY onCompleted. Data length:",
         data?.getMyPrompts.prompts.length,
         "prompts. Total Count:",
-        data?.getMyPrompts.totalCount
+        data?.getMyPrompts.totalCount,
       )
       setLocalListError(null)
       const mappedPrompts: Prompt[] = data.getMyPrompts.prompts.map((p: any) => ({
@@ -91,7 +101,7 @@ export function usePersonalPromptsList(selectedId: string | null): UsePersonalPr
       setTotalPromptsCount(data.getMyPrompts.totalCount)
       console.log(
         "[usePersonalPromptsList] [Trace: SetPromptsList] Updating prompts state from list. New count:",
-        mappedPrompts.length
+        mappedPrompts.length,
       )
     },
     onError: err => {
@@ -115,14 +125,14 @@ export function usePersonalPromptsList(selectedId: string | null): UsePersonalPr
     (forceRefetch: boolean = false) => {
       if (forceRefetch) {
         console.log(
-          "[usePersonalPromptsList] [Trace: TriggerFetch] Explicitly triggering GET_MY_PROMPTS_QUERY refetch."
+          "[usePersonalPromptsList] [Trace: TriggerFetch] Explicitly triggering GET_MY_PROMPTS_QUERY refetch.",
         )
         setLocalListError(null)
         setPage(1) // Reset to page 1 on a manual full refresh
         apolloRefetchPromptsList()
       }
     },
-    [apolloRefetchPromptsList]
+    [apolloRefetchPromptsList],
   )
 
   const totalPages = useMemo(() => {
@@ -134,7 +144,7 @@ export function usePersonalPromptsList(selectedId: string | null): UsePersonalPr
       if (data?.createPrompt) {
         console.log(
           "[usePersonalPromptsList] [Trace: MutationCreateComplete] CREATE_PROMPT_MUTATION onCompleted. New prompt ID:",
-          data.createPrompt.id
+          data.createPrompt.id,
         )
         apolloRefetchPromptsList()
       }
@@ -150,7 +160,7 @@ export function usePersonalPromptsList(selectedId: string | null): UsePersonalPr
       if (data?.deletePrompt.id) {
         console.log(
           "[usePersonalPromptsList] [Trace: MutationDeleteComplete] DELETE_PROMPT_MUTATION onCompleted. Deleted prompt ID:",
-          data.deletePrompt.id
+          data.deletePrompt.id,
         )
         if (prompts.length === 1 && page > 1) {
           setPage(p => p - 1)
@@ -166,63 +176,84 @@ export function usePersonalPromptsList(selectedId: string | null): UsePersonalPr
     },
   })
 
-  const createPrompt = useCallback(async (): Promise<Prompt | undefined> => {
-    setLocalListError(null)
-    console.log("[usePersonalPromptsList] [Trace: Create] createPrompt: Initiating creation for personal prompt.")
-    try {
-      const defaultPromptInput = {
-        title: "Untitled Prompt",
-        content: [],
-        context: "",
-        description: "",
-        category: "",
-        tags: [],
-        isPublic: false,
-        model: "gpt-4o",
-        projectId: null,
-        variables: [],
-      }
-
-      const { data } = await createPromptMutation({
-        variables: { input: defaultPromptInput },
-      })
-
-      if (data?.createPrompt) {
-        const newPrompt: Prompt = {
-          id: data.createPrompt.id,
-          title: data.createPrompt.title,
-          content:
-            data.createPrompt.content && Array.isArray(data.createPrompt.content)
-              ? (data.createPrompt.content as Block[])
-              : [],
-          context: data.createPrompt.context,
-          description: data.createPrompt.description,
-          tags: data.createPrompt.tags,
-          isPublic: data.createPrompt.isPublic,
-          createdAt: data.createPrompt.createdAt,
-          updatedAt: data.createPrompt.updatedAt,
-          model: data.createPrompt.model,
-          projectId: data.createPrompt.projectId,
-          variables: data.createPrompt.variables.map((v: PromptVariable) => ({
-            ...v,
-            id: v.id || cuid("db-var-"),
-          })),
-          versions: data.createPrompt.versions.map((v: any) => ({
-            ...v,
-            id: v.id || cuid("db-ver-"),
-            content: v.content && Array.isArray(v.content) ? (v.content as Block[]) : [],
-            context: v.context || "",
-            variables: v.variables || [],
-          })),
+  const createPrompt = useCallback(
+    async (initialData?: PromptCreationData): Promise<Prompt | undefined> => {
+      setLocalListError(null)
+      console.log("[usePersonalPromptsList] [Trace: Create] createPrompt: Initiating creation for personal prompt.")
+      try {
+        const defaultPromptInput = {
+          title: "Untitled Prompt",
+          content: [],
+          context: "",
+          description: "",
+          category: "",
+          tags: [],
+          isPublic: false,
+          model: "gpt-4o",
+          projectId: null,
+          variables: [],
         }
-        return newPrompt
+
+        const finalInput = { ...defaultPromptInput, ...initialData }
+
+        // Clean the input and add the required 'order' field to content blocks.
+        const cleanContent =
+          finalInput.content?.map(({ __typename, id, ...block }, index) => ({
+            ...block,
+            order: index, // Add the required 'order' field
+          })) ?? []
+
+        const cleanVariables =
+          finalInput.variables?.map(({ __typename, id, ...variable }) => variable) ?? []
+
+        const { data } = await createPromptMutation({
+          variables: {
+            input: {
+              ...finalInput,
+              content: cleanContent,
+              variables: cleanVariables,
+            },
+          },
+        })
+
+        if (data?.createPrompt) {
+          const newPrompt: Prompt = {
+            id: data.createPrompt.id,
+            title: data.createPrompt.title,
+            content:
+              data.createPrompt.content && Array.isArray(data.createPrompt.content)
+                ? (data.createPrompt.content as Block[])
+                : [],
+            context: data.createPrompt.context,
+            description: data.createPrompt.description,
+            tags: data.createPrompt.tags,
+            isPublic: data.createPrompt.isPublic,
+            createdAt: data.createPrompt.createdAt,
+            updatedAt: data.createPrompt.updatedAt,
+            model: data.createPrompt.model,
+            projectId: data.createPrompt.projectId,
+            variables: data.createPrompt.variables.map((v: PromptVariable) => ({
+              ...v,
+              id: v.id || generateClientKey("db-var-"),
+            })),
+            versions: data.createPrompt.versions.map((v: any) => ({
+              ...v,
+              id: v.id || generateClientKey("db-ver-"),
+              content: v.content && Array.isArray(v.content) ? (v.content as Block[]) : [],
+              context: v.context || "",
+              variables: v.variables || [],
+            })),
+          }
+          return newPrompt
+        }
+      } catch (err: any) {
+        console.error("[usePersonalPromptsList] [Error: CreateGraphQL] Error creating prompt via GraphQL:", err)
+        setLocalListError("Failed to create prompt.")
       }
-    } catch (err: any) {
-      console.error("[usePersonalPromptsList] [Error: CreateGraphQL] Error creating prompt via GraphQL:", err)
-      setLocalListError("Failed to create prompt.")
-    }
-    return undefined
-  }, [createPromptMutation])
+      return undefined
+    },
+    [createPromptMutation],
+  )
 
   const deletePrompt = useCallback(
     (id: string) => {
@@ -234,7 +265,7 @@ export function usePersonalPromptsList(selectedId: string | null): UsePersonalPr
         apolloRefetchPromptsList()
       })
     },
-    [deletePromptMutation, apolloRefetchPromptsList]
+    [deletePromptMutation, apolloRefetchPromptsList],
   )
 
   return {

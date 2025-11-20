@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma"
 import { GraphQLError } from "graphql"
-import { Plan } from "@prisma/client" // Import Plan enum for type safety
+import { Plan, TaskStatus } from "@prisma/client"
 
 interface GraphQLContext {
   prisma: typeof prisma
@@ -17,73 +17,78 @@ export const workspaceResolver = {
       }
       const userId = context.user.id
 
-      // Find the first workspace the user is a member of.
-      // In a multi-workspace context, you'd need a way to specify which one.
       const workspaceMember = await context.prisma.workspaceMember.findFirst({
         where: { userId },
         select: { workspaceId: true },
       })
 
       if (!workspaceMember) {
-        // This case should ideally not happen if a user is logged in,
-        // but it's good practice to handle it.
         return null
+      }
+
+      const includeArgs = {
+        owner: true,
+        subscription: true,
+        members: {
+          include: {
+            user: true,
+          },
+        },
+        projects: {
+          include: {
+            tasks: {
+              select: {
+                status: true,
+              },
+            },
+            _count: {
+              select: {
+                members: true,
+              },
+            },
+          },
+        },
       }
 
       let workspace = await context.prisma.workspace.findUnique({
         where: { id: workspaceMember.workspaceId },
-        include: {
-          owner: true,
-          subscription: true,
-          members: {
-            include: {
-              user: true,
-            },
-          },
-          projects: true,
-        },
+        include: includeArgs,
       })
 
-      // --- SOLUTION: DEFENSIVE CHECK FOR OLD DATA ---
-      // If an old workspace is found without a plan, update it and refetch.
       if (workspace && !workspace.plan) {
         console.log(
           `[getWorkspaceData Resolver] Found old workspace (ID: ${workspace.id}) with null plan. Backfilling...`
         )
         workspace = await context.prisma.workspace.update({
           where: { id: workspace.id },
-          data: { plan: Plan.FREE }, // Set the default plan
-          include: {
-            // Re-include all the necessary data
-            owner: true,
-            subscription: true,
-            members: {
-              include: {
-                user: true,
-              },
-            },
-            projects: true,
-          },
+          data: { plan: Plan.FREE },
+          include: includeArgs,
         })
       }
-      // --- END OF SOLUTION ---
 
-      return workspace
+      if (!workspace) {
+        return null
+      }
+
+      const projectsWithCounts = workspace.projects.map(project => {
+        const { tasks, _count, ...restOfProject } = project
+        return {
+          ...restOfProject,
+          projectMemberCount: _count.members,
+          totalTaskCount: tasks.length,
+          completedTaskCount: tasks.filter(
+            task => task.status === TaskStatus.DONE
+          ).length,
+        }
+      })
+
+      return {
+        ...workspace,
+        projects: projectsWithCounts,
+      }
     },
-
-    // Placeholder for other workspace-related queries you might have
-    // Example:
-    // getWorkspaceDataLookup: async (_: any, { workspaceId }: { workspaceId: string }, context: GraphQLContext) => {
-    //   // ... implementation ...
-    // },
   },
-  Mutation: {
-    // Placeholder for any workspace-specific mutations
-    // Example:
-    // updateWorkspaceSettings: async (_: any, args: any, context: GraphQLContext) => {
-    //   // ... implementation ...
-    // },
-  },
+  Mutation: {},
 }
 
 export default workspaceResolver

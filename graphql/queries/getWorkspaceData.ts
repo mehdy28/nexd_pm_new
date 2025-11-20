@@ -29,7 +29,6 @@ export const GET_WORKSPACE_DATA_QUERY = gql`
         name
         description
         status
-        # Custom fields (resolved by the backend)
         projectMemberCount
         totalTaskCount
         completedTaskCount

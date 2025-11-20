@@ -76,64 +76,6 @@ const personalPromptResolvers = {
   Mutation: {
 
 
-    restorePromptVersion: async (
-      _parent: any,
-      { input }: { input: { promptId: string; versionId: string } }
-    ): Promise<Prompt> => {
-      const prompt = await prisma.prompt.findUnique({
-        where: { id: input.promptId },
-      })
-
-      if (!prompt) {
-        throw new GraphQLError("Prompt not found", { extensions: { code: "NOT_FOUND" } })
-      }
-
-      const versions = (prompt.versions as Version[]) || []
-      const versionToRestore = versions.find(v => v.id === input.versionId)
-
-      if (!versionToRestore) {
-        throw new GraphQLError("Version not found", { extensions: { code: "NOT_FOUND" } })
-      }
-      
-      const { content, context, variables } = versionToRestore;
-
-      const restoredPrompt = await prisma.$transaction(async (tx) => {
-        await tx.prompt.update({
-            where: { id: input.promptId },
-            data: {
-              context: context,
-              variables: variables.map(v => ({ ...v, id: v.id || generateUniqueId() })),
-              updatedAt: new Date(),
-            },
-        });
-
-        await tx.contentBlock.deleteMany({ where: { promptId: input.promptId } });
-        if (content && content.length > 0) {
-            await tx.contentBlock.createMany({
-                data: content.map((block, index) => ({
-                    type: block.type,
-                    value: block.value,
-                    varId: block.varId,
-                    placeholder: block.placeholder,
-                    name: block.name,
-                    promptId: input.promptId,
-                    order: index,
-                }))
-            });
-        }
-        
-        return tx.prompt.findUnique({
-            where: { id: input.promptId },
-            include: { content: { orderBy: { order: 'asc' } } }
-        });
-      });
-
-      if (!restoredPrompt) {
-          throw new Error("Failed to restore prompt.");
-      }
-
-      return restoredPrompt as unknown as Prompt;
-    },
 
     updateVersionDescription: async (
       _parent: any,

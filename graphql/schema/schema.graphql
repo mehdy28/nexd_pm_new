@@ -255,7 +255,7 @@ type Project {
   activities: [Activity!]!
   sprints: [Sprint!]!
   sections: [Section!]!
-  projectMemberCount: Int!
+  projectMemberCount: Int
   totalTaskCount: Int!
   completedTaskCount: Int!
 }
@@ -557,7 +557,7 @@ type ProjectData {
   name: String!
   description: String
   status: ProjectStatus!
-  projectMemberCount: Int!
+  projectMemberCount: Int
   totalTaskCount: Int!
   completedTaskCount: Int!
 }
