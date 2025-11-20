@@ -1,0 +1,371 @@
+[
+    {
+      "id": "pb-1",
+      "type": "heading",
+      "props": {
+        "level": 1
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "Project Brief: [Project Name]",
+          "styles": {}
+        }
+      ]
+    },
+    {
+      "id": "pb-2",
+      "type": "heading",
+      "props": {
+        "level": 2
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "📄 Project Overview",
+          "styles": {}
+        }
+      ]
+    },
+    {
+      "id": "pb-3",
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "[Provide a concise summary of the project. What is it? What business problem does it solve? Who is it for? What is the expected outcome?]",
+          "styles": {
+            "textColor": "gray"
+          }
+        }
+      ]
+    },
+    {
+      "id": "pb-4",
+      "type": "heading",
+      "props": {
+        "level": 2
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "🎯 Goals & Objectives",
+          "styles": {}
+        }
+      ]
+    },
+    {
+      "id": "pb-5",
+      "type": "bulletListItem",
+      "content": [
+        {
+          "type": "text",
+          "text": "Primary Goal: [Describe the single most important, measurable outcome of the project.]",
+          "styles": {
+            "textColor": "gray"
+          }
+        }
+      ]
+    },
+    {
+      "id": "pb-6",
+      "type": "bulletListItem",
+      "content": [
+        {
+          "type": "text",
+          "text": "Secondary Goal: [Describe any other important, quantifiable business outcomes.]",
+          "styles": {
+            "textColor": "gray"
+          }
+        }
+      ]
+    },
+    {
+      "id": "pb-18",
+      "type": "heading",
+      "props": {
+        "level": 2
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "📈 Success Metrics (KPIs)",
+          "styles": {}
+        }
+      ]
+    },
+    {
+      "id": "pb-19",
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "[How will we measure success? List specific, quantifiable metrics.]",
+          "styles": {
+            "textColor": "gray"
+          }
+        }
+      ]
+    },
+    {
+      "id": "pb-20",
+      "type": "bulletListItem",
+      "content": [
+        {
+          "type": "text",
+          "text": "Metric 1: [e.g., Increase user sign-ups by 15% in Q3]",
+          "styles": {
+            "textColor": "gray"
+          }
+        }
+      ]
+    },
+    {
+      "id": "pb-21",
+      "type": "bulletListItem",
+      "content": [
+        {
+          "type": "text",
+          "text": "Metric 2: [e.g., Reduce customer support tickets related to X by 25%]",
+          "styles": {
+            "textColor": "gray"
+          }
+        }
+      ]
+    },
+    {
+      "id": "pb-7",
+      "type": "heading",
+      "props": {
+        "level": 2
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "🔭 Scope",
+          "styles": {}
+        }
+      ]
+    },
+    {
+      "id": "pb-8",
+      "type": "heading",
+      "props": {
+        "level": 3
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "In Scope",
+          "styles": {}
+        }
+      ]
+    },
+    {
+      "id": "pb-9",
+      "type": "bulletListItem",
+      "content": [
+        {
+          "type": "text",
+          "text": "[Feature or deliverable that is included.]",
+          "styles": {
+            "textColor": "gray"
+          }
+        }
+      ]
+    },
+    {
+      "id": "pb-10",
+      "type": "heading",
+      "props": {
+        "level": 3
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "Out of Scope",
+          "styles": {}
+        }
+      ]
+    },
+    {
+      "id": "pb-11",
+      "type": "bulletListItem",
+      "content": [
+        {
+          "type": "text",
+          "text": "[Specifically state what will not be included to avoid scope creep and manage expectations.]",
+          "styles": {
+            "textColor": "gray"
+          }
+        }
+      ]
+    },
+    {
+      "id": "pb-12",
+      "type": "heading",
+      "props": {
+        "level": 2
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "🗓️ Timeline & Milestones",
+          "styles": {}
+        }
+      ]
+    },
+    {
+      "id": "pb-13",
+      "type": "table",
+      "content": {
+        "type": "tableContent",
+        "rows": [
+          {
+            "cells": [
+              "Milestone",
+              "Target Date",
+              "Key Deliverables"
+            ]
+          },
+          {
+            "cells": [
+              "[Project Kickoff]",
+              "[YYYY-MM-DD]",
+              "Finalized Brief"
+            ]
+          },
+          {
+            "cells": [
+              "[Design Phase Complete]",
+              "[YYYY-MM-DD]",
+              "High-fidelity mockups"
+            ]
+          },
+          {
+            "cells": [
+              "[Development Complete]",
+              "[YYYY-MM-DD]",
+              "Feature-complete build"
+            ]
+          },
+          {
+            "cells": [
+              "[Launch]",
+              "[YYYY-MM-DD]",
+              "Product live"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "pb-14",
+      "type": "heading",
+      "props": {
+        "level": 2
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "👥 Key Stakeholders",
+          "styles": {}
+        }
+      ]
+    },
+    {
+      "id": "pb-15",
+      "type": "table",
+      "content": {
+        "type": "tableContent",
+        "rows": [
+          {
+            "cells": [
+              "Name",
+              "Role",
+              "Responsibilities",
+              "Contact"
+            ]
+          },
+          {
+            "cells": [
+              "[Name]",
+              "[Project Sponsor]",
+              "Approvals, Budget",
+              "[email@example.com]"
+            ]
+          },
+          {
+            "cells": [
+              "[Name]",
+              "[Project Manager]",
+              "Day-to-day execution",
+              "[email@example.com]"
+            ]
+          },
+          {
+            "cells": [
+              "[Name]",
+              "[Lead Designer]",
+              "UX/UI Design",
+              "[email@example.com]"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "pb-22",
+      "type": "heading",
+      "props": {
+        "level": 2
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "🔗 Dependencies",
+          "styles": {}
+        }
+      ]
+    },
+    {
+      "id": "pb-23",
+      "type": "bulletListItem",
+      "content": [
+        {
+          "type": "text",
+          "text": "[List any dependencies on other teams, projects, or external factors.]",
+          "styles": {
+            "textColor": "gray"
+          }
+        }
+      ]
+    },
+    {
+      "id": "pb-16",
+      "type": "heading",
+      "props": {
+        "level": 2
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "⚠️ Risks & Mitigation",
+          "styles": {}
+        }
+      ]
+    },
+    {
+      "id": "pb-17",
+      "type": "bulletListItem",
+      "content": [
+        {
+          "type": "text",
+          "text": "[Risk 1]: [Describe a potential risk.] Mitigation: [Describe the plan to address it.]",
+          "styles": {
+            "textColor": "gray"
+          }
+        }
+      ]
+    }
+  ]

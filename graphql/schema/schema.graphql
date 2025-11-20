@@ -143,6 +143,19 @@ enum InvitationStatus {
 }
 
 # ----------------------------------
+# NEW ENTERPRISE ENUMS
+# ----------------------------------
+enum AuditLogAction {
+  MEMBER_INVITED
+  MEMBER_REMOVED
+  MEMBER_ROLE_CHANGED
+  PROJECT_CREATED
+  PROJECT_DELETED
+  SUBSCRIPTION_CHANGED
+  WORKSPACE_SETTINGS_UPDATED
+}
+
+# ----------------------------------
 # Models
 # ----------------------------------
 
@@ -172,6 +185,7 @@ type User {
   mentions: [Mention]
   conversations: [Conversation]
   tickets: [Ticket]
+  notificationSettings: UserNotificationSettings
 }
 
 type Workspace {
@@ -373,6 +387,7 @@ type Document {
   projectId: ID
   project: Project
   personalUser: User
+  comments: [Comment!]!
 }
 
 type Wireframe {
@@ -391,6 +406,7 @@ type Wireframe {
 type WireframeListItem {
   id: ID!
   title: String!
+  data: JSON!
   updatedAt: DateTime!
   thumbnail: String
   projectId: ID
@@ -475,8 +491,8 @@ type Version {
 type Prompt {
   id: ID!
   title: String!
-  content: [ContentBlock!]!
-  context: String!
+  content: [ContentBlock!]
+  context: String
   description: String
   category: String
   tags: [String!]!
@@ -490,10 +506,10 @@ type Prompt {
   user: User
   wireframeId: ID
   wireframe: Wireframe
-  comments: [Comment!]!
-  activities: [Activity!]!
-  variables: [PromptVariable!]!
-  versions: [Version!]!
+  comments: [Comment!]
+  activities: [Activity!]
+  variables: [PromptVariable!]
+  versions: [Version!]
 }
 
 type TaskDependency {
@@ -513,6 +529,10 @@ type WorkspaceData {
   workFields: [String!]
   members: [WorkspaceMemberData!]!
   projects: [ProjectData!]!
+  # --- ADDED FIELDS ---
+  plan: Plan!
+  owner: UserPartial!
+  subscription: Subscription
 }
 
 type WorkspaceMemberData {
@@ -872,6 +892,30 @@ type TypingUser {
 }
 
 # ----------------------------------
+# NEW ENTERPRISE / ACCOUNT TYPES
+# ----------------------------------
+type UserNotificationSettings {
+  atMention: Boolean!
+  taskAssigned: Boolean!
+  projectUpdates: Boolean!
+  productNews: Boolean!
+}
+
+type AuditLog {
+  id: ID!
+  action: AuditLogAction!
+  data: JSON
+  createdAt: DateTime!
+  user: UserLookupPartial!
+  workspaceId: ID!
+}
+
+type AuditLogResponse {
+  logs: [AuditLog!]!
+  totalCount: Int!
+}
+
+# ----------------------------------
 # Inputs
 # ----------------------------------
 
@@ -1026,11 +1070,13 @@ input CreateDocumentInput {
   title: String!
   content: JSON
   dataUrl: String
+  type: String!
 }
 input CreatePersonalDocumentInput {
   title: String!
   content: JSON
   dataUrl: String
+  type: String!
 }
 input UpdateDocumentInput {
   id: ID!
@@ -1218,8 +1264,6 @@ input ReorderProjectSectionInput {
   order: Int!
 }
 
-
-
 input UpdateProjectInput {
   id: ID!
   name: String
@@ -1234,6 +1278,15 @@ input UpdatePromptAiEnhancedContentInput {
   content: String!
 }
 
+# ----------------------------------
+# NEW ACCOUNT INPUTS
+# ----------------------------------
+input UpdateNotificationSettingsInput {
+  atMention: Boolean
+  taskAssigned: Boolean
+  projectUpdates: Boolean
+  productNews: Boolean
+}
 
 # ----------------------------------
 # Root Queries
@@ -1272,6 +1325,7 @@ type Query {
   getMyWireframes(search: String, skip: Int, take: Int): WireframesListResponse!
   getMyPrompts(skip: Int, take: Int, q: String): PromptsListResponse!
   getMyDashboardData: UserDashboardData!
+  getMyNotificationSettings: UserNotificationSettings
 
   # AI/Prompt
   resolvePromptVariable(projectId: ID, workspaceId: ID, variableSource: JSON!, promptVariableId: ID): String
@@ -1279,13 +1333,16 @@ type Query {
   # Workspace Members
   getWorkspaceMembers(workspaceId: ID!): [WorkspaceMemberDetails!]!
 
-  # NEW: Workspace Invitations
+  # Workspace Invitations
   getWorkspaceInvitations(workspaceId: ID!): [WorkspaceInvitation!]!
 
   # Messaging
   getCommunicationList(workspaceId: ID!): [CommunicationListItem!]!
   getConversation(id: ID!): Conversation
   getTicket(id: ID!): Ticket
+
+  # Enterprise
+  getWorkspaceAuditLogs(workspaceId: ID!, skip: Int, take: Int): AuditLogResponse!
 }
 
 # ----------------------------------
@@ -1304,6 +1361,8 @@ type Mutation {
     teamSize: String
     workFields: [String!]
   ): Workspace!
+  updateMyProfile(firstName: String, lastName: String, avatar: String): User!
+  updateMyNotificationSettings(input: UpdateNotificationSettingsInput!): UserNotificationSettings!
 
   # Project
   createProject(workspaceId: ID!, name: String!, description: String): Project!
@@ -1321,7 +1380,7 @@ type Mutation {
   createPersonalSection(name: String!, order: Int): PersonalSection!
   updatePersonalSection(id: ID!, name: String, order: Int): PersonalSection!
   deletePersonalSection(id: ID!, options: DeleteSectionOptions): PersonalSection!
-  reorderPersonalSections(sections: [ReorderPersonalSectionInput!]!): [PersonalSection!]!
+  reorderPersonalSections(sections: [ReorderProjectSectionInput!]!): [PersonalSection!]!
 
 
   # Project Tasks
@@ -1359,12 +1418,11 @@ type Mutation {
 
   # Prompts (Project & Personal)
   createPrompt(input: CreatePromptInput!): Prompt!
-  updatePrompt(input: UpdatePromptInput!): Prompt!
+  updatePrompt(input: UpdatePromptInput!): Prompt
   deletePrompt(id: ID!): Prompt!
   snapshotPrompt(input: SnapshotPromptInput!): Prompt!
   restorePromptVersion(input: RestorePromptVersionInput!): Prompt!
   updateVersionDescription(input: UpdateVersionDescriptionInput!): Prompt!
-
 
   # Prompts (Ai)
   createPromptFromWireframe(input: CreatePromptFromWireframeInput!): Prompt!
@@ -1373,6 +1431,8 @@ type Mutation {
   # Comments
   createTaskComment(taskId: ID!, content: String!): Comment!
   deleteTaskComment(id: ID!): Comment!
+  createDocumentComment(documentId: ID!, content: String!): Comment!
+  deleteDocumentComment(id: ID!): Comment!
 
   # Attachments
   getAttachmentUploadSignature(taskId: ID!): UploadSignatureResponse!
@@ -1389,7 +1449,7 @@ type Mutation {
   updateTicketStatus(ticketId: ID!, status: TicketStatus!): Ticket!
   userIsTyping(conversationId: ID!): Boolean
 
-  # --- NEW MEMBER MANAGEMENT MUTATIONS ---
+  # --- MEMBER MANAGEMENT MUTATIONS ---
   inviteWorkspaceMembers(workspaceId: ID!, invitations: [WorkspaceInvitationInput!]!): [WorkspaceInvitation!]!
   revokeWorkspaceInvitation(invitationId: ID!): WorkspaceInvitation!
   resendWorkspaceInvitation(invitationId: ID!): WorkspaceInvitation!
@@ -1400,11 +1460,8 @@ type Mutation {
   updateProjectMemberRole(memberId: ID!, role: ProjectRole!): ProjectMemberDetails!
   removeProjectMembers(memberIds: [ID!]!): [ProjectMemberDetails!]!
 
-
   # Ai Prompt
   generatePromptFromWireframe(input: GeneratePromptFromWireframeInput!): String!
-
-
 }
 
 # ----------------------------------

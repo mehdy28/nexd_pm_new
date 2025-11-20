@@ -1,0 +1,391 @@
+[
+    {
+      "id": "pk-1",
+      "type": "heading",
+      "props": {
+        "level": 1
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "Project Kickoff: [Project Name]",
+          "styles": {}
+        }
+      ]
+    },
+    {
+      "id": "pk-2",
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "Date: ",
+          "styles": {
+            "bold": true
+          }
+        },
+        {
+          "type": "text",
+          "text": "[YYYY-MM-DD]",
+          "styles": {
+            "textColor": "gray"
+          }
+        }
+      ]
+    },
+    {
+      "id": "pk-3",
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "Attendees: ",
+          "styles": {
+            "bold": true
+          }
+        },
+        {
+          "type": "text",
+          "text": "[List of participants and their roles]",
+          "styles": {
+            "textColor": "gray"
+          }
+        }
+      ]
+    },
+    {
+      "id": "pk-4",
+      "type": "heading",
+      "props": {
+        "level": 2
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "👋 Introductions",
+          "styles": {}
+        }
+      ]
+    },
+    {
+      "id": "pk-5",
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "[Round-table introductions: name, role on this project, and one hope for the project's outcome.]",
+          "styles": {
+            "textColor": "gray"
+          }
+        }
+      ]
+    },
+    {
+      "id": "pk-6",
+      "type": "heading",
+      "props": {
+        "level": 2
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "🚀 Project Vision & Background",
+          "styles": {}
+        }
+      ]
+    },
+    {
+      "id": "pk-7",
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "[Explain the 'why' behind the project. What problem are we solving? What is the business context? What is the desired future state?]",
+          "styles": {
+            "textColor": "gray"
+          }
+        }
+      ]
+    },
+    {
+      "id": "pk-8",
+      "type": "heading",
+      "props": {
+        "level": 2
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "🎯 Goals & Objectives (SMART)",
+          "styles": {}
+        }
+      ]
+    },
+    {
+      "id": "pk-9",
+      "type": "bulletListItem",
+      "content": [
+        {
+          "type": "text",
+          "text": "Specific: [Clearly define the goal, avoiding ambiguity.]",
+          "styles": {
+            "textColor": "gray"
+          }
+        }
+      ]
+    },
+    {
+      "id": "pk-10",
+      "type": "bulletListItem",
+      "content": [
+        {
+          "type": "text",
+          "text": "Measurable: [How will we measure success? What are the key metrics?]",
+          "styles": {
+            "textColor": "gray"
+          }
+        }
+      ]
+    },
+    {
+      "id": "pk-11",
+      "type": "bulletListItem",
+      "content": [
+        {
+          "type": "text",
+          "text": "Achievable: [Is this goal realistic with our resources and timeline?]",
+          "styles": {
+            "textColor": "gray"
+          }
+        }
+      ]
+    },
+    {
+      "id": "pk-12",
+      "type": "bulletListItem",
+      "content": [
+        {
+          "type": "text",
+          "text": "Relevant: [How does this align with broader company/department objectives?]",
+          "styles": {
+            "textColor": "gray"
+          }
+        }
+      ]
+    },
+    {
+      "id": "pk-13",
+      "type": "bulletListItem",
+      "content": [
+        {
+          "type": "text",
+          "text": "Time-bound: [What is the target completion date or timeframe?]",
+          "styles": {
+            "textColor": "gray"
+          }
+        }
+      ]
+    },
+    {
+      "id": "pk-14",
+      "type": "heading",
+      "props": {
+        "level": 2
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "✅ Roles & Responsibilities",
+          "styles": {}
+        }
+      ]
+    },
+    {
+      "id": "pk-15",
+      "type": "table",
+      "content": {
+        "type": "tableContent",
+        "rows": [
+          {
+            "cells": [
+              "Role",
+              "Name",
+              "Key Responsibilities"
+            ]
+          },
+          {
+            "cells": [
+              "Project Sponsor",
+              "",
+              "Champion, Final Approver"
+            ]
+          },
+          {
+            "cells": [
+              "Project Manager",
+              "",
+              "Planning, Execution, Communication"
+            ]
+          },
+          {
+            "cells": [
+              "Team Lead",
+              "",
+              "Technical Guidance, Team Management"
+            ]
+          },
+          {
+            "cells": [
+              "Subject Matter Expert",
+              "",
+              "Domain Knowledge, Requirements"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "pk-18",
+      "type": "heading",
+      "props": {
+        "level": 2
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "💬 Communication Plan",
+          "styles": {}
+        }
+      ]
+    },
+    {
+      "id": "pk-19",
+      "type": "bulletListItem",
+      "content": [
+        {
+          "type": "text",
+          "text": "Daily Standups: [Time, Location/Link]",
+          "styles": {
+            "textColor": "gray"
+          }
+        }
+      ]
+    },
+    {
+      "id": "pk-20",
+      "type": "bulletListItem",
+      "content": [
+        {
+          "type": "text",
+          "text": "Weekly Syncs: [Day, Time, Purpose]",
+          "styles": {
+            "textColor": "gray"
+          }
+        }
+      ]
+    },
+    {
+      "id": "pk-21",
+      "type": "bulletListItem",
+      "content": [
+        {
+          "type": "text",
+          "text": "Status Reports: [Frequency, Audience]",
+          "styles": {
+            "textColor": "gray"
+          }
+        }
+      ]
+    },
+    {
+      "id": "pk-22",
+      "type": "bulletListItem",
+      "content": [
+        {
+          "type": "text",
+          "text": "Primary Channel: [e.g., Slack #project-name]",
+          "styles": {
+            "textColor": "gray"
+          }
+        }
+      ]
+    },
+    {
+      "id": "pk-23",
+      "type": "heading",
+      "props": {
+        "level": 2
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "❓ Open Questions & Discussion",
+          "styles": {}
+        }
+      ]
+    },
+    {
+      "id": "pk-24",
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "[Capture any questions raised during the meeting and the answers or follow-up actions required.]",
+          "styles": {
+            "textColor": "gray"
+          }
+        }
+      ]
+    },
+    {
+      "id": "pk-16",
+      "type": "heading",
+      "props": {
+        "level": 2
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "➡️ Next Steps & Action Items",
+          "styles": {}
+        }
+      ]
+    },
+    {
+      "id": "pk-17",
+      "type": "table",
+      "content": {
+        "type": "tableContent",
+        "rows": [
+          {
+            "cells": [
+              "Action Item",
+              "Owner",
+              "Due Date"
+            ]
+          },
+          {
+            "cells": [
+              "[Schedule first team sync]",
+              "",
+              "[YYYY-MM-DD]"
+            ]
+          },
+          {
+            "cells": [
+              "[Finalize and circulate project brief]",
+              "",
+              "[YYYY-MM-DD]"
+            ]
+          },
+          {
+            "cells": [
+              "[Set up project management board (Jira/Trello)]",
+              "",
+              "[YYYY-MM-DD]"
+            ]
+          }
+        ]
+      }
+    }
+  ]

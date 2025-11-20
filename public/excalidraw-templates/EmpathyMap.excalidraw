@@ -1,0 +1,373 @@
+{
+  "type": "excalidraw",
+  "version": 2,
+  "source": "https://excalidraw.com",
+  "elements": [
+    {
+      "id": "main_title",
+      "type": "text",
+      "x": 40,
+      "y": 40,
+      "width": 550,
+      "height": 45,
+      "strokeColor": "#1e2c3b",
+      "text": "Empathy Map Canvas",
+      "fontSize": 36,
+      "fontFamily": 1
+    },
+    {
+      "id": "main_subtitle",
+      "type": "text",
+      "x": 40,
+      "y": 95,
+      "width": 700,
+      "height": 25,
+      "strokeColor": "#868e96",
+      "text": "Step into your user's shoes to build a shared understanding of their experience.",
+      "fontSize": 20,
+      "fontFamily": 1
+    },
+    {
+      "id": "main_container",
+      "type": "rectangle",
+      "x": 40,
+      "y": 160,
+      "width": 1600,
+      "height": 600,
+      "strokeColor": "#dee2e6",
+      "backgroundColor": "#f8f9fa"
+    },
+    {
+      "id": "vertical_divider",
+      "type": "line",
+      "x": 840,
+      "y": 160,
+      "width": 0,
+      "height": 600,
+      "strokeColor": "#dee2e6",
+      "strokeWidth": 2,
+      "points": [
+        [0, 0],
+        [0, 600]
+      ]
+    },
+    {
+      "id": "horizontal_divider",
+      "type": "line",
+      "x": 40,
+      "y": 460,
+      "width": 1600,
+      "height": 0,
+      "strokeColor": "#dee2e6",
+      "strokeWidth": 2,
+      "points": [
+        [0, 0],
+        [1600, 0]
+      ]
+    },
+    {
+      "id": "persona_circle",
+      "type": "ellipse",
+      "x": 740,
+      "y": 360,
+      "width": 200,
+      "height": 200,
+      "strokeColor": "#ced4da",
+      "backgroundColor": "#ffffff"
+    },
+    {
+      "id": "persona_text_1",
+      "type": "text",
+      "x": 765,
+      "y": 420,
+      "width": 150,
+      "height": 60,
+      "strokeColor": "#495057",
+      "text": "USER\nPERSONA",
+      "fontSize": 24,
+      "textAlign": "center",
+      "fontWeight": "bold"
+    },
+    {
+      "id": "says_title",
+      "type": "text",
+      "x": 60,
+      "y": 180,
+      "width": 100,
+      "height": 30,
+      "strokeColor": "#1864ab",
+      "text": "SAYS",
+      "fontSize": 24,
+      "fontWeight": "bold"
+    },
+    {
+      "id": "says_prompt",
+      "type": "text",
+      "x": 60,
+      "y": 215,
+      "width": 600,
+      "height": 20,
+      "strokeColor": "#868e96",
+      "text": "What are direct quotes you've heard from the user in interviews or feedback?",
+      "fontSize": 16
+    },
+    {
+      "id": "says_example",
+      "type": "rectangle",
+      "x": 70,
+      "y": 250,
+      "width": 240,
+      "height": 80,
+      "strokeColor": "#a5d8ff",
+      "backgroundColor": "#e7f5ff",
+      "roughness": 1
+    },
+    {
+      "id": "says_example_text",
+      "type": "text",
+      "x": 80,
+      "y": 260,
+      "width": 220,
+      "height": 60,
+      "strokeColor": "#343a40",
+      "text": "\"I need a simple way to see all my deadlines at a glance.\"",
+      "fontSize": 16,
+      "textAlign": "center",
+      "verticalAlign": "middle"
+    },
+    {
+      "id": "thinks_title",
+      "type": "text",
+      "x": 860,
+      "y": 180,
+      "width": 120,
+      "height": 30,
+      "strokeColor": "#fab005",
+      "text": "THINKS",
+      "fontSize": 24,
+      "fontWeight": "bold"
+    },
+    {
+      "id": "thinks_prompt",
+      "type": "text",
+      "x": 860,
+      "y": 215,
+      "width": 700,
+      "height": 20,
+      "strokeColor": "#868e96",
+      "text": "What's going on in their mind? What are their worries, motivations, and beliefs?",
+      "fontSize": 16
+    },
+    {
+      "id": "thinks_example",
+      "type": "rectangle",
+      "x": 870,
+      "y": 250,
+      "width": 240,
+      "height": 80,
+      "strokeColor": "#ffd43b",
+      "backgroundColor": "#fff9db",
+      "roughness": 1
+    },
+    {
+      "id": "thinks_example_text",
+      "type": "text",
+      "x": 880,
+      "y": 260,
+      "width": 220,
+      "height": 60,
+      "strokeColor": "#343a40",
+      "text": "\"I hope I don't look incompetent by missing this deadline.\"",
+      "fontSize": 16,
+      "textAlign": "center",
+      "verticalAlign": "middle"
+    },
+    {
+      "id": "does_title",
+      "type": "text",
+      "x": 60,
+      "y": 480,
+      "width": 100,
+      "height": 30,
+      "strokeColor": "#37b24d",
+      "text": "DOES",
+      "fontSize": 24,
+      "fontWeight": "bold"
+    },
+    {
+      "id": "does_prompt",
+      "type": "text",
+      "x": 60,
+      "y": 515,
+      "width": 600,
+      "height": 20,
+      "strokeColor": "#868e96",
+      "text": "What actions and behaviors have you observed? What is their routine?",
+      "fontSize": 16
+    },
+    {
+      "id": "does_example",
+      "type": "rectangle",
+      "x": 70,
+      "y": 550,
+      "width": 240,
+      "height": 80,
+      "strokeColor": "#b2f2bb",
+      "backgroundColor": "#e6fcf5",
+      "roughness": 1
+    },
+    {
+      "id": "does_example_text",
+      "type": "text",
+      "x": 80,
+      "y": 560,
+      "width": 220,
+      "height": 60,
+      "strokeColor": "#343a40",
+      "text": "Juggles multiple spreadsheets and documents to track tasks.",
+      "fontSize": 16,
+      "textAlign": "center",
+      "verticalAlign": "middle"
+    },
+    {
+      "id": "feels_title",
+      "type": "text",
+      "x": 860,
+      "y": 480,
+      "width": 100,
+      "height": 30,
+      "strokeColor": "#c92a2a",
+      "text": "FEELS",
+      "fontSize": 24,
+      "fontWeight": "bold"
+    },
+    {
+      "id": "feels_prompt",
+      "type": "text",
+      "x": 860,
+      "y": 515,
+      "width": 600,
+      "height": 20,
+      "strokeColor": "#868e96",
+      "text": "What is their emotional state? What makes them feel good or bad?",
+      "fontSize": 16
+    },
+    {
+      "id": "feels_example",
+      "type": "rectangle",
+      "x": 870,
+      "y": 550,
+      "width": 240,
+      "height": 80,
+      "strokeColor": "#ffc9c9",
+      "backgroundColor": "#fff5f5",
+      "roughness": 1
+    },
+    {
+      "id": "feels_example_text",
+      "type": "text",
+      "x": 880,
+      "y": 560,
+      "width": 220,
+      "height": 60,
+      "strokeColor": "#343a40",
+      "text": "Overwhelmed by the amount of information to track. Stressed.",
+      "fontSize": 16,
+      "textAlign": "center",
+      "verticalAlign": "middle"
+    },
+    {
+      "id": "pains_container",
+      "type": "rectangle",
+      "x": 40,
+      "y": 780,
+      "width": 790,
+      "height": 200,
+      "strokeColor": "#ffc9c9",
+      "backgroundColor": "#fff5f5"
+    },
+    {
+      "id": "pains_title",
+      "type": "text",
+      "x": 60,
+      "y": 800,
+      "width": 100,
+      "height": 30,
+      "strokeColor": "#c92a2a",
+      "text": "PAINS",
+      "fontSize": 24,
+      "fontWeight": "bold"
+    },
+    {
+      "id": "pains_prompt",
+      "type": "text",
+      "x": 60,
+      "y": 835,
+      "width": 400,
+      "height": 20,
+      "strokeColor": "#868e96",
+      "text": "What are their fears, frustrations, and obstacles?",
+      "fontSize": 16
+    },
+    {
+      "id": "pains_example",
+      "type": "text",
+      "x": 70,
+      "y": 870,
+      "width": 200,
+      "height": 80,
+      "strokeColor": "#343a40",
+      "text": "• Fear of missing a critical deadline\n• Wasting time switching contexts\n• Lack of visibility for stakeholders",
+      "fontSize": 16
+    },
+    {
+      "id": "gains_container",
+      "type": "rectangle",
+      "x": 850,
+      "y": 780,
+      "width": 790,
+      "height": 200,
+      "strokeColor": "#b2f2bb",
+      "backgroundColor": "#e6fcf5"
+    },
+    {
+      "id": "gains_title",
+      "type": "text",
+      "x": 870,
+      "y": 800,
+      "width": 100,
+      "height": 30,
+      "strokeColor": "#37b24d",
+      "text": "GAINS",
+      "fontSize": 24,
+      "fontWeight": "bold"
+    },
+    {
+      "id": "gains_prompt",
+      "type": "text",
+      "x": 870,
+      "y": 835,
+      "width": 400,
+      "height": 20,
+      "strokeColor": "#868e96",
+      "text": "What are their wants, needs, and measures of success?",
+      "fontSize": 16
+    },
+    {
+      "id": "gains_example",
+      "type": "text",
+      "x": 880,
+      "y": 870,
+      "width": 240,
+      "height": 80,
+      "strokeColor": "#343a40",
+      "text": "• A single source of truth for projects\n• Feeling in control and organized\n• Easily sharing progress with others",
+      "fontSize": 16
+    }
+  ],
+  "appState": {
+    "gridSize": 20,
+    "viewBackgroundColor": "#ffffff"
+  },
+  "files": {}
+}

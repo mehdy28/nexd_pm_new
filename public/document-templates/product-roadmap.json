@@ -1,0 +1,252 @@
+[
+    {
+      "id": "pr-1",
+      "type": "heading",
+      "props": {
+        "level": 1
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "Product Roadmap: [Product Name]",
+          "styles": {}
+        }
+      ]
+    },
+    {
+      "id": "pr-10",
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "Disclaimer: This roadmap is a living document that outlines our current strategic direction. It is not a commitment to specific features or timelines and is subject to change based on evolving priorities and customer feedback.",
+          "styles": {
+            "textColor": "gray",
+            "italic": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "pr-2",
+      "type": "heading",
+      "props": {
+        "level": 2
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "Vision & Strategy",
+          "styles": {}
+        }
+      ]
+    },
+    {
+      "id": "pr-3",
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "[Summarize the high-level product vision and the strategic goals this roadmap aims to achieve over the next 6-12 months. What is our North Star?]",
+          "styles": {
+            "textColor": "gray"
+          }
+        }
+      ]
+    },
+    {
+      "id": "pr-4",
+      "type": "heading",
+      "props": {
+        "level": 2
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "Now (Current Quarter: [e.g., Q1 2024])",
+          "styles": {}
+        }
+      ]
+    },
+    {
+      "id": "pr-5",
+      "type": "bulletListItem",
+      "content": [
+        {
+          "type": "text",
+          "text": "Theme: [e.g., User Onboarding & Activation]",
+          "styles": {
+            "bold": true
+          }
+        }
+      ],
+      "children": [
+        {
+          "id": "pr-5-child-1",
+          "type": "bulletListItem",
+          "content": [
+            {
+              "type": "text",
+              "text": "Initiative: [e.g., Redesign signup flow to reduce friction]",
+              "styles": {}
+            }
+          ]
+        },
+        {
+          "id": "pr-5-child-2",
+          "type": "bulletListItem",
+          "content": [
+            {
+              "type": "text",
+              "text": "Initiative: [e.g., Implement an in-app onboarding checklist]",
+              "styles": {}
+            }
+          ]
+        },
+        {
+          "id": "pr-5-child-3",
+          "type": "bulletListItem",
+          "content": [
+            {
+              "type": "text",
+              "text": "Key Metrics: [e.g., Activation Rate, Time-to-Value]",
+              "styles": {
+                "italic": true,
+                "textColor": "gray"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "pr-6",
+      "type": "heading",
+      "props": {
+        "level": 2
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "Next (Next Quarter: [e.g., Q2 2024])",
+          "styles": {}
+        }
+      ]
+    },
+    {
+      "id": "pr-7",
+      "type": "bulletListItem",
+      "content": [
+        {
+          "type": "text",
+          "text": "Theme: [e.g., Team Collaboration Features]",
+          "styles": {
+            "bold": true
+          }
+        }
+      ],
+      "children": [
+        {
+          "id": "pr-7-child-1",
+          "type": "bulletListItem",
+          "content": [
+            {
+              "type": "text",
+              "text": "Initiative: [e.g., Implement real-time document editing and comments]",
+              "styles": {}
+            }
+          ]
+        },
+        {
+          "id": "pr-7-child-2",
+          "type": "bulletListItem",
+          "content": [
+            {
+              "type": "text",
+              "text": "Initiative: [e.g., Introduce user roles and permissions]",
+              "styles": {}
+            }
+          ]
+        },
+        {
+          "id": "pr-7-child-3",
+          "type": "bulletListItem",
+          "content": [
+            {
+              "type": "text",
+              "text": "Key Metrics: [e.g., Weekly Active Users, Feature Adoption Rate]",
+              "styles": {
+                "italic": true,
+                "textColor": "gray"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "pr-8",
+      "type": "heading",
+      "props": {
+        "level": 2
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "Later (Future Quarters)",
+          "styles": {}
+        }
+      ]
+    },
+    {
+      "id": "pr-9",
+      "type": "bulletListItem",
+      "content": [
+        {
+          "type": "text",
+          "text": "Theme: [e.g., Enterprise Readiness & Integrations]",
+          "styles": {
+            "bold": true
+          }
+        }
+      ],
+      "children": [
+        {
+          "id": "pr-9-child-1",
+          "type": "bulletListItem",
+          "content": [
+            {
+              "type": "text",
+              "text": "Initiative: [e.g., SSO Integration (SAML, OAuth)]",
+              "styles": {}
+            }
+          ]
+        },
+        {
+          "id": "pr-9-child-2",
+          "type": "bulletListItem",
+          "content": [
+            {
+              "type": "text",
+              "text": "Initiative: [e.g., Build public API and developer documentation]",
+              "styles": {}
+            }
+          ]
+        },
+        {
+          "id": "pr-9-child-3",
+          "type": "bulletListItem",
+          "content": [
+            {
+              "type": "text",
+              "text": "Key Metrics: [e.g., Number of Enterprise Deals, API Usage]",
+              "styles": {
+                "italic": true,
+                "textColor": "gray"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]

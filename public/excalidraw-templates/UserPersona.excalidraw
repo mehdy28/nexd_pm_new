@@ -1,0 +1,272 @@
+{
+  "type": "excalidraw",
+  "version": 2,
+  "source": "https://excalidraw.com",
+  "elements": [
+    {
+      "id": "main_title",
+      "type": "text",
+      "x": 40,
+      "y": 40,
+      "width": 400,
+      "height": 45,
+      "strokeColor": "#1e2c3b",
+      "text": "User Persona",
+      "fontSize": 36,
+      "fontFamily": 1
+    },
+    {
+      "id": "main_subtitle",
+      "type": "text",
+      "x": 40,
+      "y": 95,
+      "width": 800,
+      "height": 25,
+      "strokeColor": "#868e96",
+      "text": "A fictional character representing a key user type to guide design and development.",
+      "fontSize": 20,
+      "fontFamily": 1
+    },
+    {
+      "id": "main_container",
+      "type": "rectangle",
+      "x": 40,
+      "y": 160,
+      "width": 1400,
+      "height": 800,
+      "strokeColor": "#dee2e6",
+      "backgroundColor": "#f8f9fa"
+    },
+    {
+      "id": "photo_placeholder",
+      "type": "ellipse",
+      "x": 80,
+      "y": 200,
+      "width": 200,
+      "height": 200,
+      "strokeColor": "#ced4da",
+      "backgroundColor": "#e9ecef",
+      "strokeStyle": "dashed"
+    },
+    {
+      "id": "photo_placeholder_text",
+      "type": "text",
+      "x": 130,
+      "y": 285,
+      "text": "Photo",
+      "fontSize": 20,
+      "strokeColor": "#868e96"
+    },
+    {
+      "id": "persona_name",
+      "type": "text",
+      "x": 80,
+      "y": 420,
+      "width": 400,
+      "height": 35,
+      "text": "Sarah the Startup Founder",
+      "fontSize": 28,
+      "fontWeight": "bold"
+    },
+    {
+      "id": "persona_quote",
+      "type": "text",
+      "x": 80,
+      "y": 470,
+      "width": 450,
+      "height": 50,
+      "text": "\"I need to move fast and keep my team aligned without getting bogged down in complicated tools.\"",
+      "fontSize": 20,
+      "fontFamily": 2,
+      "strokeStyle": "italic",
+      "strokeColor": "#495057"
+    },
+    {
+      "id": "bio_container",
+      "type": "rectangle",
+      "x": 80,
+      "y": 550,
+      "width": 450,
+      "height": 180,
+      "backgroundColor": "#ffffff",
+      "strokeColor": "#dee2e6"
+    },
+    {
+      "id": "bio_title",
+      "type": "text",
+      "x": 100,
+      "y": 570,
+      "text": "Bio & Background",
+      "fontSize": 20,
+      "fontWeight": "bold"
+    },
+    {
+      "id": "bio_text",
+      "type": "text",
+      "x": 100,
+      "y": 600,
+      "width": 410,
+      "height": 120,
+      "text": "Sarah is a 32-year-old entrepreneur who recently secured seed funding for her SaaS startup. She wears many hats, from product management to marketing. She works long hours and is passionate about building a product that solves a real problem. She manages a small, remote team and relies heavily on digital tools to stay organized.",
+      "fontSize": 16,
+      "lineHeight": 1.4
+    },
+    {
+      "id": "demographics_container",
+      "type": "rectangle",
+      "x": 80,
+      "y": 750,
+      "width": 450,
+      "height": 150,
+      "backgroundColor": "#ffffff",
+      "strokeColor": "#dee2e6"
+    },
+    {
+      "id": "demographics_title",
+      "type": "text",
+      "x": 100,
+      "y": 770,
+      "text": "Demographics",
+      "fontSize": 20,
+      "fontWeight": "bold"
+    },
+    {
+      "id": "demographics_text",
+      "type": "text",
+      "x": 100,
+      "y": 800,
+      "width": 410,
+      "height": 90,
+      "text": "• Age: 32\n• Occupation: CEO / Founder\n• Location: Austin, TX (Remote)\n• Education: B.S. in Business",
+      "fontSize": 16,
+      "lineHeight": 1.5
+    },
+    {
+      "id": "goals_container",
+      "type": "rectangle",
+      "x": 580,
+      "y": 200,
+      "width": 820,
+      "height": 180,
+      "strokeColor": "#b2f2bb",
+      "backgroundColor": "#e6fcf5"
+    },
+    {
+      "id": "goals_title",
+      "type": "text",
+      "x": 600,
+      "y": 220,
+      "text": "GOALS",
+      "fontSize": 24,
+      "fontWeight": "bold",
+      "strokeColor": "#37b24d"
+    },
+    {
+      "id": "goals_text",
+      "type": "text",
+      "x": 600,
+      "y": 260,
+      "width": 780,
+      "height": 100,
+      "text": "• Launch the MVP on schedule and within budget.\n• Achieve product-market fit and secure the next funding round.\n• Keep the team motivated and focused on the right priorities.\n• Maintain a clear overview of project progress without constant check-ins.",
+      "fontSize": 16,
+      "lineHeight": 1.5
+    },
+    {
+      "id": "frustrations_container",
+      "type": "rectangle",
+      "x": 580,
+      "y": 400,
+      "width": 820,
+      "height": 180,
+      "strokeColor": "#ffc9c9",
+      "backgroundColor": "#fff5f5"
+    },
+    {
+      "id": "frustrations_title",
+      "type": "text",
+      "x": 600,
+      "y": 420,
+      "text": "FRUSTRATIONS",
+      "fontSize": 24,
+      "fontWeight": "bold",
+      "strokeColor": "#c92a2a"
+    },
+    {
+      "id": "frustrations_text",
+      "type": "text",
+      "x": 600,
+      "y": 460,
+      "width": 780,
+      "height": 100,
+      "text": "• Tools that are too complex and require a steep learning curve.\n• Wasting time in meetings just to get status updates.\n• Information silos where critical docs get lost in emails or chats.\n• Feeling like she's a bottleneck for her team.",
+      "fontSize": 16,
+      "lineHeight": 1.5
+    },
+    {
+      "id": "motivations_container",
+      "type": "rectangle",
+      "x": 580,
+      "y": 600,
+      "width": 400,
+      "height": 300,
+      "backgroundColor": "#ffffff",
+      "strokeColor": "#dee2e6"
+    },
+    {
+      "id": "motivations_title",
+      "type": "text",
+      "x": 600,
+      "y": 620,
+      "text": "Motivations",
+      "fontSize": 20,
+      "fontWeight": "bold"
+    },
+    {
+      "id": "motivations_text",
+      "type": "text",
+      "x": 600,
+      "y": 650,
+      "width": 360,
+      "height": 240,
+      "text": "• Efficiency & Speed\n• Team Collaboration\n• Making an Impact\n• Data-Driven Decisions\n• Recognition from Investors",
+      "fontSize": 16,
+      "lineHeight": 1.8
+    },
+    {
+      "id": "tech_container",
+      "type": "rectangle",
+      "x": 1000,
+      "y": 600,
+      "width": 400,
+      "height": 300,
+      "backgroundColor": "#ffffff",
+      "strokeColor": "#dee2e6"
+    },
+    {
+      "id": "tech_title",
+      "type": "text",
+      "x": 1020,
+      "y": 620,
+      "text": "Tools & Tech Savviness",
+      "fontSize": 20,
+      "fontWeight": "bold"
+    },
+    {
+      "id": "tech_text",
+      "type": "text",
+      "x": 1020,
+      "y": 650,
+      "width": 360,
+      "height": 240,
+      "text": "• Tech Savvy: High\n\n• Favorite Apps:\n  - Slack\n  - Figma\n  - Notion\n  - Google Workspace",
+      "fontSize": 16,
+      "lineHeight": 1.5
+    }
+  ],
+  "appState": {
+    "gridSize": 20,
+    "viewBackgroundColor": "#ffffff"
+  },
+  "files": {}
+}

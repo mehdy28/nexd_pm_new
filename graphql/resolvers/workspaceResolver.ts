@@ -1,125 +1,89 @@
-import { prisma } from "@/lib/prisma"; // Adjust path if necessary
+import { prisma } from "@/lib/prisma"
+import { GraphQLError } from "graphql"
+import { Plan } from "@prisma/client" // Import Plan enum for type safety
 
-// Consistent logging function
-function log(prefix: string, message: string, data?: any) {
-  const timestamp = new Date().toISOString();
-  if (data !== undefined) {
-    console.log(`${timestamp} ${prefix} ${message}`, data);
-  } else {
-    console.log(`${timestamp} ${prefix} ${message}`);
-  }
-}
-
-// Define the context type
 interface GraphQLContext {
-  prisma: typeof prisma; // Use the imported prisma instance type
-  user?: { id: string; email: string; role: string }; // The authenticated user from your AuthContextProvider
+  prisma: typeof prisma
+  user?: { id: string; email: string; role: string }
 }
 
 export const workspaceResolver = {
   Query: {
-    getWorkspaceData: async (_parent: unknown, _args: unknown, context: GraphQLContext) => {
-      log("[getWorkspaceData Query]", "called");
+    getWorkspaceData: async (_: any, __: any, context: GraphQLContext) => {
+      if (!context.user) {
+        throw new GraphQLError("User is not authenticated", {
+          extensions: { code: "UNAUTHENTICATED" },
+        })
+      }
+      const userId = context.user.id
 
-      if (!context.user?.id) {
-        log("[getWorkspaceData Query]", "No authenticated user found in context.");
-        throw new Error("Authentication required: No user ID found in context.");
+      // Find the first workspace the user is a member of.
+      // In a multi-workspace context, you'd need a way to specify which one.
+      const workspaceMember = await context.prisma.workspaceMember.findFirst({
+        where: { userId },
+        select: { workspaceId: true },
+      })
+
+      if (!workspaceMember) {
+        // This case should ideally not happen if a user is logged in,
+        // but it's good practice to handle it.
+        return null
       }
 
-      const userId = context.user.id;
-      log("[getWorkspaceData Query]", `Fetching data for userId: ${userId}`);
-
-      try {
-        // Find the user's workspaces where they are a member
-        const workspaceMember = await prisma.workspaceMember.findFirst({
-          where: { userId: userId },
-          include: {
-            workspace: {
-              include: {
-                members: {
-                  include: { user: true }, // Include user details for each member
-                },
-                projects: {
-                  // MODIFICATION: Filter projects to only include those the user is a member of.
-                  where: {
-                    members: {
-                      some: {
-                        userId: userId,
-                      },
-                    },
-                  },
-                  include: {
-                    _count: {
-                      select: { members: true, tasks: true },
-                    },
-                    tasks: {
-                      where: { status: "DONE" },
-                      select: { id: true }, // Only need to count them
-                    },
-                  },
-                },
-              },
+      let workspace = await context.prisma.workspace.findUnique({
+        where: { id: workspaceMember.workspaceId },
+        include: {
+          owner: true,
+          subscription: true,
+          members: {
+            include: {
+              user: true,
             },
           },
-        });
+          projects: true,
+        },
+      })
 
-        if (!workspaceMember) {
-          log("[getWorkspaceData Query]", `No workspace found for user ID: ${userId}`);
-          return null;
-        }
-
-        const workspace = workspaceMember.workspace;
-        log("[getWorkspaceData Query]", `Found workspace: ${workspace.name} (ID: ${workspace.id})`);
-
-
-        // Transform projects to include custom counts
-        const transformedProjects = workspace.projects.map(project => ({
-          ...project,
-          projectMemberCount: project._count.members,
-          totalTaskCount: project._count.tasks, // Total tasks from _count.tasks
-          completedTaskCount: project.tasks.length, // Number of tasks where status is DONE
-          tasks: undefined,
-          _count: undefined,
-        }));
-
-        // Transform members to the desired output format (id, email, role in workspace)
-        const transformedMembers = workspace.members.map(member => ({
-          id: member.id, // WorkspaceMember ID
-          role: member.role,
-          user: {
-            id: member.user.id,
-            email: member.user.email,
-            firstName: member.user.firstName,
-            lastName: member.user.lastName,
+      // --- SOLUTION: DEFENSIVE CHECK FOR OLD DATA ---
+      // If an old workspace is found without a plan, update it and refetch.
+      if (workspace && !workspace.plan) {
+        console.log(
+          `[getWorkspaceData Resolver] Found old workspace (ID: ${workspace.id}) with null plan. Backfilling...`
+        )
+        workspace = await context.prisma.workspace.update({
+          where: { id: workspace.id },
+          data: { plan: Plan.FREE }, // Set the default plan
+          include: {
+            // Re-include all the necessary data
+            owner: true,
+            subscription: true,
+            members: {
+              include: {
+                user: true,
+              },
+            },
+            projects: true,
           },
-        }));
-
-        const result = {
-          id: workspace.id,
-          name: workspace.name,
-          description: workspace.description,
-          industry: workspace.industry,
-          teamSize: workspace.teamSize,
-          workFields: workspace.workFields,
-          members: transformedMembers,
-          projects: transformedProjects,
-        };
-
-        log("[getWorkspaceData Query]", "Workspace data fetched and transformed successfully.", result);
-        return result;
-
-      } catch (error) {
-        log("[getWorkspaceData Query]", "Error fetching workspace data:", error);
-        throw error;
+        })
       }
-    },
-  },
-  // Custom field resolvers for Project
-  Project: {
-    projectMemberCount: (project: any) => project.projectMemberCount,
-    totalTaskCount: (project: any) => project.totalTaskCount,
-    completedTaskCount: (project: any) => project.completedTaskCount,
-  }
-};
+      // --- END OF SOLUTION ---
 
-export default workspaceResolver;
+      return workspace
+    },
+
+    // Placeholder for other workspace-related queries you might have
+    // Example:
+    // getWorkspaceDataLookup: async (_: any, { workspaceId }: { workspaceId: string }, context: GraphQLContext) => {
+    //   // ... implementation ...
+    // },
+  },
+  Mutation: {
+    // Placeholder for any workspace-specific mutations
+    // Example:
+    // updateWorkspaceSettings: async (_: any, args: any, context: GraphQLContext) => {
+    //   // ... implementation ...
+    // },
+  },
+}
+
+export default workspaceResolver

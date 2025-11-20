@@ -1,0 +1,111 @@
+[
+    {
+      "id": "rr-1",
+      "type": "heading",
+      "props": {
+        "level": 1
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "Risk Register: [Project Name]",
+          "styles": {}
+        }
+      ]
+    },
+    {
+      "id": "rr-2",
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "Last Updated: ",
+          "styles": {
+            "bold": true
+          }
+        },
+        {
+          "type": "text",
+          "text": "[YYYY-MM-DD]",
+          "styles": {
+            "textColor": "gray"
+          }
+        }
+      ]
+    },
+    {
+      "id": "rr-4",
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "Risk Score = Likelihood x Impact. Likelihood & Impact are rated 1 (Low) to 5 (High).",
+          "styles": {
+            "italic": true,
+            "textColor": "gray"
+          }
+        }
+      ]
+    },
+    {
+      "id": "rr-3",
+      "type": "table",
+      "content": {
+        "type": "tableContent",
+        "rows": [
+          {
+            "cells": [
+              "ID",
+              "Description",
+              "Likelihood (1-5)",
+              "Impact (1-5)",
+              "Risk Score",
+              "Response Strategy",
+              "Mitigation Plan",
+              "Owner",
+              "Status"
+            ]
+          },
+          {
+            "cells": [
+              "R-001",
+              "[e.g., Key team member leaves the project]",
+              "2",
+              "5",
+              "10",
+              "[Mitigate]",
+              "[Document all critical processes, ensure knowledge sharing sessions]",
+              "[Name]",
+              "Open"
+            ]
+          },
+          {
+            "cells": [
+              "R-002",
+              "[e.g., Third-party API dependency becomes unstable]",
+              "3",
+              "4",
+              "12",
+              "[Mitigate]",
+              "[Develop a fallback mechanism, establish monitoring and alerts]",
+              "[Name]",
+              "Open"
+            ]
+          },
+          {
+            "cells": [
+              "R-003",
+              "[e.g., Scope creep from stakeholder requests]",
+              "4",
+              "3",
+              "12",
+              "[Avoid]",
+              "[Implement a strict change control process, require all changes to be approved]",
+              "[Name]",
+              "Open"
+            ]
+          }
+        ]
+      }
+    }
+  ]

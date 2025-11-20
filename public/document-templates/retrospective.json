@@ -1,0 +1,200 @@
+[
+    {
+      "id": "retro-1",
+      "type": "heading",
+      "props": {
+        "level": 1
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "Sprint Retrospective: [Sprint Name/Number]",
+          "styles": {}
+        }
+      ]
+    },
+    {
+      "id": "retro-2",
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "Date: ",
+          "styles": {
+            "bold": true
+          }
+        },
+        {
+          "type": "text",
+          "text": "[YYYY-MM-DD]",
+          "styles": {
+            "textColor": "gray"
+          }
+        }
+      ]
+    },
+    {
+      "id": "retro-3",
+      "type": "heading",
+      "props": {
+        "level": 2
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "👍 What Went Well? / Kudos",
+          "styles": {}
+        }
+      ]
+    },
+    {
+      "id": "retro-4",
+      "type": "bulletListItem",
+      "content": [
+        {
+          "type": "text",
+          "text": "[Celebrate a team success, e.g., We successfully launched the new feature ahead of schedule.]",
+          "styles": {
+            "textColor": "gray"
+          }
+        }
+      ]
+    },
+    {
+      "id": "retro-9",
+      "type": "bulletListItem",
+      "content": [
+        {
+          "type": "text",
+          "text": "[Give a shout-out to a team member, e.g., Kudos to Jane for solving that complex bug.]",
+          "styles": {
+            "textColor": "gray"
+          }
+        }
+      ]
+    },
+    {
+      "id": "retro-5",
+      "type": "heading",
+      "props": {
+        "level": 2
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "🤔 What Could Be Improved?",
+          "styles": {}
+        }
+      ]
+    },
+    {
+      "id": "retro-6",
+      "type": "bulletListItem",
+      "content": [
+        {
+          "type": "text",
+          "text": "[Identify a challenge or area for improvement, e.g., Communication with the design team was delayed.]",
+          "styles": {
+            "textColor": "gray"
+          }
+        }
+      ]
+    },
+    {
+      "id": "retro-10",
+      "type": "bulletListItem",
+      "content": [
+        {
+          "type": "text",
+          "text": "[Note a process issue, e.g., Our PR review process took longer than expected.]",
+          "styles": {
+            "textColor": "gray"
+          }
+        }
+      ]
+    },
+    {
+      "id": "retro-11",
+      "type": "heading",
+      "props": {
+        "level": 2
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "💡 Ideas for Next Sprint",
+          "styles": {}
+        }
+      ]
+    },
+    {
+      "id": "retro-12",
+      "type": "bulletListItem",
+      "content": [
+        {
+          "type": "text",
+          "text": "[Propose a concrete idea to try, e.g., Let's schedule a weekly 15-min sync with the design team.]",
+          "styles": {
+            "textColor": "gray"
+          }
+        }
+      ]
+    },
+    {
+      "id": "retro-13",
+      "type": "bulletListItem",
+      "content": [
+        {
+          "type": "text",
+          "text": "[Suggest a process change, e.g., Let's try to set a 24-hour SLA for initial PR feedback.]",
+          "styles": {
+            "textColor": "gray"
+          }
+        }
+      ]
+    },
+    {
+      "id": "retro-7",
+      "type": "heading",
+      "props": {
+        "level": 2
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "🚀 Action Items",
+          "styles": {}
+        }
+      ]
+    },
+    {
+      "id": "retro-8",
+      "type": "table",
+      "content": {
+        "type": "tableContent",
+        "rows": [
+          {
+            "cells": [
+              "Action Item (Specific & Measurable)",
+              "Owner",
+              "Status"
+            ]
+          },
+          {
+            "cells": [
+              "[e.g., Set up recurring weekly sync with design]",
+              "[Name]",
+              "To Do"
+            ]
+          },
+          {
+            "cells": [
+              "[e.g., Document PR review guidelines in Confluence]",
+              "[Name]",
+              "To Do"
+            ]
+          }
+        ]
+      }
+    }
+  ]

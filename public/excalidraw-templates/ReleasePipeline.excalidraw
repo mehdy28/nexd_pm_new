@@ -1,0 +1,435 @@
+{
+  "type": "excalidraw",
+  "version": 2,
+  "source": "https://excalidraw.com",
+  "elements": [
+    {
+      "id": "main_title",
+      "type": "text",
+      "x": 40,
+      "y": 40,
+      "width": 600,
+      "height": 45,
+      "strokeColor": "#1e2c3b",
+      "text": "Release Pipeline (CI/CD)",
+      "fontSize": 36,
+      "fontFamily": 1
+    },
+    {
+      "id": "main_subtitle",
+      "type": "text",
+      "x": 40,
+      "y": 95,
+      "width": 950,
+      "height": 25,
+      "strokeColor": "#868e96",
+      "text": "Visualize the automated journey of a feature from code commit to production deployment.",
+      "fontSize": 20,
+      "fontFamily": 1
+    },
+    {
+      "id": "dev_box",
+      "type": "rectangle",
+      "x": 40,
+      "y": 300,
+      "width": 200,
+      "height": 120,
+      "backgroundColor": "#f8f9fa",
+      "strokeColor": "#ced4da"
+    },
+    {
+      "id": "dev_title",
+      "type": "text",
+      "x": 50,
+      "y": 310,
+      "width": 180,
+      "height": 50,
+      "text": "1. Development",
+      "fontSize": 20,
+      "textAlign": "center",
+      "fontWeight": "bold"
+    },
+    {
+      "id": "dev_text",
+      "type": "text",
+      "x": 50,
+      "y": 350,
+      "width": 180,
+      "height": 50,
+      "text": "Developer commits\ncode to Git",
+      "fontSize": 16,
+      "textAlign": "center"
+    },
+    {
+      "id": "arrow_1",
+      "type": "arrow",
+      "x": 240,
+      "y": 360,
+      "points": [ [0,0], [60,0] ],
+      "strokeWidth": 2
+    },
+    {
+      "id": "arrow_1_text",
+      "type": "text",
+      "x": 250,
+      "y": 335,
+      "text": "Triggers",
+      "fontSize": 14
+    },
+    {
+      "id": "build_box",
+      "type": "rectangle",
+      "x": 300,
+      "y": 300,
+      "width": 200,
+      "height": 120,
+      "backgroundColor": "#e7f5ff",
+      "strokeColor": "#a5d8ff"
+    },
+    {
+      "id": "build_title",
+      "type": "text",
+      "x": 310,
+      "y": 310,
+      "width": 180,
+      "height": 50,
+      "text": "2. Build",
+      "fontSize": 20,
+      "textAlign": "center",
+      "fontWeight": "bold"
+    },
+    {
+      "id": "build_text",
+      "type": "text",
+      "x": 310,
+      "y": 350,
+      "width": 180,
+      "height": 50,
+      "text": "Code is compiled\n& packaged",
+      "fontSize": 16,
+      "textAlign": "center"
+    },
+    {
+      "id": "arrow_2",
+      "type": "arrow",
+      "x": 500,
+      "y": 360,
+      "points": [ [0,0], [60,0] ],
+      "strokeWidth": 2
+    },
+    {
+      "id": "test_box",
+      "type": "rectangle",
+      "x": 560,
+      "y": 300,
+      "width": 200,
+      "height": 120,
+      "backgroundColor": "#e7f5ff",
+      "strokeColor": "#a5d8ff"
+    },
+    {
+      "id": "test_title",
+      "type": "text",
+      "x": 570,
+      "y": 310,
+      "width": 180,
+      "height": 50,
+      "text": "3. Automated Tests",
+      "fontSize": 20,
+      "textAlign": "center",
+      "fontWeight": "bold"
+    },
+    {
+      "id": "test_text",
+      "type": "text",
+      "x": 570,
+      "y": 350,
+      "width": 180,
+      "height": 50,
+      "text": "Unit, Integration, E2E\nTests are run",
+      "fontSize": 16,
+      "textAlign": "center"
+    },
+    {
+      "id": "arrow_3",
+      "type": "arrow",
+      "x": 760,
+      "y": 360,
+      "points": [ [0,0], [60,0] ],
+      "strokeWidth": 2
+    },
+    {
+      "id": "gate_1_diamond",
+      "type": "diamond",
+      "x": 820,
+      "y": 280,
+      "width": 200,
+      "height": 160,
+      "backgroundColor": "#fff9db",
+      "strokeColor": "#ffd43b"
+    },
+    {
+      "id": "gate_1_text",
+      "type": "text",
+      "x": 845,
+      "y": 345,
+      "width": 150,
+      "height": 30,
+      "text": "Tests Passed?",
+      "fontSize": 16,
+      "textAlign": "center",
+      "fontWeight": "bold"
+    },
+    {
+      "id": "arrow_fail_1",
+      "type": "arrow",
+      "x": 920,
+      "y": 280,
+      "points": [ [0,0], [0, -80], [-740, -80], [-740, 20] ],
+      "strokeColor": "#c92a2a",
+      "strokeWidth": 2
+    },
+    {
+      "id": "arrow_fail_1_label",
+      "type": "text",
+      "x": 880,
+      "y": 250,
+      "text": "No (Fail)",
+      "fontSize": 14,
+      "strokeColor": "#c92a2a"
+    },
+    {
+      "id": "arrow_pass_1",
+      "type": "arrow",
+      "x": 1020,
+      "y": 360,
+      "points": [ [0,0], [60,0] ],
+      "strokeWidth": 2
+    },
+    {
+      "id": "arrow_pass_1_label",
+      "type": "text",
+      "x": 1030,
+      "y": 335,
+      "text": "Yes",
+      "fontSize": 14
+    },
+    {
+      "id": "staging_box",
+      "type": "rectangle",
+      "x": 1080,
+      "y": 300,
+      "width": 200,
+      "height": 120,
+      "backgroundColor": "#fff9db",
+      "strokeColor": "#ffd43b"
+    },
+    {
+      "id": "staging_title",
+      "type": "text",
+      "x": 1090,
+      "y": 310,
+      "width": 180,
+      "height": 50,
+      "text": "4. Deploy to Staging",
+      "fontSize": 20,
+      "textAlign": "center",
+      "fontWeight": "bold"
+    },
+    {
+      "id": "staging_text",
+      "type": "text",
+      "x": 1090,
+      "y": 350,
+      "width": 180,
+      "height": 50,
+      "text": "Deploy to a pre-prod\nenvironment for review",
+      "fontSize": 16,
+      "textAlign": "center"
+    },
+    {
+      "id": "arrow_4",
+      "type": "arrow",
+      "x": 1180,
+      "y": 420,
+      "points": [ [0,0], [0, 60] ],
+      "strokeWidth": 2
+    },
+    {
+      "id": "uat_box",
+      "type": "rectangle",
+      "x": 1080,
+      "y": 480,
+      "width": 200,
+      "height": 120,
+      "backgroundColor": "#fff9db",
+      "strokeColor": "#ffd43b"
+    },
+    {
+      "id": "uat_title",
+      "type": "text",
+      "x": 1090,
+      "y": 490,
+      "width": 180,
+      "height": 50,
+      "text": "5. Acceptance Tests",
+      "fontSize": 20,
+      "textAlign": "center",
+      "fontWeight": "bold"
+    },
+    {
+      "id": "uat_text",
+      "type": "text",
+      "x": 1090,
+      "y": 530,
+      "width": 180,
+      "height": 50,
+      "text": "Manual QA & User\nAcceptance Testing (UAT)",
+      "fontSize": 16,
+      "textAlign": "center"
+    },
+    {
+      "id": "arrow_5",
+      "type": "arrow",
+      "x": 1080,
+      "y": 540,
+      "points": [ [0,0], [-60,0] ],
+      "strokeWidth": 2
+    },
+    {
+      "id": "gate_2_diamond",
+      "type": "diamond",
+      "x": 820,
+      "y": 460,
+      "width": 200,
+      "height": 160,
+      "backgroundColor": "#fff9db",
+      "strokeColor": "#ffd43b"
+    },
+    {
+      "id": "gate_2_text",
+      "type": "text",
+      "x": 845,
+      "y": 525,
+      "width": 150,
+      "height": 30,
+      "text": "Approved for Release?",
+      "fontSize": 16,
+      "textAlign": "center",
+      "fontWeight": "bold"
+    },
+    {
+      "id": "arrow_fail_2",
+      "type": "arrow",
+      "x": 920,
+      "y": 620,
+      "points": [ [0,0], [0, 80], [-740, 80], [-740, -20] ],
+      "strokeColor": "#c92a2a",
+      "strokeWidth": 2
+    },
+    {
+      "id": "arrow_fail_2_label",
+      "type": "text",
+      "x": 880,
+      "y": 630,
+      "text": "No (Reject)",
+      "fontSize": 14,
+      "strokeColor": "#c92a2a"
+    },
+    {
+      "id": "arrow_pass_2",
+      "type": "arrow",
+      "x": 820,
+      "y": 540,
+      "points": [ [0,0], [-60,0] ],
+      "strokeWidth": 2
+    },
+    {
+      "id": "arrow_pass_2_label",
+      "type": "text",
+      "x": 770,
+      "y": 515,
+      "text": "Yes",
+      "fontSize": 14
+    },
+    {
+      "id": "prod_box",
+      "type": "rectangle",
+      "x": 560,
+      "y": 480,
+      "width": 200,
+      "height": 120,
+      "backgroundColor": "#e6fcf5",
+      "strokeColor": "#b2f2bb"
+    },
+    {
+      "id": "prod_title",
+      "type": "text",
+      "x": 570,
+      "y": 490,
+      "width": 180,
+      "height": 50,
+      "text": "6. Deploy to Production",
+      "fontSize": 20,
+      "textAlign": "center",
+      "fontWeight": "bold"
+    },
+    {
+      "id": "prod_text",
+      "type": "text",
+      "x": 570,
+      "y": 530,
+      "width": 180,
+      "height": 50,
+      "text": "Release to customers\n(e.g., Canary, Blue/Green)",
+      "fontSize": 16,
+      "textAlign": "center"
+    },
+    {
+      "id": "arrow_6",
+      "type": "arrow",
+      "x": 560,
+      "y": 540,
+      "points": [ [0,0], [-60,0] ],
+      "strokeWidth": 2
+    },
+    {
+      "id": "monitor_box",
+      "type": "rectangle",
+      "x": 300,
+      "y": 480,
+      "width": 200,
+      "height": 120,
+      "backgroundColor": "#e6fcf5",
+      "strokeColor": "#b2f2bb"
+    },
+    {
+      "id": "monitor_title",
+      "type": "text",
+      "x": 310,
+      "y": 490,
+      "width": 180,
+      "height": 50,
+      "text": "7. Monitor",
+      "fontSize": 20,
+      "textAlign": "center",
+      "fontWeight": "bold"
+    },
+    {
+      "id": "monitor_text",
+      "type": "text",
+      "x": 310,
+      "y": 530,
+      "width": 180,
+      "height": 50,
+      "text": "Observe performance,\nlogs, and metrics",
+      "fontSize": 16,
+      "textAlign": "center"
+    }
+  ],
+  "appState": {
+    "gridSize": 20,
+    "viewBackgroundColor": "#ffffff"
+  },
+  "files": {}
+}

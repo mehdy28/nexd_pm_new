@@ -1,3 +1,4 @@
+//hooks/personal/usePersonalWireframes.ts
 import { useQuery, useMutation, NetworkStatus } from "@apollo/client"
 import { useState, useEffect, useCallback, useMemo } from "react"
 import { useDebounce } from "use-debounce"
@@ -14,6 +15,7 @@ export type WireframeListItem = {
   id: string
   title: string
   updatedAt: string
+  data: JsonScalar // <-- CHANGED THIS LINE (removed ?)
   thumbnail: string | null
   projectId: string | null // Can be null for personal wireframes
 }

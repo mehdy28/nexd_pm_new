@@ -1,0 +1,392 @@
+{
+  "type": "excalidraw",
+  "version": 2,
+  "source": "https://excalidraw.com",
+  "elements": [
+    {
+      "id": "main_title",
+      "type": "text",
+      "x": 40,
+      "y": 40,
+      "width": 500,
+      "height": 45,
+      "strokeColor": "#1e2c3b",
+      "text": "Project Kickoff",
+      "fontSize": 36,
+      "fontFamily": 1
+    },
+    {
+      "id": "project_name_text",
+      "type": "text",
+      "x": 40,
+      "y": 95,
+      "width": 400,
+      "height": 25,
+      "strokeColor": "#868e96",
+      "text": "Project Name: [Insert Project Name Here]",
+      "fontSize": 20
+    },
+    {
+      "id": "date_text",
+      "type": "text",
+      "x": 1200,
+      "y": 95,
+      "width": 200,
+      "height": 25,
+      "strokeColor": "#868e96",
+      "text": "Date: [Insert Date]",
+      "fontSize": 20,
+      "textAlign": "right"
+    },
+    {
+      "id": "overview_container",
+      "type": "rectangle",
+      "x": 40,
+      "y": 160,
+      "width": 670,
+      "height": 400,
+      "strokeColor": "#dee2e6",
+      "backgroundColor": "#f8f9fa"
+    },
+    {
+      "id": "overview_title",
+      "type": "text",
+      "x": 60,
+      "y": 180,
+      "width": 250,
+      "height": 30,
+      "strokeColor": "#1e2c3b",
+      "text": "1. Project Overview",
+      "fontSize": 24,
+      "fontWeight": "bold"
+    },
+    {
+      "id": "mission_prompt",
+      "type": "text",
+      "x": 60,
+      "y": 220,
+      "width": 150,
+      "height": 25,
+      "strokeColor": "#495057",
+      "text": "Mission / Vision:",
+      "fontSize": 20,
+      "fontWeight": "bold"
+    },
+    {
+      "id": "mission_example",
+      "type": "text",
+      "x": 60,
+      "y": 250,
+      "width": 630,
+      "height": 40,
+      "strokeColor": "#868e96",
+      "text": "What is the ultimate goal? What does success look like in one sentence?",
+      "fontSize": 16
+    },
+    {
+      "id": "problem_prompt",
+      "type": "text",
+      "x": 60,
+      "y": 320,
+      "width": 200,
+      "height": 25,
+      "strokeColor": "#495057",
+      "text": "Problem Statement:",
+      "fontSize": 20,
+      "fontWeight": "bold"
+    },
+    {
+      "id": "problem_example",
+      "type": "text",
+      "x": 60,
+      "y": 350,
+      "width": 630,
+      "height": 40,
+      "strokeColor": "#868e96",
+      "text": "What user or business problem are we solving? Why is this important to solve now?",
+      "fontSize": 16
+    },
+    {
+      "id": "metrics_prompt",
+      "type": "text",
+      "x": 60,
+      "y": 420,
+      "width": 200,
+      "height": 25,
+      "strokeColor": "#495057",
+      "text": "Success Metrics:",
+      "fontSize": 20,
+      "fontWeight": "bold"
+    },
+    {
+      "id": "metrics_example",
+      "type": "text",
+      "x": 60,
+      "y": 450,
+      "width": 630,
+      "height": 40,
+      "strokeColor": "#868e96",
+      "text": "How will we measure success? (e.g., Increase user retention by 15%, Reduce support tickets by 20%)",
+      "fontSize": 16
+    },
+    {
+      "id": "scope_container",
+      "type": "rectangle",
+      "x": 730,
+      "y": 160,
+      "width": 670,
+      "height": 400,
+      "strokeColor": "#dee2e6",
+      "backgroundColor": "#f8f9fa"
+    },
+    {
+      "id": "scope_title",
+      "type": "text",
+      "x": 750,
+      "y": 180,
+      "width": 250,
+      "height": 30,
+      "strokeColor": "#1e2c3b",
+      "text": "2. Scope",
+      "fontSize": 24,
+      "fontWeight": "bold"
+    },
+    {
+      "id": "in_scope_title",
+      "type": "text",
+      "x": 750,
+      "y": 220,
+      "width": 100,
+      "height": 25,
+      "strokeColor": "#37b24d",
+      "text": "In Scope",
+      "fontSize": 20,
+      "fontWeight": "bold"
+    },
+    {
+      "id": "in_scope_example",
+      "type": "rectangle",
+      "x": 760,
+      "y": 260,
+      "width": 280,
+      "height": 100,
+      "strokeColor": "#37b24d",
+      "backgroundColor": "#ffffff",
+      "roughness": 1
+    },
+    {
+      "id": "in_scope_example_text",
+      "type": "text",
+      "x": 770,
+      "y": 270,
+      "width": 260,
+      "height": 80,
+      "text": "• Feature A\n• Integration with API B\n• User registration and login",
+      "fontSize": 16
+    },
+    {
+      "id": "out_scope_title",
+      "type": "text",
+      "x": 1100,
+      "y": 220,
+      "width": 150,
+      "height": 25,
+      "strokeColor": "#c92a2a",
+      "text": "Out of Scope",
+      "fontSize": 20,
+      "fontWeight": "bold"
+    },
+    {
+      "id": "out_scope_example",
+      "type": "rectangle",
+      "x": 1110,
+      "y": 260,
+      "width": 280,
+      "height": 100,
+      "strokeColor": "#c92a2a",
+      "backgroundColor": "#ffffff",
+      "roughness": 1
+    },
+    {
+      "id": "out_scope_example_text",
+      "type": "text",
+      "x": 1120,
+      "y": 270,
+      "width": 260,
+      "height": 80,
+      "text": "• Mobile app version\n• Admin dashboard\n• Feature C",
+      "fontSize": 16
+    },
+    {
+      "id": "timeline_container",
+      "type": "rectangle",
+      "x": 40,
+      "y": 580,
+      "width": 900,
+      "height": 250,
+      "strokeColor": "#dee2e6",
+      "backgroundColor": "#f8f9fa"
+    },
+    {
+      "id": "timeline_title",
+      "type": "text",
+      "x": 60,
+      "y": 600,
+      "width": 400,
+      "height": 30,
+      "strokeColor": "#1e2c3b",
+      "text": "3. Timeline & Milestones",
+      "fontSize": 24,
+      "fontWeight": "bold"
+    },
+    {
+      "id": "timeline_bar",
+      "type": "rectangle",
+      "x": 80,
+      "y": 680,
+      "width": 820,
+      "height": 40,
+      "backgroundColor": "#e7f5ff"
+    },
+    {
+      "id": "milestone_1",
+      "type": "text",
+      "x": 100,
+      "y": 740,
+      "text": "Phase 1: Discovery\n(Weeks 1-2)",
+      "fontSize": 16,
+      "textAlign": "center"
+    },
+    {
+      "id": "milestone_2",
+      "type": "text",
+      "x": 340,
+      "y": 740,
+      "text": "Phase 2: Design\n(Weeks 3-4)",
+      "fontSize": 16,
+      "textAlign": "center"
+    },
+    {
+      "id": "milestone_3",
+      "type": "text",
+      "x": 580,
+      "y": 740,
+      "text": "Phase 3: Development\n(Weeks 5-8)",
+      "fontSize": 16,
+      "textAlign": "center"
+    },
+    {
+      "id": "milestone_4",
+      "type": "text",
+      "x": 840,
+      "y": 740,
+      "text": "Launch!\n(Week 9)",
+      "fontSize": 16,
+      "textAlign": "center"
+    },
+    {
+      "id": "team_container",
+      "type": "rectangle",
+      "x": 960,
+      "y": 580,
+      "width": 440,
+      "height": 250,
+      "strokeColor": "#dee2e6",
+      "backgroundColor": "#f8f9fa"
+    },
+    {
+      "id": "team_title",
+      "type": "text",
+      "x": 980,
+      "y": 600,
+      "width": 200,
+      "height": 30,
+      "strokeColor": "#1e2c3b",
+      "text": "4. Team Roles",
+      "fontSize": 24,
+      "fontWeight": "bold"
+    },
+    {
+      "id": "team_example_text",
+      "type": "text",
+      "x": 980,
+      "y": 640,
+      "width": 400,
+      "height": 180,
+      "text": "• Project Lead: [Name]\n• Designer: [Name]\n• Engineering Lead: [Name]\n• Key Stakeholder: [Name]\n• Subject Matter Expert: [Name]",
+      "fontSize": 16,
+      "lineHeight": 1.5
+    },
+    {
+      "id": "risks_container",
+      "type": "rectangle",
+      "x": 40,
+      "y": 850,
+      "width": 670,
+      "height": 250,
+      "strokeColor": "#dee2e6",
+      "backgroundColor": "#f8f9fa"
+    },
+    {
+      "id": "risks_title",
+      "type": "text",
+      "x": 60,
+      "y": 870,
+      "width": 100,
+      "height": 30,
+      "strokeColor": "#1e2c3b",
+      "text": "5. Risks",
+      "fontSize": 24,
+      "fontWeight": "bold"
+    },
+    {
+      "id": "risks_example_text",
+      "type": "text",
+      "x": 60,
+      "y": 910,
+      "width": 630,
+      "height": 120,
+      "text": "What potential blockers or challenges do we foresee?\n• Technical: Dependency on an unstable external API.\n• Resource: Key designer has planned vacation.\n• Scope: Risk of scope creep from stakeholders.",
+      "fontSize": 16,
+      "lineHeight": 1.5
+    },
+    {
+      "id": "next_steps_container",
+      "type": "rectangle",
+      "x": 730,
+      "y": 850,
+      "width": 670,
+      "height": 250,
+      "strokeColor": "#dee2e6",
+      "backgroundColor": "#fff9db"
+    },
+    {
+      "id": "next_steps_title",
+      "type": "text",
+      "x": 750,
+      "y": 870,
+      "width": 200,
+      "height": 30,
+      "strokeColor": "#1e2c3b",
+      "text": "6. Next Steps",
+      "fontSize": 24,
+      "fontWeight": "bold"
+    },
+    {
+      "id": "next_steps_example_text",
+      "type": "text",
+      "x": 750,
+      "y": 910,
+      "width": 630,
+      "height": 120,
+      "text": "What are the immediate, actionable tasks after this meeting?\n• [Owner]: Schedule discovery interviews by EOD.\n• [Owner]: Set up project in Jira & Slack by tomorrow.\n• [Owner]: Draft initial technical spec by end of week.",
+      "fontSize": 16,
+      "lineHeight": 1.5
+    }
+  ],
+  "appState": {
+    "gridSize": 20,
+    "viewBackgroundColor": "#ffffff"
+  },
+  "files": {}
+}

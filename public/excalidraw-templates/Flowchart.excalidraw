@@ -1,0 +1,453 @@
+{
+  "type": "excalidraw",
+  "version": 2,
+  "source": "https://excalidraw.com",
+  "elements": [
+    {
+      "id": "main_title",
+      "type": "text",
+      "x": 40,
+      "y": 40,
+      "width": 400,
+      "height": 45,
+      "strokeColor": "#1e2c3b",
+      "text": "Flowchart Template",
+      "fontSize": 36,
+      "fontFamily": 1
+    },
+    {
+      "id": "main_subtitle",
+      "type": "text",
+      "x": 40,
+      "y": 95,
+      "width": 750,
+      "height": 25,
+      "strokeColor": "#868e96",
+      "text": "Visually map out the steps, decisions, and outcomes of any process.",
+      "fontSize": 20,
+      "fontFamily": 1
+    },
+    {
+      "id": "start_terminator",
+      "type": "ellipse",
+      "x": 450,
+      "y": 180,
+      "width": 220,
+      "height": 80,
+      "strokeColor": "#37b24d",
+      "backgroundColor": "#e6fcf5"
+    },
+    {
+      "id": "start_text",
+      "type": "text",
+      "x": 460,
+      "y": 205,
+      "width": 200,
+      "height": 30,
+      "text": "Start",
+      "fontSize": 24,
+      "textAlign": "center"
+    },
+    {
+      "id": "arrow_1",
+      "type": "arrow",
+      "x": 560,
+      "y": 260,
+      "points": [
+        [0, 0],
+        [0, 40]
+      ],
+      "strokeWidth": 2
+    },
+    {
+      "id": "process_1",
+      "type": "rectangle",
+      "x": 450,
+      "y": 300,
+      "width": 220,
+      "height": 80,
+      "strokeColor": "#1864ab",
+      "backgroundColor": "#e7f5ff"
+    },
+    {
+      "id": "process_1_text",
+      "type": "text",
+      "x": 460,
+      "y": 315,
+      "width": 200,
+      "height": 50,
+      "text": "Receive Customer\nOrder",
+      "fontSize": 16,
+      "textAlign": "center"
+    },
+    {
+      "id": "arrow_2",
+      "type": "arrow",
+      "x": 560,
+      "y": 380,
+      "points": [
+        [0, 0],
+        [0, 40]
+      ],
+      "strokeWidth": 2
+    },
+    {
+      "id": "decision_1",
+      "type": "diamond",
+      "x": 450,
+      "y": 420,
+      "width": 220,
+      "height": 120,
+      "strokeColor": "#fab005",
+      "backgroundColor": "#fff9db"
+    },
+    {
+      "id": "decision_1_text",
+      "type": "text",
+      "x": 485,
+      "y": 465,
+      "width": 150,
+      "height": 30,
+      "text": "Is Item in Stock?",
+      "fontSize": 16,
+      "textAlign": "center"
+    },
+    {
+      "id": "arrow_yes",
+      "type": "arrow",
+      "x": 670,
+      "y": 480,
+      "points": [
+        [0, 0],
+        [100, 0]
+      ],
+      "strokeWidth": 2
+    },
+    {
+      "id": "arrow_yes_label",
+      "type": "text",
+      "x": 705,
+      "y": 455,
+      "text": "Yes",
+      "fontSize": 16
+    },
+    {
+      "id": "process_yes_1",
+      "type": "rectangle",
+      "x": 770,
+      "y": 440,
+      "width": 220,
+      "height": 80,
+      "strokeColor": "#1864ab",
+      "backgroundColor": "#e7f5ff"
+    },
+    {
+      "id": "process_yes_1_text",
+      "type": "text",
+      "x": 780,
+      "y": 455,
+      "width": 200,
+      "height": 50,
+      "text": "Prepare Shipment",
+      "fontSize": 16,
+      "textAlign": "center"
+    },
+    {
+      "id": "arrow_yes_2",
+      "type": "arrow",
+      "x": 880,
+      "y": 520,
+      "points": [
+        [0, 0],
+        [0, 40]
+      ],
+      "strokeWidth": 2
+    },
+    {
+      "id": "doc_1",
+      "type": "rectangle",
+      "x": 770,
+      "y": 560,
+      "width": 220,
+      "height": 80,
+      "strokeColor": "#868e96",
+      "backgroundColor": "#f1f3f5"
+    },
+    {
+      "id": "doc_1_text",
+      "type": "text",
+      "x": 780,
+      "y": 575,
+      "width": 200,
+      "height": 50,
+      "text": "Generate Invoice",
+      "fontSize": 16,
+      "textAlign": "center"
+    },
+    {
+      "id": "arrow_yes_3",
+      "type": "arrow",
+      "x": 880,
+      "y": 640,
+      "points": [
+        [0, 0],
+        [0, 40]
+      ],
+      "strokeWidth": 2
+    },
+    {
+      "id": "process_yes_2",
+      "type": "rectangle",
+      "x": 770,
+      "y": 680,
+      "width": 220,
+      "height": 80,
+      "strokeColor": "#1864ab",
+      "backgroundColor": "#e7f5ff"
+    },
+    {
+      "id": "process_yes_2_text",
+      "type": "text",
+      "x": 780,
+      "y": 695,
+      "width": 200,
+      "height": 50,
+      "text": "Dispatch Order",
+      "fontSize": 16,
+      "textAlign": "center"
+    },
+    {
+      "id": "arrow_yes_4",
+      "type": "arrow",
+      "x": 880,
+      "y": 760,
+      "points": [
+        [0, 0],
+        [0, 40]
+      ],
+      "strokeWidth": 2
+    },
+    {
+      "id": "end_terminator",
+      "type": "ellipse",
+      "x": 770,
+      "y": 800,
+      "width": 220,
+      "height": 80,
+      "strokeColor": "#c92a2a",
+      "backgroundColor": "#fff5f5"
+    },
+    {
+      "id": "end_text",
+      "type": "text",
+      "x": 780,
+      "y": 825,
+      "width": 200,
+      "height": 30,
+      "text": "End",
+      "fontSize": 24,
+      "textAlign": "center"
+    },
+    {
+      "id": "arrow_no",
+      "type": "arrow",
+      "x": 560,
+      "y": 540,
+      "points": [
+        [0, 0],
+        [0, 80]
+      ],
+      "strokeWidth": 2
+    },
+    {
+      "id": "arrow_no_label",
+      "type": "text",
+      "x": 570,
+      "y": 570,
+      "text": "No",
+      "fontSize": 16
+    },
+    {
+      "id": "process_no_1",
+      "type": "rectangle",
+      "x": 450,
+      "y": 620,
+      "width": 220,
+      "height": 80,
+      "strokeColor": "#1864ab",
+      "backgroundColor": "#e7f5ff"
+    },
+    {
+      "id": "process_no_1_text",
+      "type": "text",
+      "x": 460,
+      "y": 635,
+      "width": 200,
+      "height": 50,
+      "text": "Place Backorder",
+      "fontSize": 16,
+      "textAlign": "center"
+    },
+    {
+      "id": "arrow_no_2",
+      "type": "arrow",
+      "x": 560,
+      "y": 700,
+      "points": [
+        [0, 0],
+        [0, 40]
+      ],
+      "strokeWidth": 2
+    },
+    {
+      "id": "doc_no_1",
+      "type": "rectangle",
+      "x": 450,
+      "y": 740,
+      "width": 220,
+      "height": 80,
+      "strokeColor": "#868e96",
+      "backgroundColor": "#f1f3f5"
+    },
+    {
+      "id": "doc_no_1_text",
+      "type": "text",
+      "x": 460,
+      "y": 755,
+      "width": 200,
+      "height": 50,
+      "text": "Notify Customer of Delay",
+      "fontSize": 16,
+      "textAlign": "center"
+    },
+    {
+      "id": "arrow_loop",
+      "type": "arrow",
+      "x": 450,
+      "y": 780,
+      "points": [
+        [0, 0],
+        [-100, 0],
+        [-100, -300],
+        [100, -300]
+      ],
+      "strokeWidth": 2
+    },
+    {
+      "id": "legend_container",
+      "type": "rectangle",
+      "x": 1200,
+      "y": 180,
+      "width": 300,
+      "height": 450,
+      "strokeColor": "#dee2e6",
+      "backgroundColor": "#f8f9fa",
+      "strokeStyle": "dashed"
+    },
+    {
+      "id": "legend_title",
+      "type": "text",
+      "x": 1220,
+      "y": 200,
+      "text": "Legend",
+      "fontSize": 24,
+      "fontWeight": "bold"
+    },
+    {
+      "id": "legend_shape_1",
+      "type": "ellipse",
+      "x": 1230,
+      "y": 250,
+      "width": 100,
+      "height": 40,
+      "strokeColor": "#37b24d",
+      "backgroundColor": "#e6fcf5"
+    },
+    {
+      "id": "legend_text_1",
+      "type": "text",
+      "x": 1350,
+      "y": 257,
+      "text": "Terminator (Start/End)",
+      "fontSize": 16
+    },
+    {
+      "id": "legend_shape_2",
+      "type": "rectangle",
+      "x": 1230,
+      "y": 310,
+      "width": 100,
+      "height": 40,
+      "strokeColor": "#1864ab",
+      "backgroundColor": "#e7f5ff"
+    },
+    {
+      "id": "legend_text_2",
+      "type": "text",
+      "x": 1350,
+      "y": 317,
+      "text": "Process",
+      "fontSize": 16
+    },
+    {
+      "id": "legend_shape_3",
+      "type": "diamond",
+      "x": 1230,
+      "y": 370,
+      "width": 100,
+      "height": 60,
+      "strokeColor": "#fab005",
+      "backgroundColor": "#fff9db"
+    },
+    {
+      "id": "legend_text_3",
+      "type": "text",
+      "x": 1350,
+      "y": 387,
+      "text": "Decision",
+      "fontSize": 16
+    },
+    {
+      "id": "legend_shape_4",
+      "type": "rectangle",
+      "x": 1230,
+      "y": 450,
+      "width": 100,
+      "height": 40,
+      "strokeColor": "#868e96",
+      "backgroundColor": "#f1f3f5"
+    },
+    {
+      "id": "legend_text_4",
+      "type": "text",
+      "x": 1350,
+      "y": 457,
+      "text": "Document",
+      "fontSize": 16
+    },
+    {
+      "id": "legend_shape_5",
+      "type": "arrow",
+      "x": 1230,
+      "y": 520,
+      "points": [
+        [0, 0],
+        [100, 0]
+      ],
+      "strokeWidth": 2
+    },
+    {
+      "id": "legend_text_5",
+      "type": "text",
+      "x": 1350,
+      "y": 512,
+      "text": "Flow Line",
+      "fontSize": 16
+    }
+  ],
+  "appState": {
+    "gridSize": 20,
+    "viewBackgroundColor": "#ffffff"
+  },
+  "files": {}
+}

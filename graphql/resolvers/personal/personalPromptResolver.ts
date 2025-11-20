@@ -71,255 +71,137 @@ const personalPromptResolvers = {
 
       return { prompts: mappedPrompts, totalCount }
     },
-
-    // getPromptDetails: async (
-    //   _parent: any,
-    //   { id }: { id: string },
-    //   context: GraphQLContext
-    // ): Promise<Prompt> => {
-    //   const prompt = await prisma.prompt.findUnique({
-    //     where: { id },
-    //     include: {
-    //       content: {
-    //         orderBy: { order: "asc" },
-    //       },
-    //       user: {
-    //         select: { id: true, firstName: true, lastName: true },
-    //       },
-    //       project: {
-    //         select: { id: true, name: true, workspaceId: true },
-    //       },
-    //     },
-    //   })
-    //   if (!prompt) {
-    //     throw new GraphQLError("Prompt not found", { extensions: { code: "NOT_FOUND" } })
-    //   }
-
-    //   prompt.context = prompt.context || ""
-    //   prompt.variables = prompt.variables || []
-    //   prompt.versions = (prompt.versions as Version[] || []).map(v => ({
-    //     id: v.id,
-    //     createdAt: v.createdAt,
-    //     notes: v.notes,
-    //     description: v.description || "",
-    //     content: v.content || [],
-    //     context: v.context || "",
-    //     variables: v.variables || [],
-    //   }))
-
-    //   return prompt as unknown as Prompt
-    // },
-
-    // getPromptVersionContent: async (
-    //   _parent: any,
-    //   { promptId, versionId }: { promptId: string; versionId: string }
-    // ): Promise<Version> => {
-    //   const prompt = await prisma.prompt.findUnique({
-    //     where: { id: promptId },
-    //     select: { versions: true },
-    //   })
-
-    //   if (!prompt) {
-    //     throw new GraphQLError("Prompt not found", { extensions: { code: "NOT_FOUND" } })
-    //   }
-
-    //   const versions = (prompt.versions as Version[]) || []
-    //   const version = versions.find(v => v.id === versionId)
-
-    //   if (!version) {
-    //     throw new GraphQLError("Version not found within this prompt", { extensions: { code: "NOT_FOUND" } })
-    //   }
-    //   return {
-    //     id: version.id,
-    //     content: version.content || [],
-    //     context: version.context || "",
-    //     variables: version.variables || [],
-    //     createdAt: version.createdAt,
-    //     notes: version.notes,
-    //     description: version.description || "",
-    //   } as Version
-    // },
-
-    // resolvePromptVariable: async (
-    //   _parent: any,
-    //   {
-    //     workspaceId,
-    //     variableSource,
-    //   }: { workspaceId?: string; variableSource: any; promptVariableId?: string },
-    //   context: GraphQLContext
-    // ): Promise<string> => {
-    //   const source = variableSource as PromptVariableSource
-    //   const currentUserId = context.user?.id
-
-    //   if (!currentUserId) {
-    //     throw new GraphQLError("Authentication required", { extensions: { code: "UNAUTHENTICATED" } })
-    //   }
-
-    //   if (source.entityType === "DATE_FUNCTION" && source.field === "today") {
-    //     return new Date().toISOString().split("T")[0]
-    //   }
-
-    //   if (source.entityType === "USER") {
-    //     const currentUser = await prisma.user.findUnique({ where: { id: currentUserId } })
-    //     if (!currentUser) return "N/A (Current user data not found)"
-    //     return (
-    //       source.field?.split(".").reduce((o, i) => (o ? o[i] : undefined), currentUser) || "N/A"
-    //     )
-    //   }
-
-    //   if (source.entityType === "DOCUMENT") {
-    //     const record = await prisma.document.findFirst({
-    //       where: { userId: currentUserId },
-    //       orderBy: { updatedAt: "desc" },
-    //     })
-    //     if (!record) return "N/A (Personal document not found)"
-    //     if (source.field === "content" && typeof record.content === "object") {
-    //       return JSON.stringify(record.content)
-    //     }
-    //     return (
-    //       source.field?.split(".").reduce((o, i) => (o ? o[i] : undefined), record) || "N/A"
-    //     )
-    //   }
-
-    //   if (
-    //     ["PROJECT", "SPRINT", "MEMBER", "TASK", "WORKSPACE"].includes(source.entityType)
-    //   ) {
-    //     return "N/A (Project context required for this data)"
-    //   }
-
-    //   return "N/A (Unsupported entity type in personal context)"
-    // },
   },
 
   Mutation: {
-    createPrompt: async (
-      _parent: any,
-      {
-        input,
-      }: {
-        input: {
-          projectId?: string
-          title: string
-          content?: Block[]
-          context?: string
-          description?: string
-          category?: string
-          tags?: string[]
-          isPublic?: boolean
-          model?: string
-          variables?: PromptVariable[]
-          versions?: Version[]
-        }
-      },
-      context: GraphQLContext
-    ): Promise<Prompt> => {
-      if (!context.user?.id) {
-        throw new GraphQLError("Authentication required", { extensions: { code: "UNAUTHENTICATED" } })
-      }
+    // createPrompt: async (
+    //   _parent: any,
+    //   {
+    //     input,
+    //   }: {
+    //     input: {
+    //       projectId?: string
+    //       title: string
+    //       content?: Block[]
+    //       context?: string
+    //       description?: string
+    //       category?: string
+    //       tags?: string[]
+    //       isPublic?: boolean
+    //       model?: string
+    //       variables?: PromptVariable[]
+    //       versions?: Version[]
+    //     }
+    //   },
+    //   context: GraphQLContext
+    // ): Promise<Prompt> => {
+    //   if (!context.user?.id) {
+    //     throw new GraphQLError("Authentication required", { extensions: { code: "UNAUTHENTICATED" } })
+    //   }
 
-      const { content, ...scalarData } = input;
+    //   const { content, ...scalarData } = input;
 
-      const newPromptData: any = {
-        ...scalarData,
-        userId: context.user.id,
-        variables: (input.variables || []).map(v => ({...v, id: v.id || generateUniqueId()})),
-        versions: (input.versions || []).map(v => ({...v, id: v.id || generateUniqueId()})),
-      };
+    //   const newPromptData: any = {
+    //     ...scalarData,
+    //     userId: context.user.id,
+    //     variables: (input.variables || []).map(v => ({...v, id: v.id || generateUniqueId()})),
+    //     versions: (input.versions || []).map(v => ({...v, id: v.id || generateUniqueId()})),
+    //   };
 
-      if (content && content.length > 0) {
-        newPromptData.content = {
-          create: content.map((block, index) => ({
-            type: block.type,
-            value: block.value,
-            varId: block.varId,
-            placeholder: block.placeholder,
-            name: block.name,
-            order: index,
-          }))
-        };
-      }
+    //   if (content && content.length > 0) {
+    //     newPromptData.content = {
+    //       create: content.map((block, index) => ({
+    //         type: block.type,
+    //         value: block.value,
+    //         varId: block.varId,
+    //         placeholder: block.placeholder,
+    //         name: block.name,
+    //         order: index,
+    //       }))
+    //     };
+    //   }
 
-      const newPrompt = await prisma.prompt.create({
-        data: newPromptData,
-        include: {
-          content: { orderBy: { order: 'asc' } },
-        },
-      })
+    //   const newPrompt = await prisma.prompt.create({
+    //     data: newPromptData,
+    //     include: {
+    //       content: { orderBy: { order: 'asc' } },
+    //     },
+    //   })
 
-      return newPrompt as unknown as Prompt
-    },
+    //   return newPrompt as unknown as Prompt
+    // },
 
-    updatePrompt: async (
-      _parent: any,
-      {
-        input,
-      }: {
-        input: {
-          id: string
-          title?: string
-          content?: Block[]
-          context?: string
-          description?: string
-          category?: string
-          tags?: string[]
-          isPublic?: boolean
-          model?: string
-          variables?: PromptVariable[]
-        }
-      }
-    ): Promise<Prompt> => {
-      const { id, content, ...scalarUpdates } = input;
+    // updatePrompt: async (
+    //   _parent: any,
+    //   {
+    //     input,
+    //   }: {
+    //     input: {
+    //       id: string
+    //       title?: string
+    //       content?: Block[]
+    //       context?: string
+    //       description?: string
+    //       category?: string
+    //       tags?: string[]
+    //       isPublic?: boolean
+    //       model?: string
+    //       variables?: PromptVariable[]
+    //     }
+    //   }
+    // ): Promise<Prompt> => {
+    //   const { id, content, ...scalarUpdates } = input;
 
-      const updatedPrompt = await prisma.$transaction(async (tx) => {
-        if (Object.keys(scalarUpdates).length > 0) {
-          const updateData: any = { ...scalarUpdates, updatedAt: new Date() };
-          if (scalarUpdates.variables) {
-             updateData.variables = scalarUpdates.variables.map(v => ({ ...v, id: v.id || generateUniqueId() }));
-          }
-          await tx.prompt.update({
-            where: { id },
-            data: updateData,
-          });
-        }
+    //   const updatedPrompt = await prisma.$transaction(async (tx) => {
+    //     if (Object.keys(scalarUpdates).length > 0) {
+    //       const updateData: any = { ...scalarUpdates, updatedAt: new Date() };
+    //       if (scalarUpdates.variables) {
+    //          updateData.variables = scalarUpdates.variables.map(v => ({ ...v, id: v.id || generateUniqueId() }));
+    //       }
+    //       await tx.prompt.update({
+    //         where: { id },
+    //         data: updateData,
+    //       });
+    //     }
 
-        if (content) {
-          await tx.contentBlock.deleteMany({ where: { promptId: id } });
-          if (content.length > 0) {
-            await tx.contentBlock.createMany({
-              data: content.map((block, index) => ({
-                type: block.type,
-                value: block.value,
-                varId: block.varId,
-                placeholder: block.placeholder,
-                name: block.name,
-                promptId: id,
-                order: index,
-              }))
-            });
-          }
-        }
+    //     if (content) {
+    //       await tx.contentBlock.deleteMany({ where: { promptId: id } });
+    //       if (content.length > 0) {
+    //         await tx.contentBlock.createMany({
+    //           data: content.map((block, index) => ({
+    //             type: block.type,
+    //             value: block.value,
+    //             varId: block.varId,
+    //             placeholder: block.placeholder,
+    //             name: block.name,
+    //             promptId: id,
+    //             order: index,
+    //           }))
+    //         });
+    //       }
+    //     }
 
-        return tx.prompt.findUnique({
-          where: { id },
-          include: {
-            content: { orderBy: { order: 'asc' } },
-          },
-        });
-      });
+    //     return tx.prompt.findUnique({
+    //       where: { id },
+    //       include: {
+    //         content: { orderBy: { order: 'asc' } },
+    //       },
+    //     });
+    //   });
 
-      if (!updatedPrompt) {
-        throw new Error("Prompt not found after update.");
-      }
+    //   if (!updatedPrompt) {
+    //     throw new Error("Prompt not found after update.");
+    //   }
       
-      return updatedPrompt as unknown as Prompt;
-    },
+    //   return updatedPrompt as unknown as Prompt;
+    // },
 
-    deletePrompt: async (_parent: any, { id }: { id: string }): Promise<Prompt> => {
-      const deletedPrompt = await prisma.prompt.delete({
-        where: { id },
-      })
-      return deletedPrompt as unknown as Prompt
-    },
+    // deletePrompt: async (_parent: any, { id }: { id: string }): Promise<Prompt> => {
+    //   const deletedPrompt = await prisma.prompt.delete({
+    //     where: { id },
+    //   })
+    //   return deletedPrompt as unknown as Prompt
+    // },
 
     snapshotPrompt: async (
       _parent: any,

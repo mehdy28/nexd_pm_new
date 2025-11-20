@@ -1,0 +1,492 @@
+[
+    {
+      "id": "e4483750-932f-45b6-bf25-5c39054325a7",
+      "type": "heading",
+      "props": {
+        "level": 1,
+        "textColor": "default",
+        "backgroundColor": "default"
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "Meeting Notes: [Project/Topic Name]",
+          "styles": {}
+        }
+      ],
+      "children": []
+    },
+    {
+      "type": "paragraph",
+      "id": "87b92780-ecce-4874-849c-d007e2c90c74",
+      "props": {
+        "textColor": "default",
+        "backgroundColor": "default"
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "Date:",
+          "styles": {
+            "bold": true
+          }
+        },
+        {
+          "type": "text",
+          "text": " ",
+          "styles": {}
+        },
+        {
+          "type": "text",
+          "text": "YYYY-MM-DD",
+          "styles": {
+            "textColor": "gray"
+          }
+        }
+      ],
+      "children": []
+    },
+    {
+      "type": "paragraph",
+      "id": "2b610c1f-4d57-4b77-a8b2-54a7f9202166",
+      "props": {
+        "textColor": "default",
+        "backgroundColor": "default"
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "Time:",
+          "styles": {
+            "bold": true
+          }
+        },
+        {
+          "type": "text",
+          "text": " ",
+          "styles": {}
+        },
+        {
+          "type": "text",
+          "text": "[Start Time] - [End Time]",
+          "styles": {
+            "textColor": "gray"
+          }
+        }
+      ],
+      "children": []
+    },
+    {
+      "type": "paragraph",
+      "id": "23c1fd33-3d08-41d4-8d9e-1bc151475c74",
+      "props": {
+        "textColor": "default",
+        "backgroundColor": "default"
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "Attendees:",
+          "styles": {
+            "bold": true
+          }
+        },
+        {
+          "type": "text",
+          "text": " ",
+          "styles": {}
+        },
+        {
+          "type": "text",
+          "text": "[Name 1, Name 2, ...]",
+          "styles": {
+            "textColor": "gray"
+          }
+        }
+      ],
+      "children": []
+    },
+    {
+      "id": "c4c8b2a3-7b4e-4b7b-9b4e-8c7d6e5f4d3c",
+      "type": "heading",
+      "props": {
+        "level": 2,
+        "textColor": "default",
+        "backgroundColor": "default"
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "🎯 Objective",
+          "styles": {}
+        }
+      ],
+      "children": []
+    },
+    {
+      "id": "d1e2f3a4-b5c6-d7e8-f9a0-b1c2d3e4f5a6",
+      "type": "paragraph",
+      "props": {
+        "textColor": "default",
+        "backgroundColor": "default"
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "[State the primary goal or purpose of this meeting. What is the desired outcome?]",
+          "styles": {
+            "textColor": "gray"
+          }
+        }
+      ],
+      "children": []
+    },
+    {
+      "id": "8488e360-153b-4573-8a30-e88df2bf6132",
+      "type": "heading",
+      "props": {
+        "level": 2,
+        "textColor": "default",
+        "backgroundColor": "default"
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "📝 Agenda",
+          "styles": {}
+        }
+      ],
+      "children": []
+    },
+    {
+      "id": "a1f9a0c0-f421-4f8a-9f2d-8b63e9e1c0c6",
+      "type": "numberedListItem",
+      "props": {
+        "textColor": "default",
+        "backgroundColor": "default"
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "Review of action items from previous meeting.",
+          "styles": {}
+        }
+      ],
+      "children": []
+    },
+    {
+      "id": "8f87b8d4-5396-41f3-80b6-96a1a74d28f0",
+      "type": "numberedListItem",
+      "props": {
+        "textColor": "default",
+        "backgroundColor": "default"
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "Discussion on [Topic A: High-level overview].",
+          "styles": {}
+        }
+      ],
+      "children": []
+    },
+    {
+      "id": "f516d2b6-d3c5-43a0-b883-7e4492751f72",
+      "type": "numberedListItem",
+      "props": {
+        "textColor": "default",
+        "backgroundColor": "default"
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "Deep dive into [Topic B: Technical details/challenges].",
+          "styles": {}
+        }
+      ],
+      "children": []
+    },
+    {
+      "id": "1ab2c3d4-e5f6-a7b8-c9d0-e1f2a3b4c5d6",
+      "type": "numberedListItem",
+      "props": {
+        "textColor": "default",
+        "backgroundColor": "default"
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "Brainstorming session for [Topic C: Future strategy].",
+          "styles": {}
+        }
+      ],
+      "children": []
+    },
+    {
+      "id": "50c38827-0240-4bd2-9a57-010e9bf34f66",
+      "type": "heading",
+      "props": {
+        "level": 2,
+        "textColor": "default",
+        "backgroundColor": "default"
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "💬 Discussion Notes",
+          "styles": {}
+        }
+      ],
+      "children": []
+    },
+    {
+      "id": "a1b2c3d4-e5f6-a7b8-c9d0-e1f2a3b4c5d7",
+      "type": "heading",
+      "props": {
+        "level": 3,
+        "textColor": "default",
+        "backgroundColor": "default"
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "Topic A: [High-level overview]",
+          "styles": {
+            "textColor": "gray"
+          }
+        }
+      ],
+      "children": []
+    },
+    {
+      "id": "76483584-38c6-4d2d-944d-5c6e8389cc09",
+      "type": "bulletListItem",
+      "props": {
+        "textColor": "default",
+        "backgroundColor": "default"
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "[Key point raised by Name...]",
+          "styles": {
+            "textColor": "gray"
+          }
+        }
+      ],
+      "children": []
+    },
+    {
+      "id": "9269430c-5198-4c17-8e50-2f3b97b83d98",
+      "type": "bulletListItem",
+      "props": {
+        "textColor": "default",
+        "backgroundColor": "default"
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "[Data point or finding shared...]",
+          "styles": {
+            "textColor": "gray"
+          }
+        }
+      ],
+      "children": []
+    },
+    {
+      "id": "b1c2d3e4-f5a6-b7c8-d9e0-f1a2b3c4d5e6",
+      "type": "heading",
+      "props": {
+        "level": 3,
+        "textColor": "default",
+        "backgroundColor": "default"
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "Topic B: [Technical details/challenges]",
+          "styles": {
+            "textColor": "gray"
+          }
+        }
+      ],
+      "children": []
+    },
+    {
+      "id": "c1d2e3f4-a5b6-c7d8-e9f0-a1b2c3d4e5f6",
+      "type": "bulletListItem",
+      "props": {
+        "textColor": "default",
+        "backgroundColor": "default"
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "[Potential risk identified...]",
+          "styles": {
+            "textColor": "gray"
+          }
+        }
+      ],
+      "children": []
+    },
+    {
+      "id": "d1e2f3a4-b5c6-d7e8-f9a0-b1c2d3e4f5a7",
+      "type": "heading",
+      "props": {
+        "level": 2,
+        "textColor": "default",
+        "backgroundColor": "default"
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "✅ Decisions Made",
+          "styles": {}
+        }
+      ],
+      "children": []
+    },
+    {
+      "id": "4080dd6f-9988-4660-8488-842245e144a1",
+      "type": "numberedListItem",
+      "props": {
+        "textColor": "default",
+        "backgroundColor": "default"
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "Decision 1: [Clearly state the final decision made regarding Topic A, including the rationale.]",
+          "styles": {
+            "textColor": "gray"
+          }
+        }
+      ],
+      "children": []
+    },
+    {
+      "id": "e7c41440-b6c8-47d0-8f92-944e83793757",
+      "type": "numberedListItem",
+      "props": {
+        "textColor": "default",
+        "backgroundColor": "default"
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "Decision 2: [Clearly state the final decision made regarding Topic B, including the rationale.]",
+          "styles": {
+            "textColor": "gray"
+          }
+        }
+      ],
+      "children": []
+    },
+    {
+      "id": "f1a2b3c4-d5e6-f7a8-b9c0-d1e2f3a4b5c6",
+      "type": "heading",
+      "props": {
+        "level": 2,
+        "textColor": "default",
+        "backgroundColor": "default"
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "🚀 Action Items",
+          "styles": {}
+        }
+      ],
+      "children": []
+    },
+    {
+      "id": "b304f5e7-2b02-468a-a43b-2858b4da79f7",
+      "type": "table",
+      "props": {},
+      "content": {
+        "type": "tableContent",
+        "rows": [
+          {
+            "cells": [
+              "Task / Action Item",
+              "Assigned To",
+              "Due Date",
+              "Status"
+            ]
+          },
+          {
+            "cells": [
+              "[Describe specific, actionable task...]",
+              "[Name]",
+              "[YYYY-MM-DD]",
+              "To Do"
+            ]
+          },
+          {
+            "cells": [
+              "[Describe specific, actionable task...]",
+              "[Name]",
+              "[YYYY-MM-DD]",
+              "To Do"
+            ]
+          }
+        ]
+      },
+      "children": []
+    },
+    {
+      "id": "8c7d6e5f-4d3c-4b7b-9b4e-a1b2c3d4e5f8",
+      "type": "heading",
+      "props": {
+        "level": 2,
+        "textColor": "default",
+        "backgroundColor": "default"
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "➡️ Next Steps & Future Topics",
+          "styles": {}
+        }
+      ],
+      "children": []
+    },
+    {
+      "id": "b7c8-d9e0-f1a2-b3c4d5e7-a1b2c3d4e5f9",
+      "type": "bulletListItem",
+      "props": {
+        "textColor": "default",
+        "backgroundColor": "default"
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "[Schedule follow-up meeting for YYYY-MM-DD to discuss...]",
+          "styles": {
+            "textColor": "gray"
+          }
+        }
+      ],
+      "children": []
+    },
+    {
+      "id": "c7d8-e9f0-a1b2-c3d4e5f7-b1c2d3e4f5a0",
+      "type": "bulletListItem",
+      "props": {
+        "textColor": "default",
+        "backgroundColor": "default"
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "[Parking Lot Item]: Defer discussion on [Topic X] until the next planning session.",
+          "styles": {
+            "textColor": "gray"
+          }
+        }
+      ],
+      "children": []
+    }
+  ]

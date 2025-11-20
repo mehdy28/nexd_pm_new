@@ -1,0 +1,290 @@
+[
+    {
+      "id": "sp-1",
+      "type": "heading",
+      "props": {
+        "level": 1
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "Sprint Planning: [Sprint Name/Number]",
+          "styles": {}
+        }
+      ]
+    },
+    {
+      "id": "sp-2",
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "Date: ",
+          "styles": {
+            "bold": true
+          }
+        },
+        {
+          "type": "text",
+          "text": "[YYYY-MM-DD]",
+          "styles": {
+            "textColor": "gray"
+          }
+        }
+      ]
+    },
+    {
+      "id": "sp-9",
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "Sprint Duration: ",
+          "styles": {
+            "bold": true
+          }
+        },
+        {
+          "type": "text",
+          "text": "[e.g., 2 Weeks]",
+          "styles": {
+            "textColor": "gray"
+          }
+        }
+      ]
+    },
+    {
+      "id": "sp-3",
+      "type": "heading",
+      "props": {
+        "level": 2
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "🎯 Sprint Goal",
+          "styles": {}
+        }
+      ]
+    },
+    {
+      "id": "sp-4",
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "[Define a single, concise, and measurable goal for the sprint. What is the one most important thing we want to achieve? This should be the 'why' behind the sprint.]",
+          "styles": {
+            "textColor": "gray"
+          }
+        }
+      ]
+    },
+    {
+      "id": "sp-5",
+      "type": "heading",
+      "props": {
+        "level": 2
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "🏃 Team Capacity",
+          "styles": {}
+        }
+      ]
+    },
+    {
+      "id": "sp-6",
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "[Note any team members on leave, public holidays, or other factors affecting capacity. Calculate available story points if applicable.]",
+          "styles": {
+            "textColor": "gray"
+          }
+        }
+      ]
+    },
+    {
+      "id": "sp-10",
+      "type": "heading",
+      "props": {
+        "level": 2
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "⏪ Review from Previous Sprint",
+          "styles": {}
+        }
+      ]
+    },
+    {
+      "id": "sp-11",
+      "type": "bulletListItem",
+      "content": [
+        {
+          "type": "text",
+          "text": "[Action item from last retro: ... Status: Done/In Progress]",
+          "styles": {
+            "textColor": "gray"
+          }
+        }
+      ]
+    },
+    {
+      "id": "sp-12",
+      "type": "bulletListItem",
+      "content": [
+        {
+          "type": "text",
+          "text": "[Unfinished work from last sprint to be considered: ...]",
+          "styles": {
+            "textColor": "gray"
+          }
+        }
+      ]
+    },
+    {
+      "id": "sp-7",
+      "type": "heading",
+      "props": {
+        "level": 2
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "📦 Sprint Backlog",
+          "styles": {}
+        }
+      ]
+    },
+    {
+      "id": "sp-8",
+      "type": "table",
+      "content": {
+        "type": "tableContent",
+        "rows": [
+          {
+            "cells": [
+              "User Story / Task ID",
+              "Description",
+              "Story Points",
+              "Assignee"
+            ]
+          },
+          {
+            "cells": [
+              "[TICKET-123]",
+              "[As a user, I want to...]",
+              "",
+              ""
+            ]
+          },
+          {
+            "cells": [
+              "[TICKET-124]",
+              "[Fix bug related to...]",
+              "",
+              ""
+            ]
+          },
+          {
+            "cells": [
+              "[TICKET-125]",
+              "[Tech debt: Refactor...]",
+              "",
+              ""
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "sp-13",
+      "type": "heading",
+      "props": {
+        "level": 2
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "⚠️ Potential Risks & Dependencies",
+          "styles": {}
+        }
+      ]
+    },
+    {
+      "id": "sp-14",
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "[Identify any potential blockers, risks, or dependencies on other teams that might impact the sprint goal.]",
+          "styles": {
+            "textColor": "gray"
+          }
+        }
+      ]
+    },
+    {
+      "id": "sp-15",
+      "type": "heading",
+      "props": {
+        "level": 2
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "✅ Definition of Done",
+          "styles": {}
+        }
+      ]
+    },
+    {
+      "id": "sp-16",
+      "type": "bulletListItem",
+      "content": [
+        {
+          "type": "text",
+          "text": "Code is peer-reviewed.",
+          "styles": {}
+        }
+      ]
+    },
+    {
+      "id": "sp-17",
+      "type": "bulletListItem",
+      "content": [
+        {
+          "type": "text",
+          "text": "Unit and integration tests pass.",
+          "styles": {}
+        }
+      ]
+    },
+    {
+      "id": "sp-18",
+      "type": "bulletListItem",
+      "content": [
+        {
+          "type": "text",
+          "text": "Documentation is updated.",
+          "styles": {}
+        }
+      ]
+    },
+    {
+      "id": "sp-19",
+      "type": "bulletListItem",
+      "content": [
+        {
+          "type": "text",
+          "text": "Accepted by Product Owner.",
+          "styles": {}
+        }
+      ]
+    }
+  ]

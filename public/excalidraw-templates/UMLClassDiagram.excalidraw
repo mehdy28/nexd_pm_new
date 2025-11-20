@@ -1,0 +1,450 @@
+{
+  "type": "excalidraw",
+  "version": 2,
+  "source": "https://excalidraw.com",
+  "elements": [
+    {
+      "id": "main_title",
+      "type": "text",
+      "x": 40,
+      "y": 40,
+      "width": 550,
+      "height": 45,
+      "strokeColor": "#1e2c3b",
+      "text": "UML Class Diagram",
+      "fontSize": 36,
+      "fontFamily": 1
+    },
+    {
+      "id": "main_subtitle",
+      "type": "text",
+      "x": 40,
+      "y": 95,
+      "width": 800,
+      "height": 25,
+      "strokeColor": "#868e96",
+      "text": "Model the static structure, attributes, methods, and relationships of a system.",
+      "fontSize": 20,
+      "fontFamily": 1
+    },
+    {
+      "id": "user_class_box",
+      "type": "rectangle",
+      "x": 300,
+      "y": 200,
+      "width": 300,
+      "height": 200,
+      "backgroundColor": "#e7f5ff",
+      "strokeColor": "#a5d8ff"
+    },
+    {
+      "id": "user_class_title",
+      "type": "text",
+      "x": 310,
+      "y": 210,
+      "width": 280,
+      "height": 30,
+      "text": "User",
+      "fontSize": 20,
+      "textAlign": "center",
+      "fontWeight": "bold"
+    },
+    {
+      "id": "user_divider_1",
+      "type": "line",
+      "x": 300,
+      "y": 240,
+      "points": [
+        [0, 0],
+        [300, 0]
+      ]
+    },
+    {
+      "id": "user_attributes",
+      "type": "text",
+      "x": 310,
+      "y": 250,
+      "width": 280,
+      "height": 80,
+      "text": "- userId: string\n- email: string\n- name: string",
+      "fontSize": 16,
+      "textAlign": "left",
+      "lineHeight": 1.5
+    },
+    {
+      "id": "user_divider_2",
+      "type": "line",
+      "x": 300,
+      "y": 320,
+      "points": [
+        [0, 0],
+        [300, 0]
+      ]
+    },
+    {
+      "id": "user_methods",
+      "type": "text",
+      "x": 310,
+      "y": 330,
+      "width": 280,
+      "height": 60,
+      "text": "+ login()\n+ placeOrder()",
+      "fontSize": 16,
+      "textAlign": "left",
+      "lineHeight": 1.5
+    },
+    {
+      "id": "order_class_box",
+      "type": "rectangle",
+      "x": 300,
+      "y": 500,
+      "width": 300,
+      "height": 200,
+      "backgroundColor": "#e7f5ff",
+      "strokeColor": "#a5d8ff"
+    },
+    {
+      "id": "order_class_title",
+      "type": "text",
+      "x": 310,
+      "y": 510,
+      "width": 280,
+      "height": 30,
+      "text": "Order",
+      "fontSize": 20,
+      "textAlign": "center",
+      "fontWeight": "bold"
+    },
+    {
+      "id": "order_divider_1",
+      "type": "line",
+      "x": 300,
+      "y": 540,
+      "points": [
+        [0, 0],
+        [300, 0]
+      ]
+    },
+    {
+      "id": "order_attributes",
+      "type": "text",
+      "x": 310,
+      "y": 550,
+      "width": 280,
+      "height": 80,
+      "text": "- orderId: string\n- date: Date\n- status: string",
+      "fontSize": 16,
+      "textAlign": "left",
+      "lineHeight": 1.5
+    },
+    {
+      "id": "order_divider_2",
+      "type": "line",
+      "x": 300,
+      "y": 620,
+      "points": [
+        [0, 0],
+        [300, 0]
+      ]
+    },
+    {
+      "id": "order_methods",
+      "type": "text",
+      "x": 310,
+      "y": 630,
+      "width": 280,
+      "height": 60,
+      "text": "+ calculateTotal()\n+ addOrderItem()",
+      "fontSize": 16,
+      "textAlign": "left",
+      "lineHeight": 1.5
+    },
+    {
+      "id": "order_item_class_box",
+      "type": "rectangle",
+      "x": 700,
+      "y": 500,
+      "width": 300,
+      "height": 160,
+      "backgroundColor": "#e7f5ff",
+      "strokeColor": "#a5d8ff"
+    },
+    {
+      "id": "order_item_class_title",
+      "type": "text",
+      "x": 710,
+      "y": 510,
+      "width": 280,
+      "height": 30,
+      "text": "OrderItem",
+      "fontSize": 20,
+      "textAlign": "center",
+      "fontWeight": "bold"
+    },
+    {
+      "id": "order_item_divider_1",
+      "type": "line",
+      "x": 700,
+      "y": 540,
+      "points": [
+        [0, 0],
+        [300, 0]
+      ]
+    },
+    {
+      "id": "order_item_attributes",
+      "type": "text",
+      "x": 710,
+      "y": 550,
+      "width": 280,
+      "height": 100,
+      "text": "- quantity: int\n- price: double",
+      "fontSize": 16,
+      "textAlign": "left",
+      "lineHeight": 1.5
+    },
+    {
+      "id": "product_class_box",
+      "type": "rectangle",
+      "x": 700,
+      "y": 750,
+      "width": 300,
+      "height": 160,
+      "backgroundColor": "#e7f5ff",
+      "strokeColor": "#a5d8ff"
+    },
+    {
+      "id": "product_class_title",
+      "type": "text",
+      "x": 710,
+      "y": 760,
+      "width": 280,
+      "height": 30,
+      "text": "Product",
+      "fontSize": 20,
+      "textAlign": "center",
+      "fontWeight": "bold"
+    },
+    {
+      "id": "product_divider_1",
+      "type": "line",
+      "x": 700,
+      "y": 790,
+      "points": [
+        [0, 0],
+        [300, 0]
+      ]
+    },
+    {
+      "id": "product_attributes",
+      "type": "text",
+      "x": 710,
+      "y": 800,
+      "width": 280,
+      "height": 100,
+      "text": "- productId: string\n- name: string\n- price: double",
+      "fontSize": 16,
+      "textAlign": "left",
+      "lineHeight": 1.5
+    },
+    {
+      "id": "association_user_order",
+      "type": "arrow",
+      "x": 450,
+      "y": 400,
+      "points": [
+        [0, 0],
+        [0, 100]
+      ]
+    },
+    {
+      "id": "association_user_order_label",
+      "type": "text",
+      "x": 460,
+      "y": 440,
+      "text": "places",
+      "fontSize": 16
+    },
+    {
+      "id": "multiplicity_user",
+      "type": "text",
+      "x": 460,
+      "y": 385,
+      "text": "1",
+      "fontSize": 16
+    },
+    {
+      "id": "multiplicity_order",
+      "type": "text",
+      "x": 460,
+      "y": 505,
+      "text": "0..*",
+      "fontSize": 16
+    },
+    {
+      "id": "composition_order_item",
+      "type": "arrow",
+      "x": 600,
+      "y": 600,
+      "points": [
+        [0, 0],
+        [100, 0]
+      ],
+      "startArrowhead": "diamond_fill"
+    },
+    {
+      "id": "multiplicity_order_comp",
+      "type": "text",
+      "x": 610,
+      "y": 575,
+      "text": "1",
+      "fontSize": 16
+    },
+    {
+      "id": "multiplicity_item_comp",
+      "type": "text",
+      "x": 670,
+      "y": 575,
+      "text": "1..*",
+      "fontSize": 16
+    },
+    {
+      "id": "aggregation_item_product",
+      "type": "arrow",
+      "x": 850,
+      "y": 660,
+      "points": [
+        [0, 0],
+        [0, 90]
+      ],
+      "startArrowhead": "diamond"
+    },
+    {
+      "id": "multiplicity_item_agg",
+      "type": "text",
+      "x": 860,
+      "y": 645,
+      "text": "*",
+      "fontSize": 16
+    },
+    {
+      "id": "multiplicity_product_agg",
+      "type": "text",
+      "x": 860,
+      "y": 755,
+      "text": "1",
+      "fontSize": 16
+    },
+    {
+      "id": "legend_container",
+      "type": "rectangle",
+      "x": 1050,
+      "y": 200,
+      "width": 350,
+      "height": 400,
+      "strokeColor": "#dee2e6",
+      "backgroundColor": "#f8f9fa",
+      "strokeStyle": "dashed"
+    },
+    {
+      "id": "legend_title",
+      "type": "text",
+      "x": 1070,
+      "y": 220,
+      "text": "UML Legend",
+      "fontSize": 24,
+      "fontWeight": "bold"
+    },
+    {
+      "id": "legend_association_arrow",
+      "type": "arrow",
+      "x": 1080,
+      "y": 280,
+      "points": [
+        [0, 0],
+        [100, 0]
+      ]
+    },
+    {
+      "id": "legend_association_text",
+      "type": "text",
+      "x": 1200,
+      "y": 272,
+      "text": "Association",
+      "fontSize": 16
+    },
+    {
+      "id": "legend_inheritance_arrow",
+      "type": "arrow",
+      "x": 1080,
+      "y": 330,
+      "points": [
+        [0, 0],
+        [100, 0]
+      ],
+      "endArrowhead": "triangle"
+    },
+    {
+      "id": "legend_inheritance_text",
+      "type": "text",
+      "x": 1200,
+      "y": 322,
+      "text": "Inheritance",
+      "fontSize": 16
+    },
+    {
+      "id": "legend_aggregation_arrow",
+      "type": "arrow",
+      "x": 1080,
+      "y": 380,
+      "points": [
+        [0, 0],
+        [100, 0]
+      ],
+      "startArrowhead": "diamond"
+    },
+    {
+      "id": "legend_aggregation_text",
+      "type": "text",
+      "x": 1200,
+      "y": 372,
+      "text": "Aggregation (has-a)",
+      "fontSize": 16
+    },
+    {
+      "id": "legend_composition_arrow",
+      "type": "arrow",
+      "x": 1080,
+      "y": 430,
+      "points": [
+        [0, 0],
+        [100, 0]
+      ],
+      "startArrowhead": "diamond_fill"
+    },
+    {
+      "id": "legend_composition_text",
+      "type": "text",
+      "x": 1200,
+      "y": 422,
+      "text": "Composition (owns-a)",
+      "fontSize": 16
+    },
+    {
+      "id": "legend_note_text",
+      "type": "text",
+      "x": 1070,
+      "y": 500,
+      "width": 310,
+      "height": 80,
+      "text": "Visibility:\n+ public\n- private\n# protected",
+      "fontSize": 16,
+      "lineHeight": 1.5
+    }
+  ],
+  "appState": {
+    "gridSize": 20,
+    "viewBackgroundColor": "#ffffff"
+  },
+  "files": {}
+}

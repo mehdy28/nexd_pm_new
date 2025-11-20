@@ -1,0 +1,307 @@
+[
+    {
+      "id": "psr-1",
+      "type": "heading",
+      "props": {
+        "level": 1
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "Project Status Report: [Project Name]",
+          "styles": {}
+        }
+      ]
+    },
+    {
+      "id": "psr-2",
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "Reporting Period: ",
+          "styles": {
+            "bold": true
+          }
+        },
+        {
+          "type": "text",
+          "text": "[Start Date] - [End Date]",
+          "styles": {
+            "textColor": "gray"
+          }
+        }
+      ]
+    },
+    {
+      "id": "psr-3",
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "Overall Status: ",
+          "styles": {
+            "bold": true
+          }
+        },
+        {
+          "type": "text",
+          "text": "[🟢 On Track / 🟡 Minor Issues / 🔴 At Risk]",
+          "styles": {
+            "textColor": "gray"
+          }
+        }
+      ]
+    },
+    {
+      "id": "psr-4",
+      "type": "heading",
+      "props": {
+        "level": 2
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "📄 Executive Summary",
+          "styles": {}
+        }
+      ]
+    },
+    {
+      "id": "psr-5",
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "[High-level summary for stakeholders. Briefly cover project health, key milestones achieved, major blockers, and outlook for the next period. Keep it concise and to the point.]",
+          "styles": {
+            "textColor": "gray"
+          }
+        }
+      ]
+    },
+    {
+      "id": "psr-14",
+      "type": "heading",
+      "props": {
+        "level": 2
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "📊 Project Health Metrics",
+          "styles": {}
+        }
+      ]
+    },
+    {
+      "id": "psr-15",
+      "type": "table",
+      "content": {
+        "type": "tableContent",
+        "rows": [
+          {
+            "cells": [
+              "Metric",
+              "Status",
+              "Comment"
+            ]
+          },
+          {
+            "cells": [
+              "Schedule",
+              "[🟢/🟡/🔴]",
+              ""
+            ]
+          },
+          {
+            "cells": [
+              "Budget",
+              "[🟢/🟡/🔴]",
+              ""
+            ]
+          },
+          {
+            "cells": [
+              "Scope",
+              "[🟢/🟡/🔴]",
+              ""
+            ]
+          },
+          {
+            "cells": [
+              "Resources",
+              "[🟢/🟡/🔴]",
+              ""
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "psr-6",
+      "type": "heading",
+      "props": {
+        "level": 2
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "✅ Key Accomplishments (This Period)",
+          "styles": {}
+        }
+      ]
+    },
+    {
+      "id": "psr-7",
+      "type": "bulletListItem",
+      "content": [
+        {
+          "type": "text",
+          "text": "[Completed milestone/feature 1 and its impact.]",
+          "styles": {
+            "textColor": "gray"
+          }
+        }
+      ]
+    },
+    {
+      "id": "psr-8",
+      "type": "bulletListItem",
+      "content": [
+        {
+          "type": "text",
+          "text": "[Resolved critical issue 2, unblocking the team.]",
+          "styles": {
+            "textColor": "gray"
+          }
+        }
+      ]
+    },
+    {
+      "id": "psr-9",
+      "type": "heading",
+      "props": {
+        "level": 2
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "➡️ Planned Activities (Next Period)",
+          "styles": {}
+        }
+      ]
+    },
+    {
+      "id": "psr-10",
+      "type": "bulletListItem",
+      "content": [
+        {
+          "type": "text",
+          "text": "[Key goal or activity planned for the next reporting cycle.]",
+          "styles": {
+            "textColor": "gray"
+          }
+        }
+      ]
+    },
+    {
+      "id": "psr-11",
+      "type": "bulletListItem",
+      "content": [
+        {
+          "type": "text",
+          "text": "[Another key focus area for the team.]",
+          "styles": {
+            "textColor": "gray"
+          }
+        }
+      ]
+    },
+    {
+      "id": "psr-12",
+      "type": "heading",
+      "props": {
+        "level": 2
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "⚠️ Issues, Risks, and Blockers",
+          "styles": {}
+        }
+      ]
+    },
+    {
+      "id": "psr-13",
+      "type": "table",
+      "content": {
+        "type": "tableContent",
+        "rows": [
+          {
+            "cells": [
+              "Issue/Risk Description",
+              "Impact",
+              "Mitigation Plan / Action Needed",
+              "Owner"
+            ]
+          },
+          {
+            "cells": [
+              "",
+              "",
+              "",
+              ""
+            ]
+          },
+          {
+            "cells": [
+              "",
+              "",
+              "",
+              ""
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "psr-16",
+      "type": "heading",
+      "props": {
+        "level": 2
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "💰 Budget Overview",
+          "styles": {}
+        }
+      ]
+    },
+    {
+      "id": "psr-17",
+      "type": "table",
+      "content": {
+        "type": "tableContent",
+        "rows": [
+          {
+            "cells": [
+              "",
+              "Budgeted",
+              "Actuals to Date",
+              "Variance"
+            ]
+          },
+          {
+            "cells": [
+              "Total",
+              "",
+              "",
+              ""
+            ]
+          }
+        ]
+      }
+    }
+  ]

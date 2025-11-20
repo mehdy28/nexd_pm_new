@@ -8,7 +8,7 @@ interface DocumentListItem {
   title: string
   updatedAt: string
   type: "doc" | "pdf"
-  projectId: string | null // Can be null for personal documents
+  projectId: string | null
 }
 
 interface DocumentsResponse {
@@ -39,7 +39,7 @@ const personalDocumentResolvers = {
     getMyDocuments: async (
       _parent: any,
       { search, skip = 0, take = 12 }: { search?: string; skip?: number; take?: number },
-      context: GraphQLContext
+      context: GraphQLContext,
     ): Promise<DocumentsResponse> => {
       const { user } = context
       if (!user?.id) {
@@ -47,7 +47,7 @@ const personalDocumentResolvers = {
       }
 
       const where: Prisma.DocumentWhereInput = {
-        userId: user.id, // Filter by the authenticated user's ID
+        userId: user.id,
         ...(search && {
           title: {
             contains: search,
@@ -73,7 +73,7 @@ const personalDocumentResolvers = {
           title: doc.title,
           updatedAt: doc.updatedAt.toISOString(),
           type: doc.dataUrl ? "pdf" : "doc",
-          projectId: doc.projectId, // Will be null for personal docs
+          projectId: doc.projectId,
         }))
 
         return {
@@ -85,13 +85,11 @@ const personalDocumentResolvers = {
         throw error
       }
     },
-    // getDocumentDetails is generic and can be used for both personal and project documents.
-    // It is included here for completeness but could live in a shared resolver.
     getDocumentDetails: async (
       _parent: any,
       { id }: { id: string },
-      context: GraphQLContext
-    ): Promise<PrismaDocumentType | null> => {
+      context: GraphQLContext,
+    ): Promise<any | null> => {
       console.log("[getDocumentDetails Query] called with document ID:", id)
       const { user } = context
 
@@ -113,6 +111,16 @@ const personalDocumentResolvers = {
             personalUser: {
               select: { id: true, firstName: true, lastName: true },
             },
+            comments: {
+              include: {
+                author: {
+                  select: { id: true, firstName: true, lastName: true, avatar: true },
+                },
+              },
+              orderBy: {
+                createdAt: "asc",
+              },
+            },
           },
         })
 
@@ -133,31 +141,21 @@ const personalDocumentResolvers = {
         } else if (isProjectDocument && document.projectId) {
           // A more robust check would verify project membership here.
           isAuthorized = true
-          console.log("[getDocumentDetails Query] Authorized: Document is a project document (membership check skipped).")
+          console.log(
+            "[getDocumentDetails Query] Authorized: Document is a project document (membership check skipped).",
+          )
         }
 
         if (!isAuthorized) {
-          console.log("[getDocumentDetails Query] Authorization failed: User not authorized to access this document.")
+          console.log(
+            "[getDocumentDetails Query] Authorization failed: User not authorized to access this document.",
+          )
           throw new GraphQLError("Authorization required: Not authorized to access this document", {
             extensions: { code: "FORBIDDEN" },
           })
         }
 
-        const result = {
-          id: document.id,
-          title: document.title,
-          content: document.content,
-          dataUrl: document.dataUrl,
-          createdAt: document.createdAt.toISOString(),
-          updatedAt: document.updatedAt.toISOString(),
-          project: document.project ? { ...document.project, __typename: "Project" } : null,
-          personalUser: document.personalUser ? { ...document.personalUser, __typename: "User" } : null,
-          comments: [],
-          activities: [],
-          __typename: "Document",
-        }
-        console.log("[getDocumentDetails Query] Successfully fetched and transformed document details. Returning data.")
-        return result
+        return document
       } catch (error) {
         console.error(`[getDocumentDetails Query] Error fetching document details for ID ${id}:`, error)
         throw error
@@ -168,7 +166,7 @@ const personalDocumentResolvers = {
     createPersonalDocument: async (
       _parent: any,
       { input }: { input: CreatePersonalDocumentInput },
-      context: GraphQLContext
+      context: GraphQLContext,
     ): Promise<DocumentListItem> => {
       console.log("[createPersonalDocument Mutation] called with input:", input)
       const { user } = context
@@ -183,7 +181,9 @@ const personalDocumentResolvers = {
       console.log("[createPersonalDocument Mutation] User authenticated:", user.id)
 
       if (content === null && dataUrl === null) {
-        console.log("[createPersonalDocument Mutation] Validation Error: Document content or dataUrl is required.")
+        console.log(
+          "[createPersonalDocument Mutation] Validation Error: Document content or dataUrl is required.",
+        )
         throw new GraphQLError("Document content or dataUrl is required.", {
           extensions: { code: "BAD_USER_INPUT" },
         })
@@ -195,17 +195,19 @@ const personalDocumentResolvers = {
             title,
             content: content,
             dataUrl: dataUrl,
-            personalUser: { connect: { id: user.id } }, // Connect to the authenticated user
+            personalUser: { connect: { id: user.id } },
           },
         })
-        console.log(`[createPersonalDocument Mutation] Successfully created document: ${newDocument.title} (ID: ${newDocument.id})`)
+        console.log(
+          `[createPersonalDocument Mutation] Successfully created document: ${newDocument.title} (ID: ${newDocument.id})`,
+        )
 
         const result = {
           id: newDocument.id,
           title: newDocument.title,
           updatedAt: newDocument.updatedAt.toISOString(),
           type: newDocument.dataUrl ? "pdf" : "doc",
-          projectId: null, // No project ID for personal docs
+          projectId: null,
         }
         console.log("[createPersonalDocument Mutation] Returning newly created personal document.")
         return result
@@ -214,13 +216,10 @@ const personalDocumentResolvers = {
         throw error
       }
     },
-
-    // updateDocument and deleteDocument are generic and can handle personal documents.
-    // They are included here for completeness.
     updateDocument: async (
       _parent: any,
       { input }: { input: UpdateDocumentInput },
-      context: GraphQLContext
+      context: GraphQLContext,
     ): Promise<DocumentListItem> => {
       console.log("[updateDocument Mutation] called with input:", input)
       const { user } = context
@@ -253,13 +252,16 @@ const personalDocumentResolvers = {
           isAuthorized = true
           console.log("[updateDocument Mutation] Authorized: User is personal owner.")
         } else if (existingDocument.projectId) {
-          // A more robust check would verify project membership here.
           isAuthorized = true
-          console.log("[updateDocument Mutation] Authorized: Document is a project document (membership check skipped).")
+          console.log(
+            "[updateDocument Mutation] Authorized: Document is a project document (membership check skipped).",
+          )
         }
 
         if (!isAuthorized) {
-          console.log("[updateDocument Mutation] Authorization failed: User not authorized to update this document.")
+          console.log(
+            "[updateDocument Mutation] Authorization failed: User not authorized to update this document.",
+          )
           throw new GraphQLError("Authorization required: Not authorized to update this document", {
             extensions: { code: "FORBIDDEN" },
           })
@@ -273,7 +275,9 @@ const personalDocumentResolvers = {
             dataUrl: dataUrl !== undefined ? dataUrl : undefined,
           },
         })
-        console.log(`[updateDocument Mutation] Successfully updated document: ${updatedDocument.title} (ID: ${updatedDocument.id})`)
+        console.log(
+          `[updateDocument Mutation] Successfully updated document: ${updatedDocument.title} (ID: ${updatedDocument.id})`,
+        )
 
         const result = {
           id: updatedDocument.id,
@@ -289,11 +293,10 @@ const personalDocumentResolvers = {
         throw error
       }
     },
-
     deleteDocument: async (
       _parent: any,
       { id }: { id: string },
-      context: GraphQLContext
+      context: GraphQLContext,
     ): Promise<DocumentListItem> => {
       console.log("[deleteDocument Mutation] called with document ID:", id)
       const { user } = context
@@ -325,13 +328,16 @@ const personalDocumentResolvers = {
           isAuthorized = true
           console.log("[deleteDocument Mutation] Authorized: User is personal owner.")
         } else if (existingDocument.projectId) {
-          // A more robust check would verify project membership here.
           isAuthorized = true
-          console.log("[deleteDocument Mutation] Authorized: Document is a project document (membership check skipped).")
+          console.log(
+            "[deleteDocument Mutation] Authorized: Document is a project document (membership check skipped).",
+          )
         }
 
         if (!isAuthorized) {
-          console.log("[deleteDocument Mutation] Authorization failed: User not authorized to delete this document.")
+          console.log(
+            "[deleteDocument Mutation] Authorization failed: User not authorized to delete this document.",
+          )
           throw new GraphQLError("Authorization required: Not authorized to delete this document", {
             extensions: { code: "FORBIDDEN" },
           })
@@ -340,7 +346,9 @@ const personalDocumentResolvers = {
         const deletedDocument = await prisma.document.delete({
           where: { id },
         })
-        console.log(`[deleteDocument Mutation] Successfully deleted document: ${deletedDocument.title} (ID: ${deletedDocument.id})`)
+        console.log(
+          `[deleteDocument Mutation] Successfully deleted document: ${deletedDocument.title} (ID: ${deletedDocument.id})`,
+        )
 
         const result = {
           id: deletedDocument.id,
@@ -356,21 +364,94 @@ const personalDocumentResolvers = {
         throw error
       }
     },
-  },
-  Document: {
-    // This remains as a pass-through
+    createDocumentComment: async (
+      _parent: any,
+      { documentId, content }: { documentId: string; content: string },
+      context: GraphQLContext,
+    ) => {
+      console.log(
+        `[createDocumentComment Mutation] called for documentId: ${documentId} with content: "${content}"`,
+      )
+      const { user } = context
+      if (!user?.id) {
+        console.log("[createDocumentComment Mutation] Authentication required.")
+        throw new GraphQLError("Authentication required", { extensions: { code: "UNAUTHENTICATED" } })
+      }
+
+      // Check if document exists and if user has access (same logic as getDocumentDetails)
+      const document = await prisma.document.findUnique({
+        where: { id: documentId },
+        select: { userId: true, projectId: true },
+      })
+      if (!document) {
+        console.log(`[createDocumentComment Mutation] Document with ID ${documentId} not found.`)
+        throw new GraphQLError("Document not found", { extensions: { code: "NOT_FOUND" } })
+      }
+      if (document.userId !== user.id && !document.projectId) {
+        // Simple check for personal documents
+        console.log(`[createDocumentComment Mutation] User ${user.id} not authorized for document ${documentId}.`)
+        throw new GraphQLError("Not authorized", { extensions: { code: "FORBIDDEN" } })
+      }
+      // Add project membership check here if needed
+
+      try {
+        const newComment = await prisma.comment.create({
+          data: {
+            content,
+            documentId,
+            authorId: user.id,
+          },
+          include: {
+            author: { select: { id: true, firstName: true, lastName: true, avatar: true } },
+          },
+        })
+        console.log(`[createDocumentComment Mutation] Successfully created comment ID: ${newComment.id}`)
+        return newComment
+      } catch (error) {
+        console.error("[createDocumentComment Mutation] Error creating comment:", error)
+        throw error
+      }
+    },
+    deleteDocumentComment: async (_parent: any, { id }: { id: string }, context: GraphQLContext) => {
+      console.log(`[deleteDocumentComment Mutation] called for comment ID: ${id}`)
+      const { user } = context
+      if (!user?.id) {
+        console.log("[deleteDocumentComment Mutation] Authentication required.")
+        throw new GraphQLError("Authentication required", { extensions: { code: "UNAUTHENTICATED" } })
+      }
+
+      const comment = await prisma.comment.findUnique({
+        where: { id },
+        select: { authorId: true },
+      })
+
+      if (!comment) {
+        console.log(`[deleteDocumentComment Mutation] Comment with ID ${id} not found.`)
+        throw new GraphQLError("Comment not found", { extensions: { code: "NOT_FOUND" } })
+      }
+
+      if (comment.authorId !== user.id) {
+        console.log(`[deleteDocumentComment Mutation] User ${user.id} is not the author of comment ${id}.`)
+        throw new GraphQLError("Not authorized to delete this comment", {
+          extensions: { code: "FORBIDDEN" },
+        })
+      }
+
+      try {
+        const deletedComment = await prisma.comment.delete({
+          where: { id },
+          include: {
+            author: { select: { id: true, firstName: true, lastName: true, avatar: true } },
+          },
+        })
+        console.log(`[deleteDocumentComment Mutation] Successfully deleted comment ID: ${deletedComment.id}`)
+        return deletedComment
+      } catch (error) {
+        console.error(`[deleteDocumentComment Mutation] Error deleting comment ID ${id}:`, error)
+        throw error
+      }
+    },
   },
 }
 
 export default personalDocumentResolvers
-
-type PrismaDocumentType = Prisma.DocumentGetPayload<{
-  include: {
-    project: {
-      select: { id: true; name: true; workspaceId: true }
-    }
-    personalUser: {
-      select: { id: true; firstName: true; lastName: true }
-    }
-  }
-}>

@@ -413,20 +413,18 @@ const promptResolvers = {
         isPublic?: boolean;
         model?: string;
         variables?: PromptVariable[];
-        versions?: Version[];
+        versions?: any[];
       }},
       context: GraphQLContext
     ): Promise<Prompt> => {
-      const { content, ...scalarData } = input;
+      const { content, variables, versions, ...scalarData } = input;
 
       const newPromptData: any = {
         ...scalarData,
         userId: context.user?.id,
-        variables: (input.variables || []).map(v => ({...v, id: v.id || generateUniqueId()})),
-        versions: (input.versions || []).map(v => ({...v, id: v.id || generateUniqueId()})),
       };
 
-      if (content && content.length > 0) {
+      if (content) {
         newPromptData.content = {
           create: content.map((block, index) => ({
             type: block.type,
@@ -439,10 +437,61 @@ const promptResolvers = {
         };
       }
 
+      if (variables) {
+        newPromptData.variables = {
+          create: variables.map(v => {
+            const { id, ...rest } = v;
+            return {
+              ...rest,
+              source: v.source || undefined,
+            };
+          })
+        };
+      }
+      
+      if (versions) {
+        newPromptData.versions = {
+          create: versions.map(version => {
+            const { id, content: versionContent, variables: versionVariables, ...restOfVersion } = version;
+            
+            const versionCreateData: any = { ...restOfVersion };
+
+            if (versionContent) {
+              versionCreateData.content = {
+                create: versionContent.map((block: Block, index: number) => ({
+                  type: block.type,
+                  value: block.value,
+                  varId: block.varId,
+                  placeholder: block.placeholder,
+                  name: block.name,
+                  order: index,
+                }))
+              };
+            }
+
+            if (versionVariables) {
+              versionCreateData.variables = {
+                create: versionVariables.map((v: PromptVariable) => {
+                  const { id: varId, ...rest } = v;
+                  return {
+                     ...rest,
+                     source: v.source || undefined
+                  };
+                })
+              };
+            }
+            
+            return versionCreateData;
+          })
+        };
+      }
+
       const newPrompt = await prisma.prompt.create({
         data: newPromptData,
         include: {
           content: { orderBy: { order: 'asc' } },
+          variables: true,
+          versions: true,
         },
       });
 

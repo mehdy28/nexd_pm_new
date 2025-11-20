@@ -1,0 +1,282 @@
+[
+    {
+      "id": "o3-1",
+      "type": "heading",
+      "props": {
+        "level": 1
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "1-on-1 Meeting: [Manager Name] & [Employee Name]",
+          "styles": {}
+        }
+      ]
+    },
+    {
+      "id": "o3-2",
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "Date: ",
+          "styles": {
+            "bold": true
+          }
+        },
+        {
+          "type": "text",
+          "text": "[YYYY-MM-DD]",
+          "styles": {
+            "textColor": "gray"
+          }
+        }
+      ]
+    },
+    {
+      "id": "o3-3",
+      "type": "heading",
+      "props": {
+        "level": 2
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "✅ Preparation (Employee's Agenda)",
+          "styles": {}
+        }
+      ]
+    },
+    {
+      "id": "o3-4",
+      "type": "bulletListItem",
+      "content": [
+        {
+          "type": "text",
+          "text": "[Topic 1 I want to discuss...]",
+          "styles": {
+            "textColor": "gray"
+          }
+        }
+      ]
+    },
+    {
+      "id": "o3-5",
+      "type": "bulletListItem",
+      "content": [
+        {
+          "type": "text",
+          "text": "[Question I have about...]",
+          "styles": {
+            "textColor": "gray"
+          }
+        }
+      ]
+    },
+    {
+      "id": "o3-6",
+      "type": "heading",
+      "props": {
+        "level": 2
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "✅ Preparation (Manager's Agenda)",
+          "styles": {}
+        }
+      ]
+    },
+    {
+      "id": "o3-7",
+      "type": "bulletListItem",
+      "content": [
+        {
+          "type": "text",
+          "text": "[Feedback I want to share on...]",
+          "styles": {
+            "textColor": "gray"
+          }
+        }
+      ]
+    },
+    {
+      "id": "o3-8",
+      "type": "bulletListItem",
+      "content": [
+        {
+          "type": "text",
+          "text": "[Company/team update to share...]",
+          "styles": {
+            "textColor": "gray"
+          }
+        }
+      ]
+    },
+    {
+      "id": "o3-9",
+      "type": "heading",
+      "props": {
+        "level": 2
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "💬 Discussion Notes",
+          "styles": {}
+        }
+      ]
+    },
+    {
+      "id": "o3-10",
+      "type": "heading",
+      "props": {
+        "level": 3
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "Recent Accomplishments & Progress",
+          "styles": {}
+        }
+      ]
+    },
+    {
+      "id": "o3-11",
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "[Notes on recent wins, project updates, and achievements.]",
+          "styles": {
+            "textColor": "gray"
+          }
+        }
+      ]
+    },
+    {
+      "id": "o3-12",
+      "type": "heading",
+      "props": {
+        "level": 3
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "Current Challenges & Blockers",
+          "styles": {}
+        }
+      ]
+    },
+    {
+      "id": "o3-13",
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "[Notes on any roadblocks, concerns, or areas where support is needed.]",
+          "styles": {
+            "textColor": "gray"
+          }
+        }
+      ]
+    },
+    {
+      "id": "o3-14",
+      "type": "heading",
+      "props": {
+        "level": 3
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "Goals & Priorities",
+          "styles": {}
+        }
+      ]
+    },
+    {
+      "id": "o3-15",
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "[Review progress against current goals and set priorities for the upcoming period.]",
+          "styles": {
+            "textColor": "gray"
+          }
+        }
+      ]
+    },
+    {
+      "id": "o3-16",
+      "type": "heading",
+      "props": {
+        "level": 2
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "🌱 Growth & Development",
+          "styles": {}
+        }
+      ]
+    },
+    {
+      "id": "o3-17",
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "[Discussion about career aspirations, skill development, learning opportunities, and long-term goals.]",
+          "styles": {
+            "textColor": "gray"
+          }
+        }
+      ]
+    },
+    {
+      "id": "o3-18",
+      "type": "heading",
+      "props": {
+        "level": 2
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "🚀 Action Items & Commitments",
+          "styles": {}
+        }
+      ]
+    },
+    {
+      "id": "o3-19",
+      "type": "table",
+      "content": {
+        "type": "tableContent",
+        "rows": [
+          {
+            "cells": [
+              "Action Item",
+              "Owner",
+              "Due Date"
+            ]
+          },
+          {
+            "cells": [
+              "[Specific commitment from the discussion]",
+              "[Employee/Manager]",
+              "[YYYY-MM-DD]"
+            ]
+          },
+          {
+            "cells": [
+              "[Follow-up task]",
+              "[Employee/Manager]",
+              "[YYYY-MM-DD]"
+            ]
+          }
+        ]
+      }
+    }
+  ]

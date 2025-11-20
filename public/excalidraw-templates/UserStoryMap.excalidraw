@@ -1,0 +1,675 @@
+{
+  "type": "excalidraw",
+  "version": 2,
+  "source": "https://excalidraw.com",
+  "elements": [
+    {
+      "id": "main_title",
+      "type": "text",
+      "x": 40,
+      "y": 40,
+      "width": 550,
+      "height": 45,
+      "strokeColor": "#1e2c3b",
+      "text": "User Story Map",
+      "fontSize": 36,
+      "fontFamily": 1
+    },
+    {
+      "id": "main_subtitle",
+      "type": "text",
+      "x": 40,
+      "y": 95,
+      "width": 900,
+      "height": 25,
+      "strokeColor": "#868e96",
+      "text": "Visualize the user's journey from end-to-end to prioritize features and plan releases.",
+      "fontSize": 20,
+      "fontFamily": 1
+    },
+    {
+      "id": "backbone_label",
+      "type": "text",
+      "x": -200,
+      "y": 215,
+      "width": 200,
+      "height": 50,
+      "strokeColor": "#495057",
+      "text": "Activities\n(Backbone)",
+      "fontSize": 20,
+      "textAlign": "right"
+    },
+    {
+      "id": "activity_1",
+      "type": "rectangle",
+      "x": 40,
+      "y": 200,
+      "width": 320,
+      "height": 80,
+      "strokeColor": "#a5d8ff",
+      "backgroundColor": "#e7f5ff",
+      "roughness": 1
+    },
+    {
+      "id": "activity_1_text",
+      "type": "text",
+      "x": 50,
+      "y": 210,
+      "width": 300,
+      "height": 60,
+      "strokeColor": "#1864ab",
+      "text": "Manage Account",
+      "fontSize": 24,
+      "textAlign": "center",
+      "verticalAlign": "middle",
+      "fontWeight": "bold"
+    },
+    {
+      "id": "arrow_1",
+      "type": "arrow",
+      "x": 360,
+      "y": 240,
+      "points": [
+        [0, 0],
+        [40, 0]
+      ],
+      "strokeWidth": 2
+    },
+    {
+      "id": "activity_2",
+      "type": "rectangle",
+      "x": 400,
+      "y": 200,
+      "width": 320,
+      "height": 80,
+      "strokeColor": "#a5d8ff",
+      "backgroundColor": "#e7f5ff",
+      "roughness": 1
+    },
+    {
+      "id": "activity_2_text",
+      "type": "text",
+      "x": 410,
+      "y": 210,
+      "width": 300,
+      "height": 60,
+      "strokeColor": "#1864ab",
+      "text": "Find Products",
+      "fontSize": 24,
+      "textAlign": "center",
+      "verticalAlign": "middle",
+      "fontWeight": "bold"
+    },
+    {
+      "id": "arrow_2",
+      "type": "arrow",
+      "x": 720,
+      "y": 240,
+      "points": [
+        [0, 0],
+        [40, 0]
+      ],
+      "strokeWidth": 2
+    },
+    {
+      "id": "activity_3",
+      "type": "rectangle",
+      "x": 760,
+      "y": 200,
+      "width": 320,
+      "height": 80,
+      "strokeColor": "#a5d8ff",
+      "backgroundColor": "#e7f5ff",
+      "roughness": 1
+    },
+    {
+      "id": "activity_3_text",
+      "type": "text",
+      "x": 770,
+      "y": 210,
+      "width": 300,
+      "height": 60,
+      "strokeColor": "#1864ab",
+      "text": "Checkout",
+      "fontSize": 24,
+      "textAlign": "center",
+      "verticalAlign": "middle",
+      "fontWeight": "bold"
+    },
+    {
+      "id": "arrow_3",
+      "type": "arrow",
+      "x": 1080,
+      "y": 240,
+      "points": [
+        [0, 0],
+        [40, 0]
+      ],
+      "strokeWidth": 2
+    },
+    {
+      "id": "activity_4",
+      "type": "rectangle",
+      "x": 1120,
+      "y": 200,
+      "width": 320,
+      "height": 80,
+      "strokeColor": "#a5d8ff",
+      "backgroundColor": "#e7f5ff",
+      "roughness": 1
+    },
+    {
+      "id": "activity_4_text",
+      "type": "text",
+      "x": 1130,
+      "y": 210,
+      "width": 300,
+      "height": 60,
+      "strokeColor": "#1864ab",
+      "text": "View Orders",
+      "fontSize": 24,
+      "textAlign": "center",
+      "verticalAlign": "middle",
+      "fontWeight": "bold"
+    },
+    {
+      "id": "spine_label",
+      "type": "text",
+      "x": -200,
+      "y": 335,
+      "width": 200,
+      "height": 50,
+      "strokeColor": "#495057",
+      "text": "User Tasks\n(Spine)",
+      "fontSize": 20,
+      "textAlign": "right"
+    },
+    {
+      "id": "task_1_1",
+      "type": "rectangle",
+      "x": 50,
+      "y": 320,
+      "width": 140,
+      "height": 80,
+      "strokeColor": "#ffd43b",
+      "backgroundColor": "#fff9db",
+      "roughness": 1
+    },
+    {
+      "id": "task_1_1_text",
+      "type": "text",
+      "x": 60,
+      "y": 330,
+      "width": 120,
+      "height": 60,
+      "text": "Register",
+      "fontSize": 16,
+      "textAlign": "center",
+      "verticalAlign": "middle"
+    },
+    {
+      "id": "task_1_2",
+      "type": "rectangle",
+      "x": 210,
+      "y": 320,
+      "width": 140,
+      "height": 80,
+      "strokeColor": "#ffd43b",
+      "backgroundColor": "#fff9db",
+      "roughness": 1
+    },
+    {
+      "id": "task_1_2_text",
+      "type": "text",
+      "x": 220,
+      "y": 330,
+      "width": 120,
+      "height": 60,
+      "text": "Log In",
+      "fontSize": 16,
+      "textAlign": "center",
+      "verticalAlign": "middle"
+    },
+    {
+      "id": "task_2_1",
+      "type": "rectangle",
+      "x": 410,
+      "y": 320,
+      "width": 140,
+      "height": 80,
+      "strokeColor": "#ffd43b",
+      "backgroundColor": "#fff9db",
+      "roughness": 1
+    },
+    {
+      "id": "task_2_1_text",
+      "type": "text",
+      "x": 420,
+      "y": 330,
+      "width": 120,
+      "height": 60,
+      "text": "Search by Keyword",
+      "fontSize": 16,
+      "textAlign": "center",
+      "verticalAlign": "middle"
+    },
+    {
+      "id": "task_2_2",
+      "type": "rectangle",
+      "x": 570,
+      "y": 320,
+      "width": 140,
+      "height": 80,
+      "strokeColor": "#ffd43b",
+      "backgroundColor": "#fff9db",
+      "roughness": 1
+    },
+    {
+      "id": "task_2_2_text",
+      "type": "text",
+      "x": 580,
+      "y": 330,
+      "width": 120,
+      "height": 60,
+      "text": "Filter Results",
+      "fontSize": 16,
+      "textAlign": "center",
+      "verticalAlign": "middle"
+    },
+    {
+      "id": "task_3_1",
+      "type": "rectangle",
+      "x": 770,
+      "y": 320,
+      "width": 140,
+      "height": 80,
+      "strokeColor": "#ffd43b",
+      "backgroundColor": "#fff9db",
+      "roughness": 1
+    },
+    {
+      "id": "task_3_1_text",
+      "type": "text",
+      "x": 780,
+      "y": 330,
+      "width": 120,
+      "height": 60,
+      "text": "View Cart",
+      "fontSize": 16,
+      "textAlign": "center",
+      "verticalAlign": "middle"
+    },
+    {
+      "id": "task_3_2",
+      "type": "rectangle",
+      "x": 930,
+      "y": 320,
+      "width": 140,
+      "height": 80,
+      "strokeColor": "#ffd43b",
+      "backgroundColor": "#fff9db",
+      "roughness": 1
+    },
+    {
+      "id": "task_3_2_text",
+      "type": "text",
+      "x": 940,
+      "y": 330,
+      "width": 120,
+      "height": 60,
+      "text": "Enter Payment",
+      "fontSize": 16,
+      "textAlign": "center",
+      "verticalAlign": "middle"
+    },
+    {
+      "id": "task_4_1",
+      "type": "rectangle",
+      "x": 1130,
+      "y": 320,
+      "width": 140,
+      "height": 80,
+      "strokeColor": "#ffd43b",
+      "backgroundColor": "#fff9db",
+      "roughness": 1
+    },
+    {
+      "id": "task_4_1_text",
+      "type": "text",
+      "x": 1140,
+      "y": 330,
+      "width": 120,
+      "height": 60,
+      "text": "View Order History",
+      "fontSize": 16,
+      "textAlign": "center",
+      "verticalAlign": "middle"
+    },
+    {
+      "id": "task_4_2",
+      "type": "rectangle",
+      "x": 1290,
+      "y": 320,
+      "width": 140,
+      "height": 80,
+      "strokeColor": "#ffd43b",
+      "backgroundColor": "#fff9db",
+      "roughness": 1
+    },
+    {
+      "id": "task_4_2_text",
+      "type": "text",
+      "x": 1300,
+      "y": 330,
+      "width": 120,
+      "height": 60,
+      "text": "Track Shipment",
+      "fontSize": 16,
+      "textAlign": "center",
+      "verticalAlign": "middle"
+    },
+    {
+      "id": "release_1_line",
+      "type": "line",
+      "x": -220,
+      "y": 440,
+      "points": [
+        [0, 0],
+        [1700, 0]
+      ],
+      "strokeStyle": "dashed",
+      "strokeWidth": 2,
+      "strokeColor": "#c92a2a"
+    },
+    {
+      "id": "release_1_label",
+      "type": "text",
+      "x": -220,
+      "y": 450,
+      "width": 200,
+      "height": 50,
+      "strokeColor": "#c92a2a",
+      "text": "Release 1\n(MVP)",
+      "fontSize": 20,
+      "textAlign": "right",
+      "fontWeight": "bold"
+    },
+    {
+      "id": "story_1_1_1",
+      "type": "rectangle",
+      "x": 50,
+      "y": 460,
+      "width": 140,
+      "height": 80,
+      "backgroundColor": "#ffffff"
+    },
+    {
+      "id": "story_1_1_1_text",
+      "type": "text",
+      "x": 60,
+      "y": 470,
+      "width": 120,
+      "height": 60,
+      "text": "Register with email and password",
+      "fontSize": 14,
+      "textAlign": "center"
+    },
+    {
+      "id": "story_1_2_1",
+      "type": "rectangle",
+      "x": 210,
+      "y": 460,
+      "width": 140,
+      "height": 80,
+      "backgroundColor": "#ffffff"
+    },
+    {
+      "id": "story_1_2_1_text",
+      "type": "text",
+      "x": 220,
+      "y": 470,
+      "width": 120,
+      "height": 60,
+      "text": "Log in with email and password",
+      "fontSize": 14,
+      "textAlign": "center"
+    },
+    {
+      "id": "story_2_1_1",
+      "type": "rectangle",
+      "x": 410,
+      "y": 460,
+      "width": 140,
+      "height": 80,
+      "backgroundColor": "#ffffff"
+    },
+    {
+      "id": "story_2_1_1_text",
+      "type": "text",
+      "x": 420,
+      "y": 470,
+      "width": 120,
+      "height": 60,
+      "text": "Basic text search for product name",
+      "fontSize": 14,
+      "textAlign": "center"
+    },
+    {
+      "id": "story_3_1_1",
+      "type": "rectangle",
+      "x": 770,
+      "y": 460,
+      "width": 140,
+      "height": 80,
+      "backgroundColor": "#ffffff"
+    },
+    {
+      "id": "story_3_1_1_text",
+      "type": "text",
+      "x": 780,
+      "y": 470,
+      "width": 120,
+      "height": 60,
+      "text": "See items in cart, update quantity",
+      "fontSize": 14,
+      "textAlign": "center"
+    },
+    {
+      "id": "story_3_2_1",
+      "type": "rectangle",
+      "x": 930,
+      "y": 460,
+      "width": 140,
+      "height": 80,
+      "backgroundColor": "#ffffff"
+    },
+    {
+      "id": "story_3_2_1_text",
+      "type": "text",
+      "x": 940,
+      "y": 470,
+      "width": 120,
+      "height": 60,
+      "text": "Pay with credit card",
+      "fontSize": 14,
+      "textAlign": "center"
+    },
+    {
+      "id": "story_4_1_1",
+      "type": "rectangle",
+      "x": 1130,
+      "y": 460,
+      "width": 140,
+      "height": 80,
+      "backgroundColor": "#ffffff"
+    },
+    {
+      "id": "story_4_1_1_text",
+      "type": "text",
+      "x": 1140,
+      "y": 470,
+      "width": 120,
+      "height": 60,
+      "text": "See a list of past orders",
+      "fontSize": 14,
+      "textAlign": "center"
+    },
+    {
+      "id": "release_2_line",
+      "type": "line",
+      "x": -220,
+      "y": 580,
+      "points": [
+        [0, 0],
+        [1700, 0]
+      ],
+      "strokeStyle": "dashed",
+      "strokeWidth": 2,
+      "strokeColor": "#1864ab"
+    },
+    {
+      "id": "release_2_label",
+      "type": "text",
+      "x": -220,
+      "y": 590,
+      "width": 200,
+      "height": 25,
+      "strokeColor": "#1864ab",
+      "text": "Release 2",
+      "fontSize": 20,
+      "textAlign": "right",
+      "fontWeight": "bold"
+    },
+    {
+      "id": "story_1_2_2",
+      "type": "rectangle",
+      "x": 210,
+      "y": 600,
+      "width": 140,
+      "height": 80,
+      "backgroundColor": "#ffffff"
+    },
+    {
+      "id": "story_1_2_2_text",
+      "type": "text",
+      "x": 220,
+      "y": 610,
+      "width": 120,
+      "height": 60,
+      "text": "'Forgot Password' flow",
+      "fontSize": 14,
+      "textAlign": "center"
+    },
+    {
+      "id": "story_2_2_1",
+      "type": "rectangle",
+      "x": 570,
+      "y": 600,
+      "width": 140,
+      "height": 80,
+      "backgroundColor": "#ffffff"
+    },
+    {
+      "id": "story_2_2_1_text",
+      "type": "text",
+      "x": 580,
+      "y": 610,
+      "width": 120,
+      "height": 60,
+      "text": "Filter by category",
+      "fontSize": 14,
+      "textAlign": "center"
+    },
+    {
+      "id": "story_4_2_1",
+      "type": "rectangle",
+      "x": 1290,
+      "y": 600,
+      "width": 140,
+      "height": 80,
+      "backgroundColor": "#ffffff"
+    },
+    {
+      "id": "story_4_2_1_text",
+      "type": "text",
+      "x": 1300,
+      "y": 610,
+      "width": 120,
+      "height": 60,
+      "text": "Get tracking number and link",
+      "fontSize": 14,
+      "textAlign": "center"
+    },
+    {
+      "id": "release_3_line",
+      "type": "line",
+      "x": -220,
+      "y": 720,
+      "points": [
+        [0, 0],
+        [1700, 0]
+      ],
+      "strokeStyle": "dashed",
+      "strokeWidth": 2,
+      "strokeColor": "#495057"
+    },
+    {
+      "id": "release_3_label",
+      "type": "text",
+      "x": -220,
+      "y": 730,
+      "width": 200,
+      "height": 25,
+      "strokeColor": "#495057",
+      "text": "Future",
+      "fontSize": 20,
+      "textAlign": "right",
+      "fontWeight": "bold"
+    },
+    {
+      "id": "story_1_1_2",
+      "type": "rectangle",
+      "x": 50,
+      "y": 740,
+      "width": 140,
+      "height": 80,
+      "backgroundColor": "#f1f3f5"
+    },
+    {
+      "id": "story_1_1_2_text",
+      "type": "text",
+      "x": 60,
+      "y": 750,
+      "width": 120,
+      "height": 60,
+      "text": "Register with Google/SSO",
+      "fontSize": 14,
+      "textAlign": "center"
+    },
+    {
+      "id": "story_2_2_2",
+      "type": "rectangle",
+      "x": 570,
+      "y": 740,
+      "width": 140,
+      "height": 80,
+      "backgroundColor": "#f1f3f5"
+    },
+    {
+      "id": "story_2_2_2_text",
+      "type": "text",
+      "x": 580,
+      "y": 750,
+      "width": 120,
+      "height": 60,
+      "text": "Filter by price range",
+      "fontSize": 14,
+      "textAlign": "center"
+    }
+  ],
+  "appState": {
+    "gridSize": 20,
+    "viewBackgroundColor": "#ffffff"
+  },
+  "files": {}
+}

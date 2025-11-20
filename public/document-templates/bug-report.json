@@ -1,0 +1,266 @@
+[
+    {
+      "id": "br-1",
+      "type": "heading",
+      "props": {
+        "level": 1
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "Bug Report: [Brief, Descriptive Title of the Issue]",
+          "styles": {}
+        }
+      ]
+    },
+    {
+      "id": "br-14",
+      "type": "table",
+      "content": {
+        "type": "tableContent",
+        "rows": [
+          {
+            "cells": [
+              "Reported By",
+              "Date",
+              "Priority",
+              "Severity"
+            ]
+          },
+          {
+            "cells": [
+              "[Your Name]",
+              "[YYYY-MM-DD]",
+              "[High/Medium/Low]",
+              "[Critical/Major/Minor]"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "br-2",
+      "type": "heading",
+      "props": {
+        "level": 2
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "📝 Summary",
+          "styles": {}
+        }
+      ]
+    },
+    {
+      "id": "br-3",
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "[Provide a clear, one-sentence summary of the bug. What is the core problem?]",
+          "styles": {
+            "textColor": "gray"
+          }
+        }
+      ]
+    },
+    {
+      "id": "br-4",
+      "type": "heading",
+      "props": {
+        "level": 2
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "👟 Steps to Reproduce",
+          "styles": {}
+        }
+      ]
+    },
+    {
+      "id": "br-5",
+      "type": "numberedListItem",
+      "content": [
+        {
+          "type": "text",
+          "text": "Navigate to [URL or specific screen].",
+          "styles": {}
+        }
+      ]
+    },
+    {
+      "id": "br-6",
+      "type": "numberedListItem",
+      "content": [
+        {
+          "type": "text",
+          "text": "Perform action [e.g., Click the 'Submit' button].",
+          "styles": {}
+        }
+      ]
+    },
+    {
+      "id": "br-15",
+      "type": "numberedListItem",
+      "content": [
+        {
+          "type": "text",
+          "text": "Provide input [e.g., Enter 'test@test.com' in the email field].",
+          "styles": {}
+        }
+      ]
+    },
+    {
+      "id": "br-7",
+      "type": "numberedListItem",
+      "content": [
+        {
+          "type": "text",
+          "text": "Observe the error.",
+          "styles": {}
+        }
+      ]
+    },
+    {
+      "id": "br-8",
+      "type": "heading",
+      "props": {
+        "level": 2
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "✅ Expected Behavior",
+          "styles": {}
+        }
+      ]
+    },
+    {
+      "id": "br-9",
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "[Describe what should have happened if the application were working correctly.]",
+          "styles": {
+            "textColor": "gray"
+          }
+        }
+      ]
+    },
+    {
+      "id": "br-10",
+      "type": "heading",
+      "props": {
+        "level": 2
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "❌ Actual Behavior",
+          "styles": {}
+        }
+      ]
+    },
+    {
+      "id": "br-11",
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "[Describe what actually happened. Be specific. Include any error messages, error codes, or unexpected outputs.]",
+          "styles": {
+            "textColor": "gray"
+          }
+        }
+      ]
+    },
+    {
+      "id": "br-16",
+      "type": "heading",
+      "props": {
+        "level": 2
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "📸 Attachments (Screenshots, Logs, Videos)",
+          "styles": {}
+        }
+      ]
+    },
+    {
+      "id": "br-17",
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "[Link to or attach any relevant files that can help developers understand the issue. Console logs are extremely helpful.]",
+          "styles": {
+            "textColor": "gray"
+          }
+        }
+      ]
+    },
+    {
+      "id": "br-12",
+      "type": "heading",
+      "props": {
+        "level": 2
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "💻 Environment",
+          "styles": {}
+        }
+      ]
+    },
+    {
+      "id": "br-13",
+      "type": "table",
+      "content": {
+        "type": "tableContent",
+        "rows": [
+          {
+            "cells": [
+              "Property",
+              "Value"
+            ]
+          },
+          {
+            "cells": [
+              "Operating System (OS)",
+              "[e.g., Windows 11, macOS Sonoma 14.1]"
+            ]
+          },
+          {
+            "cells": [
+              "Browser & Version",
+              "[e.g., Chrome 120.0.0, Firefox 119.0.1]"
+            ]
+          },
+          {
+            "cells": [
+              "Device",
+              "[e.g., Desktop, iPhone 15 Pro]"
+            ]
+          },
+          {
+            "cells": [
+              "Screen Resolution",
+              "[e.g., 1920x1080]"
+            ]
+          },
+          {
+            "cells": [
+              "App Version",
+              "[e.g., v2.3.1]"
+            ]
+          }
+        ]
+      }
+    }
+  ]

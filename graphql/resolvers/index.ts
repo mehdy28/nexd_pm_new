@@ -1,7 +1,7 @@
 import { userResolver } from "./userResolver";
 import setupResolver from "./setupResolver";
 import workspaceResolver from "./workspaceResolver";
-
+import { accountResolver } from "./accountResolver";
 // Project-specific resolvers
 import projectResolver from "./projectResolver";
 import projectSectionResolver from "./projectSectionResolver";
@@ -38,6 +38,8 @@ export const resolvers = {
     ...userResolver.Query,
     ...lookupResolvers.Query,
     ...memberManagementResolvers.Query,
+    ...accountResolver.Query,
+    
 
     // Project
     ...projectResolver.Query,
@@ -62,7 +64,10 @@ export const resolvers = {
     // Setup & User
     ...setupResolver.Mutation,
     ...userResolver.Mutation,
+    ...accountResolver.Mutation,
 
+
+    
     // Member Management
     ...memberManagementResolvers.Mutation,
 

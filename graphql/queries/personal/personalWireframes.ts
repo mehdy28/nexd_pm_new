@@ -8,6 +8,7 @@ export const GET_MY_WIREFRAMES = gql`
         id
         title
         updatedAt
+        data
         thumbnail
         projectId
       }

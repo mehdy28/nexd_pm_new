@@ -10,6 +10,7 @@ export const GET_PROJECT_WIREFRAMES = gql`
         title
         updatedAt
         thumbnail
+        data
         projectId
       }
       totalCount

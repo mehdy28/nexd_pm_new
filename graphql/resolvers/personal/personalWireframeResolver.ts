@@ -1,3 +1,4 @@
+//graphql/resolvers/personal/personalWireframeResolver.ts
 import { prisma } from "@/lib/prisma"
 import { GraphQLError } from "graphql"
 import type { Prisma } from "@prisma/client"
@@ -27,6 +28,7 @@ interface WireframeListItemOutput {
   id: string
   title: string
   updatedAt: string // ISO date string
+  data: any // JSON scalar
   thumbnail: string | null
   projectId: string | null
   __typename: "WireframeListItem"
@@ -96,6 +98,7 @@ const personalWireframeResolvers = {
               id: true,
               title: true,
               updatedAt: true,
+              data: true, // <-- ADDED THIS LINE
               thumbnail: true,
               projectId: true,
             },
@@ -111,6 +114,7 @@ const personalWireframeResolvers = {
           id: wf.id,
           title: wf.title,
           updatedAt: wf.updatedAt.toISOString(),
+          data: wf.data, // <-- ADDED THIS LINE
           thumbnail: wf.thumbnail,
           projectId: wf.projectId,
           __typename: "WireframeListItem",
@@ -217,6 +221,7 @@ const personalWireframeResolvers = {
             id: true,
             title: true,
             updatedAt: true,
+            data: true,
             thumbnail: true,
             projectId: true,
           },
@@ -232,6 +237,7 @@ const personalWireframeResolvers = {
           id: newWireframe.id,
           title: newWireframe.title,
           updatedAt: newWireframe.updatedAt.toISOString(),
+          data: newWireframe.data,
           thumbnail: newWireframe.thumbnail,
           projectId: newWireframe.projectId,
           __typename: "WireframeListItem",
@@ -304,6 +310,7 @@ const personalWireframeResolvers = {
         id: updatedWireframe.id,
         title: updatedWireframe.title,
         updatedAt: updatedWireframe.updatedAt.toISOString(),
+        data: updatedWireframe.data,
         thumbnail: updatedWireframe.thumbnail,
         projectId: updatedWireframe.projectId,
         __typename: "WireframeListItem",
@@ -353,6 +360,7 @@ const personalWireframeResolvers = {
         id: existingWireframe.id,
         title: existingWireframe.title,
         updatedAt: existingWireframe.updatedAt.toISOString(),
+        data: existingWireframe.data,
         thumbnail: existingWireframe.thumbnail,
         projectId: existingWireframe.projectId,
         __typename: "WireframeListItem",

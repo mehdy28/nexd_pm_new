@@ -1,0 +1,483 @@
+{
+  "type": "excalidraw",
+  "version": 2,
+  "source": "https://excalidraw.com",
+  "elements": [
+    {
+      "id": "main_title",
+      "type": "text",
+      "x": -670,
+      "y": -480,
+      "width": 460,
+      "height": 45,
+      "strokeColor": "#1e2c3b",
+      "text": "Fishbone Diagram",
+      "fontSize": 36,
+      "fontFamily": 1,
+      "textAlign": "left",
+      "angle": 0,
+      "fillStyle": "hachure",
+      "strokeWidth": 1,
+      "strokeStyle": "solid",
+      "roughness": 1,
+      "opacity": 100
+    },
+    {
+      "id": "main_subtitle",
+      "type": "text",
+      "x": -670,
+      "y": -425,
+      "width": 850,
+      "height": 25,
+      "strokeColor": "#868e96",
+      "text": "A root cause analysis tool to brainstorm and categorize the potential causes of a problem.",
+      "fontSize": 20,
+      "fontFamily": 1,
+      "textAlign": "left",
+      "angle": 0,
+      "fillStyle": "hachure",
+      "strokeWidth": 1,
+      "strokeStyle": "solid",
+      "roughness": 1,
+      "opacity": 100
+    },
+    {
+      "id": "problem_box",
+      "type": "rectangle",
+      "x": 600,
+      "y": -50,
+      "width": 280,
+      "height": 100,
+      "backgroundColor": "#ffe3e3",
+      "strokeColor": "#c92a2a",
+      "strokeWidth": 2,
+      "roundness": { "type": 3 },
+      "angle": 0,
+      "fillStyle": "solid",
+      "roughness": 0,
+      "opacity": 100
+    },
+    {
+      "id": "problem_text",
+      "type": "text",
+      "x": 610,
+      "y": -40,
+      "width": 260,
+      "height": 80,
+      "text": "Problem Statement:\n[Click to Edit]",
+      "fontSize": 20,
+      "textAlign": "center",
+      "verticalAlign": "middle",
+      "strokeColor": "#c92a2a",
+      "angle": 0,
+      "fillStyle": "hachure",
+      "strokeWidth": 1,
+      "strokeStyle": "solid",
+      "roughness": 1,
+      "opacity": 100
+    },
+    {
+      "id": "spine_arrow",
+      "type": "arrow",
+      "x": -600,
+      "y": 0,
+      "points": [ [0,0], [1200, 0] ],
+      "strokeWidth": 4,
+      "strokeColor": "#343a40",
+      "angle": 0,
+      "fillStyle": "hachure",
+      "strokeStyle": "solid",
+      "roughness": 1,
+      "opacity": 100
+    },
+    {
+      "id": "bone_1",
+      "type": "line",
+      "x": -450,
+      "y": -200,
+      "points": [ [0,0], [200, 200] ],
+      "strokeWidth": 2,
+      "strokeColor": "#495057",
+      "angle": 0,
+      "fillStyle": "hachure",
+      "strokeStyle": "solid",
+      "roughness": 1,
+      "opacity": 100
+    },
+    {
+      "id": "bone_1_label",
+      "type": "text",
+      "x": -480,
+      "y": -230,
+      "text": "People",
+      "fontSize": 24,
+      "fontFamily": 1,
+      "strokeColor": "#343a40",
+      "angle": 0,
+      "fillStyle": "hachure",
+      "strokeWidth": 1,
+      "strokeStyle": "solid",
+      "roughness": 1,
+      "opacity": 100
+    },
+    {
+      "id": "cause_1_1_line",
+      "type": "line",
+      "x": -550,
+      "y": -150,
+      "points": [ [0,0], [50, 50] ],
+      "strokeColor": "#868e96",
+      "angle": 0
+    },
+    {
+      "id": "cause_1_1_text",
+      "type": "text",
+      "x": -600,
+      "y": -170,
+      "text": "[Lack of training]",
+      "fontSize": 16,
+      "angle": 0
+    },
+    {
+      "id": "cause_1_2_line",
+      "type": "line",
+      "x": -550,
+      "y": -70,
+      "points": [ [0,0], [50, 50] ],
+      "strokeColor": "#868e96",
+      "angle": 0
+    },
+    {
+      "id": "cause_1_2_text",
+      "type": "text",
+      "x": -640,
+      "y": -90,
+      "text": "[Communication issue]",
+      "fontSize": 16,
+      "angle": 0
+    },
+    {
+      "id": "bone_2",
+      "type": "line",
+      "x": -50,
+      "y": -200,
+      "points": [ [0,0], [200, 200] ],
+      "strokeWidth": 2,
+      "strokeColor": "#495057",
+      "angle": 0
+    },
+    {
+      "id": "bone_2_label",
+      "type": "text",
+      "x": -80,
+      "y": -230,
+      "text": "Process",
+      "fontSize": 24,
+      "fontFamily": 1,
+      "strokeColor": "#343a40",
+      "angle": 0
+    },
+    {
+      "id": "cause_2_1_line",
+      "type": "line",
+      "x": -150,
+      "y": -150,
+      "points": [ [0,0], [50, 50] ],
+      "strokeColor": "#868e96",
+      "angle": 0
+    },
+    {
+      "id": "cause_2_1_text",
+      "type": "text",
+      "x": -250,
+      "y": -170,
+      "text": "[Review skipped]",
+      "fontSize": 16,
+      "angle": 0
+    },
+    {
+      "id": "cause_2_2_line",
+      "type": "line",
+      "x": -150,
+      "y": -70,
+      "points": [ [0,0], [50, 50] ],
+      "strokeColor": "#868e96",
+      "angle": 0
+    },
+    {
+      "id": "cause_2_2_text",
+      "type": "text",
+      "x": -230,
+      "y": -90,
+      "text": "[No checklist]",
+      "fontSize": 16,
+      "angle": 0
+    },
+    {
+      "id": "sub_cause_2_2_line",
+      "type": "line",
+      "x": -250,
+      "y": -50,
+      "points": [ [0,0], [40, 40] ],
+      "strokeColor": "#adb5bd",
+      "angle": 0
+    },
+    {
+      "id": "sub_cause_2_2_text",
+      "type": "text",
+      "x": -300,
+      "y": -70,
+      "text": "Why?",
+      "fontSize": 14,
+      "strokeColor": "#adb5bd",
+      "angle": 0
+    },
+    {
+      "id": "bone_3",
+      "type": "line",
+      "x": 350,
+      "y": -200,
+      "points": [ [0,0], [200, 200] ],
+      "strokeWidth": 2,
+      "strokeColor": "#495057",
+      "angle": 0
+    },
+    {
+      "id": "bone_3_label",
+      "type": "text",
+      "x": 320,
+      "y": -230,
+      "text": "Technology",
+      "fontSize": 24,
+      "fontFamily": 1,
+      "strokeColor": "#343a40",
+      "angle": 0
+    },
+    {
+      "id": "cause_3_1_line",
+      "type": "line",
+      "x": 250,
+      "y": -150,
+      "points": [ [0,0], [50, 50] ],
+      "strokeColor": "#868e96",
+      "angle": 0
+    },
+    {
+      "id": "cause_3_1_text",
+      "type": "text",
+      "x": 160,
+      "y": -170,
+      "text": "[Tooling failure]",
+      "fontSize": 16,
+      "angle": 0
+    },
+    {
+      "id": "cause_3_2_line",
+      "type": "line",
+      "x": 250,
+      "y": -70,
+      "points": [ [0,0], [50, 50] ],
+      "strokeColor": "#868e96",
+      "angle": 0
+    },
+    {
+      "id": "cause_3_2_text",
+      "type": "text",
+      "x": 130,
+      "y": -90,
+      "text": "[Low test coverage]",
+      "fontSize": 16,
+      "angle": 0
+    },
+    {
+      "id": "bone_4",
+      "type": "line",
+      "x": -450,
+      "y": 200,
+      "points": [ [0,0], [200, -200] ],
+      "strokeWidth": 2,
+      "strokeColor": "#495057",
+      "angle": 0
+    },
+    {
+      "id": "bone_4_label",
+      "type": "text",
+      "x": -480,
+      "y": 210,
+      "text": "Management",
+      "fontSize": 24,
+      "fontFamily": 1,
+      "strokeColor": "#343a40",
+      "angle": 0
+    },
+    {
+      "id": "cause_4_1_line",
+      "type": "line",
+      "x": -550,
+      "y": 150,
+      "points": [ [0,0], [50, -50] ],
+      "strokeColor": "#868e96",
+      "angle": 0
+    },
+    {
+      "id": "cause_4_1_text",
+      "type": "text",
+      "x": -640,
+      "y": 160,
+      "text": "[Unrealistic deadline]",
+      "fontSize": 16,
+      "angle": 0
+    },
+    {
+      "id": "cause_4_2_line",
+      "type": "line",
+      "x": -550,
+      "y": 70,
+      "points": [ [0,0], [50, -50] ],
+      "strokeColor": "#868e96",
+      "angle": 0
+    },
+    {
+      "id": "cause_4_2_text",
+      "type": "text",
+      "x": -640,
+      "y": 80,
+      "text": "[Budget cuts]",
+      "fontSize": 16,
+      "angle": 0
+    },
+    {
+      "id": "bone_5",
+      "type": "line",
+      "x": -50,
+      "y": 200,
+      "points": [ [0,0], [200, -200] ],
+      "strokeWidth": 2,
+      "strokeColor": "#495057",
+      "angle": 0
+    },
+    {
+      "id": "bone_5_label",
+      "type": "text",
+      "x": -80,
+      "y": 210,
+      "text": "Measurement",
+      "fontSize": 24,
+      "fontFamily": 1,
+      "strokeColor": "#343a40",
+      "angle": 0
+    },
+    {
+      "id": "cause_5_1_line",
+      "type": "line",
+      "x": -150,
+      "y": 150,
+      "points": [ [0,0], [50, -50] ],
+      "strokeColor": "#868e96",
+      "angle": 0
+    },
+    {
+      "id": "cause_5_1_text",
+      "type": "text",
+      "x": -270,
+      "y": 160,
+      "text": "[No quality metrics]",
+      "fontSize": 16,
+      "angle": 0
+    },
+    {
+      "id": "cause_5_2_line",
+      "type": "line",
+      "x": -150,
+      "y": 70,
+      "points": [ [0,0], [50, -50] ],
+      "strokeColor": "#868e96",
+      "angle": 0
+    },
+    {
+      "id": "cause_5_2_text",
+      "type": "text",
+      "x": -260,
+      "y": 80,
+      "text": "[Incorrect data]",
+      "fontSize": 16,
+      "angle": 0
+    },
+    {
+      "id": "bone_6",
+      "type": "line",
+      "x": 350,
+      "y": 200,
+      "points": [ [0,0], [200, -200] ],
+      "strokeWidth": 2,
+      "strokeColor": "#495057",
+      "angle": 0
+    },
+    {
+      "id": "bone_6_label",
+      "type": "text",
+      "x": 320,
+      "y": 210,
+      "text": "Environment",
+      "fontSize": 24,
+      "fontFamily": 1,
+      "strokeColor": "#343a40",
+      "angle": 0
+    },
+    {
+      "id": "cause_6_1_line",
+      "type": "line",
+      "x": 250,
+      "y": 150,
+      "points": [ [0,0], [50, -50] ],
+      "strokeColor": "#868e96",
+      "angle": 0
+    },
+    {
+      "id": "cause_6_1_text",
+      "type": "text",
+      "x": 100,
+      "y": 160,
+      "text": "[Staging/Prod mismatch]",
+      "fontSize": 16,
+      "angle": 0
+    },
+    {
+      "id": "cause_6_2_line",
+      "type": "line",
+      "x": 250,
+      "y": 70,
+      "points": [ [0,0], [50, -50] ],
+      "strokeColor": "#868e96",
+      "angle": 0
+    },
+    {
+      "id": "cause_6_2_text",
+      "type": "text",
+      "x": 130,
+      "y": 80,
+      "text": "[Physical distractions]",
+      "fontSize": 16,
+      "angle": 0
+    },
+    {
+      "id": "instruction_note",
+      "type": "text",
+      "x": 250,
+      "y": -420,
+      "width": 630,
+      "height": 50,
+      "strokeColor": "#1971c2",
+      "text": "Instructions: \n1. Edit the 'Problem Statement'. \n2. Brainstorm potential causes and add them to the appropriate category. \n3. Use 'Why?' to drill down into root causes.",
+      "fontSize": 16,
+      "fontFamily": 1,
+      "backgroundColor": "#e7f5ff",
+      "textAlign": "left"
+    }
+  ],
+  "appState": {
+    "gridSize": 20,
+    "viewBackgroundColor": "#f8f9fa"
+  },
+  "files": {}
+}
