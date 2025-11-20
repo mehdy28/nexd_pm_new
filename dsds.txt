@@ -9,10 +9,17 @@ npx prisma migrate reset
 
 
 
+BRO THE FUCK U MEAN . AM STILL SEEING 3  CARD . I TOLD U ADDHER TO MY FUCKING COMMAND I WANT THE ACTIVE VERSION TO BE SHOWN IN THE VERION CARD ITSELF NOT TO HAVE ANOTHER CARD DEDICATED FOR ACTIVE VESIONS 
 
-
-
-
+I want to remove that Active Prompt card . instead I want to have only the versions and the active one to be special in design and the version I click on it to be special on ui .
+so that I have the normal version card , the active version card and the clicked version card .
+a version card can be both active and clicked at the same time . 
+an active prompt is an indicator that this prompt is the one to be used . 
+I want to remove that restore button on the version card .
+I want to have a button on the prompt lab in the same level as the 3 tabs "Editor ,Version Details, Preview"  but it is shifted to the right .
+this button if the prompt is the active one . to be changed with a text "active" not a button to show that it is active .
+in the prompt version cards I want them to make the text does not exceed the width of the card if it exceeds make the part that is exceeding to be "...."
+for example the version with the nots "this is a very long text" to be for example "this is a very lo..."
 
 
 

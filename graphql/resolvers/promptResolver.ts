@@ -10,6 +10,23 @@ interface GraphQLContext {
 function generateUniqueId(): string {
   return `svr_${Math.random().toString(36).slice(2)}${Date.now()}`;
 }
+const getFullPrompt = (promptId: string) => {
+  console.log(`[getFullPrompt] Fetching full prompt details for ID: ${promptId}`);
+  return prisma.prompt.findUnique({
+    where: { id: promptId },
+    include: {
+      content: { orderBy: { order: 'asc' } },
+      variables: true,
+      versions: {
+        orderBy: { createdAt: 'desc' },
+        include: {
+          content: { orderBy: { order: 'asc' } },
+          variables: true
+        }
+      },
+    },
+  });
+};
 
 function buildPrismaWhereClause(
   sourceFilter: PromptVariableSource['filter'] | undefined,
@@ -233,91 +250,35 @@ const promptResolvers = {
     },
 
 
-    // getPromptDetails: async (
-    //   _parent: any,
-    //   { id }: { id: string },
-    //   context: GraphQLContext
-    // ): Promise<Prompt> => {
-    //   const prompt = await prisma.prompt.findUnique({
-    //     where: { id },
-    //     include: {
-    //       content: {
-    //         orderBy: { order: 'asc' },
-    //       },
-    //       user: {
-    //         select: { id: true, firstName: true, lastName: true },
-    //       },
-    //       project: {
-    //         select: { id: true, name: true, workspaceId: true },
-    //       },
-    //     },
-    //   });
-
-    //   if (!prompt) {
-    //     throw new Error("Prompt not found.");
-    //   }
-
-    //   const versions = (prompt.versions as any[] || []); // Use `any` for flexibility
-
-    //   if (versions.length > 0) {
-    //     // Sort to find the latest version reliably
-    //     const sortedVersions = [...versions].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-    //     const latestVersion = sortedVersions[0];
-
-    //     // Override the prompt's "active" data with the latest version's data
-    //     prompt.content = latestVersion.content || [];
-    //     prompt.context = latestVersion.context || '';
-    //     prompt.variables = latestVersion.variables || [];
-    //     prompt.aiEnhancedContent = latestVersion.aiEnhancedContent || null;
-    //   }
-
-    //   // Ensure fields have default values
-    //   prompt.context = prompt.context || '';
-    //   prompt.variables = prompt.variables || [];
-
-    //   // Map versions to just metadata for the final response, as expected by the frontend hook
-    //   prompt.versions = versions.map(v => ({
-    //     id: v.id,
-    //     createdAt: v.createdAt,
-    //     notes: v.notes,
-    //     description: v.description || '',
-    //     // Explicitly DON'T include content, context, variables here for the list
-    //   }));
-
-    //   return prompt as unknown as Prompt;
-    // },
+  
 
     getPromptVersionContent: async (
       _parent: any,
       { promptId, versionId }: { promptId: string; versionId: string },
       context: GraphQLContext
     ): Promise<Version> => {
-      const prompt = await prisma.prompt.findUnique({
-        where: { id: promptId },
-        select: { versions: true },
+      console.log(`[getPromptVersionContent] Initiated for versionId: ${versionId}`);
+
+      const version = await prisma.version.findUnique({
+        where: {
+          id: versionId,
+          promptId: promptId, // Ensures version belongs to the correct prompt
+        },
+        include: {
+          content: { orderBy: { order: 'asc' } },
+          variables: true,
+        },
       });
 
-      if (!prompt) {
-        throw new Error("Prompt not found.");
-      }
-
-      const versions = (prompt.versions as any[]) || []; // Use any to access aiEnhancedContent
-      const version = versions.find((v) => v.id === versionId);
-
       if (!version) {
-        throw new Error("Version not found within this prompt.");
+        console.error(`[getPromptVersionContent] ERROR: Version with ID ${versionId} not found.`);
+        throw new Error("Version not found.");
       }
-      return {
-        id: version.id,
-        createdAt: version.createdAt,
-        notes: version.notes,
-        description: version.description || '',
-        content: version.content || [],
-        context: version.context || '',
-        variables: version.variables || [],
-        aiEnhancedContent: version.aiEnhancedContent || null,
-      } as Version;
+
+      console.log(`[getPromptVersionContent] Successfully fetched version. Content blocks: ${version.content.length}, Variables: ${version.variables.length}`);
+      return version as unknown as Version;
     },
+
 
     resolvePromptVariable: async (
       _parent: any,
@@ -534,104 +495,7 @@ const promptResolvers = {
       return newPrompt as unknown as Prompt;
     },
 
-    // createPrompt: async (
-    //   _parent: any,
-    //   { input }: { input: {
-    //     projectId?: string;
-    //     title: string;
-    //     content?: Block[];
-    //     context?: string;
-    //     description?: string;
-    //     category?: string;
-    //     tags?: string[];
-    //     isPublic?: boolean;
-    //     model?: string;
-    //     variables?: PromptVariable[];
-    //     versions?: any[];
-    //   }},
-    //   context: GraphQLContext
-    // ): Promise<Prompt> => {
-    //   const { content, variables, versions, ...scalarData } = input;
-
-    //   const newPromptData: any = {
-    //     ...scalarData,
-    //     userId: context.user?.id,
-    //   };
-
-    //   if (content) {
-    //     newPromptData.content = {
-    //       create: content.map((block, index) => ({
-    //         type: block.type,
-    //         value: block.value,
-    //         varId: block.varId,
-    //         placeholder: block.placeholder,
-    //         name: block.name,
-    //         order: index,
-    //       }))
-    //     };
-    //   }
-
-    //   if (variables) {
-    //     newPromptData.variables = {
-    //       create: variables.map(v => {
-    //         const { id, ...rest } = v;
-    //         return {
-    //           ...rest,
-    //           source: v.source || undefined,
-    //         };
-    //       })
-    //     };
-    //   }
-      
-    //   if (versions) {
-    //     newPromptData.versions = {
-    //       create: versions.map(version => {
-    //         const { id, content: versionContent, variables: versionVariables, ...restOfVersion } = version;
-            
-    //         const versionCreateData: any = { ...restOfVersion };
-
-    //         if (versionContent) {
-    //           versionCreateData.content = {
-    //             create: versionContent.map((block: Block, index: number) => ({
-    //               type: block.type,
-    //               value: block.value,
-    //               varId: block.varId,
-    //               placeholder: block.placeholder,
-    //               name: block.name,
-    //               order: index,
-    //             }))
-    //           };
-    //         }
-
-    //         if (versionVariables) {
-    //           versionCreateData.variables = {
-    //             create: versionVariables.map((v: PromptVariable) => {
-    //               const { id: varId, ...rest } = v;
-    //               return {
-    //                  ...rest,
-    //                  source: v.source || undefined
-    //               };
-    //             })
-    //           };
-    //         }
-            
-    //         return versionCreateData;
-    //       })
-    //     };
-    //   }
-
-    //   const newPrompt = await prisma.prompt.create({
-    //     data: newPromptData,
-    //     include: {
-    //       content: { orderBy: { order: 'asc' } },
-    //       variables: true,
-    //       versions: true,
-    //     },
-    //   });
-
-    //   return newPrompt as unknown as Prompt;
-    // },
-
+   
        
         updatePrompt: async (
           _parent: any,
@@ -750,132 +614,13 @@ const promptResolvers = {
 
 
 
-    snapshotPrompt: async (
-      _parent: any,
-      { input }: { input: { promptId: string; notes?: string } },
-      context: GraphQLContext
-    ): Promise<Prompt> => {
-      const prompt = await prisma.prompt.findUnique({
-        where: { id: input.promptId },
-        include: {
-          content: { orderBy: { order: 'asc' } },
-          variables: true,
-        },
-      });
-
-      if (!prompt) {
-        throw new Error("Prompt not found.");
-      }
-      
-      const contentForVersion = prompt.content.map(({ id, promptId, versionId, ...block }) => block);
-      const variablesForVersion = (prompt.variables || []).map(({ id, promptId, versionId, ...variable }) => ({
-        ...variable,
-        source: variable.source || undefined,
-      }));
-
-      const updatedPrompt = await prisma.prompt.update({
-        where: { id: input.promptId },
-        data: {
-          updatedAt: new Date(),
-          versions: {
-            create: [
-              {
-                notes: input.notes || `Version saved on ${new Date().toLocaleString()}`,
-                description: "",
-                context: prompt.context || '',
-                content: {
-                  createMany: {
-                    data: contentForVersion,
-                  },
-                },
-                variables: {
-                  createMany: {
-                    data: variablesForVersion,
-                  },
-                },
-              },
-            ],
-          },
-        },
-        include: { 
-            content: { orderBy: { order: 'asc' } }, // For the top-level prompt
-            versions: { // For the versions relation...
-                include: { // ...for each version, also include its...
-                    content: { orderBy: { order: 'asc' } }, // ...content
-                    variables: true, // ...and variables
-                }
-            },
-        },
-      });
-
-      return updatedPrompt as unknown as Prompt;
-    },
 
 
 
 
 
 
-    restorePromptVersion: async (
-      _parent: any,
-      { input }: { input: { promptId: string; versionId: string } },
-      context: GraphQLContext
-    ): Promise<Prompt> => {
-      const prompt = await prisma.prompt.findUnique({
-        where: { id: input.promptId },
-      });
 
-      if (!prompt) {
-        throw new Error("Prompt not found.");
-      }
-
-      const versions = (prompt.versions as Version[]) || [];
-      const versionToRestore = versions.find((v) => v.id === input.versionId);
-
-      if (!versionToRestore) {
-        throw new Error("Version not found.");
-      }
-      
-      // **FIX**: Rename the destructured 'context' to avoid conflict with the argument 'context'
-      const { content, context: versionContext, variables } = versionToRestore;
-
-      const restoredPrompt = await prisma.$transaction(async (tx) => {
-        await tx.prompt.update({
-            where: { id: input.promptId },
-            data: {
-              context: versionContext, // **FIX**: Use the renamed variable
-              variables: variables.map(v => ({ ...v, id: v.id || generateUniqueId() })),
-              updatedAt: new Date(),
-            },
-        });
-
-        await tx.contentBlock.deleteMany({ where: { promptId: input.promptId } });
-        if (content && content.length > 0) {
-            await tx.contentBlock.createMany({
-                data: content.map((block, index) => ({
-                    type: block.type,
-                    value: block.value,
-                    varId: block.varId,
-                    placeholder: block.placeholder,
-                    name: block.name,
-                    promptId: input.promptId,
-                    order: index,
-                }))
-            });
-        }
-        
-        return tx.prompt.findUnique({
-            where: { id: input.promptId },
-            include: { content: { orderBy: { order: 'asc' } } }
-        });
-      });
-      
-      if (!restoredPrompt) {
-          throw new Error("Failed to restore prompt.");
-      }
-
-      return restoredPrompt as unknown as Prompt;
-    },
 
     updateVersionDescription: async (
       _parent: any,
@@ -915,14 +660,260 @@ const promptResolvers = {
       return updatedPrompt as unknown as Prompt;
     },
 
+
+
+    snapshotPrompt: async (
+      _parent: any,
+      { input }: { input: { promptId: string; notes?: string } },
+      context: GraphQLContext
+    ): Promise<Prompt> => {
+      console.log(`[snapshotPrompt] Initiated for promptId: ${input.promptId} with notes: "${input.notes}"`);
+      const { promptId, notes } = input;
+
+      const activePrompt = await prisma.prompt.findUnique({
+        where: { id: promptId },
+        include: {
+          content: { orderBy: { order: 'asc' } },
+          variables: true,
+        },
+      });
+
+      if (!activePrompt) {
+        console.error(`[snapshotPrompt] ERROR: Prompt with ID ${promptId} not found.`);
+        throw new Error("Prompt not found to create a snapshot.");
+      }
+      
+      console.log(`[snapshotPrompt] Fetched active prompt. Content blocks count: ${activePrompt.content?.length}, Variables count: ${activePrompt.variables?.length}`);
+
+      // Create a new Version record and transactionally create copies of its content and variables
+      try {
+        const createVersionPayload = {
+          prompt: { connect: { id: promptId } },
+          notes: notes || `Version saved at ${new Date().toLocaleString()}`,
+          context: activePrompt.context || '', // Fallback to empty string to ensure non-null
+          aiEnhancedContent: activePrompt.aiEnhancedContent,
+          content: {
+            create: (activePrompt.content || []).map(block => ({
+              type: block.type,
+              value: block.value,
+              varId: block.varId,
+              placeholder: block.placeholder,
+              name: block.name,
+              order: block.order,
+            })),
+          },
+          variables: {
+            create: (activePrompt.variables || []).map(variable => ({
+              name: variable.name,
+              placeholder: variable.placeholder,
+              description: variable.description,
+              type: variable.type,
+              defaultValue: variable.defaultValue,
+              source: variable.source || undefined,
+            })),
+          },
+        };
+
+        console.log(`[snapshotPrompt] Payload for new version creation:`, JSON.stringify(createVersionPayload, null, 2));
+
+        await prisma.version.create({
+          data: createVersionPayload,
+        });
+
+        console.log(`[snapshotPrompt] Successfully created new version record in the database.`);
+
+      } catch (error) {
+        console.error(`[snapshotPrompt] ERROR during prisma.version.create:`, error);
+        throw new Error("Failed to create version in database.");
+      }
+
+
+      // Refetch the full prompt with the new version included
+      console.log(`[snapshotPrompt] Refetching full prompt to return to client...`);
+      const updatedPrompt = await getFullPrompt(promptId);
+      if (!updatedPrompt) {
+        console.error(`[snapshotPrompt] ERROR: Failed to retrieve prompt after snapshot.`);
+        throw new Error("Failed to retrieve prompt after snapshot.");
+      }
+
+      console.log(`[snapshotPrompt] Successfully completed. Returning updated prompt with ${updatedPrompt.versions.length} versions.`);
+      return updatedPrompt as unknown as Prompt;
+    },
+
+    updatePromptVersion: async (
+      _parent: any,
+      { input }: { input: { promptId: string; versionId: string; content?: ContentBlockType[]; context?: string; variables?: any[]; notes?: string; } },
+    ): Promise<Prompt> => {
+      const { promptId, versionId, content, context, variables, notes } = input;
+      console.log(`[updatePromptVersion] Initiated for versionId: ${versionId}. Updating fields: ${Object.keys(input).join(', ')}`);
+
+      try {
+        await prisma.$transaction(async (tx) => {
+          console.log(`[updatePromptVersion] Starting transaction for versionId: ${versionId}`);
+          
+          await tx.version.update({
+            where: { id: versionId },
+            data: {
+              notes: notes,
+              context: context,
+            },
+          });
+          console.log(`[updatePromptVersion] Updated scalar fields (notes, context).`);
+
+          if (content) {
+            console.log(`[updatePromptVersion] Deleting old content blocks for version...`);
+            await tx.contentBlock.deleteMany({ where: { versionId: versionId } });
+            console.log(`[updatePromptVersion] Creating ${content.length} new content blocks...`);
+            await tx.contentBlock.createMany({
+              data: content.map((block, index) => ({
+                versionId: versionId,
+                type: block.type,
+                value: block.value,
+                varId: block.varId,
+                placeholder: block.placeholder,
+                name: block.name,
+                order: index,
+              })),
+            });
+          }
+
+          if (variables) {
+            console.log(`[updatePromptVersion] Deleting old variables for version...`);
+            await tx.promptVariable.deleteMany({ where: { versionId: versionId } });
+            console.log(`[updatePromptVersion] Creating ${variables.length} new variables...`);
+            await tx.promptVariable.createMany({
+              data: variables.map(v => ({
+                versionId: versionId,
+                name: v.name,
+                placeholder: v.placeholder,
+                description: v.description,
+                type: v.type,
+                defaultValue: v.defaultValue,
+                source: v.source || undefined,
+              })),
+            });
+          }
+          console.log(`[updatePromptVersion] Transaction completed successfully.`);
+        });
+      } catch (error) {
+          console.error(`[updatePromptVersion] ERROR during transaction:`, error);
+          throw new Error("Failed to update version in database.");
+      }
+      
+      console.log(`[updatePromptVersion] Refetching full prompt to return to client...`);
+      const updatedPrompt = await getFullPrompt(promptId);
+      if (!updatedPrompt) {
+        console.error(`[updatePromptVersion] ERROR: Failed to retrieve prompt after version update.`);
+        throw new Error("Failed to retrieve prompt after version update.");
+      }
+
+      console.log(`[updatePromptVersion] Successfully completed. Returning updated prompt.`);
+      return updatedPrompt as unknown as Prompt;
+    },
+
+    restorePromptVersion: async (
+      _parent: any,
+      { input }: { input: { promptId: string; versionId: string } },
+      context: GraphQLContext
+    ): Promise<Prompt> => {
+      const { promptId, versionId } = input;
+      console.log(`[restorePromptVersion] Initiated for promptId: ${promptId} from versionId: ${versionId}`);
+
+
+      const versionToRestore = await prisma.version.findUnique({
+        where: { id: versionId },
+        include: {
+          content: { orderBy: { order: 'asc' } },
+          variables: true,
+        },
+      });
+
+      if (!versionToRestore) {
+        console.error(`[restorePromptVersion] ERROR: Version with ID ${versionId} not found.`);
+        throw new Error("Version not found.");
+      }
+      console.log(`[restorePromptVersion] Fetched version to restore. Content blocks count: ${versionToRestore.content?.length}, Variables count: ${versionToRestore.variables?.length}`);
+
+      try {
+        await prisma.$transaction(async (tx) => {
+          console.log(`[restorePromptVersion] Starting transaction...`);
+
+          await tx.prompt.update({
+            where: { id: promptId },
+            data: {
+              context: versionToRestore.context,
+              updatedAt: new Date(),
+            },
+          });
+          console.log(`[restorePromptVersion] Updated main prompt's context.`);
+
+          console.log(`[restorePromptVersion] Deleting old content and variables from main prompt...`);
+          await tx.contentBlock.deleteMany({ where: { promptId: promptId } });
+          await tx.promptVariable.deleteMany({ where: { promptId: promptId } });
+          
+          if (versionToRestore.content && versionToRestore.content.length > 0) {
+            console.log(`[restorePromptVersion] Creating ${versionToRestore.content.length} new content blocks for main prompt...`);
+            await tx.contentBlock.createMany({
+              data: versionToRestore.content.map((block, index) => ({
+                promptId: promptId,
+                type: block.type,
+                value: block.value,
+                varId: block.varId,
+                placeholder: block.placeholder,
+                name: block.name,
+                order: index,
+              })),
+            });
+          }
+
+          if (versionToRestore.variables && versionToRestore.variables.length > 0) {
+            console.log(`[restorePromptVersion] Creating ${versionToRestore.variables.length} new variables for main prompt...`);
+            await tx.promptVariable.createMany({
+              data: versionToRestore.variables.map(v => ({
+                promptId: promptId,
+                name: v.name,
+                placeholder: v.placeholder,
+                description: v.description,
+                type: v.type,
+                defaultValue: v.defaultValue,
+                source: v.source || undefined,
+              })),
+            });
+          }
+          console.log(`[restorePromptVersion] Transaction completed successfully.`);
+        });
+      } catch (error) {
+        console.error(`[restorePromptVersion] ERROR during transaction:`, error);
+        throw new Error("Failed to restore prompt version.");
+      }
+      
+      console.log(`[restorePromptVersion] Refetching full prompt to return to client...`);
+      const restoredPrompt = await getFullPrompt(promptId);
+       if (!restoredPrompt) {
+        console.error(`[restorePromptVersion] ERROR: Failed to retrieve prompt after restore.`);
+        throw new Error("Failed to retrieve prompt after restore.");
+      }
+
+      console.log(`[restorePromptVersion] Successfully completed. Returning restored prompt.`);
+      return restoredPrompt as unknown as Prompt;
+    },
+
   },
 
+
+
+
+
+
+
+
+
   Project: {
-    totalTaskCount: async (parent: any, _args: any, context: GraphQLContext) => {
+    totalTaskCount: async (parent: any, _args: any, _context: GraphQLContext) => {
       if (!parent.id) return 0;
       return prisma.task.count({ where: { projectId: parent.id } });
     },
-    completedTaskCount: async (parent: any, _args: any, context: GraphQLContext) => {
+    completedTaskCount: async (parent: any, _args: any, _context: GraphQLContext) => {
       if (!parent.id) return 0;
       return prisma.task.count({ where: { projectId: parent.id, status: 'DONE' } });
     },
@@ -934,3 +925,21 @@ const promptResolvers = {
 };
 
 export default promptResolvers;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

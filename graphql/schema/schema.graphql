@@ -1278,6 +1278,19 @@ input UpdatePromptAiEnhancedContentInput {
   content: String!
 }
 
+
+
+input UpdatePromptVersionInput {
+  promptId: ID!
+  versionId: ID!
+  content: [UpdateContentBlockInput!]
+  context: String
+  variables: [UpdatePromptVariableInput!]
+  notes: String
+  description: String
+}
+
+
 # ----------------------------------
 # NEW ACCOUNT INPUTS
 # ----------------------------------
@@ -1423,6 +1436,7 @@ type Mutation {
   snapshotPrompt(input: SnapshotPromptInput!): Prompt!
   restorePromptVersion(input: RestorePromptVersionInput!): Prompt!
   updateVersionDescription(input: UpdateVersionDescriptionInput!): Prompt!
+  updatePromptVersion(input: UpdatePromptVersionInput!): Prompt! # <--- ADD THIS LINE
 
   # Prompts (Ai)
   createPromptFromWireframe(input: CreatePromptFromWireframeInput!): Prompt!
@@ -1480,3 +1494,10 @@ type Subscription {
 # ----------------------------------
 scalar JSON
 scalar DateTime
+
+
+
+
+
+
+

@@ -1,43 +1,86 @@
-    getPromptDetails: async (
-      _parent: any,
-      { id }: { id: string },
-      context: GraphQLContext
-    ): Promise<Prompt> => {
-      const prompt = await prisma.prompt.findUnique({
-        where: { id },
-        include: {
-          content: {
-            orderBy: { order: 'asc' },
-          },
-          // FIX: Add includes for variables and versions
-          variables: true,
-          versions: {
-            // Only select metadata for the versions list, as per the frontend hook's design
-            select: {
-              id: true,
-              createdAt: true,
-              notes: true,
-              description: true,
-            },
-            orderBy: {
-              createdAt: 'desc', // Show newest versions first
-            }
-          },
-          user: {
-            select: { id: true, firstName: true, lastName: true },
-          },
-          project: {
-            select: { id: true, name: true, workspaceId: true },
-          },
-        },
-      });
+Of course. I will implement the requested changes. This involves modifying the backend resolver, the GraphQL mutation schema, the frontend data hook, and the main UI component.
 
-      if (!prompt) {
-        throw new Error("Prompt not found.");
-      }
+Here are the full files with the adjustments.
 
-      // FIX: The logic below is obsolete and incorrect. The top-level prompt is the active state.
-      // We remove this entire block. The data fetched above is what should be returned.
+### 1. Backend Resolver (`graphql/resolvers/promptResolver.ts`)
 
-      return prompt as unknown as Prompt;
-    },
+I've added the new `updatePromptVersion` mutation logic. This allows a specific historical version's data to be updated directly.
+
+```javascript
+
+```
+
+### 2. GraphQL Mutations (`graphql/mutations/promptRelatedMutations.ts`)
+
+I've added the new `UPDATE_PROMPT_VERSION_MUTATION`.
+
+```javascript
+
+```
+
+### 3. Frontend Hook (`hooks/usePromptDetails.ts`)
+
+This file has several changes:
+1.  **Fixed `restorePromptVersion`** to use the mutation's response data instead of refetching.
+2.  **Added the `updatePromptVersion`** function and its corresponding `useMutation` hook to handle auto-saving of historical versions.
+
+```javascript
+
+```
+
+### 4. Main UI Component (`PromptLab.tsx`)
+
+This file contains the most visible changes:
+1.  **Unified Versions List:** The left panel now shows one list. "Active" is the first item, and the selected item (active or historical) gets a special border and background color.
+2.  **Conditional Updates:** The `EditorPanel`'s `onUpdate` prop now calls a new handler that intelligently decides whether to update the main prompt or a specific historical version based on `selectedVersionId`.
+3.  **Snapshot Title:** The section for saving a version now has a clear title indicating what you are creating a new version from.
+
+```javascript
+
+```
+
+
+Of course. To support the new `updatePromptVersion` functionality, you need to add its definition to your GraphQL schema. This involves adding a new input type and a new mutation to the `Mutation` root type.
+
+Here are the specific additions for your schema file.
+
+1.  **Add the `UpdatePromptVersionInput` type** within the `# Inputs` section. A good place is right after `UpdateVersionDescriptionInput`.
+
+2.  **Add the `updatePromptVersion` mutation** to the `type Mutation` block. A good place is right after the other prompt-related mutations.
+
+Here are the exact snippets to add:
+
+```graphql
+# Add this input type within the # Inputs section
+input UpdatePromptVersionInput {
+  promptId: ID!
+  versionId: ID!
+  content: [UpdateContentBlockInput!]
+  context: String
+  variables: [UpdatePromptVariableInput!]
+  notes: String
+  description: String
+}
+```
+
+```graphql
+# Add this line inside the `type Mutation` block
+type Mutation {
+  # ... other mutations
+  
+  # Prompts (Project & Personal)
+  createPrompt(input: CreatePromptInput!): Prompt!
+  updatePrompt(input: UpdatePromptInput!): Prompt
+  deletePrompt(id: ID!): Prompt!
+  snapshotPrompt(input: SnapshotPromptInput!): Prompt!
+  restorePromptVersion(input: RestorePromptVersionInput!): Prompt!
+  updateVersionDescription(input: UpdateVersionDescriptionInput!): Prompt!
+  updatePromptVersion(input: UpdatePromptVersionInput!): Prompt! # <--- ADD THIS LINE
+
+  # Prompts (Ai)
+  createPromptFromWireframe(input: CreatePromptFromWireframeInput!): Prompt!
+  updatePromptAiEnhancedContent(input: UpdatePromptAiEnhancedContentInput!): String!
+
+  # ... the rest of your mutations
+}
+```
