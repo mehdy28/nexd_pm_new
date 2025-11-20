@@ -85,7 +85,7 @@ export function usePersonalDocuments(): UsePersonalDocumentsHook {
       skip: (page - 1) * pageSize,
       take: pageSize,
     },
-    fetchPolicy: "cache-and-network",
+    fetchPolicy: "network-only",
     notifyOnNetworkStatusChange: true,
   })
 

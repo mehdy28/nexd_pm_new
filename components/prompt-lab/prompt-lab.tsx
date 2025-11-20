@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useMemo, useRef, useState, useCallback } from "react"
+import React, { useEffect, useMemo, useRef, useState, useCallback, useId } from "react"
 import { PromptVariableType, type Prompt, type Version, type PromptVariable, type PromptVariableSource } from '@/components/prompt-lab/store';
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -60,14 +60,12 @@ function mergeRefs<T>(...refs: (React.Ref<T> | undefined)[]): React.RefCallback<
   };
 }
 
-function cuid(prefix: string = ''): string {
-  const chars = '0123456789abcdefghijklmnopqrstuvwxyz';
-  let result = prefix + 'c';
-  for (let i = 0; i < 24; i++) {
-    result += chars[Math.floor(Math.random() * chars.length)];
-  }
-  return result;
+// Generates a temporary key for client-side list rendering and state management.
+// This is NOT a database ID.
+const generateClientKey = (prefix: string = ''): string => {
+  return `${prefix}${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 }
+
 
 async function renderPrompt(
   contentBlocks: Block[],
@@ -336,7 +334,7 @@ export function PromptLab({ prompt, onBack, projectId }: { prompt: Prompt; onBac
     if (patch.variables) {
       patch.variables = patch.variables.map(v => {
         const { __typename, ...variableWithoutTypename } = v as PromptVariable & { __typename?: string };
-        return { ...variableWithoutTypename, id: variableWithoutTypename.id || cuid('patch-var-') };
+        return { ...variableWithoutTypename, id: variableWithoutTypename.id || generateClientKey('patch-var-') };
       }) as PromptVariable[];
       console.log('[PromptLab] [Trace: HandleUpdate] Variables in patch adjusted (IDs ensured, __typename removed). New count:', patch.variables.length);
     }
@@ -400,7 +398,7 @@ export function PromptLab({ prompt, onBack, projectId }: { prompt: Prompt; onBac
     console.log('[PromptLab] [Trace: HandleCreateVar] Creating new variable:', newVariable.name);
     const variableWithId: PromptVariable = {
       ...newVariable,
-      id: cuid('p-var-'),
+      id: generateClientKey('p-var-'),
     };
     const updatedVariables = [...currentPrompt.variables, variableWithId];
     console.log('[PromptLab] [Trace: HandleCreateVar] Calling handleUpdatePrompt with updated variables count:', updatedVariables.length);
@@ -852,7 +850,7 @@ function EditorPanel({
   isEditingEnabled: boolean;
   currentVersionName: string; // NEW
 }) {
-  const componentId = useMemo(() => cuid('editor-'), []);
+  const componentId = useId();
   console.log(`[EditorPanel ${componentId}] [Trace: Render] Rendered with prompt ID: ${prompt.id}, Title: "${prompt.title}", Content length: ${contentToDisplay.length}`);
 
   const [blocks, setBlocks] = useState<Block[]>([]);
@@ -893,7 +891,7 @@ function EditorPanel({
 
             const normalizedInitialBlocks = currentContent.length > 0
                                             ? currentContent.map(b => ({ ...b, __typename: 'ContentBlock' })) as Block[]
-                                            : [{ type: 'text', id: cuid('t-initial-empty'), value: '', __typename: 'ContentBlock' }];
+                                            : [{ type: 'text', id: generateClientKey('t-initial-empty'), value: '', __typename: 'ContentBlock' }];
 
             setBlocks(normalizedInitialBlocks);
             setLocalTitle(prompt.title);
@@ -936,7 +934,7 @@ function EditorPanel({
 
             const normalizedCurrentPropContent = currentContent.length > 0
                                                     ? currentContent.map(b => ({ ...b, __typename: 'ContentBlock' })) as Block[]
-                                                    : [{ type: 'text', id: cuid('t-normalized-empty-sync'), value: '', __typename: 'ContentBlock' }];
+                                                    : [{ type: 'text', id: generateClientKey('t-normalized-empty-sync'), value: '', __typename: 'ContentBlock' }];
 
             if (!deepCompareBlocks(blocks, normalizedCurrentPropContent) && !deepCompareBlocks(lastKnownPropValues.current.content, normalizedCurrentPropContent)) {
                 console.log(`[EditorPanel ${componentId}] [Trace: Effect_SyncProps] Prop content updated, updating blocks state.`);
@@ -980,7 +978,7 @@ function EditorPanel({
     const currentContentProp = (contentToDisplay ?? []) as Block[];
     const normalizedCurrentPropContent = currentContentProp.length > 0
                                             ? currentContentProp.map(b => ({ ...b, __typename: 'ContentBlock' })) as Block[]
-                                            : [{ type: 'text', id: cuid('t-normalized-empty-debounced'), value: '', __typename: 'ContentBlock' }];
+                                            : [{ type: 'text', id: generateClientKey('t-normalized-empty-debounced'), value: '', __typename: 'ContentBlock' }];
 
     if (!deepCompareBlocks(normalizedCurrentPropContent, debouncedBlocks) && !deepCompareBlocks(lastKnownPropValues.current.content, debouncedBlocks)) {
       console.log(`[EditorPanel ${componentId}] [Trace: Effect_DebouncedBlocks] Debounced blocks differ from prop content AND last known sent value. Calling onUpdate. Debounced:`, debouncedBlocks, "Prop:", normalizedCurrentPropContent, "LastSent:", lastKnownPropValues.current.content);
@@ -1078,7 +1076,7 @@ function EditorPanel({
   const insertVariableAt = useCallback((index: number, variable: { placeholder: string; id: string; name: string }) => {
     setBlocks(prev => {
       let copy = [...prev];
-      const newVarBlock: Block = { type: 'variable', id: cuid('v-'), varId: variable.id, placeholder: variable.placeholder, name: variable.name, __typename: 'ContentBlock' };
+      const newVarBlock: Block = { type: 'variable', id: generateClientKey('v-'), varId: variable.id, placeholder: variable.placeholder, name: variable.name, __typename: 'ContentBlock' };
       copy.splice(index, 0, newVarBlock);
       logBlocks(`After directly inserting variable "${variable.placeholder}" at index ${index}`, copy);
       return copy;
@@ -1089,7 +1087,7 @@ function EditorPanel({
   const insertTextAt = useCallback((index: number, text = '') => {
     setBlocks(prev => {
       let copy = [...prev];
-      const newBlock: Block = { type: 'text', id: cuid('t-'), value: text, __typename: 'ContentBlock' }
+      const newBlock: Block = { type: 'text', id: generateClientKey('t-'), value: text, __typename: 'ContentBlock' }
       copy.splice(index, 0, newBlock)
       logBlocks(`After directly inserting text block at index ${index}`, copy);
       return copy
@@ -1111,12 +1109,12 @@ function EditorPanel({
              updated = updated.filter(b => !(b.type === 'text' && b.id === id));
              if (updated.length === 0) {
                 console.log('[EditorPanel] [Trace: UpdateTextBlock] All blocks removed, adding empty fallback after text block update.');
-                updated.push({ type: 'text', id: cuid('t-empty-fallback-after-update'), value: '', __typename: 'ContentBlock' });
+                updated.push({ type: 'text', id: generateClientKey('t-empty-fallback-after-update'), value: '', __typename: 'ContentBlock' });
              }
         }
         else if (updated.length === 0) {
             console.log('[EditorPanel] [Trace: UpdateTextBlock] All blocks removed, adding empty fallback (safeguard).');
-            updated.push({ type: 'text', id: cuid('t-empty-fallback-safeguard'), value: '', __typename: 'ContentBlock' });
+            updated.push({ type: 'text', id: generateClientKey('t-empty-fallback-safeguard'), value: '', __typename: 'ContentBlock' });
         }
 
 
@@ -1139,7 +1137,7 @@ function EditorPanel({
 
       if (copy.length === 0) {
         console.log('[EditorPanel] [Trace: RemoveBlock] No blocks left, adding empty fallback.');
-        copy.push({ type: 'text', id: cuid('t-empty-after-remove'), value: '', __typename: 'ContentBlock' });
+        copy.push({ type: 'text', id: generateClientKey('t-empty-after-remove'), value: '', __typename: 'ContentBlock' });
       }
 
       logBlocks(`After removing block at index ${index}`, copy);

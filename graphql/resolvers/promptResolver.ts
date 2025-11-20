@@ -498,63 +498,109 @@ const promptResolvers = {
       return newPrompt as unknown as Prompt;
     },
 
-    updatePrompt: async (
-      _parent: any,
-      { input }: { input: {
-        id: string;
-        title?: string;
-        content?: Block[];
-        context?: string;
-        description?: string;
-        category?: string;
-        tags?: string[];
-        isPublic?: boolean;
-        model?: string;
-        variables?: PromptVariable[];
-      }},
-      context: GraphQLContext
-    ): Promise<Prompt> => {
-      const { id, content, ...scalarUpdates } = input;
-
-      const updatedPrompt = await prisma.$transaction(async (tx) => {
-        if (Object.keys(scalarUpdates).length > 0) {
-          await tx.prompt.update({
-            where: { id },
-            data: { ...scalarUpdates, updatedAt: new Date() },
+       
+        updatePrompt: async (
+          _parent: any,
+          { input }: { input: {
+            id: string;
+            title?: string;
+            content?: Block[];
+            context?: string;
+            description?: string;
+            category?: string;
+            tags?: string[];
+            isPublic?: boolean;
+            model?: string;
+            variables?: PromptVariable[];
+          }},
+          context: GraphQLContext
+        ): Promise<Prompt> => {
+          const { id, content, variables, ...scalarUpdates } = input;
+    
+          await prisma.$transaction(async (tx) => {
+            // 1. Update scalar fields on the Prompt
+            if (Object.keys(scalarUpdates).length > 0) {
+              await tx.prompt.update({
+                where: { id },
+                data: { ...scalarUpdates, updatedAt: new Date() },
+              });
+            }
+    
+            // 2. Sync 'variables' relation
+            if (variables) {
+              const incomingVariableIds = variables.map(v => v.id).filter(Boolean) as string[];
+    
+              // Delete variables that were removed on the client
+              await tx.promptVariable.deleteMany({
+                where: {
+                  promptId: id,
+                  id: { notIn: incomingVariableIds },
+                },
+              });
+    
+              // Create or update incoming variables
+              await Promise.all(variables.map(async (variable) => {
+                const { id: varId, ...data } = variable;
+                const upsertData = {
+                  ...data,
+                  promptId: id,
+                  source: data.source || undefined,
+                };
+                
+                await tx.promptVariable.upsert({
+                  where: { id: varId || `_ nonexistent id _` }, // a value that won't be found for creates
+                  create: upsertData,
+                  update: upsertData,
+                });
+              }));
+            }
+    
+            // 3. Sync 'content' relation
+            if (content) {
+              const incomingBlockIds = content.map(b => b.id).filter(Boolean) as string[];
+              
+              // Delete content blocks that were removed on the client
+              await tx.contentBlock.deleteMany({
+                where: {
+                  promptId: id,
+                  id: { notIn: incomingBlockIds },
+                },
+              });
+    
+              // Create or update incoming content blocks
+              await Promise.all(content.map(async (block, index) => {
+                const { id: blockId, ...data } = block;
+                const upsertData = {
+                  ...data,
+                  promptId: id,
+                  order: index, // Maintain order from the client
+                };
+                
+                await tx.contentBlock.upsert({
+                  where: { id: blockId || `_ nonexistent id _` }, // a value that won't be found for creates
+                  create: upsertData,
+                  update: upsertData,
+                });
+              }));
+            }
           });
-        }
-
-        if (content) {
-          await tx.contentBlock.deleteMany({ where: { promptId: id } });
-          if (content.length > 0) {
-            await tx.contentBlock.createMany({
-              data: content.map((block, index) => ({
-                type: block.type,
-                value: block.value,
-                varId: block.varId,
-                placeholder: block.placeholder,
-                name: block.name,
-                promptId: id,
-                order: index,
-              }))
-            });
+    
+          // 4. Fetch and return the final, fully updated prompt
+          const updatedPrompt = await prisma.prompt.findUnique({
+            where: { id },
+            include: {
+              content: { orderBy: { order: 'asc' } },
+              variables: true,
+            },
+          });
+    
+          if (!updatedPrompt) {
+            throw new Error("Prompt not found after update.");
           }
-        }
-
-        return tx.prompt.findUnique({
-          where: { id },
-          include: {
-            content: { orderBy: { order: 'asc' } },
-          },
-        });
-      });
-
-      if (!updatedPrompt) {
-        throw new Error("Prompt not found after update.");
-      }
-      
-      return updatedPrompt as unknown as Prompt;
-    },
+          
+          return updatedPrompt as unknown as Prompt;
+        },
+    
 
     deletePrompt: async (
       _parent: any,
@@ -567,6 +613,9 @@ const promptResolvers = {
       return deletedPrompt as unknown as Prompt;
     },
 
+
+
+
     snapshotPrompt: async (
       _parent: any,
       { input }: { input: { promptId: string; notes?: string } },
@@ -576,6 +625,7 @@ const promptResolvers = {
         where: { id: input.promptId },
         include: {
           content: { orderBy: { order: 'asc' } },
+          variables: true,
         },
       });
 
@@ -583,31 +633,56 @@ const promptResolvers = {
         throw new Error("Prompt not found.");
       }
       
-      const currentContent = prompt.content.map(({ promptId, ...block }) => block);
-
-      const newVersion: Version = {
-        id: generateUniqueId(),
-        content: currentContent as Block[],
-        context: prompt.context || '',
-        variables: ((prompt.variables as PromptVariable[]) || []).map(v => ({ ...v, id: v.id || generateUniqueId() })),
-        createdAt: new Date().toISOString(),
-        notes: input.notes || `Version saved on ${new Date().toLocaleString()}`,
-        description: "",
-      };
-
-      const updatedVersions = [newVersion, ...(prompt.versions as Version[] || [])];
+      const contentForVersion = prompt.content.map(({ id, promptId, versionId, ...block }) => block);
+      const variablesForVersion = (prompt.variables || []).map(({ id, promptId, versionId, ...variable }) => ({
+        ...variable,
+        source: variable.source || undefined,
+      }));
 
       const updatedPrompt = await prisma.prompt.update({
         where: { id: input.promptId },
         data: {
-          versions: updatedVersions,
           updatedAt: new Date(),
+          versions: {
+            create: [
+              {
+                notes: input.notes || `Version saved on ${new Date().toLocaleString()}`,
+                description: "",
+                context: prompt.context || '',
+                content: {
+                  createMany: {
+                    data: contentForVersion,
+                  },
+                },
+                variables: {
+                  createMany: {
+                    data: variablesForVersion,
+                  },
+                },
+              },
+            ],
+          },
         },
-        include: { content: { orderBy: { order: 'asc' } } },
+        include: { 
+            content: { orderBy: { order: 'asc' } }, // For the top-level prompt
+            versions: { // For the versions relation...
+                include: { // ...for each version, also include its...
+                    content: { orderBy: { order: 'asc' } }, // ...content
+                    variables: true, // ...and variables
+                }
+            },
+        },
       });
 
       return updatedPrompt as unknown as Prompt;
     },
+
+
+
+
+
+
+
 
     restorePromptVersion: async (
       _parent: any,

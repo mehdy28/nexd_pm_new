@@ -479,9 +479,9 @@ type ContentBlock {
 
 type Version {
   id: ID!
-  content: [ContentBlock!]!
+  content: [ContentBlock!]
   context: String!
-  variables: [PromptVariable!]!
+  variables: [PromptVariable!]
   createdAt: DateTime!
   notes: String
   description: String
@@ -1109,7 +1109,7 @@ input CreatePromptVariableInput {
   source: PromptVariableSourceInput
 }
 input UpdatePromptVariableInput {
-  id: ID!
+  id: ID
   name: String
   placeholder: String
   description: String
@@ -1127,7 +1127,7 @@ input CreateContentBlockInput {
   order: Int!
 }
 input UpdateContentBlockInput {
-  id: ID!
+  id: ID
   type: String
   value: String
   varId: ID
@@ -1178,9 +1178,9 @@ input UpdatePromptInput {
 }
 input CreateVersionInput {
   id: ID
-  content: [CreateContentBlockInput!]!
+  content: [CreateContentBlockInput!]
   context: String!
-  variables: [CreatePromptVariableInput!]!
+  variables: [CreatePromptVariableInput!]
   createdAt: DateTime
   notes: String
   description: String
