@@ -1,3 +1,4 @@
+// hooks/personal/usePersonalPromptsList.ts
 "use client"
 
 import { useState, useCallback, useMemo } from "react"
@@ -92,17 +93,12 @@ export function usePersonalPromptsList(selectedId: string | null): UsePersonalPr
         updatedAt: p.updatedAt,
         model: p.model || "gpt-4o",
         projectId: p.projectId,
-        content: [],
-        context: "",
-        variables: [],
+        // These fields are not part of the list query response. Initialize them as empty.
+        activeVersion: undefined,
         versions: [],
       }))
-      setPrompts(mappedPrompts) // Replace prompts with the current page's data
+      setPrompts(mappedPrompts)
       setTotalPromptsCount(data.getMyPrompts.totalCount)
-      console.log(
-        "[usePersonalPromptsList] [Trace: SetPromptsList] Updating prompts state from list. New count:",
-        mappedPrompts.length,
-      )
     },
     onError: err => {
       console.error("[usePersonalPromptsList] [Error: QueryList] Error fetching personal prompts list:", err)
@@ -146,6 +142,7 @@ export function usePersonalPromptsList(selectedId: string | null): UsePersonalPr
           "[usePersonalPromptsList] [Trace: MutationCreateComplete] CREATE_PROMPT_MUTATION onCompleted. New prompt ID:",
           data.createPrompt.id,
         )
+        // Refetch the entire list to ensure pagination and sorting are correct
         apolloRefetchPromptsList()
       }
     },
@@ -196,11 +193,10 @@ export function usePersonalPromptsList(selectedId: string | null): UsePersonalPr
 
         const finalInput = { ...defaultPromptInput, ...initialData }
 
-        // Clean the input and add the required 'order' field to content blocks.
         const cleanContent =
           finalInput.content?.map(({ __typename, id, ...block }, index) => ({
             ...block,
-            order: index, // Add the required 'order' field
+            order: index,
           })) ?? []
 
         const cleanVariables =
@@ -217,14 +213,10 @@ export function usePersonalPromptsList(selectedId: string | null): UsePersonalPr
         })
 
         if (data?.createPrompt) {
+          // Construct the returned prompt object from the new structure
           const newPrompt: Prompt = {
             id: data.createPrompt.id,
             title: data.createPrompt.title,
-            content:
-              data.createPrompt.content && Array.isArray(data.createPrompt.content)
-                ? (data.createPrompt.content as Block[])
-                : [],
-            context: data.createPrompt.context,
             description: data.createPrompt.description,
             tags: data.createPrompt.tags,
             isPublic: data.createPrompt.isPublic,
@@ -232,16 +224,14 @@ export function usePersonalPromptsList(selectedId: string | null): UsePersonalPr
             updatedAt: data.createPrompt.updatedAt,
             model: data.createPrompt.model,
             projectId: data.createPrompt.projectId,
-            variables: data.createPrompt.variables.map((v: PromptVariable) => ({
-              ...v,
-              id: v.id || generateClientKey("db-var-"),
-            })),
+            activeVersion: data.createPrompt.activeVersion ? {
+                ...data.createPrompt.activeVersion,
+                content: data.createPrompt.activeVersion.content as Block[],
+                variables: data.createPrompt.activeVersion.variables as PromptVariable[],
+            } : undefined,
             versions: data.createPrompt.versions.map((v: any) => ({
               ...v,
               id: v.id || generateClientKey("db-ver-"),
-              content: v.content && Array.isArray(v.content) ? (v.content as Block[]) : [],
-              context: v.context || "",
-              variables: v.variables || [],
             })),
           }
           return newPrompt

@@ -1,19 +1,22 @@
+// components/personal/personal-prompt-lab-container.tsx
 "use client"
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useEffect } from "react"
 import { PromptList } from "../prompt-lab/prompt-list"
 import { PromptLab } from "../prompt-lab/prompt-lab"
 import { LoadingPlaceholder, ErrorPlaceholder } from "@/components/placeholders/status-placeholders"
 import { usePersonalPromptsList } from "@/hooks/personal/usePersonalPromptsList"
 import { usePromptDetails } from "@/hooks/usePromptDetails"
-import { PromptTemplate } from "@/lib/prompts/prompt-templates" // Import the new type
-import { generateClientKey } from "@/lib/utils" // Assuming you have a client key generator
+import { PromptTemplate } from "@/lib/prompts/prompt-templates"
+import { generateClientKey } from "@/lib/utils"
 
 export function PersonalPromptLabContainer() {
   console.log("[PersonalPromptLabContainer] [Trace: Render] Component rendering.")
 
   const [selectedPromptId, setSelectedPromptId] = useState<string | null>(null)
   const [isCreatingTemplate, setIsCreatingTemplate] = useState(false)
+  // FIX: Track when we are actively loading a newly created prompt to prevent UI flashing
+  const [isPostCreationLoading, setIsPostCreationLoading] = useState(false)
 
   const {
     prompts,
@@ -32,10 +35,29 @@ export function PersonalPromptLabContainer() {
     totalPromptsCount,
   } = usePersonalPromptsList(selectedPromptId)
 
-  const { selectedPromptDetails, loadingDetails, detailsError, refetchPromptDetails } = usePromptDetails(
-    selectedPromptId,
-    undefined,
-  )
+  const {
+    selectedPromptDetails,
+    loadingDetails,
+    detailsError,
+    refetchPromptDetails,
+    updatePromptDetails,
+    updatePromptVersion,
+    snapshotPrompt,
+    setActivePromptVersion,
+    updateVersionDescription,
+    fetchVersionContent,
+    loadingVersionContent,
+    versionContentError,
+    currentLoadedVersionContent,
+  } = usePromptDetails(selectedPromptId, undefined)
+  
+  // FIX: When details finish loading, turn off the post-creation loading flag.
+  useEffect(() => {
+    if (!loadingDetails && isPostCreationLoading) {
+      setIsPostCreationLoading(false)
+    }
+  }, [loadingDetails, isPostCreationLoading])
+
 
   const selectPrompt = useCallback(
     (id: string | null) => {
@@ -52,29 +74,29 @@ export function PersonalPromptLabContainer() {
     console.log(
       "[PersonalPromptLabContainer] [Trace: HandleCreate] handleCreateNewPrompt: Initiating prompt creation.",
     )
+    setIsPostCreationLoading(true) // FIX: Set loading state before creation
     try {
-      // Assumes createPromptInList can be called with no args for a blank prompt
       const newPrompt = await createPromptInList()
       if (newPrompt) {
         console.log("[PersonalPromptLabContainer] [Trace: HandleCreate] New prompt created:", newPrompt.id)
         selectPrompt(newPrompt.id)
+      } else {
+        setIsPostCreationLoading(false) // FIX: Unset if creation fails
       }
     } catch (err) {
       console.error("[PersonalPromptLabContainer] [Error: Create] Failed to create new prompt:", err)
+      setIsPostCreationLoading(false) // FIX: Unset on error
     }
   }, [createPromptInList, selectPrompt])
 
-  // NEW: Handler for creating a prompt from a template
   const handleCreateFromTemplate = useCallback(
     async (template: PromptTemplate) => {
       console.log(
         `[PersonalPromptLabContainer] [Trace: HandleCreateTemplate] Creating prompt from template: "${template.name}"`,
       )
       setIsCreatingTemplate(true)
+      setIsPostCreationLoading(true) // FIX: Set loading state before creation
       try {
-        // Prepare template data for the mutation.
-        // We generate temporary client-side keys for React list rendering.
-        // The backend should ignore these and generate its own database IDs.
         const promptData = {
           title: template.name,
           content: template.content.map(b => ({ ...b, id: generateClientKey("block-") })),
@@ -86,8 +108,6 @@ export function PersonalPromptLabContainer() {
           isPublic: false,
         }
 
-        // Assumes your createPromptInList hook is modified to accept initial data.
-        // Example modification in hook: `const createPrompt = (initialData = defaultData) => ...`
         const newPrompt = await createPromptInList(promptData)
         if (newPrompt) {
           console.log(
@@ -95,12 +115,15 @@ export function PersonalPromptLabContainer() {
             newPrompt.id,
           )
           selectPrompt(newPrompt.id)
+        } else {
+          setIsPostCreationLoading(false) // FIX: Unset if creation fails
         }
       } catch (err) {
         console.error(
           "[PersonalPromptLabContainer] [Error: CreateTemplate] Failed to create prompt from template:",
           err,
         )
+        setIsPostCreationLoading(false) // FIX: Unset on error
       } finally {
         setIsCreatingTemplate(false)
       }
@@ -139,9 +162,10 @@ export function PersonalPromptLabContainer() {
 
   const isLoading = loadingList || loadingDetails
   const error = listError || detailsError
-  let loaderMessage = selectedPromptId ? "Loading prompt details..." : "Loading your prompts..."
+  let loaderMessage = isPostCreationLoading || selectedPromptId ? "Loading prompt details..." : "Loading your prompts..."
 
-  if (isLoading && prompts.length === 0 && !listError && !detailsError) {
+  // FIX: Use the new post-creation flag to force the loader screen
+  if (isPostCreationLoading || (isLoading && !selectedPromptDetails && prompts.length === 0)) {
     console.log(
       `[PersonalPromptLabContainer] [Trace: Render] Rendering GLOBAL LOADER. Message: "${loaderMessage}".`,
     )
@@ -157,7 +181,25 @@ export function PersonalPromptLabContainer() {
     console.log(
       `[PersonalPromptLabContainer] [Trace: Render] Rendering PromptLab component with prompt ID: ${selectedPromptId}.`,
     )
-    return <PromptLab prompt={selectedPromptDetails} onBack={handleBack} projectId={undefined} />
+    return (
+      <PromptLab
+        prompt={selectedPromptDetails}
+        onBack={handleBack}
+        projectId={undefined}
+        isLoading={loadingDetails}
+        error={detailsError}
+        refetch={refetchPromptDetails}
+        updatePromptDetails={updatePromptDetails}
+        updatePromptVersion={updatePromptVersion}
+        snapshotPrompt={snapshotPrompt}
+        setActivePromptVersion={setActivePromptVersion}
+        updateVersionDescription={updateVersionDescription}
+        fetchVersionContent={fetchVersionContent}
+        loadingVersionContent={loadingVersionContent}
+        versionContentError={versionContentError}
+        currentLoadedVersionContent={currentLoadedVersionContent}
+      />
+    )
   }
 
   console.log(
@@ -170,8 +212,8 @@ export function PersonalPromptLabContainer() {
       onSelectPrompt={selectPrompt}
       onCreatePrompt={handleCreateNewPrompt}
       onDeletePrompt={handleDeletePrompt}
-      onSelectTemplate={handleCreateFromTemplate} // NEW PROP
-      isCreatingFromTemplate={isCreatingTemplate} // NEW PROP
+      onSelectTemplate={handleCreateFromTemplate}
+      isCreatingFromTemplate={isCreatingTemplate}
       isLoading={loadingList}
       isError={!!listError}
       q={q}

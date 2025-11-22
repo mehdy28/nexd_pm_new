@@ -1,3 +1,4 @@
+# graphql/schema/schema.graphql
 # ----------------------------------
 # Enums
 # ----------------------------------
@@ -486,13 +487,12 @@ type Version {
   notes: String
   description: String
   aiEnhancedContent: String
+  isActive: Boolean!
 }
 
 type Prompt {
   id: ID!
   title: String!
-  content: [ContentBlock!]
-  context: String
   description: String
   category: String
   tags: [String!]!
@@ -500,7 +500,6 @@ type Prompt {
   createdAt: DateTime!
   updatedAt: DateTime!
   model: String
-  aiEnhancedContent: String
   projectId: ID
   project: Project
   user: User
@@ -508,8 +507,8 @@ type Prompt {
   wireframe: Wireframe
   comments: [Comment!]
   activities: [Activity!]
-  variables: [PromptVariable!]
   versions: [Version!]
+  activeVersion: Version
 }
 
 type TaskDependency {
@@ -1167,14 +1166,11 @@ input CreatePromptFromWireframeInput {
 input UpdatePromptInput {
   id: ID!
   title: String
-  content: [UpdateContentBlockInput!]
-  context: String
   description: String
   category: String
   tags: [String!]
   isPublic: Boolean
   model: String
-  variables: [UpdatePromptVariableInput!]
 }
 input CreateVersionInput {
   id: ID
@@ -1189,10 +1185,7 @@ input SnapshotPromptInput {
   promptId: ID!
   notes: String
 }
-input RestorePromptVersionInput {
-  promptId: ID!
-  versionId: ID!
-}
+
 input UpdateVersionDescriptionInput {
   promptId: ID!
   versionId: ID!
@@ -1434,9 +1427,9 @@ type Mutation {
   updatePrompt(input: UpdatePromptInput!): Prompt
   deletePrompt(id: ID!): Prompt!
   snapshotPrompt(input: SnapshotPromptInput!): Prompt!
-  restorePromptVersion(input: RestorePromptVersionInput!): Prompt!
+  setActivePromptVersion(promptId: ID!, versionId: ID!): Prompt!
   updateVersionDescription(input: UpdateVersionDescriptionInput!): Prompt!
-  updatePromptVersion(input: UpdatePromptVersionInput!): Prompt! # <--- ADD THIS LINE
+  updatePromptVersion(input: UpdatePromptVersionInput!): Prompt!
 
   # Prompts (Ai)
   createPromptFromWireframe(input: CreatePromptFromWireframeInput!): Prompt!
@@ -1494,10 +1487,3 @@ type Subscription {
 # ----------------------------------
 scalar JSON
 scalar DateTime
-
-
-
-
-
-
-

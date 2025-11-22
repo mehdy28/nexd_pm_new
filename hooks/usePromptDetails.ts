@@ -1,12 +1,13 @@
-'use-client';
+// hooks/usePromptDetails.ts
+'use client';
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { useQuery, useMutation, useLazyQuery } from "@apollo/client";
 import { GET_PROMPT_DETAILS_QUERY, GET_PROMPT_VERSION_CONTENT_QUERY } from "@/graphql/queries/promptRelatedQueries";
 import {
     UPDATE_PROMPT_MUTATION,
     SNAPSHOT_PROMPT_MUTATION,
-    RESTORE_PROMPT_VERSION_MUTATION,
+    SET_ACTIVE_PROMPT_VERSION_MUTATION,
     UPDATE_VERSION_DESCRIPTION_MUTATION,
     UPDATE_PROMPT_VERSION_MUTATION,
 } from "@/graphql/mutations/promptRelatedMutations";
@@ -33,10 +34,10 @@ interface UsePromptDetailsHook {
     selectedPromptDetails: Prompt | null;
     loadingDetails: boolean;
     detailsError: string | null;
-    updatePromptDetails: (promptId: string, updates: Partial<Omit<Prompt, 'id' | 'createdAt' | 'updatedAt' | 'user' | 'project' | 'versions'>>) => void;
+    updatePromptDetails: (promptId: string, updates: Partial<Omit<Prompt, 'id' | 'createdAt' | 'updatedAt' | 'user' | 'project' | 'versions' | 'activeVersion'>>) => void;
     updatePromptVersion: (promptId: string, versionId: string, updates: Partial<PromptVersionType>) => void;
-    snapshotPrompt: (notes?: string) => void;
-    restorePromptVersion: (versionId: string) => void;
+    snapshotPrompt: (notes?: string) => Promise<any>;
+    setActivePromptVersion: (versionId: string) => Promise<any>;
     updateVersionDescription: (promptId: string, versionId: string, description: string) => void;
     refetchPromptDetails: () => Promise<any>;
     fetchVersionContent: (versionId: string) => void;
@@ -47,12 +48,9 @@ interface UsePromptDetailsHook {
 
 
 export function usePromptDetails(selectedPromptId: string | null, projectId: string | undefined): UsePromptDetailsHook {
-    console.log(`[usePromptDetails] Hook rendering/re-rendering. selectedPromptId: ${selectedPromptId}`);
-
     const [selectedPromptDetails, setSelectedPromptDetails] = useState<Prompt | null>(null);
     const [currentLoadedVersionContent, setCurrentLoadedVersionContent] = useState<VersionContent | null>(null);
 
-    // --- DATA FETCHING ---
     const { data: promptDetailsData, loading: apolloDetailsLoading, error: apolloDetailsError, refetch: apolloRefetchPromptDetails } = useQuery(
         GET_PROMPT_DETAILS_QUERY,
         {
@@ -61,27 +59,20 @@ export function usePromptDetails(selectedPromptId: string | null, projectId: str
             fetchPolicy: "network-only",
             onCompleted: (data) => {
                 if (data?.getPromptDetails) {
-                    console.log(`[usePromptDetails] [onCompleted: GET_PROMPT_DETAILS_QUERY] Received data for prompt ID: ${data.getPromptDetails.id}. Syncing state.`);
-                    const detailedPrompt: Prompt = {
+                    setSelectedPromptDetails({
                         ...data.getPromptDetails,
-                        content: (data.getPromptDetails.content || []) as Block[],
-                        variables: (data.getPromptDetails.variables || []).map((v: any) => ({ ...v, id: v.id || cuid('db-var-') })),
                         versions: (data.getPromptDetails.versions || []).map((v: any) => ({ ...v, id: v.id || cuid('db-ver-') })),
-                    };
-                    setSelectedPromptDetails(detailedPrompt);
+                    });
                     setCurrentLoadedVersionContent(null);
-                } else {
-                    console.warn(`[usePromptDetails] [onCompleted: GET_PROMPT_DETAILS_QUERY] Query completed but returned no data.`);
                 }
             }
         }
     );
 
-    const [triggerFetchVersionContent, { data: versionContentData, loading: apolloLoadingVersionContent, error: apolloVersionContentError }] = useLazyQuery(GET_PROMPT_VERSION_CONTENT_QUERY, {
+    const [triggerFetchVersionContent, { loading: apolloLoadingVersionContent, error: apolloVersionContentError }] = useLazyQuery(GET_PROMPT_VERSION_CONTENT_QUERY, {
         fetchPolicy: "network-only",
         onCompleted: (data) => {
             if (data?.getPromptVersionContent) {
-                console.log(`[usePromptDetails] [onCompleted: GET_PROMPT_VERSION_CONTENT_QUERY] Received data for version ID: ${data.getPromptVersionContent.id}. Syncing loaded version content.`);
                 setCurrentLoadedVersionContent({
                     id: data.getPromptVersionContent.id,
                     content: (data.getPromptVersionContent.content || []) as Block[],
@@ -89,51 +80,35 @@ export function usePromptDetails(selectedPromptId: string | null, projectId: str
                     variables: (data.getPromptVersionContent.variables || []).map((v: any) => ({ ...v, id: v.id || cuid('db-var-') })),
                     aiEnhancedContent: data.getPromptVersionContent.aiEnhancedContent,
                 });
-            } else {
-                console.warn(`[usePromptDetails] [onCompleted: GET_PROMPT_VERSION_CONTENT_QUERY] Query completed but returned no data.`);
             }
         }
     });
 
-    // --- MUTATIONS WITH onCompleted HANDLERS (NO refetchQueries) ---
-
-    const [updatePromptMutation] = useMutation(UPDATE_PROMPT_MUTATION, {
-        onCompleted: (data) => {
-            if (data?.updatePrompt) {
-                console.log(`[usePromptDetails] [onCompleted: UPDATE_PROMPT_MUTATION] Received updated prompt data. Updating state.`);
-                setSelectedPromptDetails(prev => {
-                    console.log(`[usePromptDetails] [setState: updatePrompt] Previous state:`, prev);
-                    const newState = prev ? { ...prev, ...data.updatePrompt } : null;
-                    console.log(`[usePromptDetails] [setState: updatePrompt] New state:`, newState);
-                    return newState;
-                });
-            }
-        }
-    });
+    const [updatePromptMutation] = useMutation(UPDATE_PROMPT_MUTATION);
 
     const [snapshotPromptMutation] = useMutation(SNAPSHOT_PROMPT_MUTATION, {
         onCompleted: (data) => {
             if (data?.snapshotPrompt) {
-                console.log(`[usePromptDetails] [onCompleted: SNAPSHOT_PROMPT_MUTATION] Received new versions list. Updating state.`);
+                // FIX: Update state directly from the mutation response instead of refetching
                 setSelectedPromptDetails(prev => {
-                    console.log(`[usePromptDetails] [setState: snapshotPrompt] Previous state:`, prev);
-                    const newState = prev ? { ...prev, versions: data.snapshotPrompt.versions } : null;
-                    console.log(`[usePromptDetails] [setState: snapshotPrompt] New state:`, newState);
-                    return newState;
+                    if (!prev) return null;
+                    const updatedPrompt = data.snapshotPrompt;
+                    return {
+                        ...prev,
+                        versions: (updatedPrompt.versions || []).map((v: any) => ({ ...v, id: v.id || cuid('db-ver-') })),
+                    };
                 });
             }
         }
     });
 
-    const [restorePromptVersionMutation] = useMutation(RESTORE_PROMPT_VERSION_MUTATION, {
+    const [setActivePromptVersionMutation] = useMutation(SET_ACTIVE_PROMPT_VERSION_MUTATION, {
         onCompleted: (data) => {
-            if (data?.restorePromptVersion) {
-                console.log(`[usePromptDetails] [onCompleted: RESTORE_PROMPT_VERSION_MUTATION] Received restored prompt data. Updating state.`);
-                setSelectedPromptDetails(prev => {
-                    console.log(`[usePromptDetails] [setState: restorePromptVersion] Previous state:`, prev);
-                    const newState = prev ? { ...prev, ...data.restorePromptVersion } : null;
-                    console.log(`[usePromptDetails] [setState: restorePromptVersion] New state:`, newState);
-                    return newState;
+            if (data?.setActivePromptVersion) {
+                // This is our previous fix, which is correct.
+                setSelectedPromptDetails({
+                    ...data.setActivePromptVersion,
+                    versions: (data.setActivePromptVersion.versions || []).map((v: any) => ({ ...v, id: v.id || cuid('db-ver-') })),
                 });
                 setCurrentLoadedVersionContent(null);
             }
@@ -143,90 +118,47 @@ export function usePromptDetails(selectedPromptId: string | null, projectId: str
     const [updateVersionDescriptionMutation] = useMutation(UPDATE_VERSION_DESCRIPTION_MUTATION, {
         onCompleted: (data) => {
             if (data?.updateVersionDescription) {
-                console.log(`[usePromptDetails] [onCompleted: UPDATE_VERSION_DESCRIPTION_MUTATION] Received updated versions list. Updating state.`);
-                setSelectedPromptDetails(prev => {
-                    console.log(`[usePromptDetails] [setState: updateVersionDescription] Previous state:`, prev);
-                    const newState = prev ? { ...prev, versions: data.updateVersionDescription.versions } : null;
-                    console.log(`[usePromptDetails] [setState: updateVersionDescription] New state:`, newState);
-                    return newState;
-                });
+                setSelectedPromptDetails(prev => prev ? { ...prev, versions: data.updateVersionDescription.versions } : null);
             }
         }
     });
     
     const [updatePromptVersionMutation] = useMutation(UPDATE_PROMPT_VERSION_MUTATION, {
         onCompleted: (data) => {
-            if (data?.updatePromptVersion) {
-                console.log(`[usePromptDetails] [onCompleted: UPDATE_PROMPT_VERSION_MUTATION] Received updated versions list for prompt ID: ${data.updatePromptVersion.id}.`);
-                setSelectedPromptDetails(prev => {
-                    if (!prev) return null;
-                    console.log(`[usePromptDetails] [setState: updatePromptVersion] Previous state version count: ${prev.versions.length}`);
-                    const newState = { ...prev, versions: data.updatePromptVersion.versions };
-                    console.log(`[usePromptDetails] [setState: updatePromptVersion] New state version count: ${newState.versions.length}`);
-                    return newState;
-                });
+             if (data?.updatePromptVersion) {
+                // This refetch is still acceptable for general version updates, though could be optimized further if needed.
+                apolloRefetchPromptDetails();
             }
         }
     });
-
-    // --- ACTION HANDLERS ---
     
     const fetchVersionContent = useCallback((versionId: string) => {
-        console.log(`[usePromptDetails] [Action: fetchVersionContent] Called with versionId: ${versionId}`);
-        if (!selectedPromptId || !versionId) {
-            console.warn(`[usePromptDetails] [Action: fetchVersionContent] Aborted: missing promptId or versionId.`);
-            return;
-        }
-        const variables = { promptId: selectedPromptId, versionId };
-        console.log(`[usePromptDetails] [Action: fetchVersionContent] Triggering lazy query with variables:`, variables);
-        triggerFetchVersionContent({ variables });
+        if (!selectedPromptId || !versionId) return;
+        triggerFetchVersionContent({ variables: { promptId: selectedPromptId, versionId } });
     }, [selectedPromptId, triggerFetchVersionContent]);
 
     const updatePromptDetails = useCallback((promptId: string, updates: any) => {
-        console.log(`[usePromptDetails] [Action: updatePromptDetails] Called for promptId: ${promptId}`);
-        const variables = { input: { id: promptId, ...updates } };
-        console.log(`[usePromptDetails] [Action: updatePromptDetails] Executing mutation with variables:`, variables);
-        updatePromptMutation({ variables });
+        const { content, variables, versions, activeVersion, ...metadataUpdates } = updates;
+        updatePromptMutation({ variables: { input: { id: promptId, ...metadataUpdates } } });
     }, [updatePromptMutation]);
     
     const updatePromptVersion = useCallback((promptId: string, versionId: string, updates: any) => {
-        console.log(`[usePromptDetails] [Action: updatePromptVersion] Called for versionId: ${versionId}`);
-        const variables = { input: { promptId, versionId, ...updates } };
-        console.log(`[usePromptDetails] [Action: updatePromptVersion] Executing mutation with variables:`, variables);
-        updatePromptVersionMutation({ variables });
+        updatePromptVersionMutation({ variables: { input: { promptId, versionId, ...updates } } });
     }, [updatePromptVersionMutation]);
 
     const snapshotPrompt = useCallback((notes?: string) => {
-        console.log(`[usePromptDetails] [Action: snapshotPrompt] Called.`);
-        if (!selectedPromptId) {
-            console.warn(`[usePromptDetails] [Action: snapshotPrompt] Aborted: missing selectedPromptId.`);
-            return;
-        }
-        const variables = { input: { promptId: selectedPromptId, notes: notes || `Version saved at ${new Date().toLocaleString()}` } };
-        console.log(`[usePromptDetails] [Action: snapshotPrompt] Executing mutation with variables:`, variables);
-        snapshotPromptMutation({ variables });
+        if (!selectedPromptId) throw new Error("No prompt selected to snapshot.");
+        return snapshotPromptMutation({ variables: { input: { promptId: selectedPromptId, notes: notes || `Version saved at ${new Date().toLocaleString()}` } } });
     }, [selectedPromptId, snapshotPromptMutation]);
 
-    const restorePromptVersion = useCallback((versionId: string) => {
-        console.log(`[usePromptDetails] [Action: restorePromptVersion] Called for versionId: ${versionId}`);
-        if (!selectedPromptId) {
-            console.warn(`[usePromptDetails] [Action: restorePromptVersion] Aborted: missing selectedPromptId.`);
-            return;
-        }
-        const variables = { input: { promptId: selectedPromptId, versionId } };
-        console.log(`[usePromptDetails] [Action: restorePromptVersion] Executing mutation with variables:`, variables);
-        restorePromptVersionMutation({ variables });
-    }, [selectedPromptId, restorePromptVersionMutation]);
+    const setActivePromptVersion = useCallback((versionId: string) => {
+        if (!selectedPromptId) throw new Error("No prompt selected.");
+        return setActivePromptVersionMutation({ variables: { promptId: selectedPromptId, versionId } });
+    }, [selectedPromptId, setActivePromptVersionMutation]);
 
     const updateVersionDescription = useCallback((promptId: string, versionId: string, description: string) => {
-        console.log(`[usePromptDetails] [Action: updateVersionDescription] Called for versionId: ${versionId}`);
-        if (!promptId || !versionId) {
-            console.warn(`[usePromptDetails] [Action: updateVersionDescription] Aborted: missing promptId or versionId.`);
-            return;
-        }
-        const variables = { input: { promptId, versionId, description } };
-        console.log(`[usePromptDetails] [Action: updateVersionDescription] Executing mutation with variables:`, variables);
-        updateVersionDescriptionMutation({ variables });
+        if (!promptId || !versionId) return;
+        updateVersionDescriptionMutation({ variables: { input: { promptId, versionId, description } } });
     }, [updateVersionDescriptionMutation]);
 
     return {
@@ -236,7 +168,7 @@ export function usePromptDetails(selectedPromptId: string | null, projectId: str
         updatePromptDetails,
         updatePromptVersion,
         snapshotPrompt,
-        restorePromptVersion,
+        setActivePromptVersion,
         updateVersionDescription,
         refetchPromptDetails: apolloRefetchPromptDetails,
         fetchVersionContent,

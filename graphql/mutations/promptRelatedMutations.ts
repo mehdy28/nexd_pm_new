@@ -1,123 +1,29 @@
 // graphql/mutations/promptRelatedMutations.ts
-
-
 import { gql } from 'graphql-tag'; // Or your equivalent for GQL mutations
 
 // --- Prompt Mutations ---
 
 export const CREATE_PROMPT_MUTATION = gql`
 mutation CreatePrompt($input: CreatePromptInput!) {
-createPrompt(input: $input) {
-id
-title
-content {
-id
-type
-value
-varId
-placeholder
-name
-}
-  context
-  description
-  category
-  tags
-  isPublic
-  createdAt
-  updatedAt
-  model
-  projectId
-  variables {
+  createPrompt(input: $input) {
     id
-    name
-    placeholder
-    type
-    defaultValue
-    source
-  }
-  versions {
-    id
-    createdAt
-    notes
+    title
     description
-  }
-}
-}
-`;
-
-export const UPDATE_PROMPT_MUTATION = gql`
-mutation UpdatePrompt($input: UpdatePromptInput!) {
-updatePrompt(input: $input) {
-id
-title
-content {
-id
-type
-value
-varId
-placeholder
-name
-}
-  context
-  description
-  tags
-  isPublic
-  updatedAt
-  model
-  variables {
-    id
-    name
-    placeholder
-    type
-    defaultValue
-    source
-  }
-}
-}
-`;
-
-export const DELETE_PROMPT_MUTATION = gql`
-  mutation DeletePrompt($id: ID!) {
-    deletePrompt(id: $id) {
+    category
+    tags
+    isPublic
+    createdAt
+    updatedAt
+    model
+    projectId
+    versions {
       id
+      createdAt
+      notes
+      description
+      isActive
     }
-  }
-`;
-
-export const SNAPSHOT_PROMPT_MUTATION = gql`
-  mutation SnapshotPrompt($input: SnapshotPromptInput!) {
-    snapshotPrompt(input: $input) {
-      id
-      versions {
-        id
-        content {
-          id
-          type
-          value
-          varId
-          placeholder
-          name
-        }
-        context
-        variables {
-          id
-          name
-          placeholder
-          type
-          defaultValue
-          source
-        }
-        createdAt
-        notes
-        description
-      }
-    }
-  }
-`;
-
-export const RESTORE_PROMPT_VERSION_MUTATION = gql`
-  mutation RestorePromptVersion($input: RestorePromptVersionInput!) {
-    restorePromptVersion(input: $input) {
+    activeVersion {
       id
       content {
         id
@@ -136,7 +42,107 @@ export const RESTORE_PROMPT_VERSION_MUTATION = gql`
         defaultValue
         source
       }
+    }
+  }
+}
+`;
+
+export const UPDATE_PROMPT_MUTATION = gql`
+mutation UpdatePrompt($input: UpdatePromptInput!) {
+  updatePrompt(input: $input) {
+    id
+    title
+    description
+    category
+    tags
+    isPublic
+    updatedAt
+    model
+  }
+}
+`;
+
+export const DELETE_PROMPT_MUTATION = gql`
+  mutation DeletePrompt($id: ID!) {
+    deletePrompt(id: $id) {
+      id
+    }
+  }
+`;
+
+export const SNAPSHOT_PROMPT_MUTATION = gql`
+  mutation SnapshotPrompt($input: SnapshotPromptInput!) {
+    snapshotPrompt(input: $input) {
+      id
+      versions {
+        id
+        createdAt
+        notes
+        description
+        isActive
+        content {
+          id
+          type
+          value
+        }
+        context
+        variables {
+          id
+          name
+          placeholder
+        }
+      }
+    }
+  }
+`;
+
+export const SET_ACTIVE_PROMPT_VERSION_MUTATION = gql`
+  mutation SetActivePromptVersion($promptId: ID!, $versionId: ID!) {
+    setActivePromptVersion(promptId: $promptId, versionId: $versionId) {
+      id
+      title
+      description
+      category
+      tags
+      isPublic
+      createdAt
       updatedAt
+      model
+      projectId
+      user {
+        id
+        firstName
+        lastName
+      }
+      activeVersion {
+        id
+        aiEnhancedContent
+        content {
+          id
+          type
+          value
+          varId
+          placeholder
+          name
+        }
+        context
+        variables {
+          id
+          name
+          placeholder
+          description
+          type
+          defaultValue
+          source
+        }
+      }
+      versions {
+        id
+        createdAt
+        notes
+        description
+        isActive
+      }
     }
   }
 `;
@@ -150,12 +156,12 @@ export const UPDATE_VERSION_DESCRIPTION_MUTATION = gql`
         notes
         description
         createdAt
+        isActive
       }
     }
   }
 `;
 
-// NEW: Mutation for updating a specific version's content, context, etc.
 export const UPDATE_PROMPT_VERSION_MUTATION = gql`
   mutation UpdatePromptVersion($input: UpdatePromptVersionInput!) {
     updatePromptVersion(input: $input) {
@@ -165,6 +171,7 @@ export const UPDATE_PROMPT_VERSION_MUTATION = gql`
         notes
         description
         createdAt
+        isActive
         content {
             id
             type

@@ -1,26 +1,20 @@
-// components/prompt-lab/prompt-lab-container.tsx
-'use client'
+"use client"
 
-import { useState, useCallback } from 'react';
-import { useParams } from 'next/navigation';
+import { useState, useCallback } from "react"
+import { PromptList } from "../prompt-lab/prompt-list"
+import { PromptLab } from "../prompt-lab/prompt-lab"
+import { LoadingPlaceholder, ErrorPlaceholder } from "@/components/placeholders/status-placeholders"
+import { usePersonalPromptsList } from "@/hooks/personal/usePersonalPromptsList"
+import { usePromptDetails } from "@/hooks/usePromptDetails"
+import { PromptTemplate } from "@/lib/prompts/prompt-templates"
+import { generateClientKey } from "@/lib/utils"
 
-import { PromptList } from "./prompt-list";
-import { PromptLab } from "./prompt-lab";
-import { Button } from "../ui/button";
-import { LoadingPlaceholder, ErrorPlaceholder } from "@/components/placeholders/status-placeholders";
+export function PersonalPromptLabContainer() {
+  console.log("[PersonalPromptLabContainer] [Trace: Render] Component rendering.")
 
-import { usePromptsList } from "@/hooks/usePromptsList";
-import { usePromptDetails } from "@/hooks/usePromptDetails";
+  const [selectedPromptId, setSelectedPromptId] = useState<string | null>(null)
+  const [isCreatingTemplate, setIsCreatingTemplate] = useState(false)
 
-export function PromptLabContainer({ projectId: initialProjectId }: { projectId?: string }) {
-  console.log('[PromptLabContainer] [Trace: Render] Component rendering.');
-  const params = useParams();
-  const projectId = initialProjectId || (params.id as string | undefined);
-
-  // 1. Manage the selection state centrally
-  const [selectedPromptId, setSelectedPromptId] = useState<string | null>(null);
-
-  // 2. Consume usePromptsList hook for list operations, now including search and pagination
   const {
     prompts,
     loadingList,
@@ -36,112 +30,172 @@ export function PromptLabContainer({ projectId: initialProjectId }: { projectId?
     setPageSize,
     totalPages,
     totalPromptsCount,
-  } = usePromptsList(projectId, selectedPromptId);
+  } = usePersonalPromptsList(selectedPromptId)
 
-  // 3. Consume usePromptDetails hook for detail operations
   const {
     selectedPromptDetails,
     loadingDetails,
     detailsError,
     refetchPromptDetails,
-  } = usePromptDetails(selectedPromptId, projectId);
+    updatePromptDetails,
+    updatePromptVersion,
+    snapshotPrompt,
+    setActivePromptVersion,
+    updateVersionDescription,
+    fetchVersionContent,
+    loadingVersionContent,
+    versionContentError,
+    currentLoadedVersionContent,
+  } = usePromptDetails(selectedPromptId, undefined)
 
-  // 4. Centralized select/deselect logic
-  const selectPrompt = useCallback((id: string | null) => {
-    console.log('[PromptLabContainer] [Trace: Select] selectPrompt called with ID:', id);
-    setSelectedPromptId(id);
-    // When deselecting, ensure the list is refreshed or re-fetched if needed
-    if (id === null) {
-      triggerPromptsListFetch(true); // Force a network-only refetch of the list
-    }
-  }, [triggerPromptsListFetch]);
+  const selectPrompt = useCallback(
+    (id: string | null) => {
+      console.log("[PersonalPromptLabContainer] [Trace: Select] selectPrompt called with ID:", id)
+      setSelectedPromptId(id)
+      if (id === null) {
+        triggerPromptsListFetch(true)
+      }
+    },
+    [triggerPromptsListFetch],
+  )
 
-  // Handle create prompt action
   const handleCreateNewPrompt = useCallback(async () => {
-    console.log('[PromptLabContainer] [Trace: HandleCreate] handleCreateNewPrompt: Initiating prompt creation.');
+    console.log(
+      "[PersonalPromptLabContainer] [Trace: HandleCreate] handleCreateNewPrompt: Initiating prompt creation.",
+    )
     try {
-      const newPrompt = await createPromptInList(); // Use the create from the list hook
+      const newPrompt = await createPromptInList()
       if (newPrompt) {
-        console.log('[PromptLabContainer] [Trace: HandleCreate] New prompt created:', newPrompt.id);
-        selectPrompt(newPrompt.id); // Select the newly created prompt
+        console.log("[PersonalPromptLabContainer] [Trace: HandleCreate] New prompt created:", newPrompt.id)
+        selectPrompt(newPrompt.id)
       }
     } catch (err) {
-      console.error("[PromptLabContainer] [Error: Create] Failed to create new prompt:", err);
+      console.error("[PersonalPromptLabContainer] [Error: Create] Failed to create new prompt:", err)
     }
-  }, [createPromptInList, selectPrompt]);
+  }, [createPromptInList, selectPrompt])
 
-  // Handle delete prompt action
-  const handleDeletePrompt = useCallback(async (id: string) => {
-    console.log('[PromptLabContainer] [Trace: HandleDelete] handleDeletePrompt: Initiating deletion for ID:', id);
-    await deletePromptFromList(id); // Use the delete from the list hook
-    if (selectedPromptId === id) {
-      console.log('[PromptLabContainer] [Trace: HandleDelete] Deselecting deleted prompt.');
-      selectPrompt(null); // Deselect if the deleted prompt was selected
-    }
-  }, [deletePromptFromList, selectedPromptId, selectPrompt]);
+  const handleCreateFromTemplate = useCallback(
+    async (template: PromptTemplate) => {
+      console.log(
+        `[PersonalPromptLabContainer] [Trace: HandleCreateTemplate] Creating prompt from template: "${template.name}"`,
+      )
+      setIsCreatingTemplate(true)
+      try {
+        const promptData = {
+          title: template.name,
+          content: template.content.map(b => ({ ...b, id: generateClientKey("block-") })),
+          context: template.context,
+          description: template.description,
+          model: template.model,
+          variables: template.variables.map(v => ({ ...v, id: generateClientKey("var-") })),
+          tags: [template.category],
+          isPublic: false,
+        }
 
-  // Handle "Back to List" action
+        const newPrompt = await createPromptInList(promptData)
+        if (newPrompt) {
+          console.log(
+            "[PersonalPromptLabContainer] [Trace: HandleCreateTemplate] New prompt created from template:",
+            newPrompt.id,
+          )
+          selectPrompt(newPrompt.id)
+        }
+      } catch (err) {
+        console.error(
+          "[PersonalPromptLabContainer] [Error: CreateTemplate] Failed to create prompt from template:",
+          err,
+        )
+      } finally {
+        setIsCreatingTemplate(false)
+      }
+    },
+    [createPromptInList, selectPrompt],
+  )
+
+  const handleDeletePrompt = useCallback(
+    async (id: string) => {
+      console.log(
+        "[PersonalPromptLabContainer] [Trace: HandleDelete] handleDeletePrompt: Initiating deletion for ID:",
+        id,
+      )
+      await deletePromptFromList(id)
+      if (selectedPromptId === id) {
+        console.log("[PersonalPromptLabContainer] [Trace: HandleDelete] Deselecting deleted prompt.")
+        selectPrompt(null)
+      }
+    },
+    [deletePromptFromList, selectedPromptId, selectPrompt],
+  )
+
   const handleBack = () => {
-    console.log('[PromptLabContainer] [Trace: HandleBack] handleBack: Deselecting prompt.');
-    selectPrompt(null); // Deselect the prompt. This will trigger a list refetch via its useCallback.
-  };
+    console.log("[PersonalPromptLabContainer] [Trace: HandleBack] handleBack: Deselecting prompt.")
+    selectPrompt(null)
+  }
 
   const handleRetry = useCallback(() => {
-    console.log('[PromptLabContainer] [Trace: RetryButton] Retry button clicked.');
+    console.log("[PersonalPromptLabContainer] [Trace: RetryButton] Retry button clicked.")
     if (selectedPromptId) {
-      refetchPromptDetails(); // Retry details fetch if a prompt is selected
+      refetchPromptDetails()
     } else {
-      triggerPromptsListFetch(true); // Retry list fetch if no prompt is selected
+      triggerPromptsListFetch(true)
     }
-  }, [selectedPromptId, refetchPromptDetails, triggerPromptsListFetch]);
+  }, [selectedPromptId, refetchPromptDetails, triggerPromptsListFetch])
 
-  // Determine overall loading and error states
-  const isLoading = loadingList || loadingDetails;
-  const error = listError || detailsError;
+  const isLoading = loadingList || loadingDetails
+  const error = listError || detailsError
+  let loaderMessage = selectedPromptId ? "Loading prompt details..." : "Loading your prompts..."
 
-  // Determine message for global loader
-  let loaderMessage = "Loading..."; // Default message
-  if (selectedPromptId) {
-    loaderMessage = "Loading prompt details...";
-  } else {
-    loaderMessage = "Loading prompt list...";
+  if (isLoading && !selectedPromptDetails && prompts.length === 0) {
+    console.log(
+      `[PersonalPromptLabContainer] [Trace: Render] Rendering GLOBAL LOADER. Message: "${loaderMessage}".`,
+    )
+    return <LoadingPlaceholder message={loaderMessage} />
   }
 
-  // --- Global Loader Conditional Rendering ---
-  if (isLoading && prompts.length === 0 && !listError && !detailsError) { // Only show global loader if no prompts in list yet and no error
-    console.log(`[PromptLabContainer] [Trace: Render] Rendering GLOBAL LOADER. Message: "${loaderMessage}".`);
-    return <LoadingPlaceholder message={loaderMessage} />;
-  }
-
-  // --- Error Handling (after global loading completes) ---
   if (error) {
-    console.log('[PromptLabContainer] [Trace: Render] Rendering ERROR STATE. Error:', error);
-    return <ErrorPlaceholder error={new Error(error)} onRetry={handleRetry} />;
+    console.log("[PersonalPromptLabContainer] [Trace: Render] Rendering ERROR STATE. Error:", error)
+    return <ErrorPlaceholder error={new Error(error)} onRetry={handleRetry} />
   }
 
-  // --- Main UI Rendering (after global loading and error checks) ---
   if (selectedPromptId && selectedPromptDetails) {
-    console.log(`[PromptLabContainer] [Trace: Render] Rendering PromptLab component with prompt ID: ${selectedPromptId}.`);
+    console.log(
+      `[PersonalPromptLabContainer] [Trace: Render] Rendering PromptLab component with prompt ID: ${selectedPromptId}.`,
+    )
     return (
       <PromptLab
-        prompt={selectedPromptDetails} // Pass the full details object
+        prompt={selectedPromptDetails}
         onBack={handleBack}
-        projectId={projectId}
+        projectId={undefined}
+        isLoading={loadingDetails}
+        error={detailsError}
+        refetch={refetchPromptDetails}
+        updatePromptDetails={updatePromptDetails}
+        updatePromptVersion={updatePromptVersion}
+        snapshotPrompt={snapshotPrompt}
+        setActivePromptVersion={setActivePromptVersion}
+        updateVersionDescription={updateVersionDescription}
+        fetchVersionContent={fetchVersionContent}
+        loadingVersionContent={loadingVersionContent}
+        versionContentError={versionContentError}
+        currentLoadedVersionContent={currentLoadedVersionContent}
       />
-    );
+    )
   }
 
-  // Default view: Prompt List (when no prompt is selected and not loading/error)
-  console.log('[PromptLabContainer] [Trace: Render] Rendering PromptList component. Prompts count:', prompts.length);
+  console.log(
+    "[PersonalPromptLabContainer] [Trace: Render] Rendering PromptList component. Prompts count:",
+    prompts.length,
+  )
   return (
     <PromptList
       prompts={prompts}
       onSelectPrompt={selectPrompt}
       onCreatePrompt={handleCreateNewPrompt}
       onDeletePrompt={handleDeletePrompt}
+      onSelectTemplate={handleCreateFromTemplate}
+      isCreatingFromTemplate={isCreatingTemplate}
       isLoading={loadingList}
       isError={!!listError}
-      // Search and Pagination Props
       q={q}
       setQ={setQ}
       page={page}
@@ -151,5 +205,5 @@ export function PromptLabContainer({ projectId: initialProjectId }: { projectId?
       totalPages={totalPages}
       totalPromptsCount={totalPromptsCount}
     />
-  );
+  )
 }

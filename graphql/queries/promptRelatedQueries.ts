@@ -33,36 +33,39 @@ export const GET_PROMPT_DETAILS_QUERY = gql`
       updatedAt
       model
       projectId
-      aiEnhancedContent # Fetches the enhanced content from the latest version
       user {
         id
         firstName
         lastName
       }
-      # Fetches the active prompt's content
-      content {
-        id
-        type
-        value
-        varId
-        placeholder
-        name
-      }
-      context # Fetches the active prompt's context
-      variables {
-        id
-        name
-        placeholder
-        description
-        type
-        defaultValue
-        source
+      activeVersion {
+        id 
+        aiEnhancedContent
+        content {
+          id
+          type
+          value
+          varId
+          placeholder
+          name
+        }
+        context
+        variables {
+          id
+          name
+          placeholder
+          description
+          type
+          defaultValue
+          source
+        }
       }
       versions {
         id
         createdAt
         notes
         description
+        isActive
       }
     }
   }
