@@ -369,13 +369,11 @@ const WireframeEditorPage: React.FC<WireframeEditorPageProps> = memo(
       }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem", flexShrink: 0, gap: "0.5rem" }}>
           <button
-            aria-label="Back"
+            className="px-4 py-2 bg-teal-500 text-white rounded-lg hover:bg-teal-600 flex items-center"
             onClick={editorOnBack}
-            style={{ background: "none", border: "none", cursor: "pointer", padding: 0 }}
           >
-            <Wand2 />
+            Return to list
           </button>
-
           <input
             type="text"
             value={wireframeName}

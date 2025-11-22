@@ -1,3 +1,5 @@
+//graphql/mutations/promptMutations.ts
+
 import { gql } from "@apollo/client";
 
 export const GENERATE_PROMPT_FROM_WIREFRAME_MUTATION = gql`
@@ -14,10 +16,16 @@ export const CREATE_PROMPT_FROM_WIREFRAME_MUTATION = gql`
       description
       model
       wireframeId
-      content {
+      activeVersion {
         id
-        type
-        value
+        context
+        isActive
+        content {
+          id
+          type
+          value
+          order
+        }
       }
       versions {
         id

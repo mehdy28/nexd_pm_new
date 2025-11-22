@@ -92,14 +92,19 @@ export const GeneratePromptModal: React.FC<GeneratePromptModalProps> = ({
   const handleCreatePrompt = async () => {
     if (!generatedContent || !title || !wireframeId) return;
 
+    // Construct the version structure required by CreatePromptFromWireframeInput
+    const versionInput = {
+      context: description, // Context for the version
+      content: [{ type: "text", value: generatedContent, order: 0 }],
+      variables: [], // Currently empty, but correctly placed inside the version
+    };
+
     const input = {
       title,
       description,
-      context: description,
-      content: [{ type: "text", value: generatedContent, order: 0 }],
       wireframeId: wireframeId,
-      variables: [],
-      model: 'gemini-pro-vision'
+      model: 'gemini-pro-vision',
+      versions: [versionInput], // Wrap the version in an array
     };
 
     try {

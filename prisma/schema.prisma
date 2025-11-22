@@ -582,7 +582,7 @@ model Version {
   notes             String?
   description       String?
   aiEnhancedContent String?
-  isActive          Boolean        @default(false)
+  isActive          Boolean        @default(true)
   promptId          String
   prompt            Prompt         @relation(fields: [promptId], references: [id], onDelete: Cascade)
   content           ContentBlock[]
