@@ -23,12 +23,17 @@ interface GanttViewProps {
   projectId: string
 }
 
-export function getStartEndDateForParent(tasks: CustomGanttTask[], parentId: string) {
-  const children = tasks.filter(t => t.project === parentId)
+export function getStartEndDateForParent(tasks: CustomGanttTask[], parentId: string): [Date, Date] {
+  // Filter for children tasks (t.project links to the parentId)
+  const children = tasks.filter(t => t.project === parentId && t.originalType === "TASK")
+  
+  const parent = tasks.find(t => t.id === parentId && t.originalType === "SECTION")
+
   if (children.length === 0) {
-    const parent = tasks.find(t => t.id === parentId)
+    // If no children, return the parent's current dates or default dates
     return parent ? [parent.start, parent.end] : [new Date(), new Date()]
   }
+  
   let start = children[0].start
   let end = children[0].end
 
@@ -72,7 +77,25 @@ const GanttView: React.FC<GanttViewProps> = ({ projectId }) => {
 
   useEffect(() => {
     if (ganttTasks && !isMutating) {
-      setOptimisticGanttTasks(ganttTasks)
+      // 1. Calculate section dates based on children before setting local state
+      const sections = ganttTasks.filter(t => t.originalType === "SECTION")
+      let processedTasks = [...ganttTasks]
+
+      if (sections.length > 0) {
+        processedTasks = processedTasks.map(task => {
+          if (task.originalType === "SECTION") {
+            const [newStart, newEnd] = getStartEndDateForParent(ganttTasks, task.id)
+            return {
+              ...task,
+              start: newStart,
+              end: newEnd,
+            }
+          }
+          return task
+        })
+      }
+      
+      setOptimisticGanttTasks(processedTasks)
     }
   }, [ganttTasks, isMutating])
 
@@ -102,11 +125,11 @@ const GanttView: React.FC<GanttViewProps> = ({ projectId }) => {
         displayOrder: originalItem.displayOrder,
       }
       let hasChanges = false
-      if (originalItem.start.toISOString() !== task.start.toISOString()) {
+      if (originalItem.start.getTime() !== task.start.getTime()) {
         input.startDate = task.start.toISOString()
         hasChanges = true
       }
-      if (originalItem.end.toISOString() !== task.end.toISOString()) {
+      if (originalItem.end.getTime() !== task.end.getTime()) {
         input.endDate = task.end.toISOString()
         hasChanges = true
       }
@@ -116,8 +139,10 @@ const GanttView: React.FC<GanttViewProps> = ({ projectId }) => {
       }
 
       if (hasChanges) {
-        setOptimisticGanttTasks(prev =>
-          prev.map(t =>
+        // Optimistic UI update
+        setOptimisticGanttTasks(prev => {
+          // 1. Update the moved/edited task
+          let newTasksList = prev.map(t =>
             t.id === task.id
               ? {
                   ...t,
@@ -127,18 +152,42 @@ const GanttView: React.FC<GanttViewProps> = ({ projectId }) => {
                 }
               : t
           )
-        )
+          
+          // 2. Find the associated parent section ID
+          const parentSectionId = task.project
+          
+          if (parentSectionId) {
+            // 3. Recalculate parent section dates based on the *new* tasks list
+            const [newParentStart, newParentEnd] = getStartEndDateForParent(newTasksList, parentSectionId)
+
+            // 4. Update the parent section in the list
+            newTasksList = newTasksList.map(t => 
+              t.id === parentSectionId && t.originalType === "SECTION"
+                ? {
+                    ...t,
+                    start: newParentStart,
+                    end: newParentEnd,
+                  }
+                : t
+            )
+          }
+
+          return newTasksList
+        })
 
         try {
           await updateGanttTask(input)
         } catch (err) {
+          // Revert on error
           setOptimisticGanttTasks(prev =>
             prev.map(t => (t.id === task.id ? (originalItem as CustomGanttTask) : t))
           )
+          // Force refetch to ensure parent dates are correct after a failure
+          refetchGanttData()
         }
       }
     },
-    [optimisticGanttTasks, updateGanttTask]
+    [optimisticGanttTasks, updateGanttTask, refetchGanttData]
   )
 
   const handleTaskDelete = useCallback(
@@ -150,11 +199,33 @@ const GanttView: React.FC<GanttViewProps> = ({ projectId }) => {
           alert("Only tasks can be deleted from the Gantt chart.")
           return false
         }
-        setOptimisticGanttTasks(prev => prev.filter(t => t.id !== task.id))
+        
+        // Optimistic delete
+        setOptimisticGanttTasks(prev => {
+          const tasksAfterDelete = prev.filter(t => t.id !== task.id)
+          const parentSectionId = task.project
+
+          if (parentSectionId) {
+            // Recalculate parent section dates after task removal
+            const [newParentStart, newParentEnd] = getStartEndDateForParent(tasksAfterDelete, parentSectionId)
+
+            return tasksAfterDelete.map(t => 
+              t.id === parentSectionId && t.originalType === "SECTION"
+                ? {
+                    ...t,
+                    start: newParentStart,
+                    end: newParentEnd,
+                  }
+                : t
+            )
+          }
+          return tasksAfterDelete
+        })
+        
         try {
           await deleteTask(originalItem.originalTaskId)
         } catch (err) {
-          // Revert on error
+          // Revert state by refetching on failure
           refetchGanttData()
         }
         return true

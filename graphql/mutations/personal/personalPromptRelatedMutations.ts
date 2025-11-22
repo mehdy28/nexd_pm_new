@@ -1,7 +1,6 @@
 // graphql/mutations/personal/personalPromptRelatedMutations.ts
 import { gql } from "graphql-tag"
 
-// --- Prompt Mutations (Generic for both Project and Personal) ---
 
 // This mutation can create a personal prompt by omitting the `projectId` in the input.
 export const CREATE_PROMPT_MUTATION = gql`

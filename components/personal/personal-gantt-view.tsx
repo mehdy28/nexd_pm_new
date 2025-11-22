@@ -1,5 +1,3 @@
-//components/personal/personal-gantt-view.tsx
-
 "use client"
 
 import React, { useState, useMemo, useEffect, useCallback, useRef } from "react"
@@ -22,12 +20,17 @@ import { LoadingPlaceholder, ErrorPlaceholder } from "@/components/placeholders/
 interface PersonalGanttViewProps {}
 
 // Helper to determine start/end date for a parent section based on its children tasks
-export function getStartEndDateForParent(tasks: CustomGanttTask[], parentId: string) {
-  const children = tasks.filter(t => t.project === parentId) // 'project' property is used by gantt-task-react for parent linking
+export function getStartEndDateForParent(tasks: CustomGanttTask[], parentId: string): [Date, Date] {
+  // 'project' property is used by gantt-task-react for parent linking (tasks where project === parentId)
+  const children = tasks.filter(t => t.project === parentId && t.originalType === "TASK") 
+  
+  const parent = tasks.find(t => t.id === parentId && t.originalType === "SECTION")
+
+  // If there are no tasks associated with this parent, return the parent's current dates if available, or default.
   if (children.length === 0) {
-    const parent = tasks.find(t => t.id === parentId)
     return parent ? [parent.start, parent.end] : [new Date(), new Date()]
   }
+  
   let start = children[0].start
   let end = children[0].end
 
@@ -75,7 +78,26 @@ const PersonalGanttView: React.FC<PersonalGanttViewProps> = () => {
   useEffect(() => {
     if (ganttTasks && !isMutating) {
       console.log("PersonalGanttView: Syncing server state to local state. Not mutating.")
-      setOptimisticGanttTasks(ganttTasks)
+      
+      // Calculate section dates based on children before setting local state
+      const sections = ganttTasks.filter(t => t.originalType === "SECTION")
+      let processedTasks = [...ganttTasks]
+
+      if (sections.length > 0) {
+        processedTasks = processedTasks.map(task => {
+          if (task.originalType === "SECTION") {
+            const [newStart, newEnd] = getStartEndDateForParent(ganttTasks, task.id)
+            return {
+              ...task,
+              start: newStart,
+              end: newEnd,
+            }
+          }
+          return task
+        })
+      }
+
+      setOptimisticGanttTasks(processedTasks)
     } else if (isMutating) {
       console.log("PersonalGanttView: Skipping state sync. Mutation in progress.")
     } else if (!ganttTasks) {
@@ -109,11 +131,11 @@ const PersonalGanttView: React.FC<PersonalGanttViewProps> = () => {
         displayOrder: originalItem.displayOrder,
       }
       let hasChanges = false
-      if (originalItem.start.toISOString() !== task.start.toISOString()) {
+      if (originalItem.start.getTime() !== task.start.getTime()) {
         input.startDate = task.start.toISOString()
         hasChanges = true
       }
-      if (originalItem.end.toISOString() !== task.end.toISOString()) {
+      if (originalItem.end.getTime() !== task.end.getTime()) {
         input.endDate = task.end.toISOString()
         hasChanges = true
       }
@@ -132,7 +154,8 @@ const PersonalGanttView: React.FC<PersonalGanttViewProps> = () => {
 
         // Optimistic UI update
         setOptimisticGanttTasks(prev => {
-          const newTasksList = prev.map(t =>
+          // 1. Update the moved/edited task
+          let newTasksList = prev.map(t =>
             t.id === task.id
               ? {
                   ...t,
@@ -142,6 +165,27 @@ const PersonalGanttView: React.FC<PersonalGanttViewProps> = () => {
                 }
               : t
           )
+
+          // 2. Find the associated parent section ID
+          const parentSectionId = task.project
+          
+          if (parentSectionId) {
+            // 3. Recalculate parent section dates based on the *new* tasks list
+            // We use the temporary newTasksList here to ensure the calculation is based on the updated task data
+            const [newParentStart, newParentEnd] = getStartEndDateForParent(newTasksList, parentSectionId)
+
+            // 4. Update the parent section in the list
+            newTasksList = newTasksList.map(t => 
+              t.id === parentSectionId && t.originalType === "SECTION"
+                ? {
+                    ...t,
+                    start: newParentStart,
+                    end: newParentEnd,
+                  }
+                : t
+            )
+          }
+
           console.log("[UPDATE GANTT TASK] Task list after update:", newTasksList)
           return newTasksList
         })
@@ -156,15 +200,18 @@ const PersonalGanttView: React.FC<PersonalGanttViewProps> = () => {
             err
           )
           // Revert on error
+          // Reverting the single task is usually sufficient, but we rely on refetching to clean up the parent state if the mutation failed.
           setOptimisticGanttTasks(prev =>
             prev.map(t => (t.id === task.id ? (originalItem as CustomGanttTask) : t))
           )
+          // Force refetch to ensure parent dates are correct after a failure
+          refetchPersonalGanttData()
         }
       } else {
         console.log(`PersonalGanttView: No changes detected for task ${task.id}. Skipping update.`)
       }
     },
-    [optimisticGanttTasks, updatePersonalGanttTask]
+    [optimisticGanttTasks, updatePersonalGanttTask, refetchPersonalGanttData]
   )
 
   const handleTaskDelete = useCallback(
@@ -176,11 +223,33 @@ const PersonalGanttView: React.FC<PersonalGanttViewProps> = () => {
           alert("Only tasks can be deleted from the Gantt chart.")
           return false
         }
-        setOptimisticGanttTasks(prev => prev.filter(t => t.id !== task.id))
+        
+        // Optimistic delete
+        setOptimisticGanttTasks(prev => {
+          const tasksAfterDelete = prev.filter(t => t.id !== task.id)
+          const parentSectionId = task.project
+
+          if (parentSectionId) {
+            // Recalculate parent section dates after task removal
+            const [newParentStart, newParentEnd] = getStartEndDateForParent(tasksAfterDelete, parentSectionId)
+
+            return tasksAfterDelete.map(t => 
+              t.id === parentSectionId && t.originalType === "SECTION"
+                ? {
+                    ...t,
+                    start: newParentStart,
+                    end: newParentEnd,
+                  }
+                : t
+            )
+          }
+          return tasksAfterDelete
+        })
+
         try {
           await deleteTask(originalItem.originalTaskId)
         } catch (err) {
-          refetchPersonalGanttData()
+          refetchPersonalGanttData() // Revert state by refetching on failure
         }
         return true
       }
