@@ -10,7 +10,6 @@ export enum PromptVariableType {
   DATE = 'DATE',
   RICH_TEXT = 'RICH_TEXT',
   LIST_OF_STRINGS = 'LIST_OF_STRINGS',
-  // Added from previous iteration to ensure consistency if used elsewhere
   SELECT = "SELECT",
   DYNAMIC = "DYNAMIC",
 }
@@ -30,85 +29,77 @@ export enum AggregationType {
 export enum FormatType {
   BULLET_POINTS = 'BULLET_POINTS',
   COMMA_SEPARATED = 'COMMA_SEPARATED',
+  NUMBERED_LIST = 'NUMBERED_LIST',
   PLAIN_TEXT = 'PLAIN_TEXT',
   JSON_ARRAY = 'JSON_ARRAY',
 }
 
 // NEW: Filter Operators
 export enum FilterOperator {
-    EQ = 'EQ', // Equals
-    NEQ = 'NEQ', // Not Equals
-    GT = 'GT', // Greater Than
-    GTE = 'GTE', // Greater Than or Equal To
-    LT = 'LT', // Less Than
-    LTE = 'LTE', // Less Than or Equal To
-    CONTAINS = 'CONTAINS', // String contains (case-insensitive)
-    STARTS_WITH = 'STARTS_WITH', // String starts with (case-insensitive)
-    ENDS_WITH = 'ENDS_WITH', // String ends with (case-insensitive)
-    IN_LIST = 'IN_LIST', // Changed from IN to IN_LIST for consistency with resolvers
-    NOT_IN = 'NOT_IN', // Value is not in a list of values
-    // Special operators that hint at backend-resolved values (often used as direct values in the resolver logic, not as part of the operator)
-    // Removed these from FilterOperator as they are more 'value' modifiers than operators
+    EQ = 'EQ',
+    NEQ = 'NEQ',
+    GT = 'GT',
+    GTE = 'GTE',
+    LT = 'LT',
+    LTE = 'LTE',
+    CONTAINS = 'CONTAINS',
+    STARTS_WITH = 'STARTS_WITH',
+    ENDS_WITH = 'ENDS_WITH',
+    IN_LIST = 'IN_LIST',
+    NOT_IN = 'NOT_IN',
+}
+
+// Special values that can be used in filters instead of a concrete value
+export enum SpecialFilterValue {
+    CURRENT_USER = 'CURRENT_USER',
+    ACTIVE_SPRINT = 'ACTIVE_SPRINT',
 }
 
 // Defines a single filter condition
 export interface FilterCondition {
-    field: string; // The field to filter on, e.g., 'status', 'assigneeId'
+    field: string;
     operator: FilterOperator;
-    value?: string | number | boolean | (string | number | boolean)[]; // The value to compare against (if not specialValue)
-    specialValue?: 'CURRENT_USER_ID' | 'CURRENT_PROJECT_ID' | 'ACTIVE_SPRINT' | null; // Re-added specialValue for consistency with buildPrismaWhereClause
-    type?: PromptVariableType; // Hint for type conversion in frontend/backend
+    value?: string | number | boolean | (string | number | boolean)[];
+    specialValue?: SpecialFilterValue | null;
+    type?: PromptVariableType;
 }
 
-// NEW: Refined PromptVariableSource to be more generic and Power BI-like
-export interface PromptVariableSource { // Changed from type to interface for consistency with class-like structure of other types
-  entityType: 'PROJECT' | 'TASK' | 'SPRINT' | 'DOCUMENT' | 'MEMBER' | 'WORKSPACE' | 'USER' | 'DATE_FUNCTION'; // The base entity type
+// NEW: Refined PromptVariableSource
+export interface PromptVariableSource {
+  entityType: 'PROJECT' | 'TASK' | 'SPRINT' | 'DOCUMENT' | 'MEMBER' | 'WORKSPACE' | 'USER' | 'DATE_FUNCTION';
+  field?: string;
+  filters?: FilterCondition[]; // UPDATED: Changed to an array to support multiple filters
+  aggregation?: AggregationType | null;
+  aggregationField?: string;
 
-  field?: string; // The specific field to extract (e.g., 'name', 'title', 'dueDate', 'content', 'email')
-                 // For DATE_FUNCTION, this might be 'today'
-
-  filter?: FilterCondition; // CHANGED: Reverted to single filter condition for consistency with current buildPrismaWhereClause.
-                           // If you need an array of filters, the buildPrismaWhereClause would need to be updated as well.
-                           // filters?: FilterCondition[]; // If multiple filters are needed, use this.
-
-  // Aggregation, applicable if `entityType` can return multiple records (e.g., TASKS, MEMBERS, DOCUMENTS)
-  aggregation?: AggregationType | null; // Made nullable for consistency
-  
-  // What field to aggregate if aggregation is LIST_FIELD_VALUES, SUM, AVERAGE, etc.
-  aggregationField?: string; // e.g., 'title' for LIST_FIELD_VALUES, 'points' for SUM/AVERAGE
-
-  // Format for aggregated lists
-  format?: FormatType | null; // Made nullable for consistency
+  format?: FormatType | null;
 }
 
 
 export type PromptVariable = {
   id: string;
   name: string;
-  placeholder: string; // e.g., {{project_name}}
+  placeholder: string;
   defaultValue?: string;
   description?: string;
-  type: PromptVariableType; // NEW: Type of data this variable represents
-  source?: PromptVariableSource | null; // NEW: How this variable's value is derived from project data
+  type: PromptVariableType;
+  source?: PromptVariableSource | null;
 };
 
-// UPDATED: Type for content blocks to include __typename
 export type Block =
-  | { type: 'text'; id: string; value: string; __typename?: 'ContentBlock' } // Made __typename optional as it's often stripped or added on the fly
-  | { type: 'variable'; id: string; varId: string; placeholder: string; name: string; __typename?: 'ContentBlock' } // Made __typename optional
+  | { type: 'text'; id: string; value: string; __typename?: 'ContentBlock' }
+  | { type: 'variable'; id: string; varId: string; placeholder: string; name: string; __typename?: 'ContentBlock' }
 
-// Adjusted Version type to include `description` and use Block[]
 export type Version = {
   id: string;
   content: Block[];
   context: string;
-  notes: string; // Made non-optional as per promptResolver (defaulted)
-  description: string; // Added description
-  createdAt: string; // Changed from number to string (ISO date string) for consistency with backend
-  variables: PromptVariable[]; // Added variables for completeness
+  notes: string;
+  description: string;
+  createdAt: string;
+  variables: PromptVariable[];
 };
 
-// Updated Prompt type to match backend queries and current needs
 export type Prompt = {
   id: string;
   title: string;
@@ -116,20 +107,20 @@ export type Prompt = {
   category?: string;
   tags: string[];
   isPublic: boolean;
-  model: string; // e.g., gpt-4o
-  content: Block[]; // Changed from string to Block[]
+  model: string;
+  content: Block[];
   context: string;
-  createdAt: string; // Changed from number to string (ISO date string) for consistency with backend
-  updatedAt: string; // Changed from number to string (ISO date string) for consistency with backend
+  createdAt: string;
+  updatedAt: string;
   projectId?: string;
   aiEnhancedContent?: string;
-  user?: { // Added user for completeness based on GET_PROMPT_DETAILS_QUERY
+  user?: {
     id: string;
     firstName?: string;
     lastName?: string;
     __typename?: string;
   };
-  project?: { // Added project for completeness based on GET_PROMPT_DETAILS_QUERY
+  project?: {
     id: string;
     name: string;
     workspaceId: string;
@@ -141,23 +132,22 @@ export type Prompt = {
 
 interface PromptLabState {
   prompts: Prompt[];
-  projectId?: string; // Add projectId to state for context
-  create: (projectId?: string) => Prompt; // Updated signature to accept projectId
+  projectId?: string;
+  create: (projectId?: string) => Prompt;
   update: (id: string, patch: Partial<Prompt>) => void;
   remove: (id: string) => void;
   duplicate: (id: string) => Prompt;
   snapshot: (id: string, notes?: string) => void;
   restore: (promptId: string, versionId: string) => void;
-  // loadPrompts: (projectId?: string) => void; // This is now handled by usePromptsList hook
 }
 
 const usePromptLabStore = create<PromptLabState>()(
   persist(
     (set, get) => ({
       prompts: [],
-      projectId: undefined, // This projectId is for the Zustand store's context, not necessarily the current project being viewed.
+      projectId: undefined,
 
-      create: (projectId?: string) => { // Updated to accept projectId
+      create: (projectId?: string) => {
         const now = new Date().toISOString();
         const newPrompt: Prompt = {
           id: Math.random().toString(36).slice(2),
@@ -167,13 +157,13 @@ const usePromptLabStore = create<PromptLabState>()(
           tags: [],
           isPublic: false,
           model: 'gpt-4o',
-          content: [], // Changed to empty array
+          content: [],
           context: '',
           createdAt: now,
           updatedAt: now,
           versions: [],
           variables: [],
-          projectId: projectId, // Set projectId if provided
+          projectId: projectId,
         };
         set((state) => ({ prompts: [...state.prompts, newPrompt] }));
         return newPrompt;
@@ -203,8 +193,8 @@ const usePromptLabStore = create<PromptLabState>()(
           title: `${original.title} (Copy)`,
           createdAt: now,
           updatedAt: now,
-          versions: original.versions.map(v => ({...v, id: Math.random().toString(36).slice(2)})), // Duplicate versions with new IDs
-          variables: original.variables.map(v => ({...v, id: Math.random().toString(36).slice(2)})), // Duplicate variables with new IDs
+          versions: original.versions.map(v => ({...v, id: Math.random().toString(36).slice(2)})),
+          variables: original.variables.map(v => ({...v, id: Math.random().toString(36).slice(2)})),
         };
         set((state) => ({ prompts: [...state.prompts, duplicated] }));
         return duplicated;
@@ -215,20 +205,19 @@ const usePromptLabStore = create<PromptLabState>()(
           prompts: state.prompts.map((p) => {
             if (p.id === id) {
               const now = new Date().toISOString();
-              // Ensure that `p.content` blocks also carry `__typename` for new versions (optional here, but good practice if needed)
               const contentWithTypename: Block[] = p.content.map(block => ({ ...block, __typename: block.__typename || 'ContentBlock' }));
               const newVersion: Version = {
                 id: Math.random().toString(36).slice(2),
                 content: contentWithTypename,
                 context: p.context,
                 notes,
-                description: '', // Default description for new snapshot
+                description: '',
                 createdAt: now,
-                variables: p.variables.map(v => ({...v})) // Deep copy variables for the version
+                variables: p.variables.map(v => ({...v}))
               };
               return {
                 ...p,
-                versions: [newVersion, ...p.versions], // Add new version to the top
+                versions: [newVersion, ...p.versions],
                 updatedAt: now,
               };
             }
@@ -244,16 +233,13 @@ const usePromptLabStore = create<PromptLabState>()(
               const versionToRestore = p.versions.find((v) => v.id === versionId);
               if (versionToRestore) {
                 const now = new Date().toISOString();
-                // Ensure restored content blocks also have __typename if they didn't before
                 const restoredContentWithTypename: Block[] = versionToRestore.content.map(block => ({ ...block, __typename: block.__typename || 'ContentBlock' }));
                 return {
                   ...p,
                   content: restoredContentWithTypename,
                   context: versionToRestore.context,
-                  variables: versionToRestore.variables.map(v => ({...v})), // Restore variables too
+                  variables: versionToRestore.variables.map(v => ({...v})),
                   updatedAt: now,
-                  // Optionally, you might create a new version after restore indicating it was a restore operation
-                  // versions: [{ id: uid(), content: versionToRestore.content, context: versionToRestore.context, notes: `Restored from ${versionToRestore.notes}`, createdAt: now, description: '' }, ...p.versions]
                 };
               }
             }
@@ -263,31 +249,15 @@ const usePromptLabStore = create<PromptLabState>()(
       },
     }),
     {
-      name: 'prompt-lab-storage', // name of the item in storage (must be unique)
-      storage: createJSONStorage(() => localStorage), // use localStorage for persistence
+      name: 'prompt-lab-storage',
+      storage: createJSONStorage(() => localStorage),
     }
   )
 );
-
-// Custom hook to filter prompts by projectId
-// NOTE: This usePromptLab hook is now primarily for client-side Zustand store interactions.
-// The actual prompt list fetching from the backend is handled by usePromptsList.
 export function usePromptLab(projectId?: string) {
     const store = usePromptLabStore();
-    // In a real app, if Zustand was your primary data source for list, you'd filter here:
-    // const prompts = useMemo(() => {
-    //   return projectId
-    //     ? store.prompts.filter(p => p.projectId === projectId)
-    //     : store.prompts.filter(p => !p.projectId); // Or some default personal prompts
-    // }, [store.prompts, projectId]);
-
-    // As per the PromptLabContainer, usePromptsList is the source of truth for the list.
-    // This hook is now somewhat redundant for the prompt *list*, but kept as it was in your original file.
-    // If you plan to use this Zustand store for other things (e.g., local drafts before saving to DB),
-    // it can remain. Otherwise, consider removing it or redefining its purpose.
     return {
         ...store,
-        // prompts: prompts, // Removed this as usePromptsList is the source of truth for the rendered list
-        prompts: store.prompts // Retaining store's prompts, but it's not the source for the UI list now.
+        prompts: store.prompts
     };
 }

@@ -1,19 +1,31 @@
 "use client"
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useEffect } from "react"
 import { ProjectPromptList } from "../prompt-lab/project-prompt-list"
 import { PromptLab } from "../prompt-lab/prompt-lab"
 import { LoadingPlaceholder, ErrorPlaceholder } from "@/components/placeholders/status-placeholders"
-import { usePersonalPromptsList } from "@/hooks/personal/usePersonalPromptsList"
+// Use the new project hook
+import { useProjectPromptsList } from "@/hooks/useProjectPromptsList" 
 import { usePromptDetails } from "@/hooks/usePromptDetails"
 import { PromptTemplate } from "@/lib/prompts/prompt-templates"
 import { generateClientKey } from "@/lib/utils"
 
-export function PersonalPromptLabContainer() {
-  console.log("[PersonalPromptLabContainer] [Trace: Render] Component rendering.")
+interface ProjectPromptLabContainerProps {
+  projectId: string
+}
+
+export function ProjectPromptLabContainer({ projectId }: ProjectPromptLabContainerProps) {
+  console.log("[ProjectPromptLabContainer] [Trace: Render] Component rendering for Project ID:", projectId)
+
+  // Ensure we have a projectId before proceeding
+  if (!projectId) {
+    return <ErrorPlaceholder error={new Error("Project ID is missing.")} />
+  }
 
   const [selectedPromptId, setSelectedPromptId] = useState<string | null>(null)
   const [isCreatingTemplate, setIsCreatingTemplate] = useState(false)
+  // Track when we are actively loading a newly created prompt to prevent UI flashing
+  const [isPostCreationLoading, setIsPostCreationLoading] = useState(false)
 
   const {
     prompts,
@@ -30,7 +42,7 @@ export function PersonalPromptLabContainer() {
     setPageSize,
     totalPages,
     totalPromptsCount,
-  } = usePersonalPromptsList(selectedPromptId)
+  } = useProjectPromptsList(projectId, selectedPromptId) // Use project hook with projectId
 
   const {
     selectedPromptDetails,
@@ -46,13 +58,22 @@ export function PersonalPromptLabContainer() {
     loadingVersionContent,
     versionContentError,
     currentLoadedVersionContent,
-  } = usePromptDetails(selectedPromptId, undefined)
+  } = usePromptDetails(selectedPromptId, projectId) // Pass projectId to usePromptDetails if required for authorization/caching
+  
+  // When details finish loading, turn off the post-creation loading flag.
+  useEffect(() => {
+    if (!loadingDetails && isPostCreationLoading) {
+      setIsPostCreationLoading(false)
+    }
+  }, [loadingDetails, isPostCreationLoading])
+
 
   const selectPrompt = useCallback(
     (id: string | null) => {
-      console.log("[PersonalPromptLabContainer] [Trace: Select] selectPrompt called with ID:", id)
+      console.log("[ProjectPromptLabContainer] [Trace: Select] selectPrompt called with ID:", id)
       setSelectedPromptId(id)
       if (id === null) {
+        // Trigger a list refresh when returning to the list view
         triggerPromptsListFetch(true)
       }
     },
@@ -61,25 +82,31 @@ export function PersonalPromptLabContainer() {
 
   const handleCreateNewPrompt = useCallback(async () => {
     console.log(
-      "[PersonalPromptLabContainer] [Trace: HandleCreate] handleCreateNewPrompt: Initiating prompt creation.",
+      "[ProjectPromptLabContainer] [Trace: HandleCreate] handleCreateNewPrompt: Initiating project prompt creation.",
     )
+    setIsPostCreationLoading(true) // Set loading state before creation
     try {
-      const newPrompt = await createPromptInList()
+      // createPromptInList already knows the projectId from the hook context
+      const newPrompt = await createPromptInList({ projectId }) 
       if (newPrompt) {
-        console.log("[PersonalPromptLabContainer] [Trace: HandleCreate] New prompt created:", newPrompt.id)
+        console.log("[ProjectPromptLabContainer] [Trace: HandleCreate] New prompt created:", newPrompt.id)
         selectPrompt(newPrompt.id)
+      } else {
+        setIsPostCreationLoading(false) // Unset if creation fails
       }
     } catch (err) {
-      console.error("[PersonalPromptLabContainer] [Error: Create] Failed to create new prompt:", err)
+      console.error("[ProjectPromptLabContainer] [Error: Create] Failed to create new prompt:", err)
+      setIsPostCreationLoading(false) // Unset on error
     }
-  }, [createPromptInList, selectPrompt])
+  }, [createPromptInList, selectPrompt, projectId])
 
   const handleCreateFromTemplate = useCallback(
     async (template: PromptTemplate) => {
       console.log(
-        `[PersonalPromptLabContainer] [Trace: HandleCreateTemplate] Creating prompt from template: "${template.name}"`,
+        `[ProjectPromptLabContainer] [Trace: HandleCreateTemplate] Creating project prompt from template: "${template.name}"`,
       )
       setIsCreatingTemplate(true)
+      setIsPostCreationLoading(true) // Set loading state before creation
       try {
         const promptData = {
           title: template.name,
@@ -90,37 +117,41 @@ export function PersonalPromptLabContainer() {
           variables: template.variables.map(v => ({ ...v, id: generateClientKey("var-") })),
           tags: [template.category],
           isPublic: false,
+          projectId: projectId, // Ensure projectId is explicitly passed with template data
         }
 
         const newPrompt = await createPromptInList(promptData)
         if (newPrompt) {
           console.log(
-            "[PersonalPromptLabContainer] [Trace: HandleCreateTemplate] New prompt created from template:",
+            "[ProjectPromptLabContainer] [Trace: HandleCreateTemplate] New prompt created from template:",
             newPrompt.id,
           )
           selectPrompt(newPrompt.id)
+        } else {
+          setIsPostCreationLoading(false) // Unset if creation fails
         }
       } catch (err) {
         console.error(
-          "[PersonalPromptLabContainer] [Error: CreateTemplate] Failed to create prompt from template:",
+          "[ProjectPromptLabContainer] [Error: CreateTemplate] Failed to create prompt from template:",
           err,
         )
+        setIsPostCreationLoading(false) // Unset on error
       } finally {
         setIsCreatingTemplate(false)
       }
     },
-    [createPromptInList, selectPrompt],
+    [createPromptInList, selectPrompt, projectId],
   )
 
   const handleDeletePrompt = useCallback(
     async (id: string) => {
       console.log(
-        "[PersonalPromptLabContainer] [Trace: HandleDelete] handleDeletePrompt: Initiating deletion for ID:",
+        "[ProjectPromptLabContainer] [Trace: HandleDelete] handleDeletePrompt: Initiating deletion for ID:",
         id,
       )
       await deletePromptFromList(id)
       if (selectedPromptId === id) {
-        console.log("[PersonalPromptLabContainer] [Trace: HandleDelete] Deselecting deleted prompt.")
+        console.log("[ProjectPromptLabContainer] [Trace: HandleDelete] Deselecting deleted prompt.")
         selectPrompt(null)
       }
     },
@@ -128,12 +159,12 @@ export function PersonalPromptLabContainer() {
   )
 
   const handleBack = () => {
-    console.log("[PersonalPromptLabContainer] [Trace: HandleBack] handleBack: Deselecting prompt.")
+    console.log("[ProjectPromptLabContainer] [Trace: HandleBack] handleBack: Deselecting prompt.")
     selectPrompt(null)
   }
 
   const handleRetry = useCallback(() => {
-    console.log("[PersonalPromptLabContainer] [Trace: RetryButton] Retry button clicked.")
+    console.log("[ProjectPromptLabContainer] [Trace: RetryButton] Retry button clicked.")
     if (selectedPromptId) {
       refetchPromptDetails()
     } else {
@@ -143,29 +174,30 @@ export function PersonalPromptLabContainer() {
 
   const isLoading = loadingList || loadingDetails
   const error = listError || detailsError
-  let loaderMessage = selectedPromptId ? "Loading prompt details..." : "Loading your prompts..."
+  let loaderMessage = isPostCreationLoading || selectedPromptId ? "Loading prompt details..." : "Loading project prompts..."
 
-  if (isLoading && !selectedPromptDetails && prompts.length === 0) {
+  // Use the new post-creation flag to force the loader screen
+  if (isPostCreationLoading || (isLoading && !selectedPromptDetails && prompts.length === 0)) {
     console.log(
-      `[PersonalPromptLabContainer] [Trace: Render] Rendering GLOBAL LOADER. Message: "${loaderMessage}".`,
+      `[ProjectPromptLabContainer] [Trace: Render] Rendering GLOBAL LOADER. Message: "${loaderMessage}".`,
     )
     return <LoadingPlaceholder message={loaderMessage} />
   }
 
   if (error) {
-    console.log("[PersonalPromptLabContainer] [Trace: Render] Rendering ERROR STATE. Error:", error)
+    console.log("[ProjectPromptLabContainer] [Trace: Render] Rendering ERROR STATE. Error:", error)
     return <ErrorPlaceholder error={new Error(error)} onRetry={handleRetry} />
   }
 
   if (selectedPromptId && selectedPromptDetails) {
     console.log(
-      `[PersonalPromptLabContainer] [Trace: Render] Rendering PromptLab component with prompt ID: ${selectedPromptId}.`,
+      `[ProjectPromptLabContainer] [Trace: Render] Rendering PromptLab component with prompt ID: ${selectedPromptId}.`,
     )
     return (
       <PromptLab
         prompt={selectedPromptDetails}
         onBack={handleBack}
-        projectId={undefined}
+        projectId={projectId} // Pass projectId to PromptLab
         isLoading={loadingDetails}
         error={detailsError}
         refetch={refetchPromptDetails}
@@ -183,7 +215,7 @@ export function PersonalPromptLabContainer() {
   }
 
   console.log(
-    "[PersonalPromptLabContainer] [Trace: Render] Rendering ProjectPromptList component. Prompts count:",
+    "[ProjectPromptLabContainer] [Trace: Render] Rendering ProjectPromptList component. Prompts count:",
     prompts.length,
   )
   return (

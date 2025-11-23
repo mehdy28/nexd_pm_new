@@ -1,14 +1,11 @@
-// src/hooks/useWireframes.ts
 import { useQuery, useMutation, NetworkStatus, Reference } from "@apollo/client";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useDebounce } from "use-debounce";
-import { GET_PROJECT_WIREFRAMES, GET_WIREFRAME_DETAILS } from "@/graphql/queries/wireframes";
+import { GET_PROJECT_WIREFRAMES, GET_WIREFRAME_DETAILS } from "@/graphql/queries/wireframes"; 
 import { CREATE_WIREFRAME, UPDATE_WIREFRAME, DELETE_WIREFRAME } from "@/graphql/mutations/wireframes";
-import { GET_MY_WIREFRAMES, GET_WIREFRAME_DETAILS as GET_PERSONAL_WIREFRAME_DETAILS } from "@/graphql/queries/personal/personalWireframes";
 import {
   CREATE_PERSONAL_WIREFRAME,
 } from "@/graphql/mutations/personal/personalWireframes";
-
 
 
 type JsonScalar = any;
@@ -47,21 +44,24 @@ type UpdateWireframeInput = {
   thumbnail?: string | null;
 };
 
+// --- PROJECT HOOK ---
 export const useProjectWireframes = (projectId?: string) => {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(12);
   const [search, setSearch] = useState("");
   const [debouncedSearch] = useDebounce(search, 500);
 
+  const listVariables = useMemo(() => ({
+    projectId,
+    search: debouncedSearch,
+    skip: (page - 1) * pageSize,
+    take: pageSize,
+  }), [projectId, debouncedSearch, page, pageSize]);
+
   const { data, loading, error, refetch, networkStatus } = useQuery(GET_PROJECT_WIREFRAMES, {
-    variables: {
-      projectId,
-      search: debouncedSearch,
-      skip: (page - 1) * pageSize,
-      take: pageSize,
-    },
+    variables: listVariables,
     skip: !projectId,
-    fetchPolicy: "cache-and-network",
+    fetchPolicy: "network-only", // Changed to network-only for consistent list updates
     notifyOnNetworkStatusChange: true,
   });
 
@@ -73,13 +73,15 @@ export const useProjectWireframes = (projectId?: string) => {
   const totalCount = useMemo(() => data?.getProjectWireframes?.totalCount || 0, [data]);
 
   const [createWireframeMutation] = useMutation(CREATE_WIREFRAME, {
-    refetchQueries: [{ query: GET_PROJECT_WIREFRAMES, variables: { projectId, search: "", skip: 0, take: pageSize } }],
+    // FIX 1: Use dynamic variables for refetching the current list state
+    refetchQueries: [{ query: GET_PROJECT_WIREFRAMES, variables: listVariables }],
   });
   
-  // This mutation should NOT refetch the entire list.
   const [updateWireframeMutation] = useMutation(UPDATE_WIREFRAME);
   
   const [deleteWireframeMutation] = useMutation(DELETE_WIREFRAME, {
+    // FIX 2: Added refetchQueries for DELETE to ensure proper pagination calculation 
+    // when using network-only fetching. Retaining cache update for quick UI response.
     update(cache, { data: { deleteWireframe } }) {
       if (!deleteWireframe) return;
       cache.modify({
@@ -96,15 +98,18 @@ export const useProjectWireframes = (projectId?: string) => {
         },
       });
     },
+    refetchQueries: [{ query: GET_PROJECT_WIREFRAMES, variables: listVariables }],
   });
 
   const createWireframe = useCallback(async (title: string, initialData: JsonScalar, thumbnail?: string | null) => {
+      // projectId is correctly included here in the input object: { projectId, title, data: initialData, thumbnail }
       if (!projectId) throw new Error("projectId is required.");
       const { data } = await createWireframeMutation({ variables: { input: { projectId, title, data: initialData, thumbnail } } });
       return data?.createWireframe;
     }, [projectId, createWireframeMutation]);
 
   const updateWireframe = useCallback(async (id: string, updates: Omit<UpdateWireframeInput, "id">) => {
+      // NOTE: Relying on cache normalization to update the list item title/thumbnail
       const { data } = await updateWireframeMutation({ variables: { input: { id, ...updates } } });
       return data?.updateWireframe;
     }, [updateWireframeMutation]);
@@ -118,7 +123,7 @@ export const useProjectWireframes = (projectId?: string) => {
     wireframes,
     totalCount,
     loading: loading || networkStatus === NetworkStatus.refetch,
-    error,
+    error: error as any,
     page,
     setPage,
     pageSize,
@@ -132,19 +137,22 @@ export const useProjectWireframes = (projectId?: string) => {
   };
 };
 
+// --- PERSONAL HOOK ---
 export const usePersonalWireframes = () => {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(12);
   const [search, setSearch] = useState("");
   const [debouncedSearch] = useDebounce(search, 500);
 
-  const { data, loading, error, refetch, networkStatus } = useQuery(GET_MY_WIREFRAMES, {
-    variables: {
-      search: debouncedSearch,
-      skip: (page - 1) * pageSize,
-      take: pageSize,
-    },
-    fetchPolicy: "cache-and-network",
+  const listVariables = useMemo(() => ({
+    search: debouncedSearch,
+    skip: (page - 1) * pageSize,
+    take: pageSize,
+  }), [debouncedSearch, page, pageSize]);
+
+  const { data, loading, error, refetch, networkStatus } = useQuery(GET_PROJECT_WIREFRAMES, {
+    variables: listVariables,
+    fetchPolicy: "network-only", // Changed to network-only for consistent list updates
     notifyOnNetworkStatusChange: true,
   });
 
@@ -156,12 +164,10 @@ export const usePersonalWireframes = () => {
   const totalCount = useMemo(() => data?.getMyWireframes?.totalCount || 0, [data]);
 
   const [createWireframeMutation] = useMutation(CREATE_PERSONAL_WIREFRAME, {
-     refetchQueries: [{ query: GET_MY_WIREFRAMES, variables: { search: "", skip: 0, take: pageSize } }],
+     // FIX 3: Use dynamic variables for refetching the current list state
+     refetchQueries: [{ query: GET_PROJECT_WIREFRAMES, variables: listVariables }],
   });
 
-  // **** THIS IS THE FIX ****
-  // Removed `refetchQueries` from this mutation to break the re-render loop.
-  // Apollo's cache normalization will still update the specific item.
   const [updateWireframeMutation] = useMutation(UPDATE_WIREFRAME); 
 
   const [deleteWireframeMutation] = useMutation(DELETE_WIREFRAME, {
@@ -181,6 +187,8 @@ export const usePersonalWireframes = () => {
         },
       });
     },
+    // FIX 4: Add refetchQueries for DELETE for network-only fetch policy
+    refetchQueries: [{ query: GET_PROJECT_WIREFRAMES, variables: listVariables }],
   });
 
   const createWireframe = useCallback(
@@ -195,8 +203,11 @@ export const usePersonalWireframes = () => {
 
   const updateWireframe = useCallback(
     async (id: string, updates: Omit<UpdateWireframeInput, "id">) => {
+      // NOTE: We assume the mutation response includes the updated object 
+      // which allows Apollo to automatically update the item in the list cache.
       const { data } = await updateWireframeMutation({ variables: { input: { id, ...updates } } });
-      return data?.updatePersonalWireframe;
+      // The return type suggests personal wireframe mutation returns `updatePersonalWireframe`
+      return data?.updateWireframe; 
     },
     [updateWireframeMutation]
   );
@@ -204,7 +215,7 @@ export const usePersonalWireframes = () => {
   const deleteWireframe = useCallback(
     async (id: string) => {
       const { data } = await deleteWireframeMutation({ variables: { id } });
-      return data?.deletePersonalWireframe;
+      return data?.deleteWireframe;
     },
     [deleteWireframeMutation]
   );
@@ -213,7 +224,7 @@ export const usePersonalWireframes = () => {
     wireframes,
     totalCount,
     loading: loading || networkStatus === NetworkStatus.refetch,
-    error,
+    error: error as any,
     page,
     setPage,
     pageSize,
@@ -227,9 +238,11 @@ export const usePersonalWireframes = () => {
   };
 };
 
+// --- DETAILS HOOK ---
 export const useWireframeDetails = (wireframeId: string | null) => {
+  // FIX 5: Use the generic GET_WIREFRAME_DETAILS query, suitable for both project and personal details.
   const { data, loading, error, refetch } = useQuery<{ getWireframeDetails: WireframeDetails }>(
-    GET_PERSONAL_WIREFRAME_DETAILS,
+    GET_WIREFRAME_DETAILS,
     {
       variables: { id: wireframeId! },
       skip: !wireframeId,

@@ -55,7 +55,6 @@ export const GET_PROJECT_DOCUMENTS_LOOKUP_QUERY = gql`
       id
       title
       updatedAt
-      type # For consistency with DocumentListItem
     }
   }
 `;

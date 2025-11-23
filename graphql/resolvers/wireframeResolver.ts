@@ -1,5 +1,3 @@
-// graphql/resolvers/wireframeResolver.ts
-
 import { prisma } from "@/lib/prisma";
 import { GraphQLError } from "graphql";
 import type { Prisma } from "@prisma/client";
@@ -44,6 +42,7 @@ interface WireframeListItemOutput {
   updatedAt: string; // ISO date string
   thumbnail: string | null;
   projectId: string | null; // Adjusted to be nullable based on typical Wireframe model
+  data: any | null; // ADDED: Include the data field here
   __typename: "WireframeListItem";
 }
 
@@ -107,6 +106,7 @@ const wireframeResolvers = {
               id: true,
               title: true,
               updatedAt: true,
+              data: true, // <-- Data is correctly selected from Prisma
               thumbnail: true,
               projectId: true,
             },
@@ -118,12 +118,14 @@ const wireframeResolvers = {
           projectId,
         });
 
+        // FIX: Include the 'data' field in the mapped output
         const mappedWireframes = wireframes.map((wf) => ({
           id: wf.id,
           title: wf.title,
           updatedAt: wf.updatedAt.toISOString(),
           thumbnail: wf.thumbnail,
           projectId: wf.projectId,
+          data: wf.data, // <-- Data is now included in the response object
           __typename: "WireframeListItem",
         }));
 
@@ -320,6 +322,7 @@ const wireframeResolvers = {
             updatedAt: true,
             thumbnail: true,
             projectId: true,
+            data: true, // Also include data here for the return type (although not strictly necessary if schema allows null, better for consistency)
           },
         });
         log("info", `${operation}: Wireframe ${newWireframe.id} created.`, { wireframeId: newWireframe.id, title: newWireframe.title });
@@ -345,6 +348,7 @@ const wireframeResolvers = {
           updatedAt: newWireframe.updatedAt.toISOString(),
           thumbnail: newWireframe.thumbnail,
           projectId: newWireframe.projectId,
+          data: newWireframe.data, // Return data here
           __typename: "WireframeListItem",
         };
       } catch (error: any) {
@@ -430,6 +434,7 @@ const wireframeResolvers = {
             updatedAt: true,
             thumbnail: true,
             projectId: true,
+            data: true, // Include data to return
           },
         });
         log("info", `${operation}: Wireframe ${updatedWireframe.id} updated.`, { wireframeId: updatedWireframe.id, newTitle: updatedWireframe.title });
@@ -455,6 +460,7 @@ const wireframeResolvers = {
           updatedAt: updatedWireframe.updatedAt.toISOString(),
           thumbnail: updatedWireframe.thumbnail,
           projectId: updatedWireframe.projectId,
+          data: updatedWireframe.data, // Return data here
           __typename: "WireframeListItem",
         };
       } catch (error: any) {
@@ -522,12 +528,27 @@ const wireframeResolvers = {
       }
       log("info", `${operation}: User ${user.id} authorized to delete wireframe ${id}.`, { wireframeId: id, userId: user.id });
 
-      const deletedWireframeInfo = {
+      // NOTE: Since the delete operation returns the item *before* deletion, 
+      // we must fetch the data field if the GraphQL schema requires it for the 
+      // return type (WireframeListItemOutput).
+      let wireframeBeforeDelete: { data: any | null } | null = null;
+      try {
+         wireframeBeforeDelete = await prisma.wireframe.findUnique({
+             where: { id },
+             select: { data: true }
+         });
+      } catch (e) {
+         log("warn", `${operation}: Failed to fetch 'data' before deletion, proceeding with delete.`, { wireframeId: id });
+      }
+
+
+      const deletedWireframeInfo: WireframeListItemOutput = {
         id: existingWireframe.id,
         title: existingWireframe.title,
         updatedAt: existingWireframe.updatedAt.toISOString(),
         thumbnail: existingWireframe.thumbnail,
         projectId: existingWireframe.projectId,
+        data: wireframeBeforeDelete?.data ?? null, // Include data from the pre-fetch
         __typename: "WireframeListItem",
       };
 

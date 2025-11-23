@@ -1,3 +1,4 @@
+// graphql/resolvers/promptResolver.ts
 import { GraphQLResolveInfo } from 'graphql';
 import { prisma } from "@/lib/prisma";
 import { type Prompt, type PromptVariable, type Version, Block } from '@/components/prompt-lab/store';
@@ -117,10 +118,20 @@ function buildPrismaWhereClause(
   return where;
 }
 
+// --- FIX 1 START: Correctly handle JSON objects during field extraction ---
 function extractFieldValue(record: any, fieldPath: string): any {
   if (!record || !fieldPath) return undefined;
-  return fieldPath.split('.').reduce((obj, key) => (obj && typeof obj === 'object' ? obj[key] : undefined), record);
+  const value = fieldPath.split('.').reduce((obj, key) => (obj && typeof obj === 'object' ? obj[key] : undefined), record);
+  
+  // If the extracted value is an object (like the JSON content field), stringify it.
+  if (typeof value === 'object' && value !== null) {
+    return JSON.stringify(value, null, 2); // Pretty print JSON
+  }
+  
+  return value;
 }
+// --- FIX 1 END ---
+
 
 async function applyAggregation(
   records: any[],
@@ -297,15 +308,27 @@ const promptResolvers = {
           if (!(modelName in prisma)) return 'N/A (Unsupported entity type)';
           
           prismaModel = (prisma as any)[modelName];
-          const records = await prismaModel.findMany({ where });
+
+          // --- FIX 2 START: Handle ambiguous queries by defaulting to the latest record ---
+          const records = await prismaModel.findMany({ 
+              where,
+              orderBy: { updatedAt: 'desc' } // Always order by most recent
+          });
+
+          if (records.length === 0) return 'N/A (No matching records found)';
 
           if (source.aggregation) {
             return await applyAggregation(records, source, context);
           } else {
-            const record = records[0];
-            if (!record) return 'N/A (Record not found)';
-            return extractFieldValue(record, source.field || '') || 'N/A';
+            // If no aggregation is specified, default to the most recent record.
+            const record = records[0]; 
+            if (!source.field) {
+                // If no field is specified, return the title or name as a sensible default.
+                return extractFieldValue(record, 'title') || extractFieldValue(record, 'name') || 'N/A (Field not specified)';
+            }
+            return extractFieldValue(record, source.field) || 'N/A';
           }
+          // --- FIX 2 END ---
       }
     },
   },
@@ -355,7 +378,6 @@ const promptResolvers = {
         },
       };
 
-      // Correctly handle relations
       if (projectId) {
         createData.project = { connect: { id: projectId } };
       } else if (userId) {

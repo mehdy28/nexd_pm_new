@@ -406,9 +406,9 @@ type Wireframe {
 
 type WireframeListItem {
   id: ID!
-  title: String!
-  data: JSON!
-  updatedAt: DateTime!
+  title: String
+  data: JSON
+  updatedAt: DateTime
   thumbnail: String
   projectId: ID
 }

@@ -7,7 +7,7 @@ import { ListView } from "@/components/tasks/list-view"
 import { DocumentsView } from "@/components/documents/documents-view"
 //import { CalendarView } from "@/components/tasks/calendar-view"
 import { DashboardView } from "@/components/tasks/dashboard-view"
-import { PromptLabContainer } from "@/components/prompt-lab/prompt-lab-container"
+import { ProjectPromptLabContainer } from "@/components/prompt-lab/project-prompt-lab-container"
 import { WireframesView } from "@/components/wireframes/wireframes-view"
 import { ProjectOverview } from "@/components/project/project-overview"
 import {
@@ -90,13 +90,13 @@ export default function ProjectPage() {
   const currentKey = activeKey || initialTab
 
   // Pass projectId to all components for project-scoped data
-  if (currentKey === "overview") return <ProjectOverview projectId={projectId} projectData={projectData} />
+  if (currentKey === "overview") return <ProjectOverview projectId={projectId}  />
   if (currentKey === "list") return <ListView projectId={projectId} />
   if (currentKey === "board") return <BoardView projectId={projectId} />
   if (currentKey === "gantt") return <GanttView projectId={projectId} />
  /// if (currentKey === "calendar") return <CalendarView projectId={projectId} />
   if (currentKey === "documents") return <DocumentsView projectId={projectId} />
-  if (currentKey === "prompt-lab") return <PromptLabContainer projectId={projectId} />
+  if (currentKey === "prompt-lab") return <ProjectPromptLabContainer projectId={projectId} />
   if (currentKey === "wireframes") return <WireframesView projectId={projectId} />
   if (currentKey === "dashboard") return <DashboardView projectId={projectId} />
   return <div className="page-scroller p-6 text-sm text-slate-500">This feature is not implemented yet.</div>
