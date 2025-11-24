@@ -166,6 +166,7 @@ type User {
   firstName: String
   lastName: String
   avatar: String
+  avatarColor: String
   firebaseUid: String
   role: UserRole!
   createdAt: DateTime!
@@ -545,6 +546,8 @@ type UserPartial {
   email: String!
   firstName: String
   lastName: String
+  avatar: String
+  avatarColor: String
 }
 
 type WorkspacePartial {
@@ -636,6 +639,7 @@ type UserFullDetails {
   firstName: String
   lastName: String
   avatar: String
+  avatarColor: String
 }
 
 type SprintNameId {
@@ -698,6 +702,7 @@ type UserLookupPartial {
   lastName: String
   email: String
   avatar: String
+  avatarColor: String
 }
 
 type ProjectMemberLookupItem {
@@ -1367,7 +1372,7 @@ type Mutation {
     teamSize: String
     workFields: [String!]
   ): Workspace!
-  updateMyProfile(firstName: String, lastName: String, avatar: String): User!
+  updateMyProfile(firstName: String, lastName: String, avatar: String, avatarColor: String): User!
   updateMyNotificationSettings(input: UpdateNotificationSettingsInput!): UserNotificationSettings!
 
   # Project

@@ -7,6 +7,7 @@ export const UPDATE_MY_PROFILE = gql`
       firstName
       lastName
       avatar
+      avatarColor
     }
   }
 `

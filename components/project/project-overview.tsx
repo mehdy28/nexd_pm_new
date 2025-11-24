@@ -347,7 +347,7 @@ export function ProjectOverview({ projectId }: ProjectOverviewProps) {
                     <span>Completed Tasks</span>
                     <span className="font-medium">{projectDetails.completedTasks}/{projectDetails.totalTasks}</span>
                   </div>
-                  <Progress value={progressPercentage} className="h-2" />
+                  <Progress value={progressPercentage} className="h-2 bg-teal-100 border border-teal-200 [&>div]:bg-[#4ab5ae]" />
                   <p className="text-xs text-slate-600">{Math.round(progressPercentage)}% complete</p>
                 </div>
               </CardContent>
@@ -412,7 +412,33 @@ export function ProjectOverview({ projectId }: ProjectOverviewProps) {
                   {projectDetails.sprints.map(sprint =>
                     currentEditingSprint?.id === sprint.id ? (
                       <div key={sprint.id} className="rounded-md border p-4 bg-slate-50">
-                        {/* Edit Sprint Form: This can be built similar to the create form */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <label className="text-xs text-muted-foreground">Sprint Title</label>
+                            <Input value={editSprintFormData.name} onChange={e => { setEditSprintFormData(prev => ({ ...prev, name: e.target.value })); setEditSprintErrors(prev => ({ ...prev, name: false })); }} placeholder="Sprint title" disabled={updateLoading} className={`${formInputClasses} ${editSprintErrors.name ? "border-red-500" : ""}`} />
+                            {editSprintErrors.name && <p className="text-red-500 text-xs mt-1">Sprint name is required.</p>}
+                          </div>
+                          <div className="space-y-2">
+                            <label className="text-xs text-muted-foreground">Start Date</label>
+                            <Input type="date" value={editSprintFormData.startDate} onChange={e => { setEditSprintFormData(prev => ({ ...prev, startDate: e.target.value })); setEditSprintErrors(prev => ({ ...prev, startDate: false })); }} disabled={updateLoading} className={`${formInputClasses} ${editSprintErrors.startDate ? "border-red-500" : ""}`} />
+                            {editSprintErrors.startDate && <p className="text-red-500 text-xs mt-1">Start date is required.</p>}
+                          </div>
+                          <div className="space-y-2">
+                            <label className="text-xs text-muted-foreground">End Date</label>
+                            <Input type="date" value={editSprintFormData.endDate} onChange={e => { setEditSprintFormData(prev => ({ ...prev, endDate: e.target.value })); setEditSprintErrors(prev => ({ ...prev, endDate: false })); }} disabled={updateLoading} className={`${formInputClasses} ${editSprintErrors.endDate ? "border-red-500" : ""}`} />
+                            {editSprintErrors.endDate && <p className="text-red-500 text-xs mt-1">End date is required.</p>}
+                          </div>
+                          <div className="space-y-2">
+                            <label className="text-xs text-muted-foreground">Description</label>
+                            <Textarea value={editSprintFormData.description} onChange={e => { setEditSprintFormData(prev => ({ ...prev, description: e.target.value })); }} placeholder="Sprint description" className={`resize-none ${formInputClasses}`} rows={4} disabled={updateLoading} />
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 mt-4">
+                          <Button onClick={handleUpdateSprint} className="bg-[#4ab5ae] text-white hover:bg-[#419d97]" disabled={updateLoading}>
+                            {updateLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <CheckCircle2 className="h-4 w-4 mr-2" />} Save Changes
+                          </Button>
+                          <Button variant="ghost" className="bg-red-500 hover:bg-red-600 text-white" onClick={cancelEditSprint} disabled={updateLoading}>Cancel</Button>
+                        </div>
                       </div>
                     ) : (
                       <div key={sprint.id} className="flex items-start justify-between p-4 border rounded-lg">
@@ -473,8 +499,18 @@ export function ProjectOverview({ projectId }: ProjectOverviewProps) {
                   {projectDetails.members.map(member => (
                     <div key={member.user.id} className="flex items-center space-x-3">
                       <Avatar className="h-8 w-8">
-                        <AvatarImage src={member.user.avatar || `https://ui-avatars.com/api/?name=${member.user.firstName}+${member.user.lastName}&background=random`} alt={`${member.user.firstName || ""} ${member.user.lastName || ""}`} />
-                        <AvatarFallback>{`${member.user.firstName?.[0] || ""}${member.user.lastName?.[0] || ""}` || "?"}</AvatarFallback>
+                        {/* Use stored avatar, or fallback below */}
+                        <AvatarImage 
+                          src={member.user.avatar || undefined} 
+                          alt={`${member.user.firstName || ""} ${member.user.lastName || ""}`} 
+                        />
+                        {/* Use stored color, fallback to indigo-500 */}
+                        <AvatarFallback 
+                          className="text-white font-semibold"
+                          style={{ backgroundColor: (member.user as any).avatarColor || "#6366f1" }}
+                        >
+                          {`${member.user.firstName?.[0] || ""}${member.user.lastName?.[0] || ""}` || "?"}
+                        </AvatarFallback>
                       </Avatar>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium truncate">{`${member.user.firstName || ""} ${member.user.lastName || ""}`.trim() || member.user.email}</p>

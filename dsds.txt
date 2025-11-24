@@ -1,4 +1,4 @@
-npx prisma migrate dev --name dsddddhjhk555hkddd885656ddszzfffe555zeffffzzzzz7895
+npx prisma migrate dev --name add_avatar_color
 npx prisma db push
 npx prisma migrate deploy
 npx prisma generate

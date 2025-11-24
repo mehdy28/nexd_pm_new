@@ -21,6 +21,7 @@ interface User {
   email: string;
   firstName?: string;
   lastName?: string;
+  avatarColor?: string;
   name?: string; // Keep 'name' if it exists in your schema/Prisma User model
   role: string;
   ownedWorkspaces?: { id: string; name: string }[];

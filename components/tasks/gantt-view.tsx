@@ -13,7 +13,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { ChevronDown, Loader2 } from "lucide-react"
+import { ChevronDown } from "lucide-react"
 
 import { useGanttData, CustomGanttTask, SprintGanttFilterOption } from "@/hooks/useGanttData"
 import { useProjectGanttMutations } from "@/hooks/useProjectGanttMutations"
@@ -21,32 +21,6 @@ import { LoadingPlaceholder, ErrorPlaceholder } from "@/components/placeholders/
 
 interface GanttViewProps {
   projectId: string
-}
-
-export function getStartEndDateForParent(tasks: CustomGanttTask[], parentId: string): [Date, Date] {
-  // Filter for children tasks (t.project links to the parentId)
-  const children = tasks.filter(t => t.project === parentId && t.originalType === "TASK")
-  
-  const parent = tasks.find(t => t.id === parentId && t.originalType === "SPRINT")
-
-  if (children.length === 0) {
-    // If no children, return the parent's current dates or default dates
-    return parent ? [parent.start, parent.end] : [new Date(), new Date()]
-  }
-  
-  let start = children[0].start
-  let end = children[0].end
-
-  for (let i = 0; i < children.length; i++) {
-    const task = children[i]
-    if (start.getTime() > task.start.getTime()) {
-      start = task.start
-    }
-    if (end.getTime() < task.end.getTime()) {
-      end = task.end
-    }
-  }
-  return [start, end]
 }
 
 const GanttView: React.FC<GanttViewProps> = ({ projectId }) => {
@@ -77,25 +51,8 @@ const GanttView: React.FC<GanttViewProps> = ({ projectId }) => {
 
   useEffect(() => {
     if (ganttTasks && !isMutating) {
-      // 1. Calculate section dates based on children before setting local state
-      const sections = ganttTasks.filter(t => t.originalType === "SPRINT")
-      let processedTasks = [...ganttTasks]
-
-      if (sections.length > 0) {
-        processedTasks = processedTasks.map(task => {
-          if (task.originalType === "SPRINT") {
-            const [newStart, newEnd] = getStartEndDateForParent(ganttTasks, task.id)
-            return {
-              ...task,
-              start: newStart,
-              end: newEnd,
-            }
-          }
-          return task
-        })
-      }
-      
-      setOptimisticGanttTasks(processedTasks)
+      // Directly set the tasks; the Gantt library will calculate parent dates.
+      setOptimisticGanttTasks(ganttTasks)
     }
   }, [ganttTasks, isMutating])
 
@@ -139,10 +96,10 @@ const GanttView: React.FC<GanttViewProps> = ({ projectId }) => {
       }
 
       if (hasChanges) {
-        // Optimistic UI update
-        setOptimisticGanttTasks(prev => {
-          // 1. Update the moved/edited task
-          let newTasksList = prev.map(t =>
+        // Optimistic UI update: Only update the child task.
+        // The Gantt library will automatically recalculate the parent project's dates.
+        setOptimisticGanttTasks(prev =>
+          prev.map(t =>
             t.id === task.id
               ? {
                   ...t,
@@ -152,28 +109,7 @@ const GanttView: React.FC<GanttViewProps> = ({ projectId }) => {
                 }
               : t
           )
-          
-          // 2. Find the associated parent section ID
-          const parentSectionId = task.project
-          
-          if (parentSectionId) {
-            // 3. Recalculate parent section dates based on the *new* tasks list
-            const [newParentStart, newParentEnd] = getStartEndDateForParent(newTasksList, parentSectionId)
-
-            // 4. Update the parent section in the list
-            newTasksList = newTasksList.map(t => 
-              t.id === parentSectionId && t.originalType === "SPRINT"
-                ? {
-                    ...t,
-                    start: newParentStart,
-                    end: newParentEnd,
-                  }
-                : t
-            )
-          }
-
-          return newTasksList
-        })
+        )
 
         try {
           await updateGanttTask(input)
@@ -182,7 +118,7 @@ const GanttView: React.FC<GanttViewProps> = ({ projectId }) => {
           setOptimisticGanttTasks(prev =>
             prev.map(t => (t.id === task.id ? (originalItem as CustomGanttTask) : t))
           )
-          // Force refetch to ensure parent dates are correct after a failure
+          // Force refetch to ensure data consistency after a failure
           refetchGanttData()
         }
       }
@@ -199,29 +135,10 @@ const GanttView: React.FC<GanttViewProps> = ({ projectId }) => {
           alert("Only tasks can be deleted from the Gantt chart.")
           return false
         }
-        
-        // Optimistic delete
-        setOptimisticGanttTasks(prev => {
-          const tasksAfterDelete = prev.filter(t => t.id !== task.id)
-          const parentSectionId = task.project
 
-          if (parentSectionId) {
-            // Recalculate parent section dates after task removal
-            const [newParentStart, newParentEnd] = getStartEndDateForParent(tasksAfterDelete, parentSectionId)
+        // Optimistic delete. The Gantt library will automatically adjust the parent.
+        setOptimisticGanttTasks(prev => prev.filter(t => t.id !== task.id))
 
-            return tasksAfterDelete.map(t => 
-              t.id === parentSectionId && t.originalType === "SPRINT"
-                ? {
-                    ...t,
-                    start: newParentStart,
-                    end: newParentEnd,
-                  }
-                : t
-            )
-          }
-          return tasksAfterDelete
-        })
-        
         try {
           await deleteTask(originalItem.originalTaskId)
         } catch (err) {
@@ -307,27 +224,19 @@ const GanttView: React.FC<GanttViewProps> = ({ projectId }) => {
         <Button
           onClick={() => setIsCreateTaskOpen(true)}
           className="bg-[#4ab5ae] text-white hover:bg-[#419d97] h-9 rounded-md"
-         // disabled={isMutating}
         >
-          {/* {isMutating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null} */}
           + Add item
         </Button>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" className="h-9 rounded-md gap-2 bg-transparent" 
-            //disabled={isMutating}
-            >
+            <Button variant="outline" className="h-9 rounded-md gap-2 bg-transparent">
               {currentSprintName} <ChevronDown className="h-4 w-4 text-muted-foreground" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start">
             <DropdownMenuLabel>Sprints</DropdownMenuLabel>
             {sprintFilterOptions.map(sprint => (
-              <DropdownMenuItem
-                key={sprint.id}
-                onClick={() => handleSprintSelectionChange(sprint.id)}
-                //disabled={isMutating}
-              >
+              <DropdownMenuItem key={sprint.id} onClick={() => handleSprintSelectionChange(sprint.id)}>
                 {sprint.name}
               </DropdownMenuItem>
             ))}
@@ -339,7 +248,6 @@ const GanttView: React.FC<GanttViewProps> = ({ projectId }) => {
             variant={viewMode === ViewMode.Day ? "default" : "outline"}
             onClick={() => setViewMode(ViewMode.Day)}
             className="rounded-r-none h-9"
-            //disabled={isMutating}
           >
             Day
           </Button>
@@ -347,7 +255,6 @@ const GanttView: React.FC<GanttViewProps> = ({ projectId }) => {
             variant={viewMode === ViewMode.Week ? "default" : "outline"}
             onClick={() => setViewMode(ViewMode.Week)}
             className="rounded-none h-9 border-l-0"
-           // disabled={isMutating}
           >
             Week
           </Button>
@@ -355,7 +262,6 @@ const GanttView: React.FC<GanttViewProps> = ({ projectId }) => {
             variant={viewMode === ViewMode.Month ? "default" : "outline"}
             onClick={() => setViewMode(ViewMode.Month)}
             className="rounded-none h-9 border-l-0"
-           // disabled={isMutating}
           >
             Month
           </Button>
@@ -363,17 +269,10 @@ const GanttView: React.FC<GanttViewProps> = ({ projectId }) => {
             variant={viewMode === ViewMode.Year ? "default" : "outline"}
             onClick={() => setViewMode(ViewMode.Year)}
             className="rounded-l-none h-9 border-l-0"
-           // disabled={isMutating}
           >
             Year
           </Button>
         </div>
-
-        {/* <div className="ml-auto relative w-[260px]">
-          <Input className="h-9" placeholder="Search tasks..."
-          // disabled={isMutating}
-            />
-        </div> */}
       </div>
 
       <div className="overflow-x-auto">
@@ -383,7 +282,7 @@ const GanttView: React.FC<GanttViewProps> = ({ projectId }) => {
               onAddTask={handleAddTask}
               onClose={() => setIsCreateTaskOpen(false)}
               availableSprints={sprintFilterOptions}
-              //isMutating={isMutating}
+              isMutating={isMutating}
               projectId={projectId}
             />
           </RightSideModal>
@@ -498,7 +397,6 @@ const TaskForm: React.FC<TaskFormProps> = ({ onAddTask, onClose, availableSprint
             onChange={e => setName(e.target.value)}
             className="mt-1 block w-full"
             required
-            //disabled={isMutating}
           />
         </div>
         <div>
@@ -512,7 +410,6 @@ const TaskForm: React.FC<TaskFormProps> = ({ onAddTask, onClose, availableSprint
             onChange={e => setStart(new Date(e.target.value))}
             className="mt-1 block w-full"
             required
-           // disabled={isMutating}
           />
         </div>
         <div>
@@ -526,7 +423,6 @@ const TaskForm: React.FC<TaskFormProps> = ({ onAddTask, onClose, availableSprint
             onChange={e => setEnd(new Date(e.target.value))}
             className="mt-1 block w-full"
             required
-            //disabled={isMutating}
           />
         </div>
         <div>
@@ -541,7 +437,6 @@ const TaskForm: React.FC<TaskFormProps> = ({ onAddTask, onClose, availableSprint
             min="0"
             max="100"
             className="mt-1 block w-full"
-            //disabled={isMutating}
           />
         </div>
         <div>
@@ -554,7 +449,6 @@ const TaskForm: React.FC<TaskFormProps> = ({ onAddTask, onClose, availableSprint
             onChange={e => setSprintId(e.target.value)}
             className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md border"
             required
-           // disabled={isMutating}
           >
             <option value="">Select Sprint</option>
             {availableSprints.map(sprintOption => (
@@ -565,13 +459,10 @@ const TaskForm: React.FC<TaskFormProps> = ({ onAddTask, onClose, availableSprint
           </select>
         </div>
         <div className="flex justify-end gap-2 mt-6">
-          <Button type="button" variant="outline" onClick={onClose} 
-          //disabled={isMutating}
-          >
+          <Button type="button" variant="outline" onClick={onClose}>
             Cancel
           </Button>
           <Button type="submit" className="bg-[#4ab5ae] text-white" disabled={isMutating}>
-            {/* {isMutating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null} */}
             Create Item
           </Button>
         </div>

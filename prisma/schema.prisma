@@ -151,6 +151,7 @@ model User {
   firstName   String?
   lastName    String?
   avatar      String?
+  avatarColor String?  // <--- Added: Stores the hex code (e.g. #6366f1)
   firebaseUid String?  @unique
   role        UserRole @default(MEMBER)
   createdAt   DateTime @default(now())
@@ -187,7 +188,6 @@ model User {
 
   @@map("users")
 }
-
 model Workspace {
   id          String   @id @default(cuid())
   name        String

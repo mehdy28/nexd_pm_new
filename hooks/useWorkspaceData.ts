@@ -8,6 +8,7 @@ interface UserPartial {
   email: string;
   firstName?: string;
   lastName?: string;
+  avatarColor?: string;
 }
 
 interface WorkspaceMemberData {

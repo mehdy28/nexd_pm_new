@@ -2,21 +2,23 @@ import { gql } from "@apollo/client";
 
 export const ME_QUERY = gql`
   query Me {
-  me {
-    id
-    email
-    lastName
-    firstName
-    role
-    ownedWorkspaces {
+    me {
       id
-      name
-    }
-    workspaceMembers {
-      workspace {
+      email
+      firstName
+      lastName
+      avatar
+      avatarColor
+      role
+      ownedWorkspaces {
         id
+        name
+      }
+      workspaceMembers {
+        workspace {
+          id
+        }
       }
     }
   }
-}
 `;

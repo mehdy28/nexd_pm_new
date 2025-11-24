@@ -34,6 +34,7 @@ export const GET_PROJECT_DETAILS_QUERY = gql`
           firstName
           lastName
           avatar
+          avatarColor
         }
       }
 

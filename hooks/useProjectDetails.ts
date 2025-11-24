@@ -8,6 +8,8 @@ interface UserFullDetails {
   firstName?: string;
   lastName?: string;
   avatar?: string;
+  avatarColor?: string;
+
 }
 
 interface ProjectMemberDetails {

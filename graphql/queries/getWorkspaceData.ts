@@ -22,6 +22,7 @@ export const GET_WORKSPACE_DATA_QUERY = gql`
           email
           firstName
           lastName
+          avatarColor
         }
       }
       projects {

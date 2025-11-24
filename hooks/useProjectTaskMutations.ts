@@ -226,34 +226,80 @@ export function useProjectTaskMutations(projectId: string, currentSprintId?: str
 
   const deleteTask = useCallback(
     async (taskId: string, sectionId: string) => {
+      console.log(`[deleteTask] Initiated for task ID: ${taskId} in section ID: ${sectionId}`)
+
       return deleteProjectTaskApolloMutation({
         variables: { id: taskId },
-        optimisticResponse: {
-          deleteProjectTask: {
-            __typename: "TaskListView",
-            id: taskId,
-          },
-        },
+        // THIS IS THE FIX: Optimistic response is removed to prevent reactivity issues.
+        // The update function will now run only once with the final server data.
         update: (cache, { data }) => {
+          console.log("[deleteTask Cache Update] Received data from mutation:", data)
           const deletedTask = data?.deleteProjectTask
-          if (!deletedTask || !deletedTask.id) return
+
+          if (!deletedTask || !deletedTask.id) {
+            console.warn("[deleteTask Cache Update] No deleted task data returned. Aborting cache update.")
+            return
+          }
 
           if (sectionId) {
             const sectionCacheId = cache.identify({ __typename: "SectionWithTasks", id: sectionId })
             if (sectionCacheId) {
+              const currentSectionData = cache.readFragment<{ tasks: { id: string }[] }>({
+                id: sectionCacheId,
+                fragment: gql`
+                  fragment SectionTasks on SectionWithTasks {
+                    tasks {
+                      id
+                    }
+                  }
+                `,
+              })
+              const taskIdsBefore = currentSectionData?.tasks.map(t => t.id) || ["CACHE READ FAILED"]
+              console.log(
+                `[deleteTask Cache Update] Tasks in section ${sectionId} BEFORE removal:`,
+                JSON.stringify(taskIdsBefore)
+              )
+
               cache.modify({
                 id: sectionCacheId,
                 fields: {
-                  tasks: (existingTaskRefs = [], { readField }) =>
-                    existingTaskRefs.filter(ref => readField("id", ref) !== deletedTask.id),
+                  tasks: (existingTaskRefs = [], { readField }) => {
+                    const initialCount = existingTaskRefs.length
+                    const updatedTaskRefs = existingTaskRefs.filter(ref => readField("id", ref) !== deletedTask.id)
+                    console.log(
+                      `[deleteTask Cache Update] Filtering tasks. Initial count: ${initialCount}. Task to remove: ${deletedTask.id}. New count: ${updatedTaskRefs.length}.`
+                    )
+                    return updatedTaskRefs
+                  },
                 },
               })
+
+              const sectionDataAfter = cache.readFragment<{ tasks: { id: string }[] }>({
+                id: sectionCacheId,
+                fragment: gql`
+                  fragment SectionTasksAfter on SectionWithTasks {
+                    tasks {
+                      id
+                    }
+                  }
+                `,
+              })
+              const taskIdsAfter = sectionDataAfter?.tasks.map(t => t.id) || ["CACHE READ FAILED"]
+              console.log(
+                `[deleteTask Cache Update] Tasks in section ${sectionId} AFTER removal:`,
+                JSON.stringify(taskIdsAfter)
+              )
+            } else {
+              console.warn(`[deleteTask Cache Update] Could not find section ${sectionId} in cache.`)
             }
+          } else {
+            console.warn("[deleteTask Cache Update] sectionId was not provided. Cannot update section tasks.")
           }
 
           const taskCacheId = cache.identify({ __typename: "TaskListView", id: deletedTask.id })
           if (taskCacheId) {
-            cache.evict({ id: taskCacheId })
+            const evicted = cache.evict({ id: taskCacheId })
+            console.log(`[deleteTask Cache Update] Evicting task ${deletedTask.id} from cache. Success: ${evicted}`)
             cache.gc()
           }
         },
@@ -277,15 +323,18 @@ export function useProjectTaskMutations(projectId: string, currentSprintId?: str
             return
           }
 
-          const tasksBySection = deletedTasks.reduce((acc, task) => {
-            if (task.sectionId) {
-              if (!acc[task.sectionId]) {
-                acc[task.sectionId] = []
+          const tasksBySection = deletedTasks.reduce(
+            (acc, task) => {
+              if (task.sectionId) {
+                if (!acc[task.sectionId]) {
+                  acc[task.sectionId] = []
+                }
+                acc[task.sectionId].push(task.id)
               }
-              acc[task.sectionId].push(task.id)
-            }
-            return acc
-          }, {} as Record<string, string[]>)
+              return acc
+            },
+            {} as Record<string, string[]>
+          )
 
           console.log(`[deleteManyTasks Cache Update] Grouped deleted tasks by section:`, tasksBySection)
 

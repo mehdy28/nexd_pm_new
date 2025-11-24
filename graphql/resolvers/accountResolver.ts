@@ -1,3 +1,4 @@
+// graphql/resolvers/accountResolver.ts
 import { prisma } from "@/lib/prisma"
 import { GraphQLError } from "graphql"
 
@@ -109,7 +110,17 @@ export const accountResolver = {
   Mutation: {
     updateMyProfile: async (
       _: any,
-      { firstName, lastName, avatar }: { firstName?: string; lastName?: string; avatar?: string },
+      { 
+        firstName, 
+        lastName, 
+        avatar, 
+        avatarColor 
+      }: { 
+        firstName?: string; 
+        lastName?: string; 
+        avatar?: string; 
+        avatarColor?: string 
+      },
       context: GraphQLContext
     ) => {
       if (!context.user) {
@@ -120,10 +131,11 @@ export const accountResolver = {
       const userId = context.user.id
 
       // Filter out undefined values so we only update what's provided
-      const dataToUpdate: { firstName?: string; lastName?: string; avatar?: string } = {}
+      const dataToUpdate: { firstName?: string; lastName?: string; avatar?: string; avatarColor?: string } = {}
       if (firstName !== undefined) dataToUpdate.firstName = firstName
       if (lastName !== undefined) dataToUpdate.lastName = lastName
       if (avatar !== undefined) dataToUpdate.avatar = avatar
+      if (avatarColor !== undefined) dataToUpdate.avatarColor = avatarColor
 
       if (Object.keys(dataToUpdate).length === 0) {
         throw new GraphQLError("No profile information provided to update.", {

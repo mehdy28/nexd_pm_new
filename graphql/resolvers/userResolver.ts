@@ -1,138 +1,8 @@
-// import { prisma } from "@/lib/prisma";
-// import { DecodedIdToken } from "firebase-admin/auth";
-
-// // The GraphQL context interface, ensuring type safety for our resolvers.
-// // It reflects the object created in `server.ts`.
-// interface GraphQLContext {
-//   prisma: typeof prisma;
-//   user?: {
-//     id: string;
-//     email: string;
-//     role: string;
-//     firebaseUid: string;
-//   };
-//   decodedToken?: DecodedIdToken | null;
-// }
-
-// function log(prefix: string, message: string, data?: any) {
-//   const timestamp = new Date().toISOString();
-//   if (data !== undefined) {
-//     // Using JSON.stringify for cleaner object logging in most environments
-//     console.log(`${timestamp} ${prefix} ${message}`, JSON.stringify(data, null, 2));
-//   } else {
-//     console.log(`${timestamp} ${prefix} ${message}`);
-//   }
-// }
-
-// export const userResolver = {
-//   Query: {
-//     me: async (_parent: unknown, _args: unknown, context: GraphQLContext) => {
-//       log("[me Query]", "Query initiated.");
-      
-//       if (!context.user?.id) {
-//         log("[me Query]", "No user ID found in context. Returning null.");
-//         return null;
-//       }
-      
-//       log("[me Query]", `Fetching user profile for user ID: ${context.user.id}`);
-
-//       try {
-//         const user = await prisma.user.findUnique({
-//           where: { id: context.user.id },
-//           include: {
-//             ownedWorkspaces: {
-//               select: {
-//                 id: true,
-//                 name: true,
-//               },
-//             },
-//             workspaceMembers: {
-//               select: {
-//                 workspace: {
-//                   select: {
-//                     id: true,
-//                   },
-//                 },
-//               },
-//             },
-//           },
-//         });
-
-//         if (!user) {
-//           log("[me Query]", `User not found in database with ID: ${context.user.id}`);
-//         } else {
-//           log("[me Query]", "User fetched successfully:", user);
-//         }
-        
-//         return user;
-//       } catch (error) {
-//         log("[me Query]", "Error during database fetch:", error);
-//         throw new Error("Failed to fetch user profile.");
-//       }
-//     },
-//   },
-
-//   Mutation: {
-//     createUser: async (
-//       _parent: unknown,
-//       args: { email: string; name?: string; firstName?: string; lastName?: string; role?: "ADMIN" | "MEMBER" },
-//       context: GraphQLContext
-//     ) => {
-//       log("[createUser Mutation]", "Mutation initiated with args:", args);
-      
-//       try {
-//         const firebaseUid = context.decodedToken?.uid;
-//         if (!firebaseUid) {
-//           log("[createUser Mutation]", "CRITICAL: firebaseUid not found in context.decodedToken. Aborting user creation.");
-//           throw new Error("Authentication token is invalid or missing.");
-//         }
-        
-//         log("[createUser Mutation]", `Extracted firebaseUid: ${firebaseUid}`);
-
-//         const userData = {
-//             email: args.email,
-//             firstName: args.firstName,
-//             lastName: args.lastName,
-//             role: args.role ?? "MEMBER",
-//             firebaseUid: firebaseUid,
-//         };
-
-//         log("[createUser Mutation]", "Attempting to create user in database with data:", userData);
-
-//         const user = await prisma.user.create({
-//           data: userData,
-//         });
-
-//         log("[createUser Mutation]", "User created successfully in database:", user);
-//         return user;
-//       } catch (error: any) {
-//         log("[createUser Mutation]", "Error during user creation process:", error.message);
-        
-//         // Handle specific Prisma error for unique constraint violation
-//         if (error.code === 'P2002') {
-//             log("[createUser Mutation]", "Prisma error: A user with this email or firebaseUid already exists.");
-//             throw new Error("An account with this email already exists.");
-//         }
-        
-//         // Generic error for other failures
-//         throw new Error("Could not create user account.");
-//       }
-//     },
-//   },
-// };
-
-
-
-
-
-
-
-
-
 // graphql/resolvers/userResolver.ts
 import { prisma } from "@/lib/prisma";
 import { DecodedIdToken } from "firebase-admin/auth";
 import { UserInputError, ForbiddenError } from "apollo-server-micro";
+import { getRandomAvatarColor } from "@/lib/avatar-colors";
 
 // The GraphQL context interface, ensuring type safety for our resolvers.
 interface GraphQLContext {
@@ -199,6 +69,9 @@ export const userResolver = {
         throw new ForbiddenError("Authentication token is invalid or missing.");
       }
 
+      // Generate a random avatar color for this new user
+      const avatarColor = getRandomAvatarColor();
+
       // If an invitation token is provided, handle it within a transaction
       if (args.invitationToken) {
         const invitation = await prisma.workspaceInvitation.findUnique({
@@ -232,6 +105,7 @@ export const userResolver = {
                 email: args.email,
                 firstName: args.firstName,
                 lastName: args.lastName,
+                avatarColor: avatarColor, // Assign random color
                 role: "MEMBER", // Default role for invited users
                 firebaseUid: firebaseUid,
               },
@@ -274,6 +148,7 @@ export const userResolver = {
               email: args.email,
               firstName: args.firstName,
               lastName: args.lastName,
+              avatarColor: avatarColor, // Assign random color
               role: args.role ?? "MEMBER",
               firebaseUid: firebaseUid,
             },
