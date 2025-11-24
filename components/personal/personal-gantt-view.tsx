@@ -22,15 +22,15 @@ interface PersonalGanttViewProps {}
 // Helper to determine start/end date for a parent section based on its children tasks
 export function getStartEndDateForParent(tasks: CustomGanttTask[], parentId: string): [Date, Date] {
   // 'project' property is used by gantt-task-react for parent linking (tasks where project === parentId)
-  const children = tasks.filter(t => t.project === parentId && t.originalType === "TASK") 
-  
+  const children = tasks.filter(t => t.project === parentId && t.originalType === "TASK")
+
   const parent = tasks.find(t => t.id === parentId && t.originalType === "SECTION")
 
   // If there are no tasks associated with this parent, return the parent's current dates if available, or default.
   if (children.length === 0) {
     return parent ? [parent.start, parent.end] : [new Date(), new Date()]
   }
-  
+
   let start = children[0].start
   let end = children[0].end
 
@@ -62,23 +62,24 @@ const PersonalGanttView: React.FC<PersonalGanttViewProps> = () => {
   const {
     createPersonalGanttTask,
     updatePersonalGanttTask,
+    createGanttTaskLoading,
     isMutating: isUpsertMutating,
     mutationError: upsertMutationError,
   } = usePersonalGanttMutations()
 
   const {
     deleteTask,
-    isTaskMutating: isDeleteMutating,
+    deleteLoading,
     taskMutationError: deleteMutationError,
   } = usePersonalTaskmutations()
-
-  const isMutating = isUpsertMutating || isDeleteMutating
+  const isCreateGanttTaskLoading = createGanttTaskLoading
+  const isMutating = isUpsertMutating || deleteLoading
   const mutationError = upsertMutationError || deleteMutationError
 
   useEffect(() => {
     if (ganttTasks && !isMutating) {
       console.log("PersonalGanttView: Syncing server state to local state. Not mutating.")
-      
+
       // Calculate section dates based on children before setting local state
       const sections = ganttTasks.filter(t => t.originalType === "SECTION")
       let processedTasks = [...ganttTasks]
@@ -168,14 +169,14 @@ const PersonalGanttView: React.FC<PersonalGanttViewProps> = () => {
 
           // 2. Find the associated parent section ID
           const parentSectionId = task.project
-          
+
           if (parentSectionId) {
             // 3. Recalculate parent section dates based on the *new* tasks list
             // We use the temporary newTasksList here to ensure the calculation is based on the updated task data
             const [newParentStart, newParentEnd] = getStartEndDateForParent(newTasksList, parentSectionId)
 
             // 4. Update the parent section in the list
-            newTasksList = newTasksList.map(t => 
+            newTasksList = newTasksList.map(t =>
               t.id === parentSectionId && t.originalType === "SECTION"
                 ? {
                     ...t,
@@ -223,7 +224,7 @@ const PersonalGanttView: React.FC<PersonalGanttViewProps> = () => {
           alert("Only tasks can be deleted from the Gantt chart.")
           return false
         }
-        
+
         // Optimistic delete
         setOptimisticGanttTasks(prev => {
           const tasksAfterDelete = prev.filter(t => t.id !== task.id)
@@ -233,7 +234,7 @@ const PersonalGanttView: React.FC<PersonalGanttViewProps> = () => {
             // Recalculate parent section dates after task removal
             const [newParentStart, newParentEnd] = getStartEndDateForParent(tasksAfterDelete, parentSectionId)
 
-            return tasksAfterDelete.map(t => 
+            return tasksAfterDelete.map(t =>
               t.id === parentSectionId && t.originalType === "SECTION"
                 ? {
                     ...t,
@@ -332,9 +333,9 @@ const PersonalGanttView: React.FC<PersonalGanttViewProps> = () => {
         <Button
           onClick={() => setIsCreateTaskOpen(true)}
           className="bg-[#4ab5ae] text-white hover:bg-[#419d97] h-9 rounded-md"
-          disabled={isMutating}
+          disabled={createGanttTaskLoading}
         >
-          {isMutating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+          {createGanttTaskLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
           + Add item
         </Button>
 
@@ -343,7 +344,7 @@ const PersonalGanttView: React.FC<PersonalGanttViewProps> = () => {
             variant={viewMode === ViewMode.Day ? "default" : "outline"}
             onClick={() => setViewMode(ViewMode.Day)}
             className="rounded-r-none h-9"
-            disabled={isMutating}
+            // disabled={isMutating}
           >
             Day
           </Button>
@@ -351,7 +352,7 @@ const PersonalGanttView: React.FC<PersonalGanttViewProps> = () => {
             variant={viewMode === ViewMode.Week ? "default" : "outline"}
             onClick={() => setViewMode(ViewMode.Week)}
             className="rounded-none h-9 border-l-0"
-            disabled={isMutating}
+            //disabled={isMutating}
           >
             Week
           </Button>
@@ -359,7 +360,7 @@ const PersonalGanttView: React.FC<PersonalGanttViewProps> = () => {
             variant={viewMode === ViewMode.Month ? "default" : "outline"}
             onClick={() => setViewMode(ViewMode.Month)}
             className="rounded-none h-9 border-l-0"
-            disabled={isMutating}
+            // disabled={isMutating}
           >
             Month
           </Button>
@@ -367,7 +368,7 @@ const PersonalGanttView: React.FC<PersonalGanttViewProps> = () => {
             variant={viewMode === ViewMode.Year ? "default" : "outline"}
             onClick={() => setViewMode(ViewMode.Year)}
             className="rounded-l-none h-9 border-l-0"
-            disabled={isMutating}
+            //disabled={isMutating}
           >
             Year
           </Button>
@@ -386,6 +387,7 @@ const PersonalGanttView: React.FC<PersonalGanttViewProps> = () => {
               onClose={() => setIsCreateTaskOpen(false)}
               availableSections={sectionFilterOptions}
               isMutating={isMutating}
+              isCreateGanttTaskLoading={isCreateGanttTaskLoading}
             />
           </RightSideModal>
         )}
@@ -446,8 +448,15 @@ interface TaskFormProps {
   onClose: () => void
   availableSections: PersonalSectionGanttFilterOption[]
   isMutating: boolean
+  isCreateGanttTaskLoading: boolean
 }
-const TaskForm: React.FC<TaskFormProps> = ({ onAddTask, onClose, availableSections, isMutating }) => {
+const TaskForm: React.FC<TaskFormProps> = ({
+  onAddTask,
+  onClose,
+  availableSections,
+  isMutating,
+  isCreateGanttTaskLoading,
+}) => {
   const [name, setName] = useState("")
   const [start, setStart] = useState<Date>(new Date())
   const [end, setEnd] = useState<Date>(new Date(new Date().setDate(new Date().getDate() + 1)))
@@ -494,7 +503,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ onAddTask, onClose, availableSectio
             onChange={e => setName(e.target.value)}
             className="mt-1 block w-full"
             required
-            disabled={isMutating}
+            //disabled={isMutating}
           />
         </div>
         <div>
@@ -508,7 +517,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ onAddTask, onClose, availableSectio
             onChange={e => setStart(new Date(e.target.value))}
             className="mt-1 block w-full"
             required
-            disabled={isMutating}
+            //disabled={isMutating}
           />
         </div>
         <div>
@@ -522,7 +531,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ onAddTask, onClose, availableSectio
             onChange={e => setEnd(new Date(e.target.value))}
             className="mt-1 block w-full"
             required
-            disabled={isMutating}
+            //disabled={isMutating}
           />
         </div>
         <div>
@@ -537,7 +546,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ onAddTask, onClose, availableSectio
             min="0"
             max="100"
             className="mt-1 block w-full"
-            disabled={isMutating}
+            //disabled={isMutating}
           />
         </div>
         <div>
@@ -550,7 +559,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ onAddTask, onClose, availableSectio
             onChange={e => setSectionId(e.target.value)}
             className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md border"
             required
-            disabled={isMutating}
+            // disabled={isMutating}
           >
             <option value="">Select Section</option>
             {availableSections.map(sectionOption => (
@@ -564,8 +573,8 @@ const TaskForm: React.FC<TaskFormProps> = ({ onAddTask, onClose, availableSectio
           <Button type="button" variant="outline" onClick={onClose} disabled={isMutating}>
             Cancel
           </Button>
-          <Button type="submit" className="bg-[#4ab5ae] text-white" disabled={isMutating}>
-            {isMutating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+          <Button type="submit" className="bg-[#4ab5ae] text-white" disabled={isCreateGanttTaskLoading}>
+            {isCreateGanttTaskLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
             Create Item
           </Button>
         </div>

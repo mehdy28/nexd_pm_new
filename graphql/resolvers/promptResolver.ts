@@ -11,12 +11,12 @@ interface GraphQLContext {
 type PromptVariableSource = {
   entityType: string;
   field?: string;
-  filter?: {
+  filters?: { // Note: Changed from filter to filters to match client
     field: string;
     operator: string;
     value?: any;
     specialValue?: string;
-  };
+  }[];
   aggregation?: string;
   aggregationField?: string;
   format?: string;
@@ -48,13 +48,15 @@ const getFullPrompt = async (promptId: string) => {
   };
 };
 
+// --- FIX START: Updated function to process an array of filters ---
 function buildPrismaWhereClause(
-  sourceFilter: PromptVariableSource['filter'] | undefined,
+  sourceFilters: PromptVariableSource['filters'] | undefined,
   projectId: string,
   currentUserId: string | undefined,
   entityType: PromptVariableSource['entityType']
 ): any {
   const where: any = {};
+  const andConditions: any[] = [];
 
   if (entityType !== 'USER' && entityType !== 'DATE_FUNCTION' && projectId) {
     where.projectId = projectId;
@@ -62,75 +64,67 @@ function buildPrismaWhereClause(
     where.id = currentUserId;
   }
 
-  if (sourceFilter && sourceFilter.field && sourceFilter.operator) {
-    let value = sourceFilter.value;
+  if (sourceFilters && sourceFilters.length > 0) {
+    sourceFilters.forEach(filter => {
+      const condition: any = {};
+      let value = filter.value;
 
-    if (sourceFilter.specialValue === 'CURRENT_USER_ID') {
-      value = currentUserId;
-    } else if (sourceFilter.specialValue === 'CURRENT_PROJECT_ID') {
-      value = projectId;
-    } else if (sourceFilter.specialValue === 'ACTIVE_SPRINT' && entityType === 'SPRINT') {
-        where.status = 'ACTIVE';
-        return where;
-    }
+      // Handle special dynamic values
+      if (filter.specialValue === 'CURRENT_USER_ID' || filter.specialValue === 'CURRENT_USER') {
+        value = currentUserId;
+      } else if (filter.specialValue === 'CURRENT_PROJECT_ID') {
+        value = projectId;
+      } else if (filter.specialValue === 'ACTIVE_SPRINT') {
+        andConditions.push({ status: 'ACTIVE' });
+        return; // Continue to next filter
+      } else if (filter.specialValue === 'TODAY') {
+        value = new Date();
+      }
 
-    if (['status', 'priority', 'role'].includes(sourceFilter.field) && typeof value === 'string') {
+      if (['status', 'priority', 'role'].includes(filter.field) && typeof value === 'string') {
         value = value.toUpperCase();
-    }
+      }
+      
+      let prismaOperator;
+      switch (filter.operator) {
+        case 'EQ': prismaOperator = value; break;
+        case 'NEQ': prismaOperator = { not: value }; break;
+        case 'GT': prismaOperator = { gt: value }; break;
+        case 'LT': prismaOperator = { lt: value }; break;
+        case 'GTE': prismaOperator = { gte: value }; break;
+        case 'LTE': prismaOperator = { lte: value }; break;
+        case 'CONTAINS': prismaOperator = { contains: value, mode: 'insensitive' }; break;
+        case 'STARTS_WITH': prismaOperator = { startsWith: value, mode: 'insensitive' }; break;
+        case 'ENDS_WITH': prismaOperator = { endsWith: value, mode: 'insensitive' }; break;
+        case 'IN_LIST': prismaOperator = { in: value }; break;
+        default: break;
+      }
 
+      if (prismaOperator !== undefined) {
+        condition[filter.field] = prismaOperator;
+        andConditions.push(condition);
+      }
+    });
+  }
 
-    switch (sourceFilter.operator) {
-      case 'EQ':
-        if (value !== undefined) where[sourceFilter.field] = value;
-        break;
-      case 'NEQ':
-        if (value !== undefined) where[sourceFilter.field] = { not: value };
-        break;
-      case 'GT':
-        if (value !== undefined) where[sourceFilter.field] = { gt: value };
-        break;
-      case 'LT':
-        if (value !== undefined) where[sourceFilter.field] = { lt: value };
-        break;
-      case 'GTE':
-        if (value !== undefined) where[sourceFilter.field] = { gte: value };
-        break;
-      case 'LTE':
-        if (value !== undefined) where[sourceFilter.field] = { lte: value };
-        break;
-      case 'CONTAINS':
-        if (typeof value === 'string') where[sourceFilter.field] = { contains: value, mode: 'insensitive' };
-        break;
-      case 'STARTS_WITH':
-        if (typeof value === 'string') where[sourceFilter.field] = { startsWith: value, mode: 'insensitive' };
-        break;
-      case 'ENDS_WITH':
-        if (typeof value === 'string') where[sourceFilter.field] = { endsWith: value, mode: 'insensitive' };
-        break;
-      case 'IN_LIST':
-        if (Array.isArray(value)) where[sourceFilter.field] = { in: value };
-        break;
-      default:
-        break;
-    }
+  if (andConditions.length > 0) {
+    where.AND = andConditions;
   }
 
   return where;
 }
+// --- FIX END ---
 
-// --- FIX 1 START: Correctly handle JSON objects during field extraction ---
 function extractFieldValue(record: any, fieldPath: string): any {
   if (!record || !fieldPath) return undefined;
   const value = fieldPath.split('.').reduce((obj, key) => (obj && typeof obj === 'object' ? obj[key] : undefined), record);
   
-  // If the extracted value is an object (like the JSON content field), stringify it.
   if (typeof value === 'object' && value !== null) {
-    return JSON.stringify(value, null, 2); // Pretty print JSON
+    return JSON.stringify(value, null, 2);
   }
   
   return value;
 }
-// --- FIX 1 END ---
 
 
 async function applyAggregation(
@@ -297,7 +291,7 @@ const promptResolvers = {
 
       let prismaModel: any;
 
-      const where = buildPrismaWhereClause(source.filter, projectId || '', currentUserId, source.entityType);
+      const where = buildPrismaWhereClause(source.filters, projectId || '', currentUserId, source.entityType);
 
       switch (source.entityType) {
         case 'PROJECT':
@@ -308,11 +302,10 @@ const promptResolvers = {
           if (!(modelName in prisma)) return 'N/A (Unsupported entity type)';
           
           prismaModel = (prisma as any)[modelName];
-
-          // --- FIX 2 START: Handle ambiguous queries by defaulting to the latest record ---
+          
           const records = await prismaModel.findMany({ 
               where,
-              orderBy: { updatedAt: 'desc' } // Always order by most recent
+              orderBy: { updatedAt: 'desc' }
           });
 
           if (records.length === 0) return 'N/A (No matching records found)';
@@ -320,15 +313,12 @@ const promptResolvers = {
           if (source.aggregation) {
             return await applyAggregation(records, source, context);
           } else {
-            // If no aggregation is specified, default to the most recent record.
             const record = records[0]; 
             if (!source.field) {
-                // If no field is specified, return the title or name as a sensible default.
                 return extractFieldValue(record, 'title') || extractFieldValue(record, 'name') || 'N/A (Field not specified)';
             }
             return extractFieldValue(record, source.field) || 'N/A';
           }
-          // --- FIX 2 END ---
       }
     },
   },

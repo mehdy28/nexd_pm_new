@@ -1,4 +1,3 @@
-//components/tasks/list-view.tsx
 "use client"
 
 import { useMemo, useState, useEffect, useCallback, useRef } from "react"
@@ -102,7 +101,11 @@ export function ListView({ projectId }: ListViewProps) {
     updateTask: updateTaskMutation,
     toggleTaskCompleted: toggleTaskCompletedMutation,
     deleteTask: deleteTaskMutation,
-    isTaskMutating,
+    deleteManyTasks,
+    createLoading,
+    deleteManyLoading,
+    deleteLoading,
+    updateLoading,
   } = useProjectTaskMutations(projectId, internalSelectedSprintId) // Pass sprintId to hook
 
   // --- REMOVED `useState` for `sections`. The hook's data is the source of truth. ---
@@ -242,6 +245,7 @@ export function ListView({ projectId }: ListViewProps) {
   }, [taskToDelete, deleteTaskMutation, sheetTask, closeSheet])
 
   const allTaskIds = useMemo(() => sections.flatMap(s => s.tasks.map(t => t.id)), [sections])
+  const sectionTaskMap = useMemo(() => new Map(sections.flatMap(s => s.tasks.map(t => [t.id, s.id]))), [sections])
 
   const toggleSelect = useCallback((taskId: string, checked: boolean) => {
     setSelected(prev => ({ ...prev, [taskId]: checked }))
@@ -263,28 +267,29 @@ export function ListView({ projectId }: ListViewProps) {
   const selectedCount = useMemo(() => Object.values(selected).filter(Boolean).length, [selected])
 
   const bulkDeleteSelected = useCallback(async () => {
-    const toDelete = new Set(Object.entries(selected).filter(([, v]) => v).map(([k]) => k))
-    if (toDelete.size === 0) return
+    const toDeleteIds = Object.keys(selected).filter(k => selected[k])
+    if (toDeleteIds.length === 0) return
+
+    const tasksToDelete = toDeleteIds
+      .map(taskId => {
+        const sectionId = sectionTaskMap.get(taskId)
+        if (!sectionId) {
+          console.warn(`Could not find section for task ${taskId}. It will be skipped.`)
+          return null
+        }
+        return { taskId, sectionId }
+      })
+      .filter((item): item is { taskId: string; sectionId: string } => item !== null)
+
+    if (tasksToDelete.length === 0) return
 
     setSelected({})
     try {
-      // To bulk delete, we need the sectionId for each task
-      for (const taskId of Array.from(toDelete)) {
-        let sectionIdForTask: string | undefined
-        for (const section of sections) {
-          if (section.tasks.some(t => t.id === taskId)) {
-            sectionIdForTask = section.id
-            break
-          }
-        }
-        if (sectionIdForTask) {
-          await deleteTaskMutation(taskId, sectionIdForTask)
-        }
-      }
+      await deleteManyTasks(tasksToDelete)
     } catch (err) {
       console.error("[bulkDeleteSelected] Failed to bulk delete tasks:", err)
     }
-  }, [selected, deleteTaskMutation, sections])
+  }, [selected, deleteManyTasks, sectionTaskMap])
 
   const openNewTask = useCallback(
     (sectionId: string) => {
@@ -448,7 +453,8 @@ export function ListView({ projectId }: ListViewProps) {
       {selectedCount > 0 && (
         <div className="mt-4 flex items-center justify-between rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-900 ring-1 ring-emerald-100">
           <div>{selectedCount} selected</div>
-          <Button variant="destructive" className="h-8" onClick={bulkDeleteSelected}>
+          <Button variant="destructive" className="h-8" onClick={bulkDeleteSelected} disabled={deleteManyLoading}>
+            {deleteManyLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
             Delete selected
           </Button>
         </div>
@@ -516,7 +522,7 @@ export function ListView({ projectId }: ListViewProps) {
                     size="sm"
                     className="bg-[#4ab5ae] text-white hover:bg-[#419d97]"
                     onClick={() => openNewTask(section.id)}
-                    disabled={isTaskMutating}
+                   // disabled={isTaskMutating}
                   >
                     + Add task
                   </Button>
@@ -574,7 +580,7 @@ export function ListView({ projectId }: ListViewProps) {
                               }))
                             }
                             placeholder="Task title"
-                            disabled={isTaskMutating}
+                           // disabled={isTaskMutating}
                           />
                         </div>
                         <div className="space-y-2">
@@ -590,7 +596,7 @@ export function ListView({ projectId }: ListViewProps) {
                                 },
                               }))
                             }
-                            disabled={isTaskMutating}
+                            //disabled={isTaskMutating}
                           >
                             <SelectTrigger>
                               <SelectValue placeholder="Assignee" />
@@ -617,7 +623,7 @@ export function ListView({ projectId }: ListViewProps) {
                                 [section.id]: { ...(p[section.id] as NewTaskForm), endDate: e.target.value },
                               }))
                             }
-                            disabled={isTaskMutating}
+                            //disabled={isTaskMutating}
                           />
                         </div>
                         <div className="space-y-2">
@@ -630,7 +636,7 @@ export function ListView({ projectId }: ListViewProps) {
                                 [section.id]: { ...(p[section.id] as NewTaskForm), priority: v },
                               }))
                             }
-                            disabled={isTaskMutating}
+                           // disabled={isTaskMutating}
                           >
                             <SelectTrigger>
                               <SelectValue placeholder="Priority" />
@@ -666,22 +672,22 @@ export function ListView({ projectId }: ListViewProps) {
                                 }))
                               }
                               min={0}
-                              disabled={isTaskMutating}
+                             // disabled={isTaskMutating}
                             />
                             <Button
                               aria-label="Create task"
                               onClick={() => saveNewTask(section.id)}
                               className="h-9 bg-[#4ab5ae] text-white hover:bg-[#419d97]"
-                              disabled={isTaskMutating || !newTask[section.id]?.title.trim()}
+                              disabled={createLoading || !newTask[section.id]?.title.trim()}
                             >
-                              {isTaskMutating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}Create
+                              {createLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}Create
                             </Button>
                             <Button
                               aria-label="Cancel task creation"
                               variant="ghost"
                               className="h-9 bg-red-500 hover:bg-red-600 text-white"
                               onClick={() => cancelNewTask(section.id)}
-                              disabled={isTaskMutating}
+                              disabled={createLoading}
                             >
                               Cancel
                             </Button>
@@ -704,7 +710,7 @@ export function ListView({ projectId }: ListViewProps) {
         onUpdateTask={updateTask}
         onRequestDelete={openDeleteTaskModal}
         availableAssignees={availableAssignees}
-        isTaskMutating={isTaskMutating}
+        isTaskMutating={updateLoading}
       />
 
       {sectionToDelete && deleteSectionModalOpen && (
@@ -840,16 +846,16 @@ export function ListView({ projectId }: ListViewProps) {
                 variant="outline"
                 className="mt-2 sm:mt-0"
                 onClick={() => setDeleteTaskModalOpen(false)}
-                disabled={isTaskMutating}
+                disabled={deleteLoading}
               >
                 Cancel
               </Button>
               <Button
                 className="bg-red-600 hover:bg-red-700 text-white"
                 onClick={handleConfirmTaskDelete}
-                disabled={isTaskMutating}
+                disabled={deleteLoading}
               >
-                {isTaskMutating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Delete Task"}
+                {deleteLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Delete Task"}
               </Button>
             </div>
           </div>
@@ -866,7 +872,7 @@ interface TaskRowProps {
   onToggleCompleted: () => void
   onChange: (updates: Partial<TaskUI>) => void
   onOpen: () => void
-  onDelete: (sectionId: string, task: TaskUI) => void
+  onDelete: () => void
   assignees: UserAvatarPartial[]
 }
 
@@ -992,7 +998,7 @@ function TaskRow({ task, selected, onSelect, onToggleCompleted, onChange, onOpen
           variant="ghost"
           size="icon"
           className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
-          onClick={() => onDelete(task.sectionId, task)}
+          onClick={onDelete}
           title="Delete task"
         >
           <Trash2 className="h-4 w-4" />

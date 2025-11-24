@@ -1,9 +1,9 @@
-// hooks/useProjectTaskMutations.ts
 import { useMutation, useApolloClient, gql } from "@apollo/client"
 import { useCallback } from "react"
 import { CREATE_PROJECT_TASK_MUTATION } from "@/graphql/mutations/createProjectTask"
 import { UPDATE_PROJECT_TASK_MUTATION } from "@/graphql/mutations/updateProjectTask"
 import { DELETE_PROJECT_TASK_MUTATION } from "@/graphql/mutations/deleteProjectTask"
+import { DELETE_MANY_PROJECT_TASKS_MUTATION } from "@/graphql/mutations/deleteManyProjectTasks"
 import { Priority, TaskStatus } from "@prisma/client"
 import { TaskStatusUI } from "./useProjectTasksAndSections"
 
@@ -38,6 +38,11 @@ interface UpdateProjectTaskVariables {
   }
 }
 
+interface TaskWithSectionId {
+  taskId: string
+  sectionId: string
+}
+
 // --- Main Hook ---
 export function useProjectTaskMutations(projectId: string, currentSprintId?: string | null) {
   const client = useApolloClient()
@@ -52,6 +57,10 @@ export function useProjectTaskMutations(projectId: string, currentSprintId?: str
 
   const [deleteProjectTaskApolloMutation, { loading: deleteLoading, error: deleteError }] = useMutation(
     DELETE_PROJECT_TASK_MUTATION
+  )
+
+  const [deleteManyProjectTasksApolloMutation, { loading: deleteManyLoading, error: deleteManyError }] = useMutation(
+    DELETE_MANY_PROJECT_TASKS_MUTATION
   )
 
   const createTask = useCallback(
@@ -81,6 +90,8 @@ export function useProjectTaskMutations(projectId: string, currentSprintId?: str
           sprintId: mutationVariables.input.sprintId,
           sectionId: sectionId,
           completed: false,
+          commentCount: 0,
+          attachmentCount: 0,
         },
       }
 
@@ -126,6 +137,8 @@ export function useProjectTaskMutations(projectId: string, currentSprintId?: str
           points
           completed
           sectionId
+          commentCount
+          attachmentCount
           assignee {
             id
             firstName
@@ -249,12 +262,75 @@ export function useProjectTaskMutations(projectId: string, currentSprintId?: str
     [deleteProjectTaskApolloMutation]
   )
 
+  const deleteManyTasks = useCallback(
+    async (tasks: TaskWithSectionId[]) => {
+      const taskIds = tasks.map(t => t.taskId)
+      console.log(`[deleteManyTasks] Initiated for project tasks. Task IDs:`, taskIds)
+
+      return deleteManyProjectTasksApolloMutation({
+        variables: { ids: taskIds },
+        update: (cache, { data }) => {
+          console.log(`[deleteManyTasks Cache Update] Received data from mutation:`, data)
+          const deletedTasks = data?.deleteManyProjectTasks
+          if (!deletedTasks || deletedTasks.length === 0) {
+            console.warn(`[deleteManyTasks Cache Update] No deleted tasks data returned. Aborting cache update.`)
+            return
+          }
+
+          const tasksBySection = deletedTasks.reduce((acc, task) => {
+            if (task.sectionId) {
+              if (!acc[task.sectionId]) {
+                acc[task.sectionId] = []
+              }
+              acc[task.sectionId].push(task.id)
+            }
+            return acc
+          }, {} as Record<string, string[]>)
+
+          console.log(`[deleteManyTasks Cache Update] Grouped deleted tasks by section:`, tasksBySection)
+
+          for (const sectionId in tasksBySection) {
+            const deletedIds = new Set(tasksBySection[sectionId])
+            const sectionCacheId = cache.identify({ __typename: "SectionWithTasks", id: sectionId })
+
+            if (sectionCacheId) {
+              cache.modify({
+                id: sectionCacheId,
+                fields: {
+                  tasks(existingTaskRefs = [], { readField }) {
+                    const updatedTasks = existingTaskRefs.filter(
+                      taskRef => !deletedIds.has(readField("id", taskRef))
+                    )
+                    return updatedTasks
+                  },
+                },
+              })
+            }
+          }
+
+          deletedTasks.forEach(task => {
+            const taskCacheId = cache.identify({ __typename: "TaskListView", id: task.id })
+            if (taskCacheId) {
+              cache.evict({ id: taskCacheId })
+            }
+          })
+          cache.gc()
+        },
+      })
+    },
+    [deleteManyProjectTasksApolloMutation]
+  )
+
   return {
     createTask,
     updateTask,
     toggleTaskCompleted,
     deleteTask,
-    isTaskMutating: createLoading || updateLoading || deleteLoading,
-    taskMutationError: createError || updateError || deleteError,
+    deleteManyTasks,
+    createLoading,
+    deleteManyLoading,
+    deleteLoading,
+    updateLoading,
+    taskMutationError: createError || updateError || deleteError || deleteManyError,
   }
 }

@@ -19,7 +19,7 @@ export interface CustomGanttTask {
   assignee?: UserAvatarPartial;
   // New fields for linking back to original model for mutations
   originalTaskId: string; // The ID of the actual Task or Milestone object
-  originalType: "TASK" | "MILESTONE"; // To differentiate when updating
+  originalType: "TASK" | "MILESTONE"| "SPRINT"; // To differentiate when updating
 }
 
 export interface SprintGanttFilterOption {
@@ -44,7 +44,7 @@ export interface GanttDataResponse {
       description?: string;
       assignee?: UserAvatarPartial;
       originalTaskId: string;
-      originalType: "TASK" | "MILESTONE";
+      originalType: "TASK" | "MILESTONE"| "SPRINT";
     }>;
   } | null;
 }

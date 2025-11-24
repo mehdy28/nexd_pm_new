@@ -27,7 +27,7 @@ export function getStartEndDateForParent(tasks: CustomGanttTask[], parentId: str
   // Filter for children tasks (t.project links to the parentId)
   const children = tasks.filter(t => t.project === parentId && t.originalType === "TASK")
   
-  const parent = tasks.find(t => t.id === parentId && t.originalType === "SECTION")
+  const parent = tasks.find(t => t.id === parentId && t.originalType === "SPRINT")
 
   if (children.length === 0) {
     // If no children, return the parent's current dates or default dates
@@ -78,12 +78,12 @@ const GanttView: React.FC<GanttViewProps> = ({ projectId }) => {
   useEffect(() => {
     if (ganttTasks && !isMutating) {
       // 1. Calculate section dates based on children before setting local state
-      const sections = ganttTasks.filter(t => t.originalType === "SECTION")
+      const sections = ganttTasks.filter(t => t.originalType === "SPRINT")
       let processedTasks = [...ganttTasks]
 
       if (sections.length > 0) {
         processedTasks = processedTasks.map(task => {
-          if (task.originalType === "SECTION") {
+          if (task.originalType === "SPRINT") {
             const [newStart, newEnd] = getStartEndDateForParent(ganttTasks, task.id)
             return {
               ...task,
@@ -162,7 +162,7 @@ const GanttView: React.FC<GanttViewProps> = ({ projectId }) => {
 
             // 4. Update the parent section in the list
             newTasksList = newTasksList.map(t => 
-              t.id === parentSectionId && t.originalType === "SECTION"
+              t.id === parentSectionId && t.originalType === "SPRINT"
                 ? {
                     ...t,
                     start: newParentStart,
@@ -210,7 +210,7 @@ const GanttView: React.FC<GanttViewProps> = ({ projectId }) => {
             const [newParentStart, newParentEnd] = getStartEndDateForParent(tasksAfterDelete, parentSectionId)
 
             return tasksAfterDelete.map(t => 
-              t.id === parentSectionId && t.originalType === "SECTION"
+              t.id === parentSectionId && t.originalType === "SPRINT"
                 ? {
                     ...t,
                     start: newParentStart,

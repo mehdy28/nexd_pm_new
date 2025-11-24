@@ -1093,7 +1093,7 @@ input FilterConditionInput {
 input PromptVariableSourceInput {
   entityType: String!
   field: String
-  filter: FilterConditionInput
+  filters: [FilterConditionInput!] # CHANGED: from 'filter' to 'filters' and made it an array
   aggregation: AggregationType
   aggregationField: String
   format: FormatType
@@ -1393,11 +1393,13 @@ type Mutation {
   createProjectTask(input: CreateProjectTaskInput!): TaskListView!
   updateProjectTask(input: UpdateProjectTaskInput!): TaskListView!
   deleteProjectTask(id: ID!): TaskListView!
+  deleteManyProjectTasks(ids: [ID!]!): [TaskListView!]!
 
   # Personal Tasks
   createPersonalTask(input: CreatePersonalTaskInput!): TaskListView!
   updatePersonalTask(input: UpdatePersonalTaskInput!): TaskListView!
   deletePersonalTask(id: ID!): TaskListView!
+  deleteManyPersonalTasks(ids: [ID!]!): [TaskListView!]!
 
   # Sprints
   createSprint(input: CreateSprintInput!): SprintDetails!

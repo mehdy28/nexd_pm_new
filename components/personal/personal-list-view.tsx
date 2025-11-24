@@ -1,4 +1,3 @@
-// components/personal/personal-list-view.tsx
 "use client"
 
 import { useMemo, useState, useEffect, useCallback, useRef } from "react"
@@ -95,7 +94,11 @@ export function PersonalListView() {
     updateTask: updateTaskMutation,
     toggleTaskCompleted: toggleTaskCompletedMutation,
     deleteTask: deleteTaskMutation,
-    isTaskMutating,
+    deleteManyTasks,
+    createLoading,
+    deleteManyLoading,
+    deleteLoading,
+    updateLoading,
   } = usePersonalTaskmutations()
 
   // Removed local `sections` state to use the Apollo cache as the single source of truth.
@@ -287,32 +290,40 @@ export function PersonalListView() {
   const selectedCount = useMemo(() => Object.values(selected).filter(Boolean).length, [selected])
 
   const bulkDeleteSelected = useCallback(async () => {
-    const toDelete = Object.keys(selected).filter(k => selected[k])
-    if (toDelete.length === 0) {
+    const toDeleteIds = Object.keys(selected).filter(k => selected[k])
+    if (toDeleteIds.length === 0) {
       console.warn("[PersonalListView] bulkDeleteSelected aborted: no tasks selected.")
       return
     }
-    console.log("[PersonalListView] Initiating bulk delete for selected tasks.", { taskIds: toDelete })
+    console.log("[PersonalListView] Initiating bulk delete for selected tasks.", { taskIds: toDeleteIds })
 
-    setSelected({})
+    // Map selected IDs to { taskId, personalSectionId } objects for the hook
+    const tasksToDelete = toDeleteIds
+      .map(taskId => {
+        const personalSectionId = sectionTaskMap.get(taskId)
+        if (!personalSectionId) {
+          console.warn(`Could not find section for task ${taskId}. It will be skipped in this bulk operation.`)
+          return null
+        }
+        return { taskId, personalSectionId }
+      })
+      .filter((item): item is { taskId: string; personalSectionId: string } => item !== null)
+
+    if (tasksToDelete.length === 0) {
+      console.warn("[PersonalListView] bulkDeleteSelected aborted: no tasks with known sections were selected.")
+      return
+    }
+
+    setSelected({}) // Clear selection immediately
 
     try {
-      for (const taskId of toDelete) {
-        // ADJUSTMENT: Use the sectionTaskMap to find the personalSectionId for each task.
-        const personalSectionId = sectionTaskMap.get(taskId)
-        if (personalSectionId) {
-          console.log(`[PersonalListView] Deleting task ${taskId} from section ${personalSectionId}`)
-          await deleteTaskMutation(taskId, personalSectionId)
-        } else {
-          console.warn(`Could not find section for task ${taskId}. Deleting without UI update.`)
-          await deleteTaskMutation(taskId, "") // Pass empty string to satisfy signature, hook will log error.
-        }
-      }
+      console.log(`[PersonalListView] Calling deleteManyTasks mutation with ${tasksToDelete.length} tasks.`)
+      await deleteManyTasks(tasksToDelete)
       console.log("[PersonalListView] Bulk delete operation completed successfully.")
     } catch (err) {
       console.error("Failed during bulk delete:", err)
     }
-  }, [selected, deleteTaskMutation, sectionTaskMap])
+  }, [selected, deleteManyTasks, sectionTaskMap])
 
   const openNewTask = useCallback((personalSectionId: string) => {
     console.log("[PersonalListView] Opening new task form.", { personalSectionId })
@@ -472,7 +483,8 @@ export function PersonalListView() {
       {selectedCount > 0 && (
         <div className="mt-4 flex items-center justify-between rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-900 ring-1 ring-emerald-100">
           <div>{selectedCount} selected</div>
-          <Button variant="destructive" className="h-8" onClick={bulkDeleteSelected}>
+          <Button variant="destructive" className="h-8" onClick={bulkDeleteSelected} disabled={deleteManyLoading}>
+            {deleteManyLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
             Delete selected
           </Button>
         </div>
@@ -519,14 +531,14 @@ export function PersonalListView() {
                     if (e.key === "Enter") (e.target as HTMLInputElement).blur()
                     if (e.key === "Escape") setEditingSectionId(null)
                   }}
-                  //disabled={isSectionMutating}
+                  disabled={isSectionMutating}
                 />
               ) : (
                 <button
                   className="text-sm font-semibold text-left hover:underline"
                   onClick={() => setEditingSectionId(section.id)}
                   title="Rename section"
-                  //disabled={isSectionMutating}
+                  disabled={isSectionMutating}
                 >
                   {section.title}
                 </button>
@@ -550,7 +562,7 @@ export function PersonalListView() {
                       variant="ghost"
                       size="sm"
                       className="h-8 w-8 p-0"
-                      //disabled={isSectionMutating}
+                      disabled={isSectionMutating}
                     >
                       <EllipsisVertical className="h-4 w-4" />
                     </Button>
@@ -596,7 +608,7 @@ export function PersonalListView() {
                               }))
                             }
                             placeholder="Task title"
-                            // disabled={isTaskMutating}
+                            //disabled={isTaskMutating}
                           />
                         </div>
                         <div className="space-y-2">
@@ -659,15 +671,15 @@ export function PersonalListView() {
                                 }))
                               }
                               min={0}
-                              // disabled={isTaskMutating}
+                              //disabled={isTaskMutating}
                             />
                             <Button
                               aria-label="Create task"
                               onClick={() => saveNewTask(section.id)}
                               className="h-9 bg-[#4ab5ae] text-white hover:bg-[#419d97]"
-                              // disabled={isTaskMutating || !newTask[section.id]?.title.trim()}
+                              disabled={createLoading || !newTask[section.id]?.title.trim()}
                             >
-                              {isTaskMutating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                              {createLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                               Create
                             </Button>
                             <Button
@@ -698,7 +710,7 @@ export function PersonalListView() {
         onUpdateTask={updateTask}
         onRequestDelete={openDeleteTaskModal}
         availableAssignees={[]}
-        isTaskMutating={isTaskMutating}
+        isTaskMutating={updateLoading}
       />
 
       {sectionToDelete && deleteSectionModalOpen && (
@@ -733,7 +745,7 @@ export function PersonalListView() {
                           id="deleteTasks"
                           checked={deleteTasksConfirmed}
                           onCheckedChange={(checked: boolean) => setDeleteTasksConfirmed(checked)}
-                          //disabled={isSectionMutating}
+                          disabled={isSectionMutating}
                         />
                         <Label htmlFor="deleteTasks">Delete all {sectionToDelete.tasks.length} tasks</Label>
                       </div>
@@ -746,14 +758,14 @@ export function PersonalListView() {
                               if (checked) setReassignToSectionOption(otherSections[0]?.id || null)
                               else setReassignToSectionOption(null)
                             }}
-                            //disabled={isSectionMutating}
+                            disabled={isSectionMutating}
                           />
                           <Label htmlFor="reassignTasks">Reassign tasks to:</Label>
                           {!deleteTasksConfirmed && !!reassignToSectionOption && (
                             <Select
                               value={reassignToSectionOption || undefined}
                               onValueChange={v => setReassignToSectionOption(v)}
-                              //disabled={isSectionMutating}
+                              disabled={isSectionMutating}
                             >
                               <SelectTrigger className="w-[180px] h-9">
                                 <SelectValue placeholder="Select section" />
@@ -786,7 +798,7 @@ export function PersonalListView() {
                 variant="outline"
                 className="mt-2 bg-[#4ab5ae] text-white hover:bg-[#419d97] sm:mt-0"
                 onClick={() => setDeleteSectionModalOpen(false)}
-                //disabled={isSectionMutating}
+                disabled={isSectionMutating}
               >
                 Cancel
               </Button>
@@ -841,9 +853,9 @@ export function PersonalListView() {
               <Button
                 className="bg-red-600 hover:bg-red-700 text-white"
                 onClick={handleConfirmTaskDelete}
-                //disabled={isTaskMutating}
+                disabled={deleteLoading}
               >
-                {isTaskMutating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Delete Task"}
+                {deleteLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Delete Task"}
               </Button>
             </div>
           </div>

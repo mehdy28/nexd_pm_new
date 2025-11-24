@@ -3,6 +3,7 @@ import { useCallback } from "react"
 import { CREATE_PERSONAL_TASK_MUTATION } from "@/graphql/mutations/personal/createPersonalTask"
 import { UPDATE_PERSONAL_TASK_MUTATION } from "@/graphql/mutations/personal/updatePersonalTask"
 import { DELETE_PERSONAL_TASK_MUTATION } from "@/graphql/mutations/personal/deletePersonalTask"
+import { DELETE_MANY_PERSONAL_TASKS_MUTATION } from "@/graphql/mutations/personal/deleteManyPersonalTasks"
 import { Priority } from "@prisma/client"
 import { TaskStatusUI, TaskUI } from "./useMyTasksAndSections"
 
@@ -32,6 +33,11 @@ interface UpdatePersonalTaskVariables {
   }
 }
 
+interface TaskWithSectionId {
+  taskId: string
+  personalSectionId: string
+}
+
 // --- Main Hook ---
 export function usePersonalTaskmutations() {
   console.log("[usePersonalTaskmutations] Hook initialized.")
@@ -46,6 +52,10 @@ export function usePersonalTaskmutations() {
 
   const [deletePersonalTaskApolloMutation, { loading: deleteLoading, error: deleteError }] = useMutation(
     DELETE_PERSONAL_TASK_MUTATION
+  )
+
+  const [deleteManyPersonalTasksApolloMutation, { loading: deleteManyLoading, error: deleteManyError }] = useMutation(
+    DELETE_MANY_PERSONAL_TASKS_MUTATION
   )
 
   const createTask = useCallback(
@@ -364,12 +374,88 @@ export function usePersonalTaskmutations() {
     [deletePersonalTaskApolloMutation]
   )
 
+  const deleteManyTasks = useCallback(
+    async (tasks: TaskWithSectionId[]) => {
+      const taskIds = tasks.map(t => t.taskId)
+      console.log(`[deleteManyTasks] Initiated. Task IDs:`, taskIds)
+
+      return deleteManyPersonalTasksApolloMutation({
+        variables: { ids: taskIds },
+        update: (cache, { data }) => {
+          console.log(`[deleteManyTasks Cache Update] Received data from mutation:`, data)
+          const deletedTasks = data?.deleteManyPersonalTasks
+          if (!deletedTasks || deletedTasks.length === 0) {
+            console.warn(`[deleteManyTasks Cache Update] No deleted tasks data returned. Aborting cache update.`)
+            return
+          }
+
+          // Group tasks by section ID for efficient cache updates
+          const tasksBySection = deletedTasks.reduce((acc, task) => {
+            if (task.personalSectionId) {
+              if (!acc[task.personalSectionId]) {
+                acc[task.personalSectionId] = []
+              }
+              acc[task.personalSectionId].push(task.id)
+            }
+            return acc
+          }, {} as Record<string, string[]>)
+
+          console.log(`[deleteManyTasks Cache Update] Grouped deleted tasks by section:`, tasksBySection)
+
+          // Update each affected section
+          for (const sectionId in tasksBySection) {
+            const deletedIds = new Set(tasksBySection[sectionId])
+            const sectionCacheId = cache.identify({ __typename: "PersonalSectionWithTasks", id: sectionId })
+
+            if (sectionCacheId) {
+              console.log(`[deleteManyTasks Cache Update] Modifying cache for section: ${sectionCacheId}`)
+              cache.modify({
+                id: sectionCacheId,
+                fields: {
+                  tasks(existingTaskRefs = [], { readField }) {
+                    const originalCount = existingTaskRefs.length
+                    const updatedTasks = existingTaskRefs.filter(
+                      taskRef => !deletedIds.has(readField("id", taskRef))
+                    )
+                    console.log(
+                      `[deleteManyTasks Cache Update] Section ${sectionId}: task count changed from ${originalCount} to ${updatedTasks.length}`
+                    )
+                    return updatedTasks
+                  },
+                },
+              })
+            } else {
+              console.warn(`[deleteManyTasks Cache Update] Could not identify section with ID ${sectionId} in cache.`)
+            }
+          }
+
+          // Evict all deleted tasks from the root cache
+          deletedTasks.forEach(task => {
+            const taskCacheId = cache.identify({ __typename: "TaskListView", id: task.id })
+            if (taskCacheId) {
+              cache.evict({ id: taskCacheId })
+              console.log(`[deleteManyTasks Cache Update] Evicted task ${task.id} from cache.`)
+            }
+          })
+
+          console.log(`[deleteManyTasks Cache Update] Triggering garbage collection.`)
+          cache.gc()
+        },
+      })
+    },
+    [deleteManyPersonalTasksApolloMutation]
+  )
+
   return {
     createTask,
     updateTask,
     toggleTaskCompleted,
     deleteTask,
-    isTaskMutating: createLoading || updateLoading || deleteLoading,
-    taskMutationError: createError || updateError || deleteError,
+    deleteManyTasks,
+    createLoading,
+    deleteManyLoading,
+    deleteLoading,
+    updateLoading,
+    taskMutationError: createError || updateError || deleteError || deleteManyError,
   }
 }

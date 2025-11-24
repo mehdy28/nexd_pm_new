@@ -151,7 +151,8 @@ export function usePersonalGanttMutations() {
     createPersonalGanttTask,
     updatePersonalGanttTask,
     updatePersonalSectionName,
-    isMutating: createGanttTaskLoading || updateGanttTaskLoading || updateSectionLoading,
+    createGanttTaskLoading,
+    isMutating:  updateGanttTaskLoading || updateSectionLoading,
     mutationError: createGanttTaskError || updateGanttTaskError || updateSectionError,
   }
 }
