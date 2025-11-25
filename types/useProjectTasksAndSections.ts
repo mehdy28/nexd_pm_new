@@ -12,7 +12,8 @@ export interface UserAvatarPartial {
     id: string;
     firstName?: string | null; // Made nullable to align with Prisma's optional fields
     lastName?: string | null;  // Made nullable
-    avatar?: string | null;    // Made nullable
+    avatar?: string | null; 
+    avatarColor?: string | null;  // Made nullable
     // Note: We might also add `email?: string;` if it's always available and useful for fallback display.
     // But based on your current UI usage, firstName/lastName/avatar are prioritized.
   }

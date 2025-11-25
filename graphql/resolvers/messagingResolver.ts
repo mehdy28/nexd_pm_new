@@ -71,7 +71,7 @@ export const messagingResolvers = {
         log(source, 'Fetching all members');
         const members = await prisma.workspaceMember.findMany({
           where: { workspaceId },
-          include: { user: { select: { id: true, firstName: true, lastName: true, email: true, avatar: true } } },
+          include: { user: { select: { id: true, firstName: true, lastName: true, email: true, avatar: true , avatarColor : true } } },
           orderBy: { user: { firstName: 'asc' } },
         });
 
@@ -152,8 +152,8 @@ export const messagingResolvers = {
         const conversation = await prisma.conversation.findFirst({
           where: { id, participants: { some: { userId } } },
           include: {
-            participants: { include: { user: { select: { id: true, firstName: true, lastName: true, avatar: true } } } },
-            messages: { include: { sender: { select: { id: true, firstName: true, lastName: true, avatar: true } } }, orderBy: { createdAt: 'asc' } },
+            participants: { include: { user: { select: { id: true, firstName: true, lastName: true, avatar: true , avatarColor : true } } } },
+            messages: { include: { sender: { select: { id: true, firstName: true, lastName: true, avatar: true , avatarColor : true } } }, orderBy: { createdAt: 'asc' } },
           },
         });
         if (!conversation) throw new GraphQLError('Conversation not found or access denied.');
@@ -174,9 +174,9 @@ export const messagingResolvers = {
         const ticket = await prisma.ticket.findUnique({
           where: { id },
           include: {
-            creator: { select: { id: true, firstName: true, lastName: true, avatar: true } },
+            creator: { select: { id: true, firstName: true, lastName: true, avatar: true , avatarColor : true } },
             messages: {
-              include: { sender: { select: { id: true, firstName: true, lastName: true, avatar: true, role: true } } },
+              include: { sender: { select: { id: true, firstName: true, lastName: true, avatar: true , avatarColor : true, role: true } } },
               orderBy: { createdAt: 'asc' },
             },
           },
@@ -323,7 +323,7 @@ export const messagingResolvers = {
         const [newMessage] = await prisma.$transaction([
             prisma.message.create({
                 data: { conversationId, senderId: userId, content },
-                include: { sender: { select: { id: true, firstName: true, lastName: true, avatar: true } } },
+                include: { sender: { select: { id: true, firstName: true, lastName: true, avatar: true , avatarColor : true } } },
             }),
             prisma.conversation.update({ where: { id: conversationId }, data: { updatedAt: new Date() } }),
         ]);
@@ -355,7 +355,7 @@ export const messagingResolvers = {
         const [newTicketMessage] = await prisma.$transaction([
             prisma.ticketMessage.create({
                 data: { ticketId: input.ticketId, senderId: userId, content: input.content },
-                include: { sender: { select: { id: true, firstName: true, lastName: true, avatar: true, role: true } } },
+                include: { sender: { select: { id: true, firstName: true, lastName: true, avatar: true , avatarColor : true, role: true } } },
             }),
             prisma.ticket.update({ where: { id: input.ticketId }, data: { updatedAt: new Date() } }),
         ]);

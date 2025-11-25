@@ -3,7 +3,7 @@
 
 import { KanbanBoard } from "@/components/board/kanban-boardV2"
 import { useProjectTasksAndSections, SectionUI, TaskUI, PriorityUI } from "@/hooks/useProjectTasksAndSections"
-import { useProjectTaskMutations } from "@/hooks/useProjectTaskMutations"
+import { useProjectTaskMutations } from "@/hooks/useProjectTaskMutationsNew"
 import { useMemo, useCallback, useEffect, useState, useRef } from "react"
 import { Column } from "@/components/board/kanban-types"
 import { Priority as PrismaPriority, TaskStatus as PrismaTaskStatus } from "@prisma/client"
@@ -131,6 +131,8 @@ export function BoardView({ projectId }: BoardViewProps) {
       firstName: member.user.firstName,
       lastName: member.user.lastName,
       avatar: member.user.avatar,
+      // Source of color: Extracting it from the projectMembers hook data
+      avatarColor: (member.user as any).avatarColor, 
     }))
     console.log("Output (availableAssignees):", assignees)
     console.groupEnd()

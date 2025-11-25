@@ -35,6 +35,7 @@ export const GET_DOCUMENT_DETAILS = gql`
       id
       firstName
       lastName
+      avatarColor
       __typename
     }
     __typename

@@ -11,6 +11,7 @@ export const CREATE_DOCUMENT_COMMENT = gql`
         firstName
         lastName
         avatar
+        avatarColor
       }
     }
   }

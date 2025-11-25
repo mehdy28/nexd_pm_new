@@ -21,6 +21,8 @@ const GET_DOCUMENT_DETAILS_WITH_COMMENTS = gql`
           firstName
           lastName
           avatar
+          avatarColor
+
         }
       }
     }

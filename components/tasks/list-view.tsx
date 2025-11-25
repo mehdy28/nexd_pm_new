@@ -33,7 +33,7 @@ import {
   SectionUI,
   PriorityUI,
 } from "@/hooks/useProjectTasksAndSections"
-import { useProjectTaskMutations } from "@/hooks/useProjectTaskMutations"
+import { useProjectTaskMutations } from "@/hooks/useProjectTaskMutationsNew"
 import { UserAvatarPartial } from "@/types/useProjectTasksAndSections"
 import { TaskDetailSheet } from "../modals/task-detail-sheet"
 import { LoadingPlaceholder, ErrorPlaceholder } from "@/components/placeholders/status-placeholders"
@@ -142,7 +142,9 @@ export function ListView({ projectId }: ListViewProps) {
       firstName: member.user.firstName,
       lastName: member.user.lastName,
       avatar: member.user.avatar,
-    }))
+      // We manually add the color here from the user object
+      avatarColor: (member.user as any).avatarColor,
+    } as UserAvatarPartial))
   }, [projectMembers])
 
   const toggleSection = useCallback((id: string) => {
@@ -606,7 +608,20 @@ export function ListView({ projectId }: ListViewProps) {
                               <DropdownMenuSeparator />
                               {availableAssignees.map(a => (
                                 <SelectItem key={a.id} value={a.id}>
-                                  {a.firstName || a.id} {a.lastName}
+                                  <div className="flex items-center gap-2">
+                                    <Avatar className="h-5 w-5">
+                                      <AvatarImage src={a.avatar || undefined} />
+                                      <AvatarFallback 
+                                        className="text-xs text-white" 
+                                        style={{ backgroundColor: (a as any).avatarColor || "#6366f1" }}
+                                      >
+                                        {`${a.firstName?.[0] || ""}${a.lastName?.[0] || ""}` || "?"}
+                                      </AvatarFallback>
+                                    </Avatar>
+                                    <span>
+                                      {a.firstName} {a.lastName}
+                                    </span>
+                                  </div>
                                 </SelectItem>
                               ))}
                             </SelectContent>
@@ -921,7 +936,12 @@ function TaskRow({ task, selected, onSelect, onToggleCompleted, onChange, onOpen
             <div className="flex items-center gap-2">
               <Avatar className="h-6 w-6 border">
                 <AvatarImage src={assignee?.avatar || undefined} />
-                <AvatarFallback className="text-[10px]">{assigneeInitials}</AvatarFallback>
+                <AvatarFallback 
+                  className="text-[10px] text-white" 
+                  style={{ backgroundColor: (assignee as any)?.avatarColor || "#6366f1" }}
+                >
+                  {assigneeInitials}
+                </AvatarFallback>
               </Avatar>
               <span className="text-sm truncate">{assigneeName}</span>
             </div>
@@ -934,7 +954,10 @@ function TaskRow({ task, selected, onSelect, onToggleCompleted, onChange, onOpen
                 <div className="flex items-center gap-2">
                   <Avatar className="h-5 w-5">
                     <AvatarImage src={a.avatar || undefined} />
-                    <AvatarFallback className="text-xs">
+                    <AvatarFallback 
+                      className="text-xs text-white"
+                      style={{ backgroundColor: (a as any).avatarColor || "#6366f1" }}
+                    >
                       {`${a.firstName?.[0] || ""}${a.lastName?.[0] || ""}` || "?"}
                     </AvatarFallback>
                   </Avatar>

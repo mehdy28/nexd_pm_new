@@ -26,7 +26,8 @@ import {
 } from "@dnd-kit/sortable"
 import { Loader2 } from "lucide-react"
 import { useTaskDetails } from "@/hooks/personal/useTaskDetails"
-import { TaskDetailSheet } from "@/components/modals/task-detail-sheet"
+import { TaskDetailSheet } from "@/components/personal/personalTaskDetailSheet"
+
 import { TaskUI } from "@/hooks/personal/useMyTasksAndSections"
 import type { TaskStatus } from "@prisma/client"
 

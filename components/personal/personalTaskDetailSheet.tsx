@@ -5,16 +5,7 @@ import { formatDistanceToNow } from "date-fns";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Pencil,
   Trash2,
@@ -55,7 +46,6 @@ import {
 } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { UserAvatarPartial } from "@/types/useProjectTasksAndSections";
 import { useTaskDetails } from "@/hooks/useTaskDetails";
 import { ActivityUI, CommentUI } from "@/types/taskDetails";
 import type { TaskStatus } from "@prisma/client";
@@ -73,7 +63,6 @@ type TaskUI = {
   endDate: string | null;
   points: number | null;
   sectionId: string; // Required for callbacks like delete
-  assignee?: UserAvatarPartial | null; // Project-specific, but optional for personal
   status?: TaskStatusUI; // Project-specific, optional
   completed?: boolean; // Personal-specific, optional
 };
@@ -157,7 +146,6 @@ interface TaskDetailSheetProps {
   onClose: () => void;
   onUpdateTask: (sectionId: string, taskId: string, updates: Partial<TaskUI>) => Promise<void>;
   onRequestDelete: (sectionId: string, task: TaskUI) => void;
-  availableAssignees: UserAvatarPartial[];
   isTaskMutating: boolean;
 }
 
@@ -166,7 +154,6 @@ export function TaskDetailSheet({
   onClose,
   onUpdateTask,
   onRequestDelete,
-  availableAssignees,
   isTaskMutating,
 }: TaskDetailSheetProps) {
   const [editingTaskLocal, setEditingTaskLocal] = useState<TaskUI | null>(null);
@@ -227,7 +214,7 @@ export function TaskDetailSheet({
     if (editingTaskLocal.points !== originalTask.points) updates.points = editingTaskLocal.points;
     if (editingTaskLocal.startDate !== originalTask.startDate) updates.startDate = editingTaskLocal.startDate;
     if (editingTaskLocal.endDate !== originalTask.endDate) updates.endDate = editingTaskLocal.endDate;
-    if (editingTaskLocal.assignee?.id !== originalTask.assignee?.id) updates.assignee = editingTaskLocal.assignee;
+    
     if (Object.keys(updates).length > 0) {
       await onUpdateTask(sheetTask.sectionId, sheetTask.taskId, updates);
     }
@@ -431,51 +418,6 @@ export function TaskDetailSheet({
 
               <div className="lg:col-span-1 border-l border-gray-200 bg-white pl-6 pr-6 mb-2 mr-2  py-6 flex flex-col flex-shrink-0 min-h-0 rounded-lg">
                 <div className="space-y-6 flex-grow overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100 min-h-0">
-                  <div>
-                    <Label htmlFor="assignee-select" className="text-sm font-medium text-gray-700 flex items-center gap-2 mb-1">
-                      <UserRoundIcon className="h-4 w-4 text-gray-500" /> Assignee
-                    </Label>
-                    <Select value={editingTaskLocal.assignee?.id || "null"} onValueChange={(v) => setEditingTaskLocal(prev => prev ? { ...prev, assignee: availableAssignees.find(a => a.id === v) || null } : null)}
-                     //disabled={isTaskMutating}
-                     >
-                      <SelectTrigger id="assignee-select" className={cn("w-full text-gray-700 hover:bg-gray-50 rounded-md py-2 px-3 transition-colors border", jiraSelectTriggerStyle)}>
-                        <SelectValue placeholder="Unassigned">
-                          <div className="flex items-center gap-2">
-                            <Avatar className="h-6 w-6">
-                                <AvatarImage src={editingTaskLocal.assignee?.avatar || undefined} />
-                                <AvatarFallback 
-                                    className="text-xs text-white"
-                                    style={{ backgroundColor: (editingTaskLocal.assignee as any)?.avatarColor || "#6366f1" }}
-                                >
-                                    {`${editingTaskLocal.assignee?.firstName?.[0] || ''}${editingTaskLocal.assignee?.lastName?.[0] || ''}` || '?'}
-                                </AvatarFallback>
-                            </Avatar>
-                            <span>{editingTaskLocal.assignee?.firstName} {editingTaskLocal.assignee?.lastName || 'Unassigned'}</span>
-                          </div>
-                        </SelectValue>
-                      </SelectTrigger>
-                      <SelectContent className="bg-white border-border">
-                        <SelectItem value="null"><div className="flex items-center gap-2"><Avatar className="h-6 w-6 border bg-gray-100"><AvatarImage src={undefined} /><AvatarFallback className="text-xs text-gray-700">?</AvatarFallback></Avatar><span>Unassigned</span></div></SelectItem>
-                        <DropdownMenuSeparator />
-                        {availableAssignees.map((a) => (
-                            <SelectItem key={a.id} value={a.id}>
-                                <div className="flex items-center gap-2">
-                                    <Avatar className="h-6 w-6">
-                                        <AvatarImage src={a.avatar || undefined} />
-                                        <AvatarFallback 
-                                            className="text-xs text-white" 
-                                            style={{ backgroundColor: (a as any).avatarColor || "#6366f1" }}
-                                        >
-                                            {`${a.firstName?.[0] || ''}${a.lastName?.[0] || ''}` || '?'}
-                                        </AvatarFallback>
-                                    </Avatar>
-                                    <span>{a.firstName} {a.lastName}</span>
-                                </div>
-                            </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
                   <div>
                     <Label htmlFor="priority-select" className="text-sm font-medium text-gray-700 flex items-center gap-2 mb-1">
                       <TagIcon className="h-4 w-4 text-gray-500" /> Priority

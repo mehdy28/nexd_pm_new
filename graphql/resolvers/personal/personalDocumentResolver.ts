@@ -114,7 +114,7 @@ const personalDocumentResolvers = {
             comments: {
               include: {
                 author: {
-                  select: { id: true, firstName: true, lastName: true, avatar: true },
+                  select: { id: true, firstName: true, lastName: true, avatar: true ,avatarColor:true},
                 },
               },
               orderBy: {
@@ -402,7 +402,7 @@ const personalDocumentResolvers = {
             authorId: user.id,
           },
           include: {
-            author: { select: { id: true, firstName: true, lastName: true, avatar: true } },
+            author: { select: { id: true, firstName: true, lastName: true, avatar: true ,avatarColor:true} },
           },
         })
         console.log(`[createDocumentComment Mutation] Successfully created comment ID: ${newComment.id}`)
@@ -441,7 +441,7 @@ const personalDocumentResolvers = {
         const deletedComment = await prisma.comment.delete({
           where: { id },
           include: {
-            author: { select: { id: true, firstName: true, lastName: true, avatar: true } },
+            author: { select: { id: true, firstName: true, lastName: true, avatar: true ,avatarColor:true} },
           },
         })
         console.log(`[deleteDocumentComment Mutation] Successfully deleted comment ID: ${deletedComment.id}`)

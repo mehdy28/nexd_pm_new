@@ -119,7 +119,7 @@ const documentResolvers = {
               select: { id: true, name: true, workspaceId: true },
             },
             personalUser: {
-              select: { id: true, firstName: true, lastName: true },
+              select: { id: true, firstName: true, lastName: true, avatarColor: true},
             },
           },
         });
@@ -393,7 +393,7 @@ type PrismaDocumentType = Prisma.DocumentGetPayload<{
       select: { id: true; name: true; workspaceId: true }
     }
     personalUser: {
-      select: { id: true; firstName: true; lastName: true }
+      select: { id: true; firstName: true; lastName: true, avatarColor: true}
     }
   }
 }>

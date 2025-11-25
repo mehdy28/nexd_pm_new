@@ -1,333 +1,327 @@
-"use client"
+// app/(core)/account/page.tsx
+"use client";
 
-import { useEffect, useState } from "react"
-import { useTopbar } from "@/components/layout/topbar-store"
-import { CreditCard, Download, Check, Zap, Crown, Building2 } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Separator } from "@/components/ui/separator"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { useEffect, useState, useMemo } from "react";
+import { useTopbar, useTopbarSetup } from "@/components/layout/topbar-store";
+import { useAccountPage } from "@/hooks/useAccountPage";
+import { BillingTabContent } from "@/components/account/billing-tab-content";
+import { LoadingPlaceholder, ErrorPlaceholder } from "@/components/placeholders/status-placeholders";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Switch } from "@/components/ui/switch";
+import { User, Bell, CreditCard, Loader2, Check } from "lucide-react";
+import { toast } from "sonner";
+import { AVATAR_COLORS } from "@/lib/avatar-colors";
+import { Separator } from "@/components/ui/separator";
+import { cn } from "@/lib/utils";
 
-// Mock data - in real app this would come from API
-const subscriptionData = {
-  currentPlan: {
-    name: "Pro",
-    price: 29,
-    billing: "monthly",
-    features: [
-      "Unlimited projects",
-      "Advanced analytics",
-      "Priority support",
-      "Team collaboration",
-      "Custom integrations",
-    ],
-    nextBilling: "2024-02-15",
-  },
-  usage: {
-    projects: { current: 12, limit: "unlimited" },
-    teamMembers: { current: 8, limit: 25 },
-    storage: { current: 2.4, limit: 10, unit: "GB" },
-  },
-  invoices: [
-    {
-      id: "INV-2024-001",
-      date: "2024-01-15",
-      amount: 29.0,
-      status: "paid",
-      downloadUrl: "#",
-    },
-    {
-      id: "INV-2023-012",
-      date: "2023-12-15",
-      amount: 29.0,
-      status: "paid",
-      downloadUrl: "#",
-    },
-    {
-      id: "INV-2023-011",
-      date: "2023-11-15",
-      amount: 29.0,
-      status: "paid",
-      downloadUrl: "#",
-    },
-    {
-      id: "INV-2023-010",
-      date: "2023-10-15",
-      amount: 29.0,
-      status: "paid",
-      downloadUrl: "#",
-    },
-  ],
-}
+export default function AccountPage() {
+  const { 
+    user, 
+    workspace, 
+    notificationSettings, 
+    isOwner, 
+    loading, 
+    error, 
+    refetch,
+    updateProfile,
+    updateProfileLoading,
+    updateNotifications,
+    updateNotificationsLoading
+  } = useAccountPage();
 
-const plans = [
-  {
-    name: "Starter",
-    price: 0,
-    billing: "monthly",
-    description: "Perfect for individuals getting started",
-    features: ["Up to 3 projects", "Basic analytics", "Email support", "5GB storage"],
-    icon: <Zap className="h-5 w-5" />,
-    popular: false,
-  },
-  {
-    name: "Pro",
-    price: 29,
-    billing: "monthly",
-    description: "Best for growing teams and businesses",
-    features: [
-      "Unlimited projects",
-      "Advanced analytics",
-      "Priority support",
-      "Team collaboration",
-      "Custom integrations",
-      "10GB storage",
-    ],
-    icon: <Crown className="h-5 w-5" />,
-    popular: true,
-  },
-  {
-    name: "Enterprise",
-    price: 99,
-    billing: "monthly",
-    description: "For large organizations with advanced needs",
-    features: [
-      "Everything in Pro",
-      "Advanced security",
-      "Custom branding",
-      "Dedicated support",
-      "SLA guarantee",
-      "Unlimited storage",
-    ],
-    icon: <Building2 className="h-5 w-5" />,
-    popular: false,
-  },
-]
+  // Local state for profile form
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [avatarColor, setAvatarColor] = useState("#6366f1");
+  
+  // Local state for notification settings
+  const [notifState, setNotifState] = useState({
+    atMention: true,
+    taskAssigned: true,
+    projectUpdates: true,
+    productNews: true
+  });
 
-export default function BillingPage() {
-  const topbar = useTopbar()
-  const [billingCycle, setBillingCycle] = useState<"monthly" | "yearly">("monthly")
-
+  // Sync data when loaded
   useEffect(() => {
-    if (topbar?.setConfig && topbar?.setActiveKey) {
-      topbar.setConfig({
-        title: "Billing & Subscription",
-        tabs: [{ key: "billing", label: "Billing", icon: <CreditCard className="h-4 w-4" /> }],
-        showShare: false,
-      })
-      topbar.setActiveKey("billing")
+    if (user) {
+      setFirstName(user.firstName || "");
+      setLastName(user.lastName || "");
+      setAvatarColor(user.avatarColor || "#6366f1");
     }
-  }, [topbar.setConfig, topbar.setActiveKey])
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "paid":
-        return "bg-green-100 text-green-800"
-      case "pending":
-        return "bg-yellow-100 text-yellow-800"
-      case "failed":
-        return "bg-red-100 text-red-800"
-      default:
-        return "bg-gray-100 text-gray-800"
+    if (notificationSettings) {
+      setNotifState({
+        atMention: notificationSettings.atMention,
+        taskAssigned: notificationSettings.taskAssigned,
+        projectUpdates: notificationSettings.projectUpdates,
+        productNews: notificationSettings.productNews
+      });
     }
-  }
+  }, [user, notificationSettings]);
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    })
-  }
+  // Define tabs dynamically based on ownership
+  const tabs = useMemo(() => {
+    const t = [
+      { key: "profile", label: "Profile", icon: <User className="h-4 w-4" /> },
+      { key: "notifications", label: "Notifications", icon: <Bell className="h-4 w-4" /> },
+    ];
+    if (isOwner) {
+      t.push({ key: "billing", label: "Billing", icon: <CreditCard className="h-4 w-4" /> });
+    }
+    return t;
+  }, [isOwner]);
 
-  const getYearlyPrice = (monthlyPrice: number) => {
-    return Math.round(monthlyPrice * 12 * 0.8) // 20% discount for yearly
-  }
+  // Initialize Topbar
+  useTopbarSetup({
+    title: "Account & Settings",
+    tabs: tabs,
+    activeKey: "profile",
+    showShare: false,
+    showSprint: false,
+    showAddSection: false,
+  });
+
+  const { activeKey } = useTopbar();
+  const currentKey = activeKey || "profile";
+
+  if (loading) return <LoadingPlaceholder message="Loading account details..." />;
+  if (error) return <ErrorPlaceholder error={error} onRetry={refetch} />;
+
+  const handleUpdateProfile = async () => {
+    try {
+      await updateProfile({
+        variables: {
+          firstName,
+          lastName,
+        }
+      });
+      toast.success("Profile updated successfully");
+    } catch (err) {
+      toast.error("Failed to update profile");
+      console.error(err);
+    }
+  };
+
+  const handleUpdateNotifications = async (key: string, value: boolean) => {
+    const newState = { ...notifState, [key]: value };
+    setNotifState(newState); // Optimistic update
+    
+    try {
+      await updateNotifications({
+        variables: {
+          input: newState
+        }
+      });
+    } catch (err) {
+      setNotifState(notifState); // Revert
+      toast.error("Failed to update notification settings");
+    }
+  };
+
+  const handleColorSelect = async (color: string) => {
+    // Optimistic update: update UI immediately
+    const prevColor = avatarColor;
+    setAvatarColor(color);
+
+    if (color === user?.avatarColor) return;
+
+    try {
+      await updateProfile({
+        variables: {
+           avatarColor: color
+        }
+      });
+      toast.success("Avatar color updated");
+    } catch (err) {
+      // Revert if failed
+      setAvatarColor(prevColor);
+      toast.error("Failed to update avatar color");
+    }
+  };
+
+  const renderContent = () => {
+    if (currentKey === "profile") {
+      return (
+        <div className="space-y-6 animate-in fade-in-50 duration-500">
+          <Card>
+            <CardHeader>
+              <CardTitle>Personal Information</CardTitle>
+              <CardDescription>Update your photo and personal details here.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-8">
+              <div className="flex flex-col md:flex-row gap-8 items-start">
+                {/* Avatar Preview Section */}
+                <div className="flex flex-col items-center gap-4 min-w-[150px]">
+                   <Avatar className="h-32 w-32 border-4 border-white shadow-lg bg-muted">
+                      <AvatarImage src={user?.avatar || undefined} />
+                      <AvatarFallback 
+                        className="text-white text-4xl font-bold transition-colors duration-300"
+                        style={{ backgroundColor: avatarColor }}
+                      >
+                        {user?.firstName?.[0]}{user?.lastName?.[0]}
+                      </AvatarFallback>
+                   </Avatar>
+                   <p className="text-sm text-muted-foreground text-center">
+                     Your avatar color is visible to everyone in your workspace.
+                   </p>
+                </div>
+
+                {/* Form Section */}
+                <div className="flex-1 space-y-6 w-full">
+                   <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                         <Label htmlFor="firstName">First Name</Label>
+                         <Input 
+                            id="firstName" 
+                            value={firstName} 
+                            onChange={(e) => setFirstName(e.target.value)} 
+                         />
+                      </div>
+                      <div className="space-y-2">
+                         <Label htmlFor="lastName">Last Name</Label>
+                         <Input 
+                            id="lastName" 
+                            value={lastName} 
+                            onChange={(e) => setLastName(e.target.value)} 
+                         />
+                      </div>
+                   </div>
+
+                   {/* Color Picker Section */}
+                   <div className="space-y-3 pt-2">
+                      <Label>Avatar Color</Label>
+                      <div className="flex flex-wrap gap-3">
+                        {AVATAR_COLORS.map((color) => {
+                          const isSelected = avatarColor === color;
+                          return (
+                            <button
+                              key={color}
+                              onClick={() => handleColorSelect(color)}
+                              disabled={updateProfileLoading}
+                              className={cn(
+                                "h-10 w-10 rounded-full flex items-center justify-center transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-background focus:ring-ring",
+                                isSelected 
+                                  ? "ring-2 ring-offset-2 ring-offset-background ring-black dark:ring-white scale-110 shadow-sm" 
+                                  : "hover:scale-110 hover:shadow-sm border border-transparent"
+                              )}
+                              style={{ backgroundColor: color }}
+                              aria-label={`Select color ${color}`}
+                            >
+                              {isSelected && (
+                                <Check className="h-5 w-5 text-white drop-shadow-md" strokeWidth={3} />
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                   </div>
+
+                   <div className="space-y-2">
+                      <Label htmlFor="email">Email Address</Label>
+                      <Input id="email" value={user?.email || ""} disabled className="bg-muted" />
+                      <p className="text-xs text-muted-foreground">Email address managed via authentication provider.</p>
+                   </div>
+
+                   <div className="pt-4">
+                      <Button onClick={handleUpdateProfile} disabled={updateProfileLoading}>
+                        {updateProfileLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Save Changes
+                      </Button>
+                   </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      );
+    }
+
+    if (currentKey === "notifications") {
+      return (
+        <div className="space-y-6 animate-in fade-in-50 duration-500">
+          <Card>
+            <CardHeader>
+              <CardTitle>Notification Preferences</CardTitle>
+              <CardDescription>Choose what you want to be notified about.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+               <div className="space-y-4">
+                  <div className="flex items-center justify-between space-x-2">
+                     <Label htmlFor="atMention" className="flex flex-col space-y-1">
+                        <span>@Mentions</span>
+                        <span className="font-normal text-sm text-muted-foreground">Notify me when I am mentioned in a comment or task.</span>
+                     </Label>
+                     <Switch 
+                        id="atMention" 
+                        checked={notifState.atMention}
+                        onCheckedChange={(checked) => handleUpdateNotifications("atMention", checked)}
+                        disabled={updateNotificationsLoading}
+                     />
+                  </div>
+                  <Separator />
+                  <div className="flex items-center justify-between space-x-2">
+                     <Label htmlFor="taskAssigned" className="flex flex-col space-y-1">
+                        <span>Task Assignments</span>
+                        <span className="font-normal text-sm text-muted-foreground">Notify me when a new task is assigned to me.</span>
+                     </Label>
+                     <Switch 
+                        id="taskAssigned" 
+                        checked={notifState.taskAssigned}
+                        onCheckedChange={(checked) => handleUpdateNotifications("taskAssigned", checked)}
+                        disabled={updateNotificationsLoading}
+                     />
+                  </div>
+                  <Separator />
+                  <div className="flex items-center justify-between space-x-2">
+                     <Label htmlFor="projectUpdates" className="flex flex-col space-y-1">
+                        <span>Project Updates</span>
+                        <span className="font-normal text-sm text-muted-foreground">Notify me about major updates in my projects.</span>
+                     </Label>
+                     <Switch 
+                        id="projectUpdates" 
+                        checked={notifState.projectUpdates}
+                        onCheckedChange={(checked) => handleUpdateNotifications("projectUpdates", checked)}
+                        disabled={updateNotificationsLoading}
+                     />
+                  </div>
+                  <Separator />
+                  <div className="flex items-center justify-between space-x-2">
+                     <Label htmlFor="productNews" className="flex flex-col space-y-1">
+                        <span>Product News</span>
+                        <span className="font-normal text-sm text-muted-foreground">Receive updates about new features and improvements.</span>
+                     </Label>
+                     <Switch 
+                        id="productNews" 
+                        checked={notifState.productNews}
+                        onCheckedChange={(checked) => handleUpdateNotifications("productNews", checked)}
+                        disabled={updateNotificationsLoading}
+                     />
+                  </div>
+               </div>
+            </CardContent>
+          </Card>
+        </div>
+      );
+    }
+
+    if (currentKey === "billing" && isOwner) {
+      return (
+        <div className="space-y-6 animate-in fade-in-50 duration-500">
+          <BillingTabContent />
+        </div>
+      );
+    }
+
+    return null;
+  };
 
   return (
-    <div className="h-full overflow-y-auto">
-      <div className="p-6 space-y-8">
-        {/* Current Subscription */}
-        <div className="space-y-4">
-          <h2 className="text-2xl font-semibold">Current Subscription</h2>
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="flex items-center gap-2">
-                    <Crown className="h-5 w-5 text-yellow-600" />
-                    {subscriptionData.currentPlan.name} Plan
-                  </CardTitle>
-                  <CardDescription>
-                    ${subscriptionData.currentPlan.price}/{subscriptionData.currentPlan.billing}
-                  </CardDescription>
-                </div>
-                <div className="text-right">
-                  <p className="text-sm text-slate-600">Next billing date</p>
-                  <p className="font-medium">{formatDate(subscriptionData.currentPlan.nextBilling)}</p>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid gap-4 md:grid-cols-3">
-                <div className="space-y-2">
-                  <p className="text-sm font-medium">Projects</p>
-                  <p className="text-2xl font-bold">
-                    {subscriptionData.usage.projects.current}
-                    <span className="text-sm font-normal text-slate-600">/{subscriptionData.usage.projects.limit}</span>
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <p className="text-sm font-medium">Team Members</p>
-                  <p className="text-2xl font-bold">
-                    {subscriptionData.usage.teamMembers.current}
-                    <span className="text-sm font-normal text-slate-600">
-                      /{subscriptionData.usage.teamMembers.limit}
-                    </span>
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <p className="text-sm font-medium">Storage Used</p>
-                  <p className="text-2xl font-bold">
-                    {subscriptionData.usage.storage.current}
-                    <span className="text-sm font-normal text-slate-600">
-                      /{subscriptionData.usage.storage.limit} {subscriptionData.usage.storage.unit}
-                    </span>
-                  </p>
-                </div>
-              </div>
-              <Separator />
-              <div className="flex gap-2">
-                <Button variant="outline">Manage Subscription</Button>
-                <Button variant="outline">Update Payment Method</Button>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Available Plans */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-2xl font-semibold">Available Plans</h2>
-            <div className="flex items-center gap-2 p-1 bg-slate-100 rounded-lg">
-              <Button
-                variant={billingCycle === "monthly" ? "default" : "ghost"}
-                size="sm"
-                onClick={() => setBillingCycle("monthly")}
-                className="h-8"
-              >
-                Monthly
-              </Button>
-              <Button
-                variant={billingCycle === "yearly" ? "default" : "ghost"}
-                size="sm"
-                onClick={() => setBillingCycle("yearly")}
-                className="h-8"
-              >
-                Yearly
-                <Badge variant="secondary" className="ml-2 bg-green-100 text-green-800">
-                  Save 20%
-                </Badge>
-              </Button>
-            </div>
-          </div>
-
-          <div className="grid gap-6 md:grid-cols-3">
-            {plans.map((plan) => {
-              const price = billingCycle === "yearly" ? getYearlyPrice(plan.price) : plan.price
-              const isCurrentPlan = plan.name === subscriptionData.currentPlan.name
-
-              return (
-                <Card key={plan.name} className={`relative ${plan.popular ? "ring-2 ring-emerald-600" : ""}`}>
-                  {plan.popular && (
-                    <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
-                      <Badge className="bg-emerald-600 text-white">Most Popular</Badge>
-                    </div>
-                  )}
-                  <CardHeader>
-                    <div className="flex items-center gap-2">
-                      {plan.icon}
-                      <CardTitle>{plan.name}</CardTitle>
-                    </div>
-                    <div className="space-y-1">
-                      <div className="flex items-baseline gap-1">
-                        <span className="text-3xl font-bold">${price}</span>
-                        <span className="text-slate-600">/{billingCycle}</span>
-                      </div>
-                      {billingCycle === "yearly" && plan.price > 0 && (
-                        <p className="text-sm text-slate-600">${plan.price * 12} billed annually</p>
-                      )}
-                    </div>
-                    <CardDescription>{plan.description}</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <ul className="space-y-2">
-                      {plan.features.map((feature, index) => (
-                        <li key={index} className="flex items-center gap-2 text-sm">
-                          <Check className="h-4 w-4 text-emerald-600 flex-shrink-0" />
-                          {feature}
-                        </li>
-                      ))}
-                    </ul>
-                    <Button
-                      className="w-full"
-                      variant={isCurrentPlan ? "outline" : plan.popular ? "default" : "outline"}
-                      disabled={isCurrentPlan}
-                    >
-                      {isCurrentPlan ? "Current Plan" : plan.price === 0 ? "Downgrade" : "Upgrade"}
-                    </Button>
-                  </CardContent>
-                </Card>
-              )
-            })}
-          </div>
-        </div>
-
-        {/* Billing History */}
-        <div className="space-y-4">
-          <h2 className="text-2xl font-semibold">Billing History</h2>
-          <Card>
-            <CardHeader>
-              <CardTitle>Recent Invoices</CardTitle>
-              <CardDescription>Download your invoices and view payment history</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Invoice</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Amount</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {subscriptionData.invoices.map((invoice) => (
-                    <TableRow key={invoice.id}>
-                      <TableCell className="font-medium">{invoice.id}</TableCell>
-                      <TableCell>{formatDate(invoice.date)}</TableCell>
-                      <TableCell>${invoice.amount.toFixed(2)}</TableCell>
-                      <TableCell>
-                        <Badge variant="secondary" className={getStatusColor(invoice.status)}>
-                          {invoice.status.charAt(0).toUpperCase() + invoice.status.slice(1)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button variant="ghost" size="sm">
-                          <Download className="h-4 w-4 mr-2" />
-                          Download
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+    <div className="p-4 space-y-2">
+      {renderContent()}
     </div>
-  )
+  );
 }

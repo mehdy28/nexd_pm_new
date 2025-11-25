@@ -1,3 +1,4 @@
+//components/messaging/user-communication.tsx
 "use client";
 
 import { useState } from "react";
@@ -183,6 +184,7 @@ export function UserCommunication({ workspaceId }: UserCommunicationProps) {
                     searchQuery={searchQuery}
                     selectedItem={selectedItem}
                     onSelectItem={setSelectedItem}
+                    currentUserId={currentUser?.id}
                   />
                 </CardContent>
               </Card>

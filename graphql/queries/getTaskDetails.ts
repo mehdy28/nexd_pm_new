@@ -8,6 +8,7 @@ const USER_AVATAR_FRAGMENT = gql`
     firstName
     lastName
     avatar
+    avatarColor
   }
 `;
 

@@ -20,6 +20,7 @@ export interface CommentAuthor {
   firstName: string | null
   lastName: string | null
   avatar?: string | null // Optional based on usePersonalDocuments
+  avatarColor?: string | null // Added avatarColor
 }
 
 export interface DocumentComment {

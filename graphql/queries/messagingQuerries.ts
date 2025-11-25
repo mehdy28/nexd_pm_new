@@ -17,12 +17,6 @@ export const GET_COMMUNICATION_LIST = gql`
 `;
 
 
-
-
-
-
-
-
 export const GET_MESSAGING_DATA = gql`
   query GetMessagingData($workspaceId: ID!) {
     getCommunicationList(workspaceId: $workspaceId) {
@@ -33,16 +27,26 @@ export const GET_MESSAGING_DATA = gql`
       participantInfo
       updatedAt
       unreadCount
+      priority
+      conversationType
+      participants {
+        id
+        firstName
+        lastName
+        avatar
+        avatarColor
+      }
     }
     getWorkspaceMembers(workspaceId: $workspaceId) {
       id
       role
       user {
         id
+        email
         firstName
         lastName
-        email
         avatar
+        avatarColor
       }
     }
   }
@@ -59,6 +63,7 @@ export const GET_CONVERSATION_DETAILS = gql`
         firstName
         lastName
         avatar
+        avatarColor
       }
       messages {
         id
@@ -69,6 +74,7 @@ export const GET_CONVERSATION_DETAILS = gql`
           firstName
           lastName
           avatar
+          avatarColor
         }
       }
     }
@@ -88,6 +94,7 @@ export const GET_TICKET_DETAILS = gql`
         firstName
         lastName
         avatar
+        avatarColor
       }
       messages {
         id
@@ -99,6 +106,7 @@ export const GET_TICKET_DETAILS = gql`
           firstName
           lastName
           avatar
+          avatarColor
         }
       }
     }

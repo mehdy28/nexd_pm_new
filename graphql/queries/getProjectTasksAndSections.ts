@@ -29,6 +29,7 @@ export const GET_PROJECT_TASKS_AND_SECTIONS_QUERY = gql`
             firstName
             lastName
             avatar
+            avatarColor
             __typename # <--- Add __typename
           }
           __typename # <--- Add __typename
@@ -46,6 +47,7 @@ export const GET_PROJECT_TASKS_AND_SECTIONS_QUERY = gql`
           lastName
           avatar
           email
+          avatarColor
           __typename # <--- Add __typename
         }
         __typename # <--- Add __typename

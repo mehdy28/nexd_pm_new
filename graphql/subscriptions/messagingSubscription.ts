@@ -1,3 +1,4 @@
+//graphql/subscriptions/messagingSubscription.ts
 import { gql } from '@apollo/client';
 
 // SUBSCRIPTIONS
@@ -8,7 +9,13 @@ export const MESSAGE_ADDED_SUBSCRIPTION = gql`
       id
       content
       createdAt
-      sender { id firstName lastName avatar }
+      sender {
+        id
+        firstName
+        lastName
+        avatar
+        avatarColor
+      }
     }
   }
 `;
@@ -20,7 +27,13 @@ export const TICKET_MESSAGE_ADDED_SUBSCRIPTION = gql`
       content
       createdAt
       isSupport
-      sender { id firstName lastName avatar }
+      sender {
+        id
+        firstName
+        lastName
+        avatar
+        avatarColor
+      }
     }
   }
 `;
@@ -47,6 +60,13 @@ export const COMMUNICATION_ITEM_ADDED_SUBSCRIPTION = gql`
       unreadCount
       priority
       conversationType
+      participants {
+        id
+        firstName
+        lastName
+        avatar
+        avatarColor
+      }
     }
   }
 `;

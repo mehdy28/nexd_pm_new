@@ -73,7 +73,10 @@ export function KanbanCard({
       <div className="flex items-center gap-3 text-xs">
         <Avatar className="h-6 w-6 border-2 border-background shadow-sm">
           <AvatarImage src={assignee?.avatar || undefined} />
-          <AvatarFallback className="text-[10px] font-medium bg-primary/10 text-primary">
+          <AvatarFallback 
+            className="text-[10px] font-medium text-white"
+            style={{ backgroundColor: (assignee as any)?.avatarColor || "#6366f1" }}
+          >
             {assigneeInitials}
           </AvatarFallback>
         </Avatar>

@@ -122,6 +122,7 @@ export const projectResolver = {
             firstName: member.user.firstName,
             lastName: member.user.lastName,
             avatar: member.user.avatar,
+            avatarColor: member.user.avatarColor,
           },
         }));
 
@@ -284,123 +285,100 @@ export const projectResolver = {
     },
 
 
-    getProjectTasksAndSections: async (_parent: unknown, args: GetProjectTasksAndSectionsArgs, context: GraphQLContext) => {
-      log("[getProjectTasksAndSections Query]", "called with args:", args);
 
-      if (!context.user?.id) {
-        log("[getProjectTasksAndSections Query]", "No authenticated user found in context.");
-        throw new Error("Authentication required: No user ID found in context.");
-      }
-
-      const { projectId, sprintId: argSprintId } = args;
-      const userId = context.user.id;
-
-      try {
-        const project = await prisma.project.findUnique({
-          where: { id: projectId },
-          select: {
-            id: true,
-            workspaceId: true,
-            members: {
-              where: { userId: userId },
-              select: { userId: true }
-            }
+        getProjectTasksAndSections: async (_parent: unknown, args: GetProjectTasksAndSectionsArgs, context: GraphQLContext) => {
+          log("[getProjectTasksAndSections Query]", "called with args:", args);
+    
+          if (!context.user?.id) {
+            log("[getProjectTasksAndSections Query]", "No authenticated user found in context.");
+            throw new Error("Authentication required: No user ID found in context.");
           }
-        });
-
-        if (!project || project.members.length === 0) {
-          log("[getProjectTasksAndSections Query]", `User ${userId} is not a member of project ${projectId}. Access denied.`);
-          throw new Error("Access Denied: You are not a member of this project.");
-        }
-        log("[getProjectTasksAndSections Query]", `Access granted for user ${userId} to project ${projectId}.`);
-
-        const allProjectSprints = await prisma.sprint.findMany({
-          where: { projectId: projectId },
-          select: { id: true, name: true, startDate: true, endDate: true, isCompleted: true, createdAt: true },
-          orderBy: { createdAt: 'desc' },
-        });
-        log("[getProjectTasksAndSections Query]", `Fetched ${allProjectSprints.length} sprints for project ${projectId}.`);
-
-        let effectiveSprintId: string | null | undefined = argSprintId;
-
-        if (!effectiveSprintId && allProjectSprints.length > 0) {
-          effectiveSprintId = allProjectSprints[0].id;
-          log("[getProjectTasksAndSections Query]", `Defaulting to latest sprint by createdAt: ${allProjectSprints[0].name} (${allProjectSprints[0].id})`);
-        }
-
-
-        const taskWhereClause: any = {
-          projectId: projectId,
-          ...(effectiveSprintId && { sprintId: effectiveSprintId }),
-        };
-
-        const projectSections = await prisma.section.findMany({
-          where: { projectId: projectId },
-          orderBy: { order: 'asc' },
-          include: {
-            tasks: {
-              where: taskWhereClause,
+    
+          const { projectId, sprintId: argSprintId } = args;
+          const userId = context.user.id;
+    
+          try {
+            const project = await prisma.project.findUnique({
+              where: { id: projectId },
+              select: {
+                id: true,
+                workspaceId: true,
+                members: {
+                  where: { userId: userId },
+                  select: { userId: true }
+                }
+              }
+            });
+    
+            if (!project || project.members.length === 0) {
+              log("[getProjectTasksAndSections Query]", `User ${userId} is not a member of project ${projectId}. Access denied.`);
+              throw new Error("Access Denied: You are not a member of this project.");
+            }
+            log("[getProjectTasksAndSections Query]", `Access granted for user ${userId} to project ${projectId}.`);
+    
+            const allProjectSprints = await prisma.sprint.findMany({
+              where: { projectId: projectId },
+              select: { id: true, name: true, startDate: true, endDate: true, isCompleted: true, createdAt: true },
+              orderBy: { createdAt: 'desc' },
+            });
+            log("[getProjectTasksAndSections Query]", `Fetched ${allProjectSprints.length} sprints for project ${projectId}.`);
+    
+            let effectiveSprintId: string | null | undefined = argSprintId;
+    
+            if (!effectiveSprintId && allProjectSprints.length > 0) {
+              effectiveSprintId = allProjectSprints[0].id;
+              log("[getProjectTasksAndSections Query]", `Defaulting to latest sprint by createdAt: ${allProjectSprints[0].name} (${allProjectSprints[0].id})`);
+            }
+    
+    
+            const taskWhereClause: any = {
+              projectId: projectId,
+              ...(effectiveSprintId && { sprintId: effectiveSprintId }),
+            };
+    
+            const projectSections = await prisma.section.findMany({
+              where: { projectId: projectId },
+              orderBy: { order: 'asc' },
               include: {
-                assignee: {
-                  select: { id: true, firstName: true, lastName: true, avatar: true },
+                tasks: {
+                  where: taskWhereClause,
+                  include: {
+                    assignee: {
+                      select: { id: true, firstName: true, lastName: true, avatar: true, avatarColor: true },
+                    },
+                  },
+                  orderBy: { createdAt: 'desc' },
                 },
               },
-              orderBy: { createdAt: 'desc' },
-            },
-          },
-        });
-        log("[getProjectTasksAndSections Query]", `Fetched ${projectSections.length} project sections.`);
-
-        const personalSections = await prisma.personalSection.findMany({
-            where: { userId: userId },
-            orderBy: { order: 'asc' },
-            include: {
-                tasks: {
-                    where: {
-                        personalUserId: userId,
-                        personalWorkspaceId: project.workspaceId,
-                        sprintId: null,
-                        projectId: null,
+            });
+            log("[getProjectTasksAndSections Query]", `Fetched ${projectSections.length} project sections.`);
+    
+            const personalSections = await prisma.personalSection.findMany({
+                where: { userId: userId },
+                orderBy: { order: 'asc' },
+                include: {
+                    tasks: {
+                        where: {
+                            personalUserId: userId,
+                            personalWorkspaceId: project.workspaceId,
+                            sprintId: null,
+                            projectId: null,
+                        },
+                        include: {
+                            assignee: { select: { id: true, firstName: true, lastName: true, avatar: true, avatarColor: true } },
+                        },
+                        orderBy: { createdAt: 'desc' },
                     },
-                    include: {
-                        assignee: { select: { id: true, firstName: true, lastName: true, avatar: true } },
-                    },
-                    orderBy: { createdAt: 'desc' },
                 },
-            },
-        });
-        log("[getProjectTasksAndSections Query]", `Fetched ${personalSections.length} personal sections for user ${userId}.`);
-
-
-        const transformedProjectSections = projectSections.map(section => ({
-          id: section.id,
-          name: section.name,
-          order: section.order,
-          tasks: section.tasks.map(task => ({
-            id: task.id,
-            title: task.title,
-            description: task.description,
-            status: task.status,
-            priority: task.priority,
-            endDate: task.endDate?.toISOString().split('T')[0] || null,
-            points: task.points,
-            completed: task.status === 'DONE',
-            sprintId: task.sprintId,
-            sectionId: task.sectionId,
-            assignee: task.assignee ? {
-              id: task.assignee.id,
-              firstName: task.assignee.firstName,
-              lastName: task.assignee.lastName,
-              avatar: task.assignee.avatar,
-            } : null,
-          })),
-        }));
-
-        const transformedPersonalSections = personalSections.map(section => ({
-            id: section.id,
-            name: section.name,
-            order: section.order,
-            tasks: section.tasks.map(task => ({
+            });
+            log("[getProjectTasksAndSections Query]", `Fetched ${personalSections.length} personal sections for user ${userId}.`);
+    
+    
+            const transformedProjectSections = projectSections.map(section => ({
+              id: section.id,
+              name: section.name,
+              order: section.order,
+              tasks: section.tasks.map(task => ({
                 id: task.id,
                 title: task.title,
                 description: task.description,
@@ -416,48 +394,76 @@ export const projectResolver = {
                   firstName: task.assignee.firstName,
                   lastName: task.assignee.lastName,
                   avatar: task.assignee.avatar,
+                  avatarColor: task.assignee.avatarColor,
                 } : null,
-            })),
-        }));
-
-
-        const allProjectMembers = await prisma.projectMember.findMany({
-            where: { projectId: projectId },
-            include: {
-                user: {
-                    select: { id: true, firstName: true, lastName: true, avatar: true, email: true },
+              })),
+            }));
+    
+            const transformedPersonalSections = personalSections.map(section => ({
+                id: section.id,
+                name: section.name,
+                order: section.order,
+                tasks: section.tasks.map(task => ({
+                    id: task.id,
+                    title: task.title,
+                    description: task.description,
+                    status: task.status,
+                    priority: task.priority,
+                    endDate: task.endDate?.toISOString().split('T')[0] || null,
+                    points: task.points,
+                    completed: task.status === 'DONE',
+                    sprintId: task.sprintId,
+                    sectionId: task.sectionId,
+                    assignee: task.assignee ? {
+                      id: task.assignee.id,
+                      firstName: task.assignee.firstName,
+                      lastName: task.assignee.lastName,
+                      avatar: task.assignee.avatar,
+                      avatarColor: task.assignee.avatarColor,
+                    } : null,
+                })),
+            }));
+    
+    
+            const allProjectMembers = await prisma.projectMember.findMany({
+                where: { projectId: projectId },
+                include: {
+                    user: {
+                        select: { id: true, firstName: true, lastName: true, avatar: true, email: true, avatarColor: true },
+                    },
                 },
-            },
-        });
-        log("[getProjectTasksAndSections Query]", `Fetched ${allProjectMembers.length} project members.`);
-
-        const transformedProjectMembers = allProjectMembers.map(member => ({
-          id: member.id,
-          role: member.role,
-          user: {
-            id: member.user.id,
-            firstName: member.user.firstName,
-            lastName: member.user.lastName,
-            avatar: member.user.avatar,
-            email: member.user.email,
-          },
-        }));
-
-        const result = {
-          sprints: allProjectSprints.map(s => ({ id: s.id, name: s.name })),
-          sections: transformedProjectSections,
-          personalSections: transformedPersonalSections,
-          projectMembers: transformedProjectMembers,
-        };
-
-        log("[getProjectTasksAndSections Query]", "Tasks, sections, and members fetched successfully.", result);
-        return result;
-
-      } catch (error) {
-        log("[getProjectTasksAndSections Query]", "Error fetching project tasks and sections:", error);
-        throw error;
-      }
-    },
+            });
+            log("[getProjectTasksAndSections Query]", `Fetched ${allProjectMembers.length} project members.`);
+    
+            const transformedProjectMembers = allProjectMembers.map(member => ({
+              id: member.id,
+              role: member.role,
+              user: {
+                id: member.user.id,
+                firstName: member.user.firstName,
+                lastName: member.user.lastName,
+                avatar: member.user.avatar,
+                email: member.user.email,
+                avatarColor: member.user.avatarColor,
+              },
+            }));
+    
+            const result = {
+              sprints: allProjectSprints.map(s => ({ id: s.id, name: s.name })),
+              sections: transformedProjectSections,
+              personalSections: transformedPersonalSections,
+              projectMembers: transformedProjectMembers,
+            };
+    
+            log("[getProjectTasksAndSections Query]", "Tasks, sections, and members fetched successfully.", result);
+            return result;
+    
+          } catch (error) {
+            log("[getProjectTasksAndSections Query]", "Error fetching project tasks and sections:", error);
+            throw error;
+          }
+        },
+    
   },
   Mutation: {
     createProject: async (

@@ -1,7 +1,6 @@
 "use client"
 
 import { useMemo, useState, useEffect, useCallback, useRef } from "react"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -29,8 +28,8 @@ import { Label } from "@/components/ui/label"
 import { useMyTasksAndSections } from "@/hooks/personal/useMyTasksAndSections"
 import { usePersonalTaskmutations } from "@/hooks/personal/usePersonalTaskMutations"
 import { TaskUI, SectionUI, PriorityUI } from "@/hooks/personal/useMyTasksAndSections"
-import { TaskDetailSheet } from "../modals/task-detail-sheet"
 import { LoadingPlaceholder, ErrorPlaceholder } from "@/components/placeholders/status-placeholders"
+import { TaskDetailSheet } from "./personalTaskDetailSheet"
 
 type NewTaskForm = {
   title: string
@@ -709,7 +708,6 @@ export function PersonalListView() {
         onClose={closeSheet}
         onUpdateTask={updateTask}
         onRequestDelete={openDeleteTaskModal}
-        availableAssignees={[]}
         isTaskMutating={updateLoading}
       />
 

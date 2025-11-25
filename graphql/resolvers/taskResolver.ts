@@ -128,20 +128,20 @@ export const taskResolver = {
           // },
         },
         include: {
-          assignee: { select: { id: true, firstName: true, lastName: true, avatar: true } },
-          creator: { select: { id: true, firstName: true, lastName: true, avatar: true } },
+          assignee: { select: { id: true, firstName: true, lastName: true, avatar: true ,avatarColor:true } },
+          creator: { select: { id: true, firstName: true, lastName: true, avatar: true ,avatarColor:true  } },
           sprint: { select: { id: true, name: true } },
           section: { select: { id: true, name: true } },
           comments: {
-            include: { author: { select: { id: true, firstName: true, lastName: true, avatar: true } } },
+            include: { author: { select: { id: true, firstName: true, lastName: true, avatar: true ,avatarColor:true } } },
             orderBy: { createdAt: "asc" },
           },
           attachments: {
-            include: { uploader: { select: { id: true, firstName: true, lastName: true, avatar: true } } },
+            include: { uploader: { select: { id: true, firstName: true, lastName: true, avatar: true ,avatarColor:true } } },
             orderBy: { createdAt: "asc" },
           },
           activities: {
-            include: { user: { select: { id: true, firstName: true, lastName: true, avatar: true } } },
+            include: { user: { select: { id: true, firstName: true, lastName: true, avatar: true ,avatarColor:true } } },
             orderBy: { createdAt: "desc" },
           },
         },
@@ -183,7 +183,7 @@ export const taskResolver = {
           startDate: startDate,
           endDate: endDate,
         },
-        include: { assignee: { select: { id: true, firstName: true, lastName: true, avatar: true } } },
+        include: { assignee: { select: { id: true, firstName: true, lastName: true, avatar: true ,avatarColor:true } } },
       })
 
       await prisma.activity.create({
@@ -347,7 +347,7 @@ export const taskResolver = {
             sprintId: updates.sprintId,
             completed: updates.isCompleted !== undefined ? updates.isCompleted : updates.status === "DONE",
           },
-          include: { assignee: { select: { id: true, firstName: true, lastName: true, avatar: true } } },
+          include: { assignee: { select: { id: true, firstName: true, lastName: true, avatar: true ,avatarColor:true } } },
         }),
       ])
 
@@ -423,7 +423,7 @@ export const taskResolver = {
       const [newComment] = await prisma.$transaction([
         prisma.comment.create({
           data: { content, taskId, authorId },
-          include: { author: { select: { id: true, firstName: true, lastName: true, avatar: true } } },
+          include: { author: { select: { id: true, firstName: true, lastName: true, avatar: true ,avatarColor:true } } },
         }),
         prisma.activity.create({
           data: {
@@ -497,7 +497,7 @@ export const taskResolver = {
             taskId,
             uploaderId,
           },
-          include: { uploader: { select: { id: true, firstName: true, lastName: true, avatar: true } } },
+          include: { uploader: { select: { id: true, firstName: true, lastName: true, avatar: true ,avatarColor:true } } },
         }),
         prisma.activity.create({
           data: { type: "ATTACHMENT_ADDED", data: { fileName }, userId: uploaderId, taskId, projectId: task.projectId },
@@ -574,7 +574,7 @@ export const taskResolver = {
         },
         include: {
           assignee: {
-            select: { id: true, firstName: true, lastName: true, avatar: true },
+            select: { id: true, firstName: true, lastName: true, avatar: true ,avatarColor:true },
           },
         },
       })
@@ -614,7 +614,7 @@ export const taskResolver = {
         },
         include: {
           assignee: {
-            select: { id: true, firstName: true, lastName: true, avatar: true },
+            select: { id: true, firstName: true, lastName: true, avatar: true ,avatarColor:true },
           },
         },
       })
@@ -660,7 +660,7 @@ export const taskResolver = {
       if (!parent.assigneeId) return null
       return context.prisma.user.findUnique({
         where: { id: parent.assigneeId },
-        select: { id: true, firstName: true, lastName: true, avatar: true },
+        select: { id: true, firstName: true, lastName: true, avatar: true ,avatarColor:true },
       })
     },
   },

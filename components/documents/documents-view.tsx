@@ -3,10 +3,6 @@
 
 import { useEffect, useState, useCallback, KeyboardEvent, useMemo, useRef } from "react"
 import { useQuery } from "@apollo/client"
-// Assuming these types are available/imported correctly within the context of useProjectDocuments
-// I will not define types here but rely on them being correctly imported or inferred from context.
-// Placeholder imports for types if they were needed:
-// import { ProjectDocument, DocumentComment, CommentAuthor } from "@/hooks/useProjectDocuments" 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -59,6 +55,7 @@ import { Editor } from "./DynamicEditor"
 import { useAuth } from "@/hooks/useAuth" // Assuming useAuth is available for comment authorship checks
 import { useDocumentComments } from "@/hooks/useDocumentComments"
 import { PdfViewer } from "./pdf-viewer" // Retained for DocumentEditorView
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
 // --- UTILITIES ---
 
@@ -85,6 +82,8 @@ interface CommentAuthor {
   id: string
   firstName: string | null
   lastName: string | null
+  avatar?: string | null
+  avatarColor?: string | null // Added avatarColor
 }
 interface DocumentComment {
   id: string
@@ -139,9 +138,15 @@ const DocumentComments = ({
           <div className="space-y-4">
             {comments.map(comment => (
               <div key={comment.id} className="group flex items-start gap-2">
-                <div className="w-9 flex-shrink-0 pt-0.5 text-left font-medium text-slate-600">
-                  {getInitials(comment.author.firstName, comment.author.lastName)}
-                </div>
+                <Avatar className="h-9 w-9 flex-shrink-0">
+                    <AvatarImage src={comment.author.avatar || undefined} />
+                    <AvatarFallback 
+                        className="text-xs text-white"
+                        style={{ backgroundColor: comment.author.avatarColor || "#6366f1" }}
+                    >
+                        {getInitials(comment.author.firstName, comment.author.lastName)}
+                    </AvatarFallback>
+                </Avatar>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
@@ -490,11 +495,9 @@ const DocumentListView = ({
                       <TableRow>
                         <TableHead className="w-[50px] px-4">
                           <Checkbox
-                            checked={isAllSelected}
+                            checked={isIndeterminate ? "indeterminate" : isAllSelected}
                             onCheckedChange={v => toggleSelectAll(!!v)}
                             aria-label="Select all rows"
-                            // @ts-ignore
-                            indeterminate={isIndeterminate}
                           />
                         </TableHead>
                         <TableHead>Title</TableHead>

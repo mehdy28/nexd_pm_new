@@ -596,6 +596,7 @@ type GanttDataResponse {
 type PersonalSectionNameId {
   id: ID!
   name: String!
+  description: String # Added to prevent potential errors if expected
 }
 
 type PersonalGanttDataResponse {
@@ -887,6 +888,7 @@ type CommunicationListItem {
   unreadCount: Int!
   priority: Priority # For tickets
   conversationType: ConversationType # For conversations
+  participants: [UserLookupPartial!] # Added to support avatars in list
 }
 
 type TypingUser {
@@ -1391,7 +1393,7 @@ type Mutation {
   createPersonalSection(name: String!, order: Int): PersonalSection!
   updatePersonalSection(id: ID!, name: String, order: Int): PersonalSection!
   deletePersonalSection(id: ID!, options: DeleteSectionOptions): PersonalSection!
-  reorderPersonalSections(sections: [ReorderProjectSectionInput!]!): [PersonalSection!]!
+  reorderPersonalSections(sections: [ReorderPersonalSectionInput!]!): [PersonalSection!]!
 
 
   # Project Tasks

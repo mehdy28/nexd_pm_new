@@ -239,20 +239,20 @@ export const personalTaskResolver = {
           projectId: null, // It must be a personal task (no project).
         },
         include: {
-          assignee: { select: { id: true, firstName: true, lastName: true, avatar: true } },
-          creator: { select: { id: true, firstName: true, lastName: true, avatar: true } },
+          assignee: { select: { id: true, firstName: true, lastName: true, avatar: true ,avatarColor:true} },
+          creator: { select: { id: true, firstName: true, lastName: true, avatar: true ,avatarColor:true} },
           sprint: { select: { id: true, name: true } },
           section: { select: { id: true, name: true } },
           comments: {
-            include: { author: { select: { id: true, firstName: true, lastName: true, avatar: true } } },
+            include: { author: { select: { id: true, firstName: true, lastName: true, avatar: true ,avatarColor:true } } },
             orderBy: { createdAt: "asc" },
           },
           attachments: {
-            include: { uploader: { select: { id: true, firstName: true, lastName: true, avatar: true } } },
+            include: { uploader: { select: { id: true, firstName: true, lastName: true, avatar: true ,avatarColor:true} } },
             orderBy: { createdAt: "asc" },
           },
           activities: {
-            include: { user: { select: { id: true, firstName: true, lastName: true, avatar: true } } },
+            include: { user: { select: { id: true, firstName: true, lastName: true, avatar: true ,avatarColor:true} } },
             orderBy: { createdAt: "desc" },
           },
         },

@@ -132,7 +132,12 @@ export function CommunicationWindow({ communicationItem, details, onSendMessage,
               >
                 <Avatar className="h-8 w-8 flex-shrink-0">
                   <AvatarImage src={message.sender.avatar || undefined} alt={senderName} />
-                  <AvatarFallback>{getInitials(senderName || 'U')}</AvatarFallback>
+                  <AvatarFallback 
+                    className="text-xs text-white"
+                    style={{ backgroundColor: (message.sender as any).avatarColor || "#6366f1" }}
+                  >
+                    {getInitials(senderName || 'U')}
+                  </AvatarFallback>
                 </Avatar>
                 <div className={cn("flex-1 space-y-1 max-w-[70%]", isSelf ? "text-right" : "text-left")}>
                   <div className={cn("flex items-center space-x-2", isSelf ? "justify-end" : "justify-start")}>
