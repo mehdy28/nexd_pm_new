@@ -847,6 +847,7 @@ type Conversation {
   id: ID!
   type: ConversationType!
   name: String # For group chats
+  creatorId: ID
   participants: [UserLookupPartial!]!
   messages: [Message!]!
   updatedAt: DateTime!
@@ -856,6 +857,7 @@ type Message {
   id: ID!
   content: String!
   createdAt: DateTime!
+  conversationId: ID
   sender: UserLookupPartial!
 }
 
@@ -895,6 +897,11 @@ type TypingUser {
   id: ID!
   firstName: String
   lastName: String
+}
+
+type ParticipantRemovedPayload {
+  conversationId: ID!
+  userId: ID!
 }
 
 # ----------------------------------
@@ -1464,6 +1471,10 @@ type Mutation {
   sendTicketMessage(input: SendTicketMessageInput!): TicketMessage!
   updateTicketStatus(ticketId: ID!, status: TicketStatus!): Ticket!
   userIsTyping(conversationId: ID!): Boolean
+  leaveConversation(conversationId: ID!): Boolean
+  removeParticipant(conversationId: ID!, userId: ID!): Boolean
+  addParticipants(conversationId: ID!, participantIds: [ID!]!): Boolean # ADDED THIS
+
 
   # --- MEMBER MANAGEMENT MUTATIONS ---
   inviteWorkspaceMembers(workspaceId: ID!, invitations: [WorkspaceInvitationInput!]!): [WorkspaceInvitation!]!
@@ -1484,11 +1495,12 @@ type Mutation {
 # NEW REAL-TIME SUBSCRIPTIONS
 # ----------------------------------
 type Subscription {
-  messageAdded(conversationId: ID!): Message
+  messageAdded(conversationId: ID, workspaceId: ID): Message
   ticketMessageAdded(ticketId: ID!): TicketMessage
   typingUser(conversationId: ID!): TypingUser
   communicationItemUpdated(workspaceId: ID!): CommunicationListItem
   communicationItemAdded(workspaceId: ID!): CommunicationListItem
+  participantRemoved: ParticipantRemovedPayload
 }
 
 # ----------------------------------

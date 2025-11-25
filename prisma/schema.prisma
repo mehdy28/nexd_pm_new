@@ -30,7 +30,6 @@ enum ProjectRole {
   VIEWER
 }
 
-
 enum ProjectStatus {
   PLANNING
   ACTIVE
@@ -141,7 +140,6 @@ enum InvitationStatus {
   DECLINED
   EXPIRED
 }
-// -----------------------------
 
 // ---------------- Core Models ----------------
 
@@ -151,7 +149,7 @@ model User {
   firstName   String?
   lastName    String?
   avatar      String?
-  avatarColor String?  // <--- Added: Stores the hex code (e.g. #6366f1)
+  avatarColor String? 
   firebaseUid String?  @unique
   role        UserRole @default(MEMBER)
   createdAt   DateTime @default(now())
@@ -173,21 +171,25 @@ model User {
   uploadedAttachments  Attachment[]
   notificationSettings UserNotificationSettings?
 
-  // ---- NEW MESSAGING RELATIONS ----
+  // ---- MESSAGING RELATIONS ----
   conversationParticipants ConversationParticipant[]
   sentMessages             Message[]
   createdTickets           Ticket[]
   sentTicketMessages       TicketMessage[]
+  
+  // Added: Relation to track created conversations (for group admin permissions)
+  createdConversations     Conversation[] @relation("ConversationCreator")
   // ---------------------------------
 
-  // ---- NEW INVITATION RELATIONS ----
+  // ---- INVITATION RELATIONS ----
   sentWorkspaceInvitations WorkspaceInvitation[] @relation("Inviter")
 
-  // --- NEW ENTERPRISE RELATIONS ---
+  // --- ENTERPRISE RELATIONS ---
   auditLogs AuditLog[]
 
   @@map("users")
 }
+
 model Workspace {
   id          String   @id @default(cuid())
   name        String
@@ -210,15 +212,15 @@ model Workspace {
   personalTasks Task[]          @relation("WorkspacePersonalTasks")
   labels        Label[]
 
-  // ---- NEW INVITATION RELATIONS ----
+  // ---- INVITATION RELATIONS ----
   invitations WorkspaceInvitation[]
 
-  // ---- NEW MESSAGING RELATIONS ----
+  // ---- MESSAGING RELATIONS ----
   conversations Conversation[]
   tickets       Ticket[]
   // ---------------------------------
 
-  // --- NEW ENTERPRISE RELATIONS ---
+  // --- ENTERPRISE RELATIONS ---
   auditLogs AuditLog[]
 
   @@map("workspaces")
@@ -454,7 +456,7 @@ model Document {
   title        String
   content      Json?
   dataUrl      String?
-  type         String    @default("GENERAL") // <-- ADD THIS DEFAULT VALUE
+  type         String    @default("GENERAL")
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
   projectId    String?
@@ -466,6 +468,7 @@ model Document {
 
   @@map("documents")
 }
+
 model Wireframe {
   id           String    @id @default(cuid())
   title        String
@@ -633,13 +636,19 @@ model TaskDependency {
   @@map("task_dependencies")
 }
 
-// ---- NEW MESSAGING MODELS ----
+// ---------------------------------
+// ---- MESSAGING MODELS (UPDATED) ----
 
 model Conversation {
   id          String           @id @default(cuid())
   workspaceId String
   type        ConversationType
   name        String? // For group chats
+  
+  // Added creator tracking for kick permissions
+  creatorId   String?
+  creator     User?            @relation("ConversationCreator", fields: [creatorId], references: [id])
+
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
 
@@ -656,6 +665,10 @@ model ConversationParticipant {
   userId         String
   joinedAt       DateTime     @default(now())
   lastReadAt     DateTime?
+
+  // Added fields for "Soft Delete" / Kicking
+  hasLeft        Boolean      @default(false)
+  leftAt         DateTime?
 
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)

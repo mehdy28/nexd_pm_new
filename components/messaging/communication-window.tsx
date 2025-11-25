@@ -5,21 +5,34 @@ import { useState, useRef, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
-import { Send, User as UserIcon, Users, LifeBuoy } from "lucide-react";
+import { Send, User as UserIcon, Users, LifeBuoy, MoreVertical, X, LogOut, Trash2, UserPlus, ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { CommunicationItem, ConversationDetails, TicketDetails, TypingUser } from "@/hooks/useMessaging";
+import { CommunicationItem, ConversationDetails, TicketDetails, TypingUser, WorkspaceMember } from "@/hooks/useMessaging";
 import { formatDistanceToNow } from 'date-fns';
 
 const getInitials = (name: string) => name.split(" ").map((n) => n[0]).join("").toUpperCase();
 
 const priorityBadgeColors: Record<string, string> = {
-  LOW: 'border-green-500/50 bg-green-500/10 text-green-700',
-  MEDIUM: 'border-yellow-500/50 bg-yellow-500/10 text-yellow-700',
-  HIGH: 'border-red-500/50 bg-red-500/10 text-red-700',
+  LOW: 'border-green-500/50 bg-green-50 text-green-700',
+  MEDIUM: 'border-yellow-500/50 bg-yellow-50 text-yellow-700',
+  HIGH: 'border-red-500/50 bg-red-50 text-red-700',
 };
+ 
+// Define header background styles based on type
+const getHeaderStyle = (item: CommunicationItem) => {
+    if (item.type === 'ticket') {
+        if (item.priority === 'HIGH') return 'bg-red-50/80 border-b-red-100';
+        if (item.priority === 'MEDIUM') return 'bg-yellow-50/80 border-b-yellow-100';
+        return 'bg-green-50/80 border-b-green-100';
+    }
+    if (item.conversationType === 'GROUP') return 'bg-purple-50/80 border-b-purple-100';
+    return 'bg-blue-50/80 border-b-blue-100';
+};
+
 
 // A simple animated dots component for the typing indicator
 const TypingIndicatorDots = () => (
@@ -33,15 +46,34 @@ const TypingIndicatorDots = () => (
 interface CommunicationWindowProps {
   communicationItem: CommunicationItem;
   details: ConversationDetails | TicketDetails;
+  workspaceMembers?: WorkspaceMember[];
   onSendMessage: (content: string) => void;
   isSending: boolean;
   currentUserId?: string;
   typingUsers?: TypingUser[];
   onUserIsTyping?: () => void;
+  onLeaveConversation?: (id: string) => void;
+  onRemoveParticipant?: (conversationId: string, userId: string) => void;
+  onAddParticipants?: (conversationId: string, participantIds: string[]) => void;
 }
 
-export function CommunicationWindow({ communicationItem, details, onSendMessage, isSending, currentUserId, typingUsers = [], onUserIsTyping }: CommunicationWindowProps) {
+export function CommunicationWindow({ 
+    communicationItem, 
+    details, 
+    workspaceMembers = [],
+    onSendMessage, 
+    isSending, 
+    currentUserId, 
+    typingUsers = [], 
+    onUserIsTyping,
+    onLeaveConversation,
+    onRemoveParticipant,
+    onAddParticipants
+}: CommunicationWindowProps) {
   const [newMessage, setNewMessage] = useState("");
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isAddingMember, setIsAddingMember] = useState(false);
+  const [memberSearchQuery, setMemberSearchQuery] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -86,39 +118,215 @@ export function CommunicationWindow({ communicationItem, details, onSendMessage,
   const isTicket = communicationItem.type === "ticket";
   const ticketDetails = isTicket ? (details as TicketDetails) : null;
   const conversationDetails = !isTicket ? (details as ConversationDetails) : null;
+  const isGroup = conversationDetails?.type === 'GROUP';
+
+  // Check if kicked - Added optional chaining
+  const isParticipant = isTicket || (!!conversationDetails?.participants?.some(p => p.id === currentUserId));
 
   const { Icon, iconColor } = useMemo(() => {
-    if (isTicket) return { Icon: LifeBuoy, iconColor: "text-red-500" };
-    if (conversationDetails?.type === 'GROUP') return { Icon: Users, iconColor: "text-purple-500" };
-    return { Icon: UserIcon, iconColor: "text-blue-500" };
-  }, [isTicket, conversationDetails]);
+    if (isTicket) {
+        if (ticketDetails?.priority === 'HIGH') return { Icon: LifeBuoy, iconColor: "text-red-600" };
+        if (ticketDetails?.priority === 'MEDIUM') return { Icon: LifeBuoy, iconColor: "text-yellow-600" };
+        return { Icon: LifeBuoy, iconColor: "text-green-600" };
+    }
+    if (isGroup) return { Icon: Users, iconColor: "text-purple-600" };
+    return { Icon: UserIcon, iconColor: "text-blue-600" };
+  }, [isTicket, isGroup, ticketDetails]);
+
+  // Group Management Logic
+  const amICreator = conversationDetails?.creatorId === currentUserId;
+
+  // Filter members for adding
+  const existingParticipantIds = conversationDetails?.participants?.map(p => p.id) || [];
+  const availableMembers = workspaceMembers.filter(
+      m => !existingParticipantIds.includes(m.user.id) && 
+      (m.user.firstName?.toLowerCase().includes(memberSearchQuery.toLowerCase()) || 
+       m.user.lastName?.toLowerCase().includes(memberSearchQuery.toLowerCase()) ||
+       m.user.email.toLowerCase().includes(memberSearchQuery.toLowerCase()))
+  );
+  
+  const headerStyle = getHeaderStyle(communicationItem);
 
   return (
-    <Card className="h-full flex flex-col">
-      <CardHeader className="flex-shrink-0">
+    <Card className="h-full flex flex-col relative overflow-hidden border-0 shadow-none">
+      <CardHeader className={cn("flex-shrink-0 py-4 px-6 border-b", headerStyle)}>
         <div className="flex items-center justify-between">
-          <div>
-            <CardTitle className="text-lg flex items-center space-x-2">
-              <Icon className={cn("w-5 h-5", iconColor)} />
-              <span>{communicationItem.title}</span>
-            </CardTitle>
-            <p className="text-sm text-muted-foreground capitalize">
-              {isTicket ? `Support Ticket` : `${conversationDetails?.type === 'GROUP' ? 'Group' : 'Direct'} Conversation`}
-            </p>
+          <div className="flex items-center gap-3">
+             <div className="p-1.5 bg-white/50 rounded-md backdrop-blur-sm">
+                 <Icon className={cn("w-5 h-5", iconColor)} />
+              </div>
+              <div>
+                <CardTitle className="text-lg text-gray-800">
+                  <span>{communicationItem.title}</span>
+                </CardTitle>
+                <p className="text-xs text-muted-foreground capitalize mt-0.5">
+                  {isTicket ? `Support Ticket` : `${isGroup ? 'Group' : 'Direct'} Conversation`}
+                </p>
+              </div>
           </div>
-          {isTicket && ticketDetails && (
-            <div className="flex items-center space-x-2">
-               <Badge variant="outline" className={cn("capitalize", priorityBadgeColors[ticketDetails.priority])}>
-                {ticketDetails.priority.toLowerCase()}
-              </Badge>
-              <Badge variant="secondary" className="capitalize">{ticketDetails.status.toLowerCase().replace('_', ' ')}</Badge>
-            </div>
-          )}
+          
+          <div className="flex items-center gap-2">
+              {isTicket && ticketDetails && (
+                <div className="flex items-center space-x-2">
+                   <Badge variant="outline" className={cn("capitalize font-semibold border-2", priorityBadgeColors[ticketDetails.priority])}>
+                    {ticketDetails.priority.toLowerCase()}
+                  </Badge>
+                  <Badge 
+                    variant="secondary" 
+                    className="capitalize bg-white/60 hover:bg-white/60 text-gray-700 cursor-default"
+                  >
+                    {ticketDetails.status.toLowerCase().replace('_', ' ')}
+                  </Badge>
+                </div>
+              )}
+              
+              {isGroup && (
+                <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="hover:bg-black/5"
+                    onClick={() => setIsSettingsOpen(true)}
+                >
+                    <MoreVertical className="w-5 h-5 text-gray-600" />
+                </Button>
+              )}
+          </div>
         </div>
       </CardHeader>
-      <Separator />
-      <CardContent className="flex-1 flex flex-col p-0 min-h-0">
-        <div className="flex-1 p-4 overflow-y-auto bg-gray-50">
+      
+      {/* Sliding Settings Modal */}
+      <div 
+        className={cn(
+            "absolute inset-y-0 right-0 w-80 bg-white shadow-2xl z-20 transform transition-transform duration-300 ease-in-out border-l",
+            isSettingsOpen ? "translate-x-0" : "translate-x-full"
+        )}
+      >
+         <div className="h-full flex flex-col">
+            <div className="p-4 border-b flex items-center justify-between bg-gray-50">
+                <h3 className="font-semibold">{isAddingMember ? "Add Members" : "Group Info"}</h3>
+                <Button variant="ghost" size="sm" onClick={() => { setIsSettingsOpen(false); setIsAddingMember(false); }}>
+                    <X className="w-4 h-4" />
+                </Button>
+            </div>
+            
+            {isAddingMember ? (
+                <div className="flex-1 flex flex-col">
+                    <div className="p-4 border-b">
+                         <Button variant="ghost" size="sm" className="mb-2 -ml-2" onClick={() => setIsAddingMember(false)}>
+                            <ArrowLeft className="w-4 h-4 mr-1" /> Back
+                        </Button>
+                        <Input 
+                            placeholder="Search people..." 
+                            value={memberSearchQuery}
+                            onChange={(e) => setMemberSearchQuery(e.target.value)}
+                        />
+                    </div>
+                    <div className="flex-1 overflow-y-auto p-4 space-y-2">
+                        {availableMembers.length > 0 ? availableMembers.map(m => (
+                            <div key={m.id} className="flex items-center justify-between p-2 hover:bg-gray-50 rounded-md">
+                                <div className="flex items-center space-x-2">
+                                     <Avatar className="h-8 w-8">
+                                        <AvatarImage src={m.user.avatar || undefined} />
+                                        <AvatarFallback>{getInitials(m.user.firstName || '')}</AvatarFallback>
+                                     </Avatar>
+                                     <div className="text-sm">
+                                        <div className="font-medium">{m.user.firstName} {m.user.lastName}</div>
+                                        <div className="text-xs text-muted-foreground truncate max-w-[120px]">{m.user.email}</div>
+                                     </div>
+                                </div>
+                                <Button 
+                                    size="sm" 
+                                    variant="outline"
+                                    onClick={() => {
+                                        if (conversationDetails) {
+                                            onAddParticipants?.(conversationDetails.id, [m.user.id]);
+                                            setIsAddingMember(false);
+                                            setMemberSearchQuery("");
+                                        }
+                                    }}
+                                >
+                                    Add
+                                </Button>
+                            </div>
+                        )) : (
+                            <div className="text-center text-muted-foreground text-sm pt-4">No people found.</div>
+                        )}
+                    </div>
+                </div>
+            ) : (
+                <>
+                    <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                         <div className="text-center">
+                            <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-2">
+                                <Users className="w-8 h-8 text-purple-600" />
+                            </div>
+                            <h4 className="font-bold text-lg">{communicationItem.title}</h4>
+                            {amICreator && <Badge variant="secondary" className="mt-1">You created this group</Badge>}
+                         </div>
+                         
+                         <div>
+                            <div className="flex items-center justify-between mb-3">
+                                <h5 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Members</h5>
+                                {isParticipant && (
+                                    <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => setIsAddingMember(true)}>
+                                        <UserPlus className="w-3 h-3 mr-1" /> Add
+                                    </Button>
+                                )}
+                            </div>
+                            <div className="space-y-3">
+                                {conversationDetails?.participants?.map(p => (
+                                    <div key={p.id} className="flex items-center justify-between">
+                                        <div className="flex items-center space-x-2">
+                                             <Avatar className="h-8 w-8">
+                                                <AvatarImage src={p.avatar || undefined} />
+                                                <AvatarFallback>{getInitials(p.firstName || '')}</AvatarFallback>
+                                             </Avatar>
+                                             <div className="text-sm">
+                                                <div className="font-medium">
+                                                    {p.firstName} {p.lastName} 
+                                                    {p.id === currentUserId && " (You)"}
+                                                </div>
+                                                {p.id === conversationDetails.creatorId && <div className="text-xs text-muted-foreground">Creator</div>}
+                                             </div>
+                                        </div>
+                                        {amICreator && p.id !== currentUserId && (
+                                            <Button 
+                                                variant="ghost" 
+                                                size="sm" 
+                                                className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                                                onClick={() => onRemoveParticipant?.(conversationDetails.id, p.id)}
+                                            >
+                                                <Trash2 className="w-4 h-4" />
+                                            </Button>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                         </div>
+                    </div>
+                    {isParticipant && (
+                        <div className="p-4 border-t bg-gray-50">
+                             <Button 
+                                variant="destructive" 
+                                className="w-full" 
+                                onClick={() => {
+                                    if (onLeaveConversation && conversationDetails) {
+                                        onLeaveConversation(conversationDetails.id);
+                                        setIsSettingsOpen(false);
+                                    }
+                                }}
+                             >
+                                <LogOut className="w-4 h-4 mr-2" /> Leave Group
+                             </Button>
+                        </div>
+                    )}
+                </>
+            )}
+         </div>
+      </div>
+
+      <CardContent className="flex-1 flex flex-col p-0 min-h-0 bg-white">
+        <div className="flex-1 p-4 overflow-y-auto bg-gray-50/50">
           <div className="space-y-4">
             {details.messages.map((message) => {
               const isSelf = message.sender.id === currentUserId;
@@ -147,8 +355,8 @@ export function CommunicationWindow({ communicationItem, details, onSendMessage,
                   </div>
                   <div
                     className={cn(
-                      "p-3 rounded-xl text-sm inline-block max-w-full text-left whitespace-pre-wrap break-words",
-                      isSelf ? "bg-[hsl(174,70%,54%)] text-white rounded-tr-sm" : "bg-gray-100 rounded-tl-sm"
+                      "p-3 rounded-xl text-sm inline-block max-w-full text-left whitespace-pre-wrap break-words shadow-sm",
+                      isSelf ? "bg-[hsl(174,70%,54%)] text-white rounded-tr-sm" : "bg-white border text-gray-800 rounded-tl-sm"
                     )}
                   >
                     {message.content}
@@ -157,7 +365,8 @@ export function CommunicationWindow({ communicationItem, details, onSendMessage,
               </div>
             )})}
 
-            {typingDisplay && (
+            {/* ONLY SHOW TYPING INDICATOR IF USER IS PARTICIPANT */}
+            {isParticipant && typingDisplay && (
               <div className="flex items-center space-x-3 h-8">
                 <div className="text-xs text-muted-foreground italic flex items-center space-x-2">
                   <span>{typingDisplay}</span>
@@ -169,21 +378,28 @@ export function CommunicationWindow({ communicationItem, details, onSendMessage,
           </div>
         </div>
         <Separator />
-        <div className="p-4 flex-shrink-0">
-            <div className="flex items-end space-x-2 border rounded-md p-2 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring has-[:focus-visible]:ring-offset-2">
-                <Textarea
-                    ref={textareaRef}
-                    placeholder={isTicket ? "Reply to support..." : "Send a message..."}
-                    value={newMessage}
-                    onChange={handleTyping}
-                    onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(); } }}
-                    rows={1}
-                    className="flex-1 bg-transparent border-0 resize-none focus-visible:ring-0 focus-visible:ring-offset-0 p-0 max-h-32"
-                />
-                <Button onClick={handleSendMessage} disabled={isSending || !newMessage.trim()} className="bg-[hsl(174,70%,54%)] hover:bg-[hsl(174,70%,44%)]">
-                    <Send className="h-4 w-4" />
-                </Button>
-            </div>
+        <div className="p-4 flex-shrink-0 bg-white">
+            {isParticipant ? (
+                <div className="flex items-end space-x-2 border rounded-md p-2 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring has-[:focus-visible]:ring-offset-2 bg-gray-50">
+                    <Textarea
+                        ref={textareaRef}
+                        placeholder={isTicket ? "Reply to support..." : "Send a message..."}
+                        value={newMessage}
+                        onChange={handleTyping}
+                        onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(); } }}
+                        rows={1}
+                        className="flex-1 bg-transparent border-0 resize-none focus-visible:ring-0 focus-visible:ring-offset-0 p-0 max-h-32"
+                    />
+                    <Button onClick={handleSendMessage} disabled={isSending || !newMessage.trim()} className="bg-[hsl(174,70%,54%)] hover:bg-[hsl(174,70%,44%)] h-8 w-8 p-0 rounded-full">
+                        <Send className="h-4 w-4" />
+                    </Button>
+                </div>
+            ) : (
+                <div className="p-4 bg-red-50 border border-red-100 rounded-lg text-center text-red-600 text-sm flex items-center justify-center space-x-2">
+                    <LogOut className="w-4 h-4" />
+                    <span className="font-medium">You are no longer part of this group.</span>
+                </div>
+            )}
         </div>
       </CardContent>
     </Card>

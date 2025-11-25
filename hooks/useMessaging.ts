@@ -1,12 +1,27 @@
-//hooks/useMessaging.ts
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useQuery, useLazyQuery, useMutation, useSubscription, useApolloClient, gql } from '@apollo/client';
-import { CREATE_TICKET, CREATE_GROUP_CONVERSATION, SEND_MESSAGE, SEND_TICKET_MESSAGE, CREATE_DIRECT_CONVERSATION, USER_IS_TYPING, MARK_CONVERSATION_AS_READ } from '@/graphql/mutations/messagingMutations';
-import { MESSAGE_ADDED_SUBSCRIPTION, TICKET_MESSAGE_ADDED_SUBSCRIPTION, TYPING_USER_SUBSCRIPTION, COMMUNICATION_ITEM_ADDED_SUBSCRIPTION } from '@/graphql/subscriptions/messagingSubscription';
-import { GET_MESSAGING_DATA,GET_CONVERSATION_DETAILS,GET_TICKET_DETAILS } from '@/graphql/queries/messagingQuerries';
+import { 
+  CREATE_TICKET, 
+  CREATE_GROUP_CONVERSATION, 
+  SEND_MESSAGE, 
+  SEND_TICKET_MESSAGE, 
+  CREATE_DIRECT_CONVERSATION, 
+  USER_IS_TYPING, 
+  MARK_CONVERSATION_AS_READ,
+  LEAVE_CONVERSATION,
+  REMOVE_PARTICIPANT,
+  ADD_PARTICIPANTS
+} from '@/graphql/mutations/messagingMutations';
+import { 
+  MESSAGE_ADDED_SUBSCRIPTION, 
+  TICKET_MESSAGE_ADDED_SUBSCRIPTION, 
+  TYPING_USER_SUBSCRIPTION, 
+  COMMUNICATION_ITEM_ADDED_SUBSCRIPTION,
+  PARTICIPANT_REMOVED_SUBSCRIPTION
+} from '@/graphql/subscriptions/messagingSubscription';
+import { GET_MESSAGING_DATA, GET_CONVERSATION_DETAILS, GET_TICKET_DETAILS } from '@/graphql/queries/messagingQuerries';
 import { debounce } from 'lodash';
-
-
+import { useUser } from '@/hooks/useUser';
 
 // ---------------------------------------------------------------- //
 //                          TYPE DEFINITIONS                        //
@@ -63,7 +78,8 @@ export interface ConversationDetails {
   id: string;
   type: 'DIRECT' | 'GROUP';
   name: string | null;
-  participants: { user: UserAvatarPartial }[];
+  creatorId?: string;
+  participants: UserAvatarPartial[]; 
   messages: Message[];
 }
 
@@ -87,6 +103,7 @@ interface UseMessagingParams {
 
 export const useMessaging = ({ workspaceId }: UseMessagingParams) => {
   const client = useApolloClient();
+  const { user: currentUser } = useUser();
   const [selectedItem, setSelectedItem] = useState<CommunicationItem | null>(null);
   const [typingUsers, setTypingUsers] = useState<TypingUser[]>([]);
   const typingTimeoutRef = useRef<Record<string, NodeJS.Timeout>>({});
@@ -107,6 +124,9 @@ export const useMessaging = ({ workspaceId }: UseMessagingParams) => {
   const [createGroupConversationMutation] = useMutation(CREATE_GROUP_CONVERSATION);
   const [userIsTypingMutation] = useMutation(USER_IS_TYPING);
   const [markAsReadMutation] = useMutation(MARK_CONVERSATION_AS_READ);
+  const [leaveConversationMutation] = useMutation(LEAVE_CONVERSATION);
+  const [removeParticipantMutation] = useMutation(REMOVE_PARTICIPANT);
+  const [addParticipantsMutation] = useMutation(ADD_PARTICIPANTS);
 
   // Subscription for newly created tickets and conversations
   useSubscription(COMMUNICATION_ITEM_ADDED_SUBSCRIPTION, {
@@ -120,7 +140,6 @@ export const useMessaging = ({ workspaceId }: UseMessagingParams) => {
       try {
         const cachedData = client.readQuery<{ getCommunicationList: CommunicationItem[] }>({ query, variables: { workspaceId } });
         if (cachedData?.getCommunicationList) {
-          // Prevent duplicate adds
           if (cachedData.getCommunicationList.some(item => item.id === newItem.id)) return;
           
           const newList = [newItem, ...cachedData.getCommunicationList];
@@ -136,24 +155,85 @@ export const useMessaging = ({ workspaceId }: UseMessagingParams) => {
     }
   });
 
+  // GOAL 1: Handle Instant Kick/Removal Updates
+  useSubscription(PARTICIPANT_REMOVED_SUBSCRIPTION, {
+    onData: ({ client, data }) => {
+        const removedInfo = data.data?.participantRemoved;
+        if (!removedInfo) return;
+
+        // If I am the one removed and I am looking at that chat
+        if (removedInfo.userId === currentUser?.id) {
+             if (selectedItem?.id === removedInfo.conversationId) {
+                // Refresh details immediately. The backend will return the conversation, 
+                // but since the user hasLeft=true, the 'isParticipant' check in UI will fail 
+                // and the input box will disappear.
+                getConversation({ 
+                    variables: { id: removedInfo.conversationId }, 
+                    fetchPolicy: 'network-only' 
+                });
+             }
+        } else {
+             // Someone else was removed. If I'm looking at that chat, refresh to update member list.
+             if (selectedItem?.id === removedInfo.conversationId) {
+                 getConversation({ 
+                    variables: { id: removedInfo.conversationId }, 
+                    fetchPolicy: 'network-only' 
+                });
+             }
+        }
+    }
+  });
+
+  // Main Message Subscription
   useSubscription(MESSAGE_ADDED_SUBSCRIPTION, {
-    variables: { conversationId: selectedItem?.id },
-    skip: !selectedItem || selectedItem.type !== 'conversation',
+    variables: { workspaceId },
     onData: ({ client, data }) => {
       const newMessage = data.data?.messageAdded;
-      if (!newMessage || !selectedItem) return;
+      if (!newMessage) return;
+      
+      const isForCurrentChat = selectedItem?.id === newMessage.conversationId;
 
-      const queryOptions = { query: GET_CONVERSATION_DETAILS, variables: { id: selectedItem.id } };
+      if (isForCurrentChat && selectedItem?.type === 'conversation') {
+        const queryOptions = { query: GET_CONVERSATION_DETAILS, variables: { id: selectedItem.id } };
+        try {
+          const cachedData = client.readQuery<{ getConversation: ConversationDetails }>(queryOptions);
+          if (cachedData?.getConversation) {
+            if (cachedData.getConversation.messages.some(m => m.id === newMessage.id)) return;
+
+            client.writeQuery({ 
+              ...queryOptions, 
+              data: { getConversation: { ...cachedData.getConversation, messages: [...cachedData.getConversation.messages, newMessage] } } 
+            });
+          }
+        } catch (e) {
+          console.warn("Cache update failed for messageAdded (Details)", e);
+        }
+      } 
+      
+      const listQuery = GET_MESSAGING_DATA;
       try {
-        const cachedData = client.readQuery<{ getConversation: ConversationDetails }>(queryOptions);
-        if (cachedData?.getConversation) {
-          client.writeQuery({ 
-            ...queryOptions, 
-            data: { getConversation: { ...cachedData.getConversation, messages: [...cachedData.getConversation.messages, newMessage] } } 
-          });
+        const cachedList = client.readQuery<{ getCommunicationList: CommunicationItem[] }>({ query: listQuery, variables: { workspaceId } });
+        if (cachedList?.getCommunicationList) {
+           const updatedList = cachedList.getCommunicationList.map(item => {
+              if (item.id === newMessage.conversationId) {
+                 return {
+                    ...item,
+                    lastMessage: newMessage.content,
+                    updatedAt: newMessage.createdAt,
+                    unreadCount: !isForCurrentChat ? item.unreadCount + 1 : 0
+                 };
+              }
+              return item;
+           }).sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+
+           client.writeQuery({
+              query: listQuery,
+              variables: { workspaceId },
+              data: { ...cachedList, getCommunicationList: updatedList }
+           });
         }
       } catch (e) {
-        console.warn("Cache update failed for messageAdded", e);
+        console.warn("Cache update failed for messageAdded (List)", e);
       }
     },
   });
@@ -264,6 +344,33 @@ export const useMessaging = ({ workspaceId }: UseMessagingParams) => {
     return response.data?.createTicket;
   }, [workspaceId, createTicketMutation]);
 
+  const handleLeaveConversation = useCallback(async (conversationId: string) => {
+      await leaveConversationMutation({ variables: { conversationId }});
+      // We do NOT remove the item from the list because the user can still see old messages
+      // We just refresh the conversation details to update permissions
+      getConversation({ variables: { id: conversationId }, fetchPolicy: 'network-only' });
+  }, [leaveConversationMutation, getConversation]);
+
+  const handleRemoveParticipant = useCallback(async (conversationId: string, userId: string) => {
+      await removeParticipantMutation({ variables: { conversationId, userId }});
+      // Refreshing happens via subscription now, but we can double check
+      getConversation({ variables: { id: conversationId }, fetchPolicy: 'network-only' });
+  }, [removeParticipantMutation, getConversation]);
+
+  const handleAddParticipants = useCallback(async (conversationId: string, participantIds: string[]) => {
+      await addParticipantsMutation({ variables: { conversationId, participantIds }});
+      getConversation({ variables: { id: conversationId }, fetchPolicy: 'network-only' });
+  }, [addParticipantsMutation, getConversation]);
+
+
+  // Determine correct active details based on selected type
+  let activeItemDetails: ConversationDetails | TicketDetails | undefined | null = null;
+  if (selectedItem?.type === 'conversation') {
+      activeItemDetails = conversationData?.getConversation;
+  } else if (selectedItem?.type === 'ticket') {
+      activeItemDetails = ticketData?.getTicket;
+  }
+
   return {
     communicationList: data?.getCommunicationList || [],
     workspaceMembers: data?.getWorkspaceMembers || [],
@@ -272,13 +379,16 @@ export const useMessaging = ({ workspaceId }: UseMessagingParams) => {
     refetchList: refetch,
     selectedItem,
     setSelectedItem: handleSelectItem,
-    activeItemDetails: conversationData?.getConversation || ticketData?.getTicket,
+    activeItemDetails,
     itemLoading: conversationLoading || ticketLoading,
     sendMessage: handleSendMessage,
     sendingMessage: sendingMessage || sendingTicketMessage,
     createTicket: handleCreateTicket,
     createDirectConversation: createDirectConversationMutation,
     createGroupConversation: createGroupConversationMutation,
+    leaveConversation: handleLeaveConversation,
+    removeParticipant: handleRemoveParticipant,
+    addParticipants: handleAddParticipants,
     typingUsers,
     notifyTyping,
   };

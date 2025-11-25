@@ -1,3 +1,4 @@
+//graphql/resolvers/memberManagementResolver.ts
 import { prisma } from "@/lib/prisma";
 import { UserInputError, ForbiddenError } from 'apollo-server-micro';
 import { sendWorkspaceInvitationEmail } from "@/lib/email";
@@ -216,7 +217,11 @@ export const memberManagementResolvers = {
                 projectId,
                 userId: { in: members.map(m => m.userId) }
             },
-            include: { user: true }
+            include: { 
+              user: {
+                select: { id: true, firstName: true, lastName: true, avatar: true, avatarColor: true, email: true }
+              }
+            }
         });
     },
 

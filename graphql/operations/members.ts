@@ -1,3 +1,4 @@
+//graphql/operations/members.ts
 import { gql } from '@apollo/client';
 
 export const USER_LOOKUP_PARTIAL_FRAGMENT = gql`
@@ -7,6 +8,7 @@ export const USER_LOOKUP_PARTIAL_FRAGMENT = gql`
     lastName
     email
     avatar
+    avatarColor
   }
 `;
 
@@ -17,6 +19,7 @@ export const USER_FULL_DETAILS_FRAGMENT = gql`
     lastName
     email
     avatar
+    avatarColor
   }
 `;
 

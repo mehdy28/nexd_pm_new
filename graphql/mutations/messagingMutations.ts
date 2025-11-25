@@ -34,6 +34,7 @@ export const SEND_MESSAGE = gql`
       id
       content
       createdAt
+      conversationId
       sender {
         id
         firstName
@@ -70,5 +71,23 @@ export const USER_IS_TYPING = gql`
 export const MARK_CONVERSATION_AS_READ = gql`
   mutation MarkConversationAsRead($conversationId: ID!) {
     markConversationAsRead(conversationId: $conversationId)
+  }
+`;
+
+export const LEAVE_CONVERSATION = gql`
+  mutation LeaveConversation($conversationId: ID!) {
+    leaveConversation(conversationId: $conversationId)
+  }
+`;
+
+export const REMOVE_PARTICIPANT = gql`
+  mutation RemoveParticipant($conversationId: ID!, $userId: ID!) {
+    removeParticipant(conversationId: $conversationId, userId: $userId)
+  }
+`;
+
+export const ADD_PARTICIPANTS = gql`
+  mutation AddParticipants($conversationId: ID!, $participantIds: [ID!]!) {
+    addParticipants(conversationId: $conversationId, participantIds: $participantIds)
   }
 `;

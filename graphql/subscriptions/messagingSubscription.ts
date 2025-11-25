@@ -1,14 +1,14 @@
-//graphql/subscriptions/messagingSubscription.ts
 import { gql } from '@apollo/client';
 
 // SUBSCRIPTIONS
 
 export const MESSAGE_ADDED_SUBSCRIPTION = gql`
-  subscription MessageAdded($conversationId: ID!) {
-    messageAdded(conversationId: $conversationId) {
+  subscription MessageAdded($conversationId: ID, $workspaceId: ID) {
+    messageAdded(conversationId: $conversationId, workspaceId: $workspaceId) {
       id
       content
       createdAt
+      conversationId
       sender {
         id
         firstName
@@ -67,6 +67,15 @@ export const COMMUNICATION_ITEM_ADDED_SUBSCRIPTION = gql`
         avatar
         avatarColor
       }
+    }
+  }
+`;
+
+export const PARTICIPANT_REMOVED_SUBSCRIPTION = gql`
+  subscription ParticipantRemoved {
+    participantRemoved {
+      conversationId
+      userId
     }
   }
 `;

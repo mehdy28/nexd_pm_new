@@ -1,3 +1,4 @@
+
 // components/project/assign-project-members-modal.tsx
 "use client";
 
@@ -26,22 +27,11 @@ type SelectedMember = {
 };
 
 export function AssignProjectMembersModal({ isOpen, onClose, workspaceId, projectId }: AssignProjectMembersModalProps) {
-  console.log("[Modal] AssignProjectMembersModal rendering. Props:", { isOpen, workspaceId, projectId });
-
   const { assignableMembers, loading, addProjectMembers, addProjectMembersLoading } = useMemberManagement(workspaceId, projectId);
   const [selectedMembers, setSelectedMembers] = useState<SelectedMember[]>([]);
 
   useEffect(() => {
-    console.log("[Modal] Data from useMemberManagement hook:", {
-      assignableMembers,
-      loading,
-      addProjectMembersLoading,
-    });
-  }, [assignableMembers, loading, addProjectMembersLoading]);
-
-  useEffect(() => {
     if (!isOpen) {
-      console.log("[Modal] isOpen is false, resetting selected members state.");
       setSelectedMembers([]);
     }
   }, [isOpen]);
@@ -59,11 +49,9 @@ export function AssignProjectMembersModal({ isOpen, onClose, workspaceId, projec
   };
 
   const handleSubmit = async () => {
-    console.log("[Modal] Submit button clicked. Attempting to add members:", selectedMembers);
     if (selectedMembers.length === 0) return;
     try {
       await addProjectMembers(selectedMembers);
-      console.log("[Modal] Successfully added members. Calling onClose.");
       onClose();
     } catch (error) {
       console.error("[Modal] Failed to add project members:", error);
@@ -71,8 +59,6 @@ export function AssignProjectMembersModal({ isOpen, onClose, workspaceId, projec
   };
   
   const isSelected = (userId: string) => selectedMembers.some(m => m.userId === userId);
-
-  console.log(`[Modal] Rendering view. Is loading: ${loading}`);
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -102,8 +88,13 @@ export function AssignProjectMembersModal({ isOpen, onClose, workspaceId, projec
                         />
                         <Label htmlFor={`member-${member.user.id}`} className="flex items-center gap-3 flex-1 cursor-pointer">
                            <Avatar className="h-8 w-8">
-                              <AvatarImage src={member.user.avatar || `https://ui-avatars.com/api/?name=${member.user.firstName}+${member.user.lastName}`} />
-                              <AvatarFallback>{`${member.user.firstName?.[0] || ''}${member.user.lastName?.[0] || ''}`}</AvatarFallback>
+                              <AvatarImage src={member.user.avatar || undefined} />
+                              <AvatarFallback 
+                                className="text-white text-xs"
+                                style={{ backgroundColor: (member.user as any).avatarColor || "#6366f1" }}
+                              >
+                                {`${member.user.firstName?.[0] || ''}${member.user.lastName?.[0] || ''}`}
+                              </AvatarFallback>
                             </Avatar>
                             <div className="flex-1">
                                 <p className="font-medium">{`${member.user.firstName || ''} ${member.user.lastName || ''}`.trim()}</p>

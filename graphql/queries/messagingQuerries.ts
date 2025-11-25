@@ -58,6 +58,7 @@ export const GET_CONVERSATION_DETAILS = gql`
       id
       type
       name
+      creatorId
       participants {
         id
         firstName
@@ -69,6 +70,7 @@ export const GET_CONVERSATION_DETAILS = gql`
         id
         content
         createdAt
+        conversationId
         sender {
           id
           firstName

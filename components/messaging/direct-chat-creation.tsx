@@ -1,4 +1,3 @@
-//components/messaging/direct-chat-creation.tsx
 "use client";
 
 import { useState } from "react";
@@ -18,17 +17,27 @@ const getInitials = (name: string) => name.split(" ").map((n) => n[0]).join("").
 interface DirectChatCreationProps {
   workspaceId: string;
   members: WorkspaceMember[];
+  communicationList: CommunicationItem[];
   onBack: () => void;
   onChatSelected: (item: CommunicationItem) => void;
   createDirectConversation: (variables: { variables: { workspaceId: string; participantId: string } }) => Promise<any>;
 }
 
-export function DirectChatCreation({ workspaceId, members, onBack, onChatSelected, createDirectConversation }: DirectChatCreationProps) {
+export function DirectChatCreation({ workspaceId, members, communicationList, onBack, onChatSelected, createDirectConversation }: DirectChatCreationProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const { user: currentUser } = useUser();
 
   const filteredUsers = members.filter(member => {
       if (member.user.id === currentUser?.id) return false; // Exclude self
+      
+      // Constraint: Check if direct conversation already exists
+      const hasExistingChat = communicationList.some(item => 
+        item.type === 'conversation' && 
+        item.conversationType === 'DIRECT' && 
+        item.participants?.some(p => p.id === member.user.id)
+      );
+      if (hasExistingChat) return false;
+
       const fullName = `${member.user.firstName || ''} ${member.user.lastName || ''}`.toLowerCase();
       const email = member.user.email.toLowerCase();
       return fullName.includes(searchQuery.toLowerCase()) || email.includes(searchQuery.toLowerCase());
@@ -87,7 +96,9 @@ export function DirectChatCreation({ workspaceId, members, onBack, onChatSelecte
                     </div>
                 )})
             ) : (
-                <div className="p-4 text-center text-muted-foreground">No users found.</div>
+                <div className="p-4 text-center text-muted-foreground">
+                    {members.length > 1 ? "No new users available or matching search." : "No users found."}
+                </div>
             )}
           </div>
         </div>

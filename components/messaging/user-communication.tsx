@@ -1,4 +1,3 @@
-//components/messaging/user-communication.tsx
 "use client";
 
 import { useState } from "react";
@@ -39,13 +38,15 @@ export function UserCommunication({ workspaceId }: UserCommunicationProps) {
     createTicket,
     createDirectConversation,
     createGroupConversation,
+    leaveConversation,
+    removeParticipant,
+    addParticipants,
     typingUsers,
     notifyTyping,
   } = useMessaging({ workspaceId });
 
   const handleCreateNewTicket = () => {
     setCurrentView('new_ticket');
-    // We set to null directly here, no need for the wrapper
     setSelectedItem(null as any);
   };
 
@@ -67,9 +68,6 @@ export function UserCommunication({ workspaceId }: UserCommunicationProps) {
   const handleTicketSubmission = async (data: { subject: string; priority: any; message: string }) => {
     const newTicket = await createTicket(data);
     if (newTicket) {
-      // The subscription will add the ticket to the list in real-time.
-      // We can optimistically create a temporary item to select, or wait for the subscription to add it.
-      // For simplicity, we'll just switch the view. The user can then click on the new item.
       setCurrentView('list');
     }
   };
@@ -101,6 +99,7 @@ export function UserCommunication({ workspaceId }: UserCommunicationProps) {
             <DirectChatCreation
                 workspaceId={workspaceId}
                 members={workspaceMembers}
+                communicationList={communicationList}
                 onBack={() => setCurrentView('list')}
                 onChatSelected={handleChatCreated}
                 createDirectConversation={createDirectConversation}
@@ -122,11 +121,15 @@ export function UserCommunication({ workspaceId }: UserCommunicationProps) {
           key={selectedItem.id}
           communicationItem={selectedItem}
           details={activeItemDetails}
+          workspaceMembers={workspaceMembers}
           onSendMessage={sendMessage}
           isSending={sendingMessage}
           currentUserId={currentUser?.id}
           typingUsers={typingUsers}
           onUserIsTyping={notifyTyping}
+          onLeaveConversation={leaveConversation}
+          onRemoveParticipant={removeParticipant}
+          onAddParticipants={addParticipants}
         />
       );
     }

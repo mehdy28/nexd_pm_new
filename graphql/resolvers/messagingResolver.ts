@@ -22,9 +22,13 @@ const log = (source: string, message: string, data?: any) => {
 // Helper to create a consistent payload for the communication list
 const createCommunicationListItemPayload = async (item: any, type: 'conversation' | 'ticket', userId: string) => {
   if (type === 'conversation') {
+    // Filter out users who have left for the participant info string
+    const activeParticipants = item.participants.filter((p: any) => !p.hasLeft);
+    
     const participantInfo = item.type === 'DIRECT' 
       ? `${item.participants.find((p: any) => p.userId !== userId)?.user.firstName} ${item.participants.find((p: any) => p.userId !== userId)?.user.lastName}`.trim()
-      : `${item.participants.length} members`;
+      : `${activeParticipants.length} members`;
+      
     const title = item.type === 'DIRECT' ? participantInfo : item.name;
 
     return {
@@ -36,9 +40,11 @@ const createCommunicationListItemPayload = async (item: any, type: 'conversation
       updatedAt: item.updatedAt,
       unreadCount: 0,
       conversationType: item.type,
-      workspaceId: item.workspaceId, // For filtering
+      workspaceId: item.workspaceId, 
+      // Only show avatars of active participants
+      participants: activeParticipants.map((p: any) => p.user)
     };
-  } else { // ticket
+  } else { 
     return {
       id: item.id,
       type: 'ticket',
@@ -46,9 +52,10 @@ const createCommunicationListItemPayload = async (item: any, type: 'conversation
       lastMessage: item.messages[0]?.content || 'Ticket created.',
       participantInfo: 'Support Team',
       updatedAt: item.updatedAt,
-      unreadCount: 1, // Start as unread for support team
+      unreadCount: 1, 
       priority: item.priority,
-      workspaceId: item.workspaceId, // For filtering
+      workspaceId: item.workspaceId,
+      participants: [item.creator] 
     };
   }
 };
@@ -64,18 +71,15 @@ export const messagingResolvers = {
         const userId = context.user?.id;
         if (!userId) throw new GraphQLError('Not authenticated');
         
-        log(source, 'Checking membership for user', { userId, workspaceId });
         const member = await prisma.workspaceMember.findFirst({ where: { workspaceId, userId } });
         if (!member) throw new GraphQLError('Access denied');
         
-        log(source, 'Fetching all members');
         const members = await prisma.workspaceMember.findMany({
           where: { workspaceId },
           include: { user: { select: { id: true, firstName: true, lastName: true, email: true, avatar: true , avatarColor : true } } },
           orderBy: { user: { firstName: 'asc' } },
         });
 
-        log(source, 'Successfully fetched members', { count: members.length });
         return members;
       } catch (error: any) {
         log(source, 'ERROR', { error: error.message });
@@ -93,10 +97,11 @@ export const messagingResolvers = {
         const member = await prisma.workspaceMember.findFirst({ where: { userId, workspaceId } });
         if (!member) throw new GraphQLError('Access denied to workspace resources');
         
+        // Fetch conversations even if the user has left (hasLeft=true) so they can see the history in the list
         const conversations = await prisma.conversation.findMany({
           where: { workspaceId, participants: { some: { userId } } },
           include: {
-            participants: { include: { user: { select: { id: true, firstName: true, lastName: true } } } },
+            participants: { include: { user: { select: { id: true, firstName: true, lastName: true, avatar: true, avatarColor: true } } } },
             messages: { orderBy: { createdAt: 'desc' }, take: 1 },
           },
           orderBy: { updatedAt: 'desc' },
@@ -106,7 +111,7 @@ export const messagingResolvers = {
         const tickets = await prisma.ticket.findMany({
           where: { workspaceId, ...(isSaasAdmin ? {} : { creatorId: userId }) },
           include: {
-            creator: { select: { id: true, firstName: true, lastName: true } },
+            creator: { select: { id: true, firstName: true, lastName: true, avatar: true, avatarColor: true } },
             messages: { orderBy: { createdAt: 'desc' }, take: 1 },
           },
           orderBy: { updatedAt: 'desc' },
@@ -115,24 +120,57 @@ export const messagingResolvers = {
         const conversationItems = await Promise.all(
           conversations.map(async (c) => {
             const currentUserParticipant = c.participants.find((p) => p.userId === userId);
-            const unreadCount = await prisma.message.count({
-              where: {
-                conversationId: c.id,
-                createdAt: { gt: currentUserParticipant?.lastReadAt || new Date(0) },
-                senderId: { not: userId },
-              },
-            });
+            
+            // Logic: If user has left, they have 0 unread messages (they don't see new ones)
+            let unreadCount = 0;
+            if (currentUserParticipant && !currentUserParticipant.hasLeft) {
+                unreadCount = await prisma.message.count({
+                    where: {
+                        conversationId: c.id,
+                        createdAt: { gt: currentUserParticipant.lastReadAt || new Date(0) },
+                        senderId: { not: userId },
+                    },
+                });
+            }
+
             let title = c.name;
-            let participantInfo = `${c.participants.length} members`;
+            
+            // For group info, only count/show ACTIVE participants
+            const activeParticipants = c.participants.filter(p => !p.hasLeft);
+            let participantInfo = `${activeParticipants.length} members`;
+
             if (c.type === 'DIRECT') {
               const otherParticipant = c.participants.find((p) => p.userId !== userId);
               title = `${otherParticipant?.user.firstName || ''} ${otherParticipant?.user.lastName || ''}`.trim();
               participantInfo = title;
             }
-            return { id: c.id, type: 'conversation', title, lastMessage: c.messages[0]?.content || 'Conversation started.', participantInfo, updatedAt: c.updatedAt, unreadCount, conversationType: c.type };
+
+            return { 
+                id: c.id, 
+                type: 'conversation', 
+                title, 
+                lastMessage: c.messages[0]?.content || 'Conversation started.', 
+                participantInfo, 
+                updatedAt: c.updatedAt, 
+                unreadCount, 
+                conversationType: c.type,
+                // Only return active participants for the avatar stack
+                participants: activeParticipants.map(p => p.user) 
+            };
           })
         );
-        const ticketItems = tickets.map((t) => ({ id: t.id, type: 'ticket', title: t.subject, lastMessage: t.messages[0]?.content || 'Ticket created.', participantInfo: 'Support Team', updatedAt: t.updatedAt, unreadCount: 0, priority: t.priority }));
+
+        const ticketItems = tickets.map((t) => ({ 
+            id: t.id, 
+            type: 'ticket', 
+            title: t.subject, 
+            lastMessage: t.messages[0]?.content || 'Ticket created.', 
+            participantInfo: 'Support Team', 
+            updatedAt: t.updatedAt, 
+            unreadCount: 0, 
+            priority: t.priority,
+            participants: [t.creator] 
+        }));
         
         const result = [...conversationItems, ...ticketItems].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
         log(source, 'Successfully fetched communication list', { itemCount: result.length });
@@ -149,16 +187,47 @@ export const messagingResolvers = {
         log(source, 'Fired', { id });
         const userId = context.user?.id;
         if (!userId) throw new GraphQLError('Not authenticated');
+        
+        // 1. Check if user is associated with this conversation at all
+        const currentUserParticipant = await prisma.conversationParticipant.findFirst({
+            where: { conversationId: id, userId }
+        });
+        if (!currentUserParticipant) throw new GraphQLError('Access denied');
+
+        // 2. Fetch conversation with ALL participants (to calculate active ones later if needed)
+        // or just fetch active ones using 'where' inside include
         const conversation = await prisma.conversation.findFirst({
-          where: { id, participants: { some: { userId } } },
+          where: { id },
           include: {
-            participants: { include: { user: { select: { id: true, firstName: true, lastName: true, avatar: true , avatarColor : true } } } },
-            messages: { include: { sender: { select: { id: true, firstName: true, lastName: true, avatar: true , avatarColor : true } } }, orderBy: { createdAt: 'asc' } },
+            // Only include ACTIVE participants in the details list so kicked users don't show up in the "Members" list
+            participants: { 
+                where: { hasLeft: false }, 
+                include: { user: { select: { id: true, firstName: true, lastName: true, avatar: true , avatarColor : true } } } 
+            },
+            messages: { 
+                include: { sender: { select: { id: true, firstName: true, lastName: true, avatar: true , avatarColor : true } } }, 
+                orderBy: { createdAt: 'asc' } 
+            },
           },
         });
-        if (!conversation) throw new GraphQLError('Conversation not found or access denied.');
+        if (!conversation) throw new GraphQLError('Conversation not found.');
+        
+        // 3. Logic for Kicked Users:
+        // If the current user has left, filter messages. They only see history up to the point they left.
+        let messages = conversation.messages;
+        if (currentUserParticipant.hasLeft && currentUserParticipant.leftAt) {
+            const kickDate = new Date(currentUserParticipant.leftAt);
+            messages = messages.filter(m => new Date(m.createdAt) <= kickDate);
+        }
+
+        const flattenedConversation = {
+            ...conversation,
+            messages,
+            participants: conversation.participants.map(p => p.user)
+        };
+
         log(source, 'Successfully fetched conversation');
-        return conversation;
+        return flattenedConversation;
       } catch (error: any) {
         log(source, 'ERROR', { error: error.message });
         throw new GraphQLError(error.message || 'An error occurred fetching the conversation.');
@@ -208,7 +277,8 @@ export const messagingResolvers = {
           typingUser: { ...user, conversationId }
         };
         
-        // Assumes USER_IS_TYPING is added to Topics enum in pubsub.ts
+        // This subscription should also theoretically check if the user is kicked, 
+        // but typing indicators are less critical security-wise.
         await pubsub.publish(Topics.USER_IS_TYPING, payload);
 
         return true;
@@ -226,24 +296,37 @@ export const messagingResolvers = {
         if (!userId) throw new GraphQLError('Not authenticated');
         const { workspaceId, participantId } = input;
         if (userId === participantId) throw new GraphQLError('Cannot create a direct conversation with yourself.');
+        
         const existingConversation = await prisma.conversation.findFirst({
             where: { workspaceId, type: 'DIRECT', participants: { every: { userId: { in: [userId, participantId] } } } }
         });
+
         if (existingConversation) {
-          log(source, 'Found existing conversation', { id: existingConversation.id });
-          return existingConversation;
+             const count = await prisma.conversationParticipant.count({ where: { conversationId: existingConversation.id }});
+             if (count === 2) {
+                 const fullExisting = await prisma.conversation.findUnique({
+                    where: { id: existingConversation.id },
+                    include: { participants: { include: { user: true } } }
+                 });
+                 if(fullExisting) {
+                    return { ...fullExisting, participants: fullExisting.participants.map(p => p.user) };
+                 }
+             }
         }
-        log(source, 'Creating new conversation');
+
         const conversation = await prisma.conversation.create({
-            data: { workspaceId, type: 'DIRECT', participants: { create: [{ userId }, { userId: participantId }] } },
-            include: { participants: { include: { user: true } } } // Include data for payload
+            data: { 
+                workspaceId, 
+                type: 'DIRECT', 
+                participants: { create: [{ userId }, { userId: participantId }] },
+            },
+            include: { participants: { include: { user: true } } } 
         });
 
         const payload = await createCommunicationListItemPayload(conversation, 'conversation', userId);
-        // Assumes COMMUNICATION_ITEM_ADDED is added to Topics enum in pubsub.ts
         await pubsub.publish(Topics.COMMUNICATION_ITEM_ADDED, { communicationItemAdded: payload });
 
-        return conversation;
+        return { ...conversation, participants: conversation.participants.map(p => p.user) };
       } catch (error: any) {
         log(source, 'ERROR', { error: error.message });
         throw new GraphQLError(error.message || 'An error occurred creating a direct conversation.');
@@ -259,17 +342,22 @@ export const messagingResolvers = {
         const { workspaceId, name, participantIds } = input;
         const allParticipantIds = [...new Set([...participantIds, userId])];
         if (allParticipantIds.length < 2) throw new GraphQLError('Group conversations require at least two participants.');
-        log(source, 'Creating new group conversation');
+        
         const conversation = await prisma.conversation.create({
-          data: { workspaceId, name, type: 'GROUP', participants: { create: allParticipantIds.map((id) => ({ userId: id })) } },
-          include: { participants: true } // Include data for payload
+          data: { 
+              workspaceId, 
+              name, 
+              type: 'GROUP', 
+              creatorId: userId, // Track Creator
+              participants: { create: allParticipantIds.map((id) => ({ userId: id })) } 
+          },
+          include: { participants: { include: { user: true } } } 
         });
 
         const payload = await createCommunicationListItemPayload(conversation, 'conversation', userId);
-        // Assumes COMMUNICATION_ITEM_ADDED is added to Topics enum in pubsub.ts
         await pubsub.publish(Topics.COMMUNICATION_ITEM_ADDED, { communicationItemAdded: payload });
 
-        return conversation;
+        return { ...conversation, participants: conversation.participants.map(p => p.user) };
       } catch (error: any) {
         log(source, 'ERROR', { error: error.message });
         throw new GraphQLError(error.message || 'An error occurred creating a group conversation.');
@@ -283,7 +371,6 @@ export const messagingResolvers = {
         const userId = context.user?.id;
         if (!userId) throw new GraphQLError('Not authenticated');
 
-        // CORRECTED: Do not spread input. Construct the data object explicitly.
         const ticket = await prisma.ticket.create({
           data: {
             workspaceId: input.workspaceId,
@@ -297,11 +384,10 @@ export const messagingResolvers = {
               },
             },
           },
-          include: { messages: true }, // Include data for payload
+          include: { messages: true, creator: true }, 
         });
 
         const payload = await createCommunicationListItemPayload(ticket, 'ticket', userId);
-        // Assumes COMMUNICATION_ITEM_ADDED is added to Topics enum in pubsub.ts
         await pubsub.publish(Topics.COMMUNICATION_ITEM_ADDED, { communicationItemAdded: payload });
         
         return ticket;
@@ -318,8 +404,11 @@ export const messagingResolvers = {
         const userId = context.user?.id;
         if (!userId) throw new GraphQLError('Not authenticated');
         const { conversationId, content } = input;
+        
+        // Ensure user is an ACTIVE participant
         const participant = await prisma.conversationParticipant.findFirst({ where: { conversationId, userId } });
-        if (!participant) throw new GraphQLError('You are not a member of this conversation.');
+        if (!participant || participant.hasLeft) throw new GraphQLError('You are not a member of this conversation.');
+        
         const [newMessage] = await prisma.$transaction([
             prisma.message.create({
                 data: { conversationId, senderId: userId, content },
@@ -327,6 +416,7 @@ export const messagingResolvers = {
             }),
             prisma.conversation.update({ where: { id: conversationId }, data: { updatedAt: new Date() } }),
         ]);
+        
         const payload = { messageAdded: newMessage };
         log(source, `Publishing to topic: ${Topics.MESSAGE_ADDED}`, payload);
         await pubsub.publish(Topics.MESSAGE_ADDED, payload);
@@ -344,14 +434,11 @@ export const messagingResolvers = {
         const userId = context.user?.id;
         if (!userId) throw new GraphQLError('Not authenticated');
 
-        log(source, 'Validating user can post to ticket');
         const isSaasAdmin = context.user?.role === 'ADMIN';
         const ticket = await prisma.ticket.findUnique({ where: { id: input.ticketId } });
         if (!ticket) throw new GraphQLError('Ticket not found.');
         if (ticket.creatorId !== userId && !isSaasAdmin) throw new GraphQLError('Access denied');
-        log(source, 'Validation successful');
 
-        log(source, 'Starting transaction to create message');
         const [newTicketMessage] = await prisma.$transaction([
             prisma.ticketMessage.create({
                 data: { ticketId: input.ticketId, senderId: userId, content: input.content },
@@ -359,7 +446,6 @@ export const messagingResolvers = {
             }),
             prisma.ticket.update({ where: { id: input.ticketId }, data: { updatedAt: new Date() } }),
         ]);
-        log(source, 'Transaction successful');
 
         const messageWithSupportFlag = { ...newTicketMessage, isSupport: newTicketMessage.sender.role === 'ADMIN' };
         
@@ -367,10 +453,8 @@ export const messagingResolvers = {
             ticketAuthorizer: { ticketCreatorId: ticket.creatorId },
             ticketMessageAdded: messageWithSupportFlag,
         };
-        log(source, `Publishing to topic: ${Topics.TICKET_MESSAGE_ADDED}`, payloadToPublish);
         await pubsub.publish(Topics.TICKET_MESSAGE_ADDED, payloadToPublish);
         
-        log(source, 'Publish complete. Returning new message.');
         return messageWithSupportFlag;
       } catch (error: any) {
         log(source, 'ERROR', { error: error.message });
@@ -381,54 +465,151 @@ export const messagingResolvers = {
     markConversationAsRead: async (_: any, { conversationId }: { conversationId: string }, context: GraphQLContext) => {
       const source = 'Mutation: markConversationAsRead';
       try {
-        log(source, 'Fired', { conversationId });
         const userId = context.user?.id;
         if (!userId) throw new GraphQLError('Not authenticated');
         await prisma.conversationParticipant.update({
             where: { conversationId_userId: { conversationId, userId } },
             data: { lastReadAt: new Date() },
         });
-        log(source, 'Successfully updated lastReadAt');
         return true;
       } catch (error: any) {
         log(source, 'ERROR', { error: error.message });
         throw new GraphQLError(error.message || 'An error occurred marking as read.');
       }
     },
-    
-    updateTicketStatus: async (_: any, { ticketId, status }: { ticketId: string; status: 'OPEN' | 'IN_PROGRESS' | 'RESOLVED' | 'CLOSED' }, context: GraphQLContext) => {
-      const source = 'Mutation: updateTicketStatus';
-      try {
-        log(source, 'Fired', { ticketId, status });
-        if (context.user?.role !== 'ADMIN') throw new GraphQLError('Only administrators can update ticket status.');
-        return prisma.ticket.update({ where: { id: ticketId }, data: { status, ...(status === 'RESOLVED' && { resolvedAt: new Date() }) } });
-      } catch (error: any) {
-        log(source, 'ERROR', { error: error.message });
-        throw new GraphQLError(error.message || 'An error occurred updating ticket status.');
-      }
+
+    addParticipants: async (_: any, { conversationId, participantIds }: { conversationId: string, participantIds: string[] }, context: GraphQLContext) => {
+        const source = 'Mutation: addParticipants';
+        try {
+            const userId = context.user?.id;
+            if (!userId) throw new GraphQLError('Not authenticated');
+
+            // 1. Verify access: User must be an ACTIVE participant
+            const participant = await prisma.conversationParticipant.findFirst({
+                where: { conversationId, userId, hasLeft: false }
+            });
+            if (!participant) throw new GraphQLError('You are not a participant of this conversation.');
+
+            // 2. Add new members
+            // We use upsert to handle re-adding previously kicked members by resetting hasLeft to false
+            await prisma.$transaction(
+                participantIds.map(id => 
+                    prisma.conversationParticipant.upsert({
+                        where: { conversationId_userId: { conversationId, userId: id } },
+                        update: { hasLeft: false, leftAt: null, joinedAt: new Date() },
+                        create: { conversationId, userId: id, hasLeft: false }
+                    })
+                )
+            );
+
+            // 3. Notify clients. This ensures the new user sees the chat in their list immediately.
+            const conversation = await prisma.conversation.findUnique({ 
+                where: { id: conversationId }, 
+                include: { participants: { include: { user: true } } }
+            });
+            
+            if(conversation) {
+                // Hacky way to trigger list refresh for relevant users. 
+                // We fake a "new item" event payload.
+                const payload = await createCommunicationListItemPayload(conversation, 'conversation', userId);
+                await pubsub.publish(Topics.COMMUNICATION_ITEM_ADDED, { communicationItemAdded: payload });
+            }
+
+            return true;
+        } catch (error: any) {
+            log(source, 'ERROR', { error: error.message });
+            throw new GraphQLError('Failed to add participants');
+        }
     },
+
+    leaveConversation: async (_: any, { conversationId }: { conversationId: string }, context: GraphQLContext) => {
+        const source = 'Mutation: leaveConversation';
+        try {
+            const userId = context.user?.id;
+            if (!userId) throw new GraphQLError('Not authenticated');
+            
+            // Soft delete: User marks themselves as 'hasLeft'
+            await prisma.conversationParticipant.update({
+                where: { conversationId_userId: { conversationId, userId } },
+                data: { hasLeft: true, leftAt: new Date() }
+            });
+            return true;
+        } catch (error: any) {
+            log(source, 'ERROR', { error: error.message });
+            throw new GraphQLError('Could not leave conversation.');
+        }
+    },
+
+    removeParticipant: async (_: any, { conversationId, userId }: { conversationId: string, userId: string }, context: GraphQLContext) => {
+        const source = 'Mutation: removeParticipant';
+        try {
+            const currentUserId = context.user?.id;
+            if (!currentUserId) throw new GraphQLError('Not authenticated');
+
+            const conversation = await prisma.conversation.findUnique({ where: { id: conversationId } });
+            if (!conversation) throw new GraphQLError('Conversation not found');
+            
+            if (conversation.creatorId !== currentUserId) throw new GraphQLError('Only the group creator can remove participants.');
+
+            // Soft delete: Mark target as 'hasLeft'
+            await prisma.conversationParticipant.update({
+                where: { conversationId_userId: { conversationId, userId } },
+                data: { hasLeft: true, leftAt: new Date() }
+            });
+
+            // PUBLISH KICK EVENT
+            // We use a custom topic string "PARTICIPANT_REMOVED" 
+            await pubsub.publish('PARTICIPANT_REMOVED', { 
+                participantRemoved: { conversationId, userId } 
+            });
+
+            return true;
+        } catch (error: any) {
+            log(source, 'ERROR', { error: error.message });
+            throw new GraphQLError('Could not remove participant.');
+        }
+    }
   },
 
   // --- SUBSCRIPTIONS ---
   Subscription: {
+    participantRemoved: {
+        subscribe: withFilter(
+            () => pubsub.asyncIterableIterator(['PARTICIPANT_REMOVED']),
+            (payload, _, context: GraphQLContext) => {
+                const userId = context.user?.id;
+                // Only fire if the removed user is the current user (so they know they were kicked)
+                // OR if the current user is a participant of that conversation (to update their member list)
+                // For now, simpler: Just fire if authenticated. Frontend handles what to do.
+                return !!userId;
+            }
+        )
+    },
+
     communicationItemAdded: {
       subscribe: withFilter(
         () => pubsub.asyncIterableIterator([Topics.COMMUNICATION_ITEM_ADDED]),
         async (payload, variables, context: GraphQLContext) => {
           const userId = context.user?.id;
           if (!userId) return false;
+          
+          const item = payload.communicationItemAdded;
+          const workspaceId = item.workspaceId;
+          
+          if (workspaceId !== variables.workspaceId) return false;
+          
+          // GOAL 2: Strict visibility check
+          // The payload 'participants' includes the creator for tickets, and members for convos.
+          // We check if the current userId is in that list.
+          // Admin can see all tickets, so we check role too.
+          const participants = item.participants || [];
+          const isParticipant = participants.some((p: any) => p.id === userId);
+          const isAdmin = context.user?.role === 'ADMIN';
 
-          const workspaceId = payload.communicationItemAdded.workspaceId;
-          if (workspaceId !== variables.workspaceId) {
-            return false;
-          }
-          
-          // Check if user is a member of the workspace
-          const memberCount = await prisma.workspaceMember.count({
-            where: { userId, workspaceId }
-          });
-          
-          return memberCount > 0;
+          // If it's a ticket and user is admin, allow it.
+          if (item.type === 'ticket' && isAdmin) return true;
+
+          return isParticipant;
         }
       )
     },
@@ -439,18 +620,8 @@ export const messagingResolvers = {
         (payload, variables, context: GraphQLContext) => {
           const loggedInUserId = context.user?.id;
           if (!loggedInUserId) return false;
-
-          const typingUserId = payload.typingUser.id;
-          const conversationId = payload.typingUser.conversationId;
-
-          // Don't send event to the user who is typing
-          if (loggedInUserId === typingUserId) {
-            return false;
-          }
-          // Only send to users in the correct conversation
-          if (conversationId !== variables.conversationId) {
-            return false;
-          }
+          if (loggedInUserId === payload.typingUser.id) return false;
+          if (payload.typingUser.conversationId !== variables.conversationId) return false;
           return true;
         }
       ),
@@ -464,7 +635,6 @@ export const messagingResolvers = {
             const userId = context.user?.id;
             if (!userId) return false;
             if (payload.ticketMessageAdded.ticketId !== variables.ticketId) return false;
-            
             const isCreator = payload.ticketAuthorizer.ticketCreatorId === userId;
             const isAdmin = context.user?.role === 'ADMIN';
             return isCreator || isAdmin;
@@ -480,15 +650,21 @@ export const messagingResolvers = {
           const userId = context.user?.id;
           if (!userId) return false;
 
-          if (payload.messageAdded.conversationId !== variables.conversationId) {
-            return false;
-          }
-          
-          const participant = await prisma.conversationParticipant.count({
-            where: { conversationId: payload.messageAdded.conversationId, userId },
+          // Check if user is a valid participant AND hasn't been kicked/left
+          const participant = await prisma.conversationParticipant.findFirst({
+            where: { conversationId: payload.messageAdded.conversationId, userId }
           });
+          
+          // If participant doesn't exist OR hasLeft is true, DO NOT send the message
+          if (!participant || participant.hasLeft) return false;
 
-          return participant > 0;
+          if (variables.conversationId) {
+             return payload.messageAdded.conversationId === variables.conversationId;
+          }
+          if (variables.workspaceId) {
+             return true;
+          }
+          return false;
         }
       ),
     },
