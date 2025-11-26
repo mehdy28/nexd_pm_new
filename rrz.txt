@@ -1,41 +1,6 @@
-Here are the updated files. I have implemented the **Participant Removed Subscription**, fixed the **Ticket/Conversation Subscription visibility**, and applied the **5 distinct visual styles** for the cards and window headers.
-
-### 1. `graphql/resolvers/messagingResolver.ts`
-**Changes:**
-- Updated `communicationItemAdded` subscription filter to ensure users only receive events for items they are part of (Fixes the Ticket visibility issue).
-- Added `participantRemoved` subscription logic.
-- Updated `removeParticipant` mutation to publish the removal event.
-
-```typescript
-
-```
-
-### 2. `graphql/subscriptions/messagingSubscription.ts`
-**Changes:** Added `PARTICIPANT_REMOVED_SUBSCRIPTION`.
-
-```typescript
-
-```
-
-### 3. `hooks/useMessaging.ts`
-**Changes:**
-- Consumed `PARTICIPANT_REMOVED_SUBSCRIPTION`.
-- Logic to immediately refresh chat details if the current user is the one kicked, updating the UI state (input disabling) instantly.
-
-```typescript
-
-```
-
-### 4. `components/messaging/conversation-list.tsx`
-**Changes:** GOAL 3: Implemented 5 distinct card styles (Direct, Group, Ticket Low/Med/High).
-
-```typescript
-
-```
-
-### 5. `components/messaging/communication-window.tsx`
-**Changes:** GOAL 3: Visual design applied to Window Header (bg colors) matching list items.
-
-```typescript
-
-```
+okay I want to craft with u the business logic I will tell u my app annd tell me how to structure it and the pages and the routing . and what features to add to this guest related features . do not give code just tell me how the plan will be from a user perspective.
+I have the app there will be the organisation in it we will have a page to list all the projects when he clicks on a project he will see the list of taks and manage them he has different views (list , kanban ..etc)
+there will be a page for the inside the workspace messaging. there will be a page for the user to manage their data and the admin to manage the subscriptions.
+I want to find a good way to inter to the page of the guests and to select the project then he goes to see the feed and he can see the features page , he can see the messages with the guests.
+also tell how how the user exp of the guess how he will see the page of the projects he clicks on one then enters to see the feed , features , messaging related to that specific workspace .
+I have also in the layout to put nav bar tell me what that navbar to contain for the guest experience . for the moment I am using it inside the inner workspace I have a nav item that takes to the list of the project . I have one that takes to the messageing inside the workspace , and one that takes to the user settings page .
