@@ -3,7 +3,7 @@ import { GET_MY_DASHBOARD_DATA } from "@/graphql/queries/personal/myDashboardQue
 
 export const useMyDashboard = () => {
   const { data, loading, error, refetch } = useQuery(GET_MY_DASHBOARD_DATA, {
-    fetchPolicy: "cache-and-network",
+    fetchPolicy: "network-only",
   })
 
   return {

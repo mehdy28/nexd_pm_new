@@ -88,7 +88,7 @@ export const usePromptDataLookups = ({ projectId, workspaceId, selectedEntityTyp
     {
       variables: { projectId: projectId! },
       skip: !projectId || selectedEntityType !== 'SPRINT',
-      fetchPolicy: 'cache-and-network',
+      fetchPolicy: 'network-only',
     }
   );
 
@@ -98,7 +98,7 @@ export const usePromptDataLookups = ({ projectId, workspaceId, selectedEntityTyp
     {
       variables: { projectId: projectId! },
       skip: !projectId || selectedEntityType !== 'MEMBER',
-      fetchPolicy: 'cache-and-network',
+      fetchPolicy: 'network-only',
     }
   );
 
@@ -108,7 +108,7 @@ export const usePromptDataLookups = ({ projectId, workspaceId, selectedEntityTyp
     {
       variables: { projectId: projectId! },
       skip: !projectId || selectedEntityType !== 'TASK',
-      fetchPolicy: 'cache-and-network',
+      fetchPolicy: 'network-only',
     }
   );
 
@@ -118,7 +118,7 @@ export const usePromptDataLookups = ({ projectId, workspaceId, selectedEntityTyp
     {
       variables: { projectId: projectId! },
       skip: !projectId || selectedEntityType !== 'DOCUMENT',
-      fetchPolicy: 'cache-and-network',
+      fetchPolicy: 'network-only',
     }
   );
 
@@ -128,7 +128,7 @@ export const usePromptDataLookups = ({ projectId, workspaceId, selectedEntityTyp
     {
       variables: { workspaceId: workspaceId! },
       skip: !workspaceId || selectedEntityType !== 'WORKSPACE',
-      fetchPolicy: 'cache-and-network',
+      fetchPolicy: 'network-only',
     }
   );
 

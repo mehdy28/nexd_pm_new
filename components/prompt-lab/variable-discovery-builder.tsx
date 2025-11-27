@@ -1,49 +1,58 @@
-// components/prompt-lab/variable-discovery-builder.tsx
 'use client'
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Badge } from '@/components/ui/badge';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Separator } from '@/components/ui/separator';
 import { useLazyQuery } from '@apollo/client';
 import { useDebounce } from 'use-debounce';
-import { toast } from 'sonner';
-import { ArrowLeft, Keyboard, Database, ListChecks, Calendar, FileText, Users, Briefcase, Loader2, PlusCircle, XCircle, Wand2, Rows3 } from 'lucide-react';
+import { 
+  Database, ListChecks, Calendar, FileText, Users, Briefcase, 
+  Loader2, Plus, X, Wand2, Rows3, PlayCircle, Settings2,
+  Keyboard, Type, Hash, CalendarDays, CheckCircle2, AlertCircle, Target, User, Search, CheckSquare
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
+
+// Reuse your existing types/store imports
 import { PromptVariable, PromptVariableType, PromptVariableSource, AggregationType, FormatType, FilterCondition, FilterOperator, SpecialFilterValue } from './store';
 import { RESOLVE_PROMPT_VARIABLE_QUERY } from '@/graphql/queries/projectPromptVariablesQuerries';
 import { usePromptDataLookups } from '@/hooks/usePromptDataLookups';
+import { useEntityDefinitions } from '@/hooks/useEntityDefinitions';
 
+// --- HELPER: Generate clean placeholder ---
 function generatePlaceholder(name: string): string {
   if (!name) return '';
-  const cleaned = name.toLowerCase().replace(/\s/g, '_').replace(/[^a-z0-9_]/g, '');
+  const cleaned = name.toLowerCase().trim().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
   return `{{${cleaned}}}`;
 }
 
-const SelectionCard: React.FC<{
-  icon: React.ElementType;
+// --- TYPES FOR PRESETS ---
+interface VariablePreset {
+  id: string;
   title: string;
   description: string;
-  onClick: () => void;
-  disabled?: boolean;
-}> = ({ icon: Icon, title, description, onClick, disabled }) => (
-  <button
-    onClick={onClick}
-    disabled={disabled}
-    className={cn(
-      "flex flex-col items-center justify-center p-6 rounded-lg border-2 border-dashed transition-all text-center h-40",
-      "hover:border-primary hover:bg-muted/50 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2",
-      disabled ? "opacity-50 cursor-not-allowed bg-gray-100" : "bg-card"
-    )}
-  >
-    <Icon className="h-10 w-10 text-primary mb-3" />
-    <h3 className="text-lg font-semibold mb-1">{title}</h3>
-    <p className="text-sm text-muted-foreground">{description}</p>
-  </button>
-);
-
+  icon: React.ElementType;
+  config: {
+    mode: 'dynamic' | 'manual';
+    // Dynamic props
+    entity?: PromptVariableSource['entityType'];
+    retrievalType?: 'field' | 'aggregation';
+    field?: string;
+    aggregation?: AggregationType;
+    aggregationField?: string;
+    filters?: FilterCondition[];
+    // Shared props
+    type: PromptVariableType;
+    defaultValue?: string;
+  };
+}
 
 // =================================================================
 // MAIN COMPONENT
@@ -55,472 +64,923 @@ export function VariableDiscoveryBuilder({ open, onOpenChange, onCreate, project
   projectId?: string;
   workspaceId?: string;
 }) {
-  // --- STATE MANAGEMENT ---
-  const [step, setStep] = useState<'choose_type' | 'explore_data' | 'manual_config'>('choose_type');
-
-  // Builder state for dynamic variables
+  const [activeTab, setActiveTab] = useState<'library' | 'builder'>('library');
+  const [builderMode, setBuilderMode] = useState<'dynamic' | 'manual'>('dynamic');
+  
+  // --- BUILDER STATE (DYNAMIC) ---
   const [entity, setEntity] = useState<PromptVariableSource['entityType'] | null>(null);
-  const [retrievalType, setRetrievalType] = useState<'field' | 'aggregation' | null>(null);
+  const [retrievalType, setRetrievalType] = useState<'field' | 'aggregation'>('field');
   const [field, setField] = useState<string | null>(null);
   const [aggregation, setAggregation] = useState<AggregationType | null>(null);
   const [aggregationField, setAggregationField] = useState<string | null>(null);
   const [filters, setFilters] = useState<FilterCondition[]>([]);
-  const [format, setFormat] = useState<FormatType | null>(null);
+  const [format, setFormat] = useState<FormatType>(FormatType.BULLET_POINTS);
 
-  // Final configuration state
+  // --- ITEM PICKER STATE ---
+  const [isItemPickerOpen, setIsItemPickerOpen] = useState(false);
+
+  // --- BUILDER STATE (MANUAL) ---
+  const [manualType, setManualType] = useState<PromptVariableType>(PromptVariableType.STRING);
+
+  // --- FINAL CONFIG STATE ---
   const [name, setName] = useState('');
-  const [placeholder, setPlaceholder] = useState('');
   const [description, setDescription] = useState('');
-  const [type, setType] = useState<PromptVariableType | null>(null);
   const [defaultValue, setDefaultValue] = useState('');
-
-  // --- DATA FETCHING & DEFINITIONS ---
+  
+  // --- HOOKS ---
   const { dataCategories, getEntityDefinition } = useEntityDefinitions();
   const entityDef = useMemo(() => entity ? getEntityDefinition(entity) : null, [entity, getEntityDefinition]);
 
   // --- LIVE PREVIEW ---
   const [sourceForPreview, setSourceForPreview] = useState<PromptVariableSource | null>(null);
-  const [debouncedSource] = useDebounce(sourceForPreview, 500);
-  const [fetchPreview, { data: previewData, loading: isLoadingPreview, error: previewErrorObj }] = useLazyQuery(RESOLVE_PROMPT_VARIABLE_QUERY);
+  const [debouncedSource] = useDebounce(sourceForPreview, 800);
+  const [fetchPreview, { data: previewData, loading: isLoadingPreview, error: previewError }] = useLazyQuery(RESOLVE_PROMPT_VARIABLE_QUERY);
 
-  useEffect(() => {
-    if (debouncedSource && (projectId || workspaceId)) {
-      fetchPreview({ variables: { projectId, workspaceId, variableSource: debouncedSource } });
+  // --- PRESETS DEFINITION ---
+  const PRESETS: VariablePreset[] = [
+    // --- AGILE & TASKS ---
+    {
+      id: 'active_sprint_tasks',
+      title: 'Active Sprint Tasks',
+      description: 'List of all incomplete tasks in the current sprint.',
+      icon: CalendarDays,
+      config: {
+        mode: 'dynamic',
+        entity: 'TASK',
+        retrievalType: 'field',
+        field: 'title',
+        type: PromptVariableType.LIST_OF_STRINGS,
+        filters: [
+          { field: 'status', operator: FilterOperator.NEQ, value: 'DONE', type: PromptVariableType.STRING },
+          { field: 'sprintId', operator: FilterOperator.EQ, specialValue: SpecialFilterValue.ACTIVE_SPRINT, type: PromptVariableType.STRING }
+        ]
+      }
+    },
+    {
+      id: 'my_tasks',
+      title: 'My Assigned Tasks',
+      description: 'Tasks assigned to me that are not done.',
+      icon: CheckCircle2,
+      config: {
+        mode: 'dynamic',
+        entity: 'TASK',
+        retrievalType: 'field',
+        field: 'title',
+        type: PromptVariableType.LIST_OF_STRINGS,
+        filters: [
+          { field: 'status', operator: FilterOperator.NEQ, value: 'DONE', type: PromptVariableType.STRING },
+          { field: 'assigneeId', operator: FilterOperator.EQ, specialValue: SpecialFilterValue.CURRENT_USER, type: PromptVariableType.STRING }
+        ]
+      }
+    },
+    {
+      id: 'high_priority_bugs',
+      title: 'High Priority Items',
+      description: 'List of all high priority tasks.',
+      icon: AlertCircle,
+      config: {
+        mode: 'dynamic',
+        entity: 'TASK',
+        retrievalType: 'field',
+        field: 'title',
+        type: PromptVariableType.LIST_OF_STRINGS,
+        filters: [
+          { field: 'status', operator: FilterOperator.NEQ, value: 'DONE', type: PromptVariableType.STRING },
+          { field: 'priority', operator: FilterOperator.EQ, value: 'HIGH', type: PromptVariableType.STRING }
+        ]
+      }
+    },
+    // --- METRICS ---
+    {
+      id: 'completed_points',
+      title: 'Completed Points',
+      description: 'Total story points completed in this project.',
+      icon: Hash,
+      config: {
+        mode: 'dynamic',
+        entity: 'TASK',
+        retrievalType: 'aggregation',
+        aggregation: AggregationType.SUM,
+        aggregationField: 'points',
+        type: PromptVariableType.NUMBER,
+        filters: [
+          { field: 'status', operator: FilterOperator.EQ, value: 'DONE', type: PromptVariableType.STRING }
+        ]
+      }
+    },
+    {
+      id: 'sprint_velocity',
+      title: 'Current Velocity',
+      description: 'Sum of points completed in the active sprint.',
+      icon: Target,
+      config: {
+        mode: 'dynamic',
+        entity: 'TASK',
+        retrievalType: 'aggregation',
+        aggregation: AggregationType.SUM,
+        aggregationField: 'points',
+        type: PromptVariableType.NUMBER,
+        filters: [
+          { field: 'status', operator: FilterOperator.EQ, value: 'DONE', type: PromptVariableType.STRING },
+          { field: 'sprintId', operator: FilterOperator.EQ, specialValue: SpecialFilterValue.ACTIVE_SPRINT, type: PromptVariableType.STRING }
+        ]
+      }
+    },
+    // --- CONTEXT ---
+    {
+      id: 'project_desc',
+      title: 'Project Context',
+      description: 'The full description of the current project.',
+      icon: Briefcase,
+      config: {
+        mode: 'dynamic',
+        entity: 'PROJECT',
+        retrievalType: 'field',
+        field: 'description',
+        type: PromptVariableType.RICH_TEXT
+      }
+    },
+    {
+      id: 'team_roster',
+      title: 'Team Roster',
+      description: 'List of all members in this project.',
+      icon: Users,
+      config: {
+        mode: 'dynamic',
+        entity: 'MEMBER',
+        retrievalType: 'field',
+        field: 'user.firstName',
+        type: PromptVariableType.LIST_OF_STRINGS
+      }
+    },
+    {
+      id: 'doc_titles',
+      title: 'Documentation Index',
+      description: 'List of all document titles.',
+      icon: FileText,
+      config: {
+        mode: 'dynamic',
+        entity: 'DOCUMENT',
+        retrievalType: 'field',
+        field: 'title',
+        type: PromptVariableType.LIST_OF_STRINGS
+        // Note: No filters here. Previous bug was that this didn't clear Task filters.
+      }
+    },
+    // --- MANUAL INPUTS ---
+    {
+      id: 'manual_tone',
+      title: 'Tone of Voice',
+      description: 'Manual input for the desired AI tone.',
+      icon: Settings2,
+      config: {
+        mode: 'manual',
+        type: PromptVariableType.STRING,
+        defaultValue: 'Professional and Concise'
+      }
+    },
+    {
+      id: 'manual_audience',
+      title: 'Target Audience',
+      description: 'Manual input for who is reading this.',
+      icon: User,
+      config: {
+        mode: 'manual',
+        type: PromptVariableType.STRING,
+        defaultValue: 'Stakeholders'
+      }
+    },
+     {
+      id: 'manual_generic',
+      title: 'Generic Text Input',
+      description: 'A standard fill-in-the-blank field.',
+      icon: Type,
+      config: {
+        mode: 'manual',
+        type: PromptVariableType.STRING,
+      }
     }
-  }, [debouncedSource, projectId, workspaceId, fetchPreview]);
+  ];
 
+  // --- EFFECTS ---
 
-  // --- LOGIC & SIDE EFFECTS ---
-  const resetBuilderState = () => {
-    setEntity(null);
-    setRetrievalType(null);
-    setField(null);
-    setAggregation(null);
-    setAggregationField(null);
-    setFilters([]);
-    setFormat(null);
-  };
-
-  const resetAllState = () => {
-    resetBuilderState();
-    setName('');
-    setPlaceholder('');
-    setDescription('');
-    setType(null);
-    setDefaultValue('');
-    setSourceForPreview(null);
-  };
-
+  // 1. Reset on open
   useEffect(() => {
     if (!open) {
-      setTimeout(resetAllState, 200); // Reset after dialog close animation
-    } else {
-      setStep((!projectId && !workspaceId) ? 'manual_config' : 'choose_type');
+      setTimeout(() => {
+        setEntity(null);
+        setFilters([]);
+        setName('');
+        setActiveTab('library');
+        setBuilderMode('dynamic');
+        setSourceForPreview(null);
+      }, 200);
     }
-  }, [open, projectId, workspaceId]);
+  }, [open]);
 
-
-  // Synthesize final configuration from builder state
+  // 2. Fetch Preview (Only for Dynamic)
   useEffect(() => {
-    if (step !== 'explore_data') return;
-
-    let newName = '';
-    let newPlaceholder = '';
-    let newType: PromptVariableType | null = null;
-    let newDescription = '';
-    let newSource: PromptVariableSource | null = null;
-
-    if (entity && entityDef && retrievalType) {
-      const source: PromptVariableSource = { entityType: entity };
-      if (filters.length > 0) source.filters = filters;
-
-      if (retrievalType === 'field' && field) {
-        const fieldDef = entityDef.fields.find(f => f.value === field);
-        if (fieldDef) {
-          newName = `${entityDef.label}: ${fieldDef.label}`;
-          newPlaceholder = generatePlaceholder(`${entityDef.label} ${fieldDef.label}`);
-          newType = fieldDef.type;
-          newDescription = fieldDef.description;
-          source.field = field;
-        }
-      } else if (retrievalType === 'aggregation' && aggregation) {
-        const aggDef = entityDef.aggregations.find(a => a.value === aggregation);
-        if (aggDef) {
-          newName = `${entityDef.label}: ${aggDef.label}`;
-          newDescription = aggDef.description;
-          newType = aggDef.resultType;
-          source.aggregation = aggregation;
-
-          if (aggDef.requiresField) {
-            if (aggregationField) {
-              const aggFieldDef = entityDef.fields.find(f => f.value === aggregationField);
-              newName += ` of ${aggFieldDef?.label || 'Field'}`;
-              source.aggregationField = aggregationField;
-            } else {
-              newName += ` of... (select field)`;
-            }
-          }
-          if (newType === PromptVariableType.LIST_OF_STRINGS) {
-            source.format = format || FormatType.BULLET_POINTS;
-          }
-          newPlaceholder = generatePlaceholder(newName);
-        }
-      }
-      newSource = source;
+    if (builderMode === 'dynamic' && debouncedSource && (projectId || workspaceId)) {
+      fetchPreview({ variables: { projectId, workspaceId, variableSource: debouncedSource } });
     }
-    setName(newName);
-    setPlaceholder(newPlaceholder);
-    setType(newType);
-    setDescription(newDescription);
-    setSourceForPreview(newSource);
-  }, [entity, entityDef, retrievalType, field, aggregation, aggregationField, filters, format, step]);
+  }, [debouncedSource, projectId, workspaceId, fetchPreview, builderMode]);
 
-  // Handle manual config placeholder generation
+  // 3. Construct Source Object & Name Auto-Generation
   useEffect(() => {
-    if (step === 'manual_config') {
-      setPlaceholder(generatePlaceholder(name));
-      setType(PromptVariableType.STRING);
-      resetBuilderState();
-    }
-  }, [name, step]);
-
-  const handleCreate = () => {
-    if (!name || !placeholder || !type) {
-      toast.error("Name, Placeholder, and Type are required.");
+    if (builderMode === 'manual') {
+      setSourceForPreview(null);
       return;
     }
+
+    if (!entity || !entityDef) {
+      setSourceForPreview(null);
+      return;
+    }
+
+    const source: PromptVariableSource = { entityType: entity };
+    let suggestedName = "";
+    
+    // Check if ID filter is present (Specific Items)
+    const specificItemFilter = filters.find(f => f.field === 'id' && f.operator === FilterOperator.IN_LIST);
+
+    // Build Source
+    if (retrievalType === 'field' && field) {
+      source.field = field;
+      const fDef = entityDef.fields.find(f => f.value === field);
+      
+      if (specificItemFilter) {
+          suggestedName = `Selected ${entityDef.label}s (${fDef?.label || field})`;
+      } else {
+          suggestedName = `All ${entityDef.label} ${fDef?.label || field}`;
+      }
+    } 
+    else if (retrievalType === 'aggregation' && aggregation) {
+      source.aggregation = aggregation;
+      const aggDef = entityDef.aggregations.find(a => a.value === aggregation);
+      suggestedName = `${aggDef?.label || aggregation} of ${entityDef.label}`;
+
+      if (aggDef?.requiresField && aggregationField) {
+        source.aggregationField = aggregationField;
+        const fDef = entityDef.fields.find(f => f.value === aggregationField);
+        suggestedName += ` (${fDef?.label || aggregationField})`;
+      }
+    }
+
+    if (filters.length > 0) source.filters = filters;
+    if (retrievalType === 'field') source.format = format;
+
+    // Only auto-update name if user hasn't typed a custom one
+    if (!name || name.startsWith("All ") || name.startsWith("Count ") || name.startsWith("Sum ") || name.startsWith("Selected ")) {
+      setName(suggestedName);
+    }
+
+    setSourceForPreview(source);
+
+  }, [entity, retrievalType, field, aggregation, aggregationField, filters, format, entityDef, builderMode]);
+
+
+  // --- HANDLERS ---
+  const handleApplyPreset = (preset: VariablePreset) => {
+    setBuilderMode(preset.config.mode);
+    setName(preset.title);
+    setDescription(preset.description);
+    setDefaultValue(preset.config.defaultValue || '');
+
+    if (preset.config.mode === 'dynamic') {
+      // CRITICAL FIX: We must clear ALL previous state to avoid cross-contamination
+      // (e.g., Task Filters applied to Documents)
+      setEntity(preset.config.entity!);
+      setRetrievalType(preset.config.retrievalType!);
+      setField(preset.config.field || null);
+      setAggregation(preset.config.aggregation || null);
+      setAggregationField(preset.config.aggregationField || null);
+      setFilters(preset.config.filters || []); // Clear filters if preset has none
+    } else {
+      setManualType(preset.config.type);
+    }
+    
+    setActiveTab('builder');
+  };
+
+  const handleCreate = () => {
+    if (!name) return;
+    
+    let finalType = manualType;
+    let finalSource: PromptVariableSource | null = null;
+
+    if (builderMode === 'dynamic') {
+      if (!entity) return;
+      finalSource = sourceForPreview;
+      
+      // Determine final type for dynamic
+      if (retrievalType === 'field') finalType = PromptVariableType.LIST_OF_STRINGS;
+      else if (retrievalType === 'aggregation') {
+         const aggDef = entityDef?.aggregations.find(a => a.value === aggregation);
+         if (aggDef) finalType = aggDef.resultType;
+      }
+    }
+
     onCreate({
       name,
-      placeholder,
+      placeholder: generatePlaceholder(name),
       description,
-      type,
+      type: finalType,
       defaultValue,
-      source: step === 'explore_data' ? sourceForPreview : null,
+      source: finalSource,
     });
     onOpenChange(false);
   };
   
-  const isFormValid = !!name && !!placeholder && !!type && (step === 'manual_config' || (entity && retrievalType && (field || aggregation)));
+  // Handle adding specific IDs from the modal
+  const handleAddSpecificItems = (ids: string[]) => {
+      // Remove existing ID filter if present
+      const newFilters = filters.filter(f => f.field !== 'id');
+      
+      if (ids.length > 0) {
+          newFilters.push({
+              field: 'id',
+              operator: FilterOperator.IN_LIST,
+              value: ids, // We pass the array of IDs here
+              type: PromptVariableType.LIST_OF_STRINGS
+          });
+      }
+      setFilters(newFilters);
+      setIsItemPickerOpen(false);
+  };
+
+  const currentPlaceholder = generatePlaceholder(name);
+  
+  const isValid = useMemo(() => {
+    if (!name) return false;
+    if (builderMode === 'manual') return true;
+    return !!entity && (retrievalType === 'field' ? !!field : !!aggregation);
+  }, [name, builderMode, entity, retrievalType, field, aggregation]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl h-[90vh] flex flex-col bg-white">
-        <DialogHeader className="p-4 border-b">
-          <DialogTitle className="text-xl">Variable Builder</DialogTitle>
-        </DialogHeader>
-
-        <div className="flex-1 overflow-hidden grid grid-cols-1 md:grid-cols-2 gap-6 p-4">
-          {/* LEFT: BUILDER */}
-          <div className="flex flex-col space-y-4 border-r pr-6 overflow-y-auto">
-            {step === 'choose_type' && (
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold">What kind of variable do you want?</h3>
-                <SelectionCard icon={Database} title="Dynamic Project Data" description="Pull live data from your projects, tasks, sprints, and more." onClick={() => setStep('explore_data')} />
-                <SelectionCard icon={Keyboard} title="Manual Input" description="A simple placeholder for manual text entry." onClick={() => setStep('manual_config')} />
-              </div>
-            )}
-
-            {(step === 'explore_data' || step === 'manual_config') && (
-              <>
-                <Button variant="ghost" onClick={() => { setStep('choose_type'); resetAllState(); }} className="self-start -ml-2">
-                  <ArrowLeft className="h-4 w-4 mr-2" /> Back to Types
-                </Button>
-
-                {step === 'explore_data' ? (
-                  <div className="space-y-6">
-                    {/* Step 1: Select Entity */}
-                    <div className="space-y-2">
-                      <h4 className="font-semibold text-gray-700">1. Select Data Source</h4>
-                      <Select value={entity || ''} onValueChange={val => { resetBuilderState(); setEntity(val as any); }}>
-                        <SelectTrigger><SelectValue placeholder="Choose an entity..." /></SelectTrigger>
-                        <SelectContent>
-                          {dataCategories.map(cat => (
-                            <SelectItem key={cat.value} value={cat.value} disabled={cat.disabled}>
-                              <div className="flex items-center">{React.createElement(cat.icon, { className: 'h-4 w-4 mr-2' })} {cat.label}</div>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    {/* Step 2: Select Retrieval Type */}
-                    {entity && entityDef && (
-                      <div className="space-y-2">
-                        <h4 className="font-semibold text-gray-700">2. Choose What to Get</h4>
-                        <div className="grid grid-cols-2 gap-2">
-                            <button onClick={() => setRetrievalType('field')} className={cn("p-4 border rounded-md text-left", retrievalType === 'field' && 'border-primary ring-2 ring-primary')}>
-                                <Rows3 className="h-5 w-5 mb-1"/>
-                                <h5 className="font-semibold">Get a list of values</h5>
-                                <p className="text-xs text-muted-foreground">e.g., a list of all task titles</p>
-                            </button>
-                            <button onClick={() => setRetrievalType('aggregation')} className={cn("p-4 border rounded-md text-left", retrievalType === 'aggregation' && 'border-primary ring-2 ring-primary')}>
-                                <Wand2 className="h-5 w-5 mb-1"/>
-                                <h5 className="font-semibold">Calculate a summary</h5>
-                                <p className="text-xs text-muted-foreground">e.g., count of completed tasks</p>
-                            </button>
-                        </div>
-                      </div>
-                    )}
-                    
-                    {/* Step 2a: Fields / Aggregations */}
-                    {retrievalType === 'field' && entityDef && (
-                        <Select value={field || ''} onValueChange={setField}>
-                            <SelectTrigger><SelectValue placeholder="Select a field..." /></SelectTrigger>
-                            <SelectContent>{entityDef.fields.map(f => <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>)}</SelectContent>
-                        </Select>
-                    )}
-                    {retrievalType === 'aggregation' && entityDef && (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                            <Select value={aggregation || ''} onValueChange={setAggregation}>
-                                <SelectTrigger><SelectValue placeholder="Select calculation..." /></SelectTrigger>
-                                <SelectContent>{entityDef.aggregations.map(a => <SelectItem key={a.value} value={a.value}>{a.label}</SelectItem>)}</SelectContent>
-                            </Select>
-                            {entityDef.aggregations.find(a => a.value === aggregation)?.requiresField && (
-                                <Select value={aggregationField || ''} onValueChange={setAggregationField}>
-                                    <SelectTrigger><SelectValue placeholder="...of field..." /></SelectTrigger>
-                                    <SelectContent>{entityDef.fields.filter(f => f.type === 'NUMBER' || f.type === 'STRING').map(f => <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>)}</SelectContent>
-                                </Select>
-                            )}
-                        </div>
-                    )}
-
-                    {/* Step 3: Filters */}
-                    {entity && entityDef && (retrievalType) && (
-                        <FilterBuilder entityDef={entityDef} filters={filters} setFilters={setFilters} projectId={projectId} workspaceId={workspaceId} />
-                    )}
-
-                    {/* Step 4: Formatting */}
-                    {type === PromptVariableType.LIST_OF_STRINGS && (
-                         <div className="space-y-2">
-                            <h4 className="font-semibold text-gray-700">4. Format Output</h4>
-                             <Select value={format || ''} onValueChange={val => setFormat(val as FormatType)}>
-                                <SelectTrigger><SelectValue placeholder="Select a format..." /></SelectTrigger>
-                                <SelectContent>
-                                    {Object.values(FormatType).map(f => <SelectItem key={f} value={f}>{f.replace(/_/g, ' ')}</SelectItem>)}
-                                </SelectContent>
-                            </Select>
-                        </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    <p className="text-sm text-muted-foreground">This variable will be a simple placeholder. You will provide its value when using the prompt.</p>
-                  </div>
-                )}
-              </>
-            )}
+      <DialogContent className="max-w-5xl h-[85vh] p-0 gap-0 flex flex-col bg-white overflow-hidden text-slate-900 shadow-2xl rounded-xl">
+        
+        {/* HEADER */}
+        <div className="px-6 py-4 border-b flex justify-between items-center bg-white z-10">
+          <div>
+            <DialogTitle className="text-xl font-semibold tracking-tight text-slate-900">New Prompt Variable</DialogTitle>
+            <DialogDescription className="mt-1 text-slate-500">Add dynamic data or input fields to your prompt context.</DialogDescription>
           </div>
-
-          {/* RIGHT: CONFIGURATION & PREVIEW */}
-          <div className="flex flex-col space-y-4 overflow-y-auto">
-            <h3 className="text-lg font-semibold">Configuration</h3>
-            
-            {step === 'explore_data' && sourceForPreview && (
-                <div className="p-3 border rounded-md bg-muted/50 text-sm">
-                    <h4 className="font-semibold mb-2">Query Summary</h4>
-                    <p className="text-muted-foreground">
-                        Getting the <strong className="text-primary">{aggregation ? aggregation.toLowerCase().replace(/_/g, ' ') : `list of ${field || '...'}`}</strong> of <strong className="text-primary">{entityDef?.label}</strong>
-                        {filters.length > 0 && ` where:`}
-                    </p>
-                    {filters.length > 0 && (
-                        <ul className="list-disc pl-5 mt-1 space-y-1 text-muted-foreground">
-                            {filters.map((f, i) => <li key={i}><strong className="text-primary">{f.field}</strong> {f.operator.toLowerCase().replace(/_/g, ' ')} <strong className="text-primary">{f.specialValue || `'${f.value}'`}</strong></li>)}
-                        </ul>
-                    )}
-                </div>
-            )}
-
-            <div className="grid gap-4 flex-1 pr-2">
-                <div>
-                    <label className="text-sm font-medium">Variable Name <span className="text-red-500">*</span></label>
-                    <Input value={name} onChange={e => setName(e.target.value)} placeholder="e.g., Completed Task Titles" />
-                </div>
-                <div>
-                    <label className="text-sm font-medium">Placeholder <span className="text-red-500">*</span></label>
-                    <Input value={placeholder} readOnly className="font-mono bg-gray-100" />
-                </div>
-                <div>
-                    <label className="text-sm font-medium">Description</label>
-                    <Textarea value={description} onChange={e => setDescription(e.target.value)} placeholder="Explain what this variable is" />
-                </div>
-                <div>
-                    <label className="text-sm font-medium">Default Value <span className="text-xs text-muted-foreground">(optional)</span></label>
-                    <Input value={defaultValue} onChange={e => setDefaultValue(e.target.value)} placeholder="Used if live data is unavailable" />
-                </div>
-
-                 <div className="mt-2 p-3 border rounded-md bg-gray-50">
-                    <h4 className="font-semibold text-sm mb-2">Live Preview</h4>
-                    {isLoadingPreview ? (
-                      <p className="text-sm text-gray-500 flex items-center"><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Fetching...</p>
-                    ) : previewErrorObj ? (
-                      <p className="text-sm text-red-500">{previewErrorObj.message}</p>
-                    ) : (step === 'explore_data' && sourceForPreview) ? (
-                      <pre className="text-xs font-mono whitespace-pre-wrap max-h-24 overflow-y-auto bg-white p-2 rounded border">
-                        {previewData?.resolvePromptVariable || defaultValue || 'No data returned.'}
-                      </pre>
-                    ) : (
-                      <p className="text-sm text-muted-foreground">Preview requires a dynamic data source.</p>
-                    )}
-                 </div>
-            </div>
-          </div>
+          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-[300px]">
+            <TabsList className="grid w-full grid-cols-2 bg-slate-100 p-1 rounded-lg">
+              <TabsTrigger value="library" className="data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md transition-all">Library</TabsTrigger>
+              <TabsTrigger value="builder" className="data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md transition-all">Builder</TabsTrigger>
+            </TabsList>
+          </Tabs>
         </div>
 
-        <DialogFooter className="p-4 border-t">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button onClick={handleCreate} disabled={!isFormValid}>Add Variable</Button>
+        {/* MAIN BODY */}
+        <div className="flex-1 flex overflow-hidden">
+          
+          {/* LEFT: CONTENT */}
+          <div className={cn("flex-1 overflow-y-auto transition-all duration-300 bg-white", (builderMode === 'dynamic' && activeTab === 'builder') ? "w-[60%]" : "w-full")}>
+            
+            {/* TAB: LIBRARY */}
+            {activeTab === 'library' && (
+               <div className="p-8">
+                 <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-4">Popular Presets</h3>
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pb-8">
+                    {PRESETS.map((preset) => (
+                      <button
+                        key={preset.id}
+                        onClick={() => handleApplyPreset(preset)}
+                        className="flex items-start gap-4 p-4 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 hover:border-primary/40 hover:shadow-sm transition-all text-left group"
+                      >
+                        <div className={cn("h-10 w-10 rounded-full flex items-center justify-center shrink-0 transition-colors", 
+                            preset.config.mode === 'dynamic' ? "bg-indigo-50 text-indigo-600 group-hover:bg-indigo-100" : "bg-amber-50 text-amber-600 group-hover:bg-amber-100"
+                        )}>
+                          <preset.icon className="h-5 w-5" />
+                        </div>
+                        <div>
+                          <h3 className="font-semibold text-slate-900">{preset.title}</h3>
+                          <p className="text-sm text-slate-500 mt-1 line-clamp-2">{preset.description}</p>
+                          <Badge variant="outline" className="mt-2 text-[10px] h-5 px-1.5 bg-transparent border-slate-200 text-slate-400 font-normal">
+                            {preset.config.mode === 'dynamic' ? 'Dynamic Data' : 'Manual Input'}
+                          </Badge>
+                        </div>
+                      </button>
+                    ))}
+                 </div>
+               </div>
+            )}
+
+            {/* TAB: BUILDER */}
+            {activeTab === 'builder' && (
+              <div className="p-8 space-y-8">
+                
+                {/* 0. MODE TOGGLE */}
+                <div className="flex justify-center mb-6">
+                    <div className="bg-slate-100 p-1 rounded-lg flex gap-1">
+                        <button 
+                            onClick={() => setBuilderMode('dynamic')}
+                            className={cn(
+                                "px-4 py-2 text-sm font-medium rounded-md transition-all flex items-center gap-2",
+                                builderMode === 'dynamic' ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-900"
+                            )}>
+                            <Database className="h-4 w-4" /> Dynamic Data
+                        </button>
+                        <button 
+                             onClick={() => setBuilderMode('manual')}
+                             className={cn(
+                                "px-4 py-2 text-sm font-medium rounded-md transition-all flex items-center gap-2",
+                                builderMode === 'manual' ? "bg-white text-amber-600 shadow-sm" : "text-slate-500 hover:text-slate-900"
+                            )}>
+                            <Keyboard className="h-4 w-4" /> Manual Input
+                        </button>
+                    </div>
+                </div>
+
+                {/* --- DYNAMIC MODE CONTENT --- */}
+                {builderMode === 'dynamic' && (
+                  <>
+                    <section>
+                      <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-4">1. Source Data</h3>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        {dataCategories.map((cat) => (
+                          <button
+                            key={cat.value}
+                            onClick={() => { 
+                                // Aggressively reset all state when switching entities manually
+                                setEntity(cat.value as any); 
+                                setField(null); 
+                                setFilters([]); 
+                                setRetrievalType('field');
+                                setAggregation(null);
+                                setAggregationField(null);
+                            }}
+                            className={cn(
+                              "flex flex-col items-center justify-center p-3 rounded-lg border transition-all h-24 gap-2",
+                              entity === cat.value 
+                                ? "border-indigo-500 bg-indigo-50 ring-1 ring-indigo-500" 
+                                : "bg-white border-slate-200 hover:bg-slate-50 hover:border-slate-300"
+                            )}
+                          >
+                            {React.createElement(cat.icon, { className: cn("h-6 w-6", entity === cat.value ? "text-indigo-600" : "text-slate-400") })}
+                            <span className={cn("text-xs font-medium", entity === cat.value ? "text-indigo-700" : "text-slate-600")}>{cat.label}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </section>
+
+                    {entity && entityDef && (
+                      <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                      <Separator className="bg-slate-100" />
+                      <section>
+                        <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-4">2. What to retrieve?</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className={cn("p-4 rounded-xl border cursor-pointer transition-all bg-white", retrievalType === 'field' ? "border-indigo-500 bg-indigo-50" : "border-slate-200 hover:bg-slate-50")}
+                                onClick={() => setRetrievalType('field')}>
+                              <div className="flex items-center gap-2 mb-2">
+                                <Rows3 className={cn("h-4 w-4", retrievalType === 'field' ? "text-indigo-600" : "text-slate-500")}/>
+                                <span className="font-semibold text-slate-900">List of Values</span>
+                              </div>
+                              <Select value={field || ''} onValueChange={setField}>
+                                  <SelectTrigger className="bg-white border-slate-200"><SelectValue placeholder="Select field..." /></SelectTrigger>
+                                  <SelectContent>{entityDef.fields.map(f => <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>)}</SelectContent>
+                              </Select>
+                            </div>
+
+                            <div className={cn("p-4 rounded-xl border cursor-pointer transition-all bg-white", retrievalType === 'aggregation' ? "border-indigo-500 bg-indigo-50" : "border-slate-200 hover:bg-slate-50")}
+                                onClick={() => setRetrievalType('aggregation')}>
+                                <div className="flex items-center gap-2 mb-2">
+                                <Wand2 className={cn("h-4 w-4", retrievalType === 'aggregation' ? "text-indigo-600" : "text-slate-500")}/>
+                                <span className="font-semibold text-slate-900">Calculated Value</span>
+                              </div>
+                              <div className="flex gap-2">
+                                <Select value={aggregation || ''} onValueChange={(v) => setAggregation(v as AggregationType)}>
+                                    <SelectTrigger className="bg-white border-slate-200 w-[130px]"><SelectValue placeholder="Function" /></SelectTrigger>
+                                    <SelectContent>{entityDef.aggregations.map(a => <SelectItem key={a.value} value={a.value}>{a.label}</SelectItem>)}</SelectContent>
+                                </Select>
+                                {entityDef.aggregations.find(a => a.value === aggregation)?.requiresField && (
+                                    <Select value={aggregationField || ''} onValueChange={setAggregationField}>
+                                        <SelectTrigger className="bg-white border-slate-200 flex-1"><SelectValue placeholder="Field" /></SelectTrigger>
+                                        <SelectContent>{entityDef.fields.filter(f => f.type === 'NUMBER').map(f => <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>)}</SelectContent>
+                                    </Select>
+                                )}
+                              </div>
+                            </div>
+                        </div>
+                      </section>
+                      
+                      <section>
+                        <div className="flex items-center justify-between mb-3">
+                          <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">3. Filters</h3>
+                          <div className="flex gap-2">
+                             {/* Specific Item Picker Trigger */}
+                             {entityDef.filters.some(f => f.isItemPicker) && (
+                                <Button 
+                                    variant="outline" size="sm" 
+                                    className="h-8 gap-1 rounded-full border-dashed border-indigo-200 text-indigo-600 hover:bg-indigo-50 bg-white"
+                                    onClick={() => setIsItemPickerOpen(true)}
+                                >
+                                    <CheckSquare className="h-3 w-3" /> Pick Specific {entityDef.label}s
+                                </Button>
+                             )}
+                             <FilterPopover entityDef={entityDef} onAddFilter={(f) => setFilters([...filters, f])} />
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap gap-2 p-4 bg-slate-50 rounded-xl border border-slate-200 min-h-[60px] items-center">
+                            {filters.length === 0 && <span className="text-sm text-slate-400 italic pl-1">No filters applied</span>}
+                            {filters.map((f, i) => (
+                              <Badge key={i} variant="secondary" className="px-3 py-1 text-sm flex gap-2 items-center bg-white border-slate-200 shadow-sm text-slate-700">
+                                  <span className="font-medium text-slate-500">{f.label || f.field}</span>
+                                  <span className="font-bold text-indigo-600">{f.operator === FilterOperator.IN_LIST ? 'in' : (f.operator === FilterOperator.EQ ? '=' : f.operator)}</span>
+                                  <span className="max-w-[150px] truncate">
+                                      {f.operator === FilterOperator.IN_LIST 
+                                        ? `[${Array.isArray(f.value) ? f.value.length : 0} items]` 
+                                        : (f.specialValue ? <span className="italic text-purple-600">{f.specialValue.toLowerCase().replace('_', ' ')}</span> : f.value)
+                                      }
+                                  </span>
+                                  <button onClick={() => setFilters(filters.filter((_, idx) => idx !== i))} className="ml-1 hover:bg-slate-100 rounded-full p-0.5 transition-colors"><X className="h-3 w-3 text-slate-400 hover:text-red-500"/></button>
+                              </Badge>
+                            ))}
+                        </div>
+                      </section>
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {/* --- MANUAL MODE CONTENT --- */}
+                {builderMode === 'manual' && (
+                   <div className="max-w-2xl mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                      <div className="bg-slate-50 p-6 rounded-xl border border-slate-200 shadow-sm">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium text-slate-700">Data Type</label>
+                                <Select value={manualType} onValueChange={(v) => setManualType(v as PromptVariableType)}>
+                                    <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value={PromptVariableType.STRING}>Text (Single Line)</SelectItem>
+                                        <SelectItem value={PromptVariableType.RICH_TEXT}>Text (Paragraph)</SelectItem>
+                                        <SelectItem value={PromptVariableType.NUMBER}>Number</SelectItem>
+                                        <SelectItem value={PromptVariableType.DATE}>Date</SelectItem>
+                                        <SelectItem value={PromptVariableType.BOOLEAN}>Yes / No</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium text-slate-700">Variable Name <span className="text-red-500">*</span></label>
+                                <Input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Client Name" className="bg-white" />
+                            </div>
+                          </div>
+                      </div>
+
+                      <div className="space-y-4">
+                         <div className="space-y-2">
+                            <label className="text-sm font-medium text-slate-700">Description</label>
+                            <Input value={description} onChange={e => setDescription(e.target.value)} placeholder="What is this variable used for?" className="bg-white" />
+                         </div>
+                         <div className="space-y-2">
+                            <label className="text-sm font-medium text-slate-700">Default Value <span className="text-xs text-slate-400">(optional)</span></label>
+                            <Input value={defaultValue} onChange={e => setDefaultValue(e.target.value)} placeholder="Value to use if left empty..." className="bg-white" />
+                         </div>
+                      </div>
+
+                      <div className="p-4 bg-amber-50 text-amber-900 rounded-lg text-sm border border-amber-100 flex items-start gap-3">
+                         <Keyboard className="h-5 w-5 shrink-0 mt-0.5 text-amber-600" />
+                         <div>
+                            <p className="font-semibold text-amber-800">Manual Input Field</p>
+                            <p className="mt-1 opacity-90 text-amber-700">
+                                This creates a blank space in your prompt. You will be asked to type <strong>{currentPlaceholder || '{{...}}'}</strong> manually every time you use this prompt.
+                            </p>
+                         </div>
+                      </div>
+                   </div>
+                )}
+                
+                {/* 4. SHARED SETTINGS (DYNAMIC ONLY) */}
+                {builderMode === 'dynamic' && entity && (
+                  <section className="grid grid-cols-2 gap-6 pt-4 border-t border-slate-100">
+                     <div>
+                       <label className="text-sm font-medium mb-1.5 block text-slate-700">Variable Name</label>
+                       <Input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Completed Tasks" className="bg-white border-slate-200" />
+                       <p className="text-xs text-slate-500 mt-1">Placeholder: <code className="bg-slate-100 px-1 py-0.5 rounded text-slate-700">{currentPlaceholder}</code></p>
+                     </div>
+                     <div>
+                        <label className="text-sm font-medium mb-1.5 block text-slate-700">Default Value</label>
+                        <Input value={defaultValue} onChange={e => setDefaultValue(e.target.value)} placeholder="Fallback text..." className="bg-white border-slate-200" />
+                     </div>
+                  </section>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* RIGHT: LIVE PREVIEW PANEL (DYNAMIC ONLY) */}
+          {builderMode === 'dynamic' && activeTab === 'builder' && (
+            <div className="w-[40%] border-l border-slate-200 bg-slate-50 flex flex-col h-full animate-in slide-in-from-right-10 duration-200">
+              <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-white">
+                 <div className="flex items-center gap-2 text-sm font-semibold text-slate-800">
+                    <PlayCircle className="h-4 w-4 text-indigo-600" /> Live Preview
+                 </div>
+                 {retrievalType === 'field' && (
+                    <Select value={format} onValueChange={(v) => setFormat(v as FormatType)}>
+                        <SelectTrigger className="h-8 w-[140px] text-xs bg-white border-slate-200"><SelectValue placeholder="Format" /></SelectTrigger>
+                        <SelectContent>{Object.values(FormatType).map(f => <SelectItem key={f} value={f} className="text-xs">{f.replace('_', ' ')}</SelectItem>)}</SelectContent>
+                    </Select>
+                 )}
+              </div>
+              <div className="flex-1 p-6 overflow-hidden flex flex-col">
+                 <div className="flex-1 bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden flex flex-col relative">
+                    <div className="absolute top-0 left-0 right-0 h-1 bg-indigo-500 z-10"></div>
+                    <div className="px-4 py-2 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
+                        <span className="text-xs font-medium text-slate-500 uppercase tracking-wide">Result Output</span>
+                        {isLoadingPreview ? (
+                             <span className="flex items-center text-xs text-indigo-600 gap-1"><Loader2 className="h-3 w-3 animate-spin"/> Syncing...</span>
+                        ) : (
+                             <span className="text-xs text-emerald-600 font-medium">Ready</span>
+                        )}
+                    </div>
+                    <ScrollArea className="flex-1 p-4 bg-white">
+                         {previewError ? (
+                            <div className="p-3 bg-red-50 text-red-600 text-sm rounded-md border border-red-100 flex gap-2">
+                                <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+                                <span>{previewError.message}</span>
+                            </div>
+                        ) : !entity ? (
+                            <div className="flex flex-col items-center justify-center h-40 text-slate-400 gap-3">
+                                <Database className="h-8 w-8 opacity-20" />
+                                <span className="text-sm">Select data source...</span>
+                            </div>
+                        ) : (
+                            <div className="font-mono text-sm text-slate-700 whitespace-pre-wrap leading-relaxed selection:bg-indigo-100 selection:text-indigo-900">
+                                {previewData?.resolvePromptVariable ? previewData.resolvePromptVariable : <span className="text-slate-400 italic">// Empty result</span>}
+                            </div>
+                        )}
+                    </ScrollArea>
+                 </div>
+                 
+                 <div className="mt-6 text-xs text-slate-500">
+                    <h5 className="font-semibold mb-2 text-slate-700 flex items-center gap-2"><Settings2 className="h-3 w-3"/> Generated Logic</h5>
+                    <div className="bg-white p-3 rounded-md border border-slate-200 font-mono shadow-sm text-slate-600 leading-relaxed">
+                        {entity ? (
+                            <>
+                            <span className="text-indigo-600 font-bold">GET</span> {retrievalType === 'aggregation' ? aggregation : 'LIST'} 
+                            <span className="text-slate-400 mx-1">FROM</span> <span className="font-semibold text-slate-800">{entity}</span>
+                            {filters.length > 0 && (
+                                <div className="mt-1 pl-4 border-l-2 border-slate-100">
+                                    <span className="text-purple-600 font-bold">WHERE</span>
+                                    {filters.map((f, i) => (
+                                        <div key={i} className="ml-1">
+                                            {f.field} <span className="text-slate-400">{f.operator === FilterOperator.IN_LIST ? 'in' : f.operator}</span> 
+                                            {f.operator === FilterOperator.IN_LIST 
+                                              ? ` [${Array.isArray(f.value) ? f.value.length : 0} items]` 
+                                              : ` ${f.specialValue || f.value}`}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                            </>
+                        ) : <span className="italic opacity-50">Waiting for configuration...</span>}
+                    </div>
+                 </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* FOOTER */}
+        <DialogFooter className="p-4 border-t border-slate-200 bg-white">
+          <Button variant="ghost" onClick={() => onOpenChange(false)} className="hover:bg-slate-100">Cancel</Button>
+          <Button onClick={handleCreate} disabled={!isValid || activeTab !== 'builder'} className="min-w-[140px] shadow-sm">
+            {activeTab === 'library' ? 'Select & Customize' : 'Create Variable'}
+          </Button>
         </DialogFooter>
       </DialogContent>
+
+      {/* --- SPECIFIC ITEM PICKER MODAL --- */}
+      {isItemPickerOpen && entity && (
+          <SpecificItemPicker 
+            entityType={entity}
+            open={isItemPickerOpen}
+            onOpenChange={setIsItemPickerOpen}
+            onConfirm={handleAddSpecificItems}
+            existingSelection={filters.find(f => f.field === 'id' && f.operator === FilterOperator.IN_LIST)?.value as string[] || []}
+          />
+      )}
     </Dialog>
   );
 }
 
 
 // =================================================================
-// SUB-COMPONENTS & HOOKS
+// SPECIFIC ITEM PICKER COMPONENT (New)
 // =================================================================
-
-function FilterBuilder({ entityDef, filters, setFilters, projectId, workspaceId }: {
-    entityDef: NonNullable<ReturnType<ReturnType<typeof useEntityDefinitions>['getEntityDefinition']>>,
-    filters: FilterCondition[],
-    setFilters: React.Dispatch<React.SetStateAction<FilterCondition[]>>,
-    projectId?: string,
-    workspaceId?: string,
+function SpecificItemPicker({ entityType, open, onOpenChange, onConfirm, existingSelection }: {
+    entityType: PromptVariableSource['entityType'],
+    open: boolean,
+    onOpenChange: (val: boolean) => void,
+    onConfirm: (ids: string[]) => void,
+    existingSelection: string[]
 }) {
-    const { loading, error } = usePromptDataLookups({ projectId, workspaceId, selectedEntityType: entityDef.value });
-    const addFilter = () => setFilters(prev => [...prev, { field: '', operator: FilterOperator.EQ, type: PromptVariableType.STRING }]);
-    const removeFilter = (index: number) => setFilters(prev => prev.filter((_, i) => i !== index));
-    const updateFilter = (index: number, newFilter: Partial<FilterCondition>) => {
-        setFilters(prev => prev.map((f, i) => i === index ? { ...f, ...newFilter } : f));
+    const [selectedIds, setSelectedIds] = useState<string[]>(existingSelection);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [debouncedSearch] = useDebounce(searchTerm, 300);
+
+    // Fetch data using existing hook
+    const { tasks, documents, loading } = usePromptDataLookups({ selectedEntityType: entityType });
+
+    // Normalize data for display
+    const items = useMemo(() => {
+        let rawItems: any[] = [];
+        if (entityType === 'TASK') rawItems = tasks;
+        else if (entityType === 'DOCUMENT') rawItems = documents;
+        
+        return rawItems
+            .filter(item => item.title.toLowerCase().includes(debouncedSearch.toLowerCase()))
+            .map(item => ({
+                id: item.id,
+                title: item.title,
+                subtitle: (entityType === 'TASK' && item.sprint) ? item.sprint.name : (item.updatedAt ? new Date(item.updatedAt).toLocaleDateString() : '')
+            }));
+    }, [entityType, tasks, documents, debouncedSearch]);
+
+    const handleToggle = (id: string) => {
+        setSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
     };
 
-    if (!entityDef.filters || entityDef.filters.length === 0) return null;
-    
+    const handleSelectAll = () => {
+        if (selectedIds.length === items.length) setSelectedIds([]);
+        else setSelectedIds(items.map(i => i.id));
+    };
+
     return (
-        <div className="space-y-2">
-            <div className="flex justify-between items-center">
-                <h4 className="font-semibold text-gray-700">3. Refine with Filters <span className="text-xs font-normal text-muted-foreground">(optional)</span></h4>
-                <Button variant="ghost" size="sm" onClick={addFilter}><PlusCircle className="h-4 w-4 mr-2" />Add</Button>
-            </div>
-            {loading && <p className="text-xs text-muted-foreground">Loading filter options...</p>}
-            {error && <p className="text-xs text-red-500">Error loading options: {error.message}</p>}
-            <div className="space-y-2">
-                {filters.map((filter, index) => (
-                    <FilterRow key={index} index={index} filter={filter} entityDef={entityDef} onUpdate={updateFilter} onRemove={removeFilter} />
-                ))}
-            </div>
-        </div>
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="max-w-xl h-[70vh] flex flex-col bg-white overflow-hidden p-0 gap-0">
+                <DialogHeader className="px-6 py-4 border-b bg-white">
+                    <DialogTitle>Select {entityType === 'TASK' ? 'Tasks' : 'Documents'}</DialogTitle>
+                    <DialogDescription>Choose specific items to include in your prompt context.</DialogDescription>
+                </DialogHeader>
+                
+                <div className="p-4 border-b flex gap-2 bg-slate-50">
+                    <div className="relative flex-1">
+                        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
+                        <Input 
+                            placeholder="Search by title..." 
+                            value={searchTerm} 
+                            onChange={e => setSearchTerm(e.target.value)} 
+                            className="pl-9 bg-white border-slate-200"
+                        />
+                    </div>
+                    <Button variant="outline" onClick={handleSelectAll} className="bg-white">
+                        {selectedIds.length === items.length && items.length > 0 ? 'Deselect All' : 'Select All'}
+                    </Button>
+                </div>
+
+                <ScrollArea className="flex-1 p-4 bg-white">
+                    {loading ? (
+                        <div className="flex items-center justify-center py-10 gap-2 text-slate-500"><Loader2 className="h-5 w-5 animate-spin text-indigo-600"/> Loading...</div>
+                    ) : items.length === 0 ? (
+                        <div className="text-center py-10 text-slate-500">No items found matching your search.</div>
+                    ) : (
+                        <div className="space-y-2">
+                            {items.map(item => (
+                                <div key={item.id} 
+                                    className={cn(
+                                        "flex items-start gap-3 p-3 rounded-lg border transition-all cursor-pointer hover:border-indigo-300",
+                                        selectedIds.includes(item.id) ? "bg-indigo-50 border-indigo-200" : "bg-white border-slate-100"
+                                    )}
+                                    onClick={() => handleToggle(item.id)}
+                                >
+                                    <Checkbox checked={selectedIds.includes(item.id)} onCheckedChange={() => handleToggle(item.id)} className="mt-1" />
+                                    <div className="flex-1 overflow-hidden">
+                                        <p className={cn("text-sm font-medium truncate", selectedIds.includes(item.id) ? "text-indigo-900" : "text-slate-700")}>{item.title}</p>
+                                        {item.subtitle && <p className="text-xs text-slate-400 mt-0.5">{item.subtitle}</p>}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </ScrollArea>
+
+                <DialogFooter className="p-4 border-t bg-white">
+                    <div className="flex-1 flex items-center text-sm text-slate-500 font-medium">
+                        {selectedIds.length} items selected
+                    </div>
+                    <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
+                    <Button onClick={() => onConfirm(selectedIds)}>Apply Selection</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
     );
 }
 
-function FilterRow({ index, filter, entityDef, onUpdate, onRemove }: {
-    index: number,
-    filter: FilterCondition,
-    entityDef: NonNullable<ReturnType<ReturnType<typeof useEntityDefinitions>['getEntityDefinition']>>,
-    onUpdate: (index: number, newFilter: Partial<FilterCondition>) => void,
-    onRemove: (index: number) => void
-}) {
-    const { sprints, members } = usePromptDataLookups({ selectedEntityType: entityDef.value });
-    const filterDef = entityDef.filters.find(f => f.field === filter.field);
-    const handleFieldChange = (value: string) => {
-        const newDef = entityDef.filters.find(f => f.field === value);
-        onUpdate(index, { field: value, operator: newDef?.operators[0] || FilterOperator.EQ, type: newDef?.type, value: undefined, specialValue: undefined });
-    };
 
-    const handleOperatorChange = (value: string) => {
-        if (value === SpecialFilterValue.CURRENT_USER || value === SpecialFilterValue.ACTIVE_SPRINT) {
-            onUpdate(index, { operator: FilterOperator.EQ, specialValue: value as SpecialFilterValue, value: undefined });
-        } else {
-            onUpdate(index, { operator: value as FilterOperator, specialValue: undefined });
-        }
-    };
+// =================================================================
+// FILTER POPOVER COMPONENT
+// =================================================================
+function FilterPopover({ entityDef, onAddFilter }: { 
+    entityDef: any, 
+    onAddFilter: (f: FilterCondition) => void 
+}) {
+    const [open, setOpen] = useState(false);
+    const [selectedField, setSelectedField] = useState<string>('');
+    const [operator, setOperator] = useState<FilterOperator>(FilterOperator.EQ);
+    const [value, setValue] = useState('');
+    const [specialValue, setSpecialValue] = useState<string>('');
     
-    const lookupOptions = useMemo(() => {
-        if (!filterDef?.lookupEntity) return [];
-        if (filterDef.lookupEntity === 'MEMBER') return members.map(m => ({ id: m.user.id, name: `${m.user.firstName} ${m.user.lastName}`.trim() }));
-        if (filterDef.lookupEntity === 'SPRINT') return sprints.map(s => ({ id: s.id, name: s.name }));
-        return [];
-    }, [filterDef, members, sprints]);
+    // Reset internal state when opening
+    useEffect(() => { if(open) { setSelectedField(''); setValue(''); setSpecialValue(''); } }, [open]);
+
+    // Derived Lookups
+    const fieldDef = entityDef.filters?.find((f: any) => f.field === selectedField);
+    const { members, sprints } = usePromptDataLookups({ selectedEntityType: entityDef.value });
+    
+    const handleAdd = () => {
+        if (!selectedField) return;
+        
+        const filter: FilterCondition = {
+            field: selectedField,
+            operator: operator,
+            type: fieldDef?.type || PromptVariableType.STRING,
+            value: specialValue ? undefined : value,
+            specialValue: specialValue as SpecialFilterValue || undefined
+        };
+        onAddFilter(filter);
+        setOpen(false);
+    };
 
     return (
-        <div className="grid grid-cols-[1fr_auto_1fr_auto] gap-2 items-center p-2 bg-gray-50 rounded">
-            <Select value={filter.field} onValueChange={handleFieldChange}>
-                <SelectTrigger className="text-xs h-8"><SelectValue placeholder="Field..." /></SelectTrigger>
-                <SelectContent>{entityDef.filters.map(f => <SelectItem key={f.field} value={f.field}>{f.label}</SelectItem>)}</SelectContent>
-            </Select>
+        <Popover open={open} onOpenChange={setOpen}>
+            <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="h-8 gap-1 rounded-full border-dashed border-indigo-200 text-indigo-600 hover:bg-indigo-50 bg-white">
+                    <Plus className="h-3 w-3" /> Filter
+                </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[320px] p-4 bg-white border-slate-200 shadow-xl rounded-lg" align="end">
+                <div className="space-y-3">
+                    <h4 className="font-medium text-sm text-slate-900">Add Filter</h4>
+                    
+                    {/* 1. Field */}
+                    <Select value={selectedField} onValueChange={setSelectedField}>
+                        <SelectTrigger className="bg-white border-slate-200"><SelectValue placeholder="Field to filter by..." /></SelectTrigger>
+                        <SelectContent>
+                            {/* Filter out hidden/special filters from the dropdown (like the picker ID) */}
+                            {entityDef.filters?.filter((f: any) => !f.isItemPicker).map((f: any) => <SelectItem key={f.field} value={f.field}>{f.label}</SelectItem>)}
+                        </SelectContent>
+                    </Select>
 
-            <Select value={filter.specialValue || filter.operator} onValueChange={handleOperatorChange}>
-                <SelectTrigger className="text-xs h-8"><SelectValue /></SelectTrigger>
-                <SelectContent>{filterDef?.operators.map(op => <SelectItem key={op} value={op}>{op.replace(/_/g, ' ')}</SelectItem>)}</SelectContent>
-            </Select>
+                    {selectedField && (
+                        <>
+                        {/* 2. Operator */}
+                        <Select value={operator} onValueChange={(v) => setOperator(v as FilterOperator)}>
+                            <SelectTrigger className="bg-white border-slate-200"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value={FilterOperator.EQ}>is</SelectItem>
+                                <SelectItem value={FilterOperator.NEQ}>is not</SelectItem>
+                                {fieldDef?.type === 'NUMBER' && (
+                                    <>
+                                    <SelectItem value={FilterOperator.GT}>greater than</SelectItem>
+                                    <SelectItem value={FilterOperator.LT}>less than</SelectItem>
+                                    </>
+                                )}
+                            </SelectContent>
+                        </Select>
 
-            {!filter.specialValue && (
-                filterDef?.lookupEntity ?
-                    <Select value={String(filter.value || '')} onValueChange={v => onUpdate(index, { value: v })}>
-                        <SelectTrigger className="text-xs h-8"><SelectValue placeholder="Select..." /></SelectTrigger>
-                        <SelectContent>{lookupOptions.map(opt => <SelectItem key={opt.id} value={opt.id}>{opt.name}</SelectItem>)}</SelectContent>
-                    </Select> :
-                filterDef?.options ?
-                    <Select value={String(filter.value || '')} onValueChange={v => onUpdate(index, { value: v })}>
-                        <SelectTrigger className="text-xs h-8"><SelectValue placeholder="Select..." /></SelectTrigger>
-                        <SelectContent>{filterDef.options.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}</SelectContent>
-                    </Select> :
-                    <Input type={filter.type === 'DATE' ? 'date' : 'text'} value={String(filter.value || '')} onChange={e => onUpdate(index, { value: e.target.value })} className="text-xs h-8"/>
-            )}
-            {filter.specialValue && <div className="text-xs text-muted-foreground italic h-8 flex items-center">(auto)</div>}
+                        {/* 3. Value (Dynamic based on field type) */}
+                        {fieldDef?.lookupEntity === 'MEMBER' ? (
+                            <Select value={value || specialValue} onValueChange={(v) => {
+                                if (v === SpecialFilterValue.CURRENT_USER) { setSpecialValue(v); setValue(''); }
+                                else { setValue(v); setSpecialValue(''); }
+                            }}>
+                                <SelectTrigger className="bg-white border-slate-200"><SelectValue placeholder="Select Member" /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value={SpecialFilterValue.CURRENT_USER} className="text-purple-600 font-medium">Me (Current User)</SelectItem>
+                                    {members.map(m => <SelectItem key={m.id} value={m.user.id}>{m.user.firstName} {m.user.lastName}</SelectItem>)}
+                                </SelectContent>
+                            </Select>
+                        ) : fieldDef?.lookupEntity === 'SPRINT' ? (
+                            <Select value={value || specialValue} onValueChange={(v) => {
+                                if (v === SpecialFilterValue.ACTIVE_SPRINT) { setSpecialValue(v); setValue(''); }
+                                else { setValue(v); setSpecialValue(''); }
+                            }}>
+                                <SelectTrigger className="bg-white border-slate-200"><SelectValue placeholder="Select Sprint" /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value={SpecialFilterValue.ACTIVE_SPRINT} className="text-purple-600 font-medium">Current Active Sprint</SelectItem>
+                                    {sprints.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                                </SelectContent>
+                            </Select>
+                        ) : fieldDef?.options ? (
+                             <Select value={value} onValueChange={setValue}>
+                                <SelectTrigger className="bg-white border-slate-200"><SelectValue placeholder="Select..." /></SelectTrigger>
+                                <SelectContent>{fieldDef.options.map((o: string) => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+                            </Select>
+                        ) : (
+                            <Input placeholder="Value..." value={value} onChange={e => setValue(e.target.value)} className="bg-white border-slate-200" />
+                        )}
 
-            <Button variant="ghost" size="icon" onClick={() => onRemove(index)} className="h-8 w-8"><XCircle className="h-4 w-4 text-red-500" /></Button>
-        </div>
-    );
-}
-
-
-function useEntityDefinitions() {
-    const dataCategories = useMemo(() => [
-        { value: 'PROJECT', label: 'Project', icon: Briefcase, disabled: false },
-        { value: 'TASK', label: 'Tasks', icon: ListChecks, disabled: false },
-        { value: 'SPRINT', label: 'Sprints', icon: Calendar, disabled: false },
-        { value: 'DOCUMENT', label: 'Documents', icon: FileText, disabled: false },
-        { value: 'MEMBER', label: 'Members', icon: Users, disabled: false },
-        { value: 'USER', label: 'Me (Current User)', icon: Users, disabled: false },
-        { value: 'DATE_FUNCTION', label: 'Date Functions', icon: Calendar, disabled: false },
-    ], []);
-
-    const getEntityDefinition = useCallback((entityType: PromptVariableSource['entityType']) => {
-        const base = { value: entityType, label: dataCategories.find(c => c.value === entityType)?.label || 'Unknown', fields: [], aggregations: [], filters: [] };
-        switch (entityType) {
-            case 'PROJECT': return { ...base, fields: [
-                { value: 'name', label: 'Project Name', type: PromptVariableType.STRING, description: 'The name of the current project.' },
-                { value: 'description', label: 'Project Description', type: PromptVariableType.RICH_TEXT, description: 'The detailed description of the current project.' },
-            ]};
-            case 'TASK': return { ...base,
-                fields: [
-                    { value: 'title', label: 'Title', type: PromptVariableType.STRING, description: 'The title of the task.' },
-                    { value: 'status', label: 'Status', type: PromptVariableType.STRING, description: 'The status of the task (e.g., TODO, DONE).' },
-                    { value: 'priority', label: 'Priority', type: PromptVariableType.STRING, description: 'The priority of the task (LOW, MEDIUM, HIGH).' },
-                    { value: 'dueDate', label: 'Due Date', type: PromptVariableType.DATE, description: 'The due date of the task.' },
-                    { value: 'points', label: 'Points', type: PromptVariableType.NUMBER, description: 'Story points assigned to the task.' },
-                ],
-                aggregations: [
-                    { value: AggregationType.COUNT, label: 'Count', resultType: PromptVariableType.NUMBER, description: 'Total number of tasks.' },
-                    { value: AggregationType.SUM, label: 'Sum', resultType: PromptVariableType.NUMBER, requiresField: true, description: 'Sum of a numeric field for all tasks.' },
-                    { value: AggregationType.LIST_FIELD_VALUES, label: 'List Values', resultType: PromptVariableType.LIST_OF_STRINGS, requiresField: true, description: 'A list of values from a specific field.' },
-                ],
-                filters: [
-                    { field: 'status', label: 'Status', type: PromptVariableType.STRING, options: ['TODO', 'DONE'], operators: [FilterOperator.EQ, FilterOperator.NEQ] },
-                    { field: 'priority', label: 'Priority', type: PromptVariableType.STRING, options: ['LOW', 'MEDIUM', 'HIGH'], operators: [FilterOperator.EQ, FilterOperator.NEQ] },
-                    { field: 'assigneeId', label: 'Assignee', type: PromptVariableType.STRING, lookupEntity: 'MEMBER', operators: [FilterOperator.EQ, FilterOperator.NEQ, SpecialFilterValue.CURRENT_USER] },
-                    { field: 'sprintId', label: 'Sprint', type: PromptVariableType.STRING, lookupEntity: 'SPRINT', operators: [FilterOperator.EQ, FilterOperator.NEQ, SpecialFilterValue.ACTIVE_SPRINT] },
-                ]
-            };
-            case 'SPRINT': return { ...base, fields: [ { value: 'name', label: 'Sprint Name', type: PromptVariableType.STRING, description: 'Name of the sprint.' } ] };
-            case 'DOCUMENT': return { ...base, fields: [ { value: 'title', label: 'Document Title', type: PromptVariableType.STRING, description: 'Title of the document.' }, { value: 'content', label: 'Document Content', type: PromptVariableType.RICH_TEXT, description: 'Content of the document.' } ] };
-            case 'MEMBER': return { ...base, fields: [ { value: 'user.firstName', label: 'First Name', type: PromptVariableType.STRING, description: 'First name of the member.' } ] };
-            case 'USER': return { ...base, fields: [ { value: 'email', label: 'My Email', type: PromptVariableType.STRING, description: 'Email of the current user.' } ] };
-            case 'DATE_FUNCTION': return { ...base, fields: [ { value: 'today', label: 'Today\'s Date', type: PromptVariableType.DATE, description: 'The current date.' } ] };
-            default: return base;
-        }
-    }, [dataCategories]);
-
-    return { dataCategories, getEntityDefinition };
+                        <Button className="w-full mt-2" onClick={handleAdd}>Add Filter</Button>
+                        </>
+                    )}
+                </div>
+            </PopoverContent>
+        </Popover>
+    )
 }

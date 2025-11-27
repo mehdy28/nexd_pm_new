@@ -271,56 +271,7 @@ const promptResolvers = {
       return version as unknown as Version;
     },
 
-    resolvePromptVariable: async (
-      _parent: any,
-      { projectId, variableSource }: { projectId?: string; variableSource: any; promptVariableId?: string },
-      context: GraphQLContext
-    ): Promise<string> => {
-      const source = variableSource as PromptVariableSource;
-      const currentUserId = context.user?.id;
 
-      if (source.entityType === 'DATE_FUNCTION' && source.field === 'today') {
-        return new Date().toISOString().split('T')[0];
-      }
-
-      if (!projectId && source.entityType !== 'USER') {
-        return 'N/A (Project context required for this dynamic data)';
-      }
-
-      const project = projectId ? await prisma.project.findUnique({ where: { id: projectId } }) : null;
-
-      let prismaModel: any;
-
-      const where = buildPrismaWhereClause(source.filters, projectId || '', currentUserId, source.entityType);
-
-      switch (source.entityType) {
-        case 'PROJECT':
-          if (!project || !source.field) return 'N/A';
-          return extractFieldValue(project, source.field) || 'N/A';
-        default:
-          const modelName = source.entityType.toLowerCase();
-          if (!(modelName in prisma)) return 'N/A (Unsupported entity type)';
-          
-          prismaModel = (prisma as any)[modelName];
-          
-          const records = await prismaModel.findMany({ 
-              where,
-              orderBy: { updatedAt: 'desc' }
-          });
-
-          if (records.length === 0) return 'N/A (No matching records found)';
-
-          if (source.aggregation) {
-            return await applyAggregation(records, source, context);
-          } else {
-            const record = records[0]; 
-            if (!source.field) {
-                return extractFieldValue(record, 'title') || extractFieldValue(record, 'name') || 'N/A (Field not specified)';
-            }
-            return extractFieldValue(record, source.field) || 'N/A';
-          }
-      }
-    },
   },
 
   Mutation: {

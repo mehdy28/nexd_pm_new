@@ -11,7 +11,7 @@ export const useProjectDashboard = (projectId: string, sprintId?: string | null)
       sprintId,
     },
     skip: !projectId,
-    fetchPolicy: "cache-and-network",
+    fetchPolicy: "network-only",
   })
 
   return {
