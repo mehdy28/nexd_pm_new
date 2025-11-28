@@ -78,13 +78,14 @@ export function ListView({ projectId }: ListViewProps) {
   const [internalSelectedSprintId, setInternalSelectedSprintId] = useState<string | undefined>(undefined)
 
   const {
-    sections, // Use the data from the hook directly. Renamed from fetchedSections.
+    sections,
     sprintFilterOptions,
     loading,
     error,
     refetchProjectTasksAndSections,
     createSection,
     updateSection,
+    renameSection: renameSectionMutation,
     deleteSection,
     projectMembers,
     defaultSelectedSprintId: suggestedDefaultSprintId,
@@ -106,11 +107,9 @@ export function ListView({ projectId }: ListViewProps) {
     deleteManyLoading,
     deleteLoading,
     updateLoading,
-  } = useProjectTaskMutations(projectId, internalSelectedSprintId) // Pass sprintId to hook
+  } = useProjectTaskMutations(projectId, internalSelectedSprintId)
 
-  // --- REMOVED `useState` for `sections`. The hook's data is the source of truth. ---
-
-  const [editingSectionId, setEditingSectionId] = useState<string | null>(null)
+  // Section editing logic moved to ProjectSectionHeader component
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
   const [selected, setSelected] = useState<Record<string, boolean>>({})
   const [sheetTask, setSheetTask] = useState<{ sectionId: string; taskId: string } | null>(null)
@@ -142,7 +141,6 @@ export function ListView({ projectId }: ListViewProps) {
       firstName: member.user.firstName,
       lastName: member.user.lastName,
       avatar: member.user.avatar,
-      // We manually add the color here from the user object
       avatarColor: (member.user as any).avatarColor,
     } as UserAvatarPartial))
   }, [projectMembers])
@@ -153,20 +151,20 @@ export function ListView({ projectId }: ListViewProps) {
 
   const renameSection = useCallback(
     async (id: string, title: string) => {
-      setEditingSectionId(null) // Exit editing mode immediately
-      if (!title.trim()) {
-        return
-      }
+      // Editing state managed locally in ProjectSectionHeader now
+      if (!title.trim()) return
+      
       setIsSectionMutating(true)
       try {
-        await updateSection(id, title)
+        await renameSectionMutation(id, title)
+
       } catch (err) {
         console.error(`[renameSection] Failed to rename section "${id}":`, err)
       } finally {
         setIsSectionMutating(false)
       }
     },
-    [updateSection]
+    [renameSectionMutation]
   )
 
   const addSection = useCallback(async () => {
@@ -186,7 +184,6 @@ export function ListView({ projectId }: ListViewProps) {
       if (!taskToUpdate) return
 
       try {
-        // The hook's toggle function now knows how to call updateTask correctly
         await toggleTaskCompletedMutation(taskId, sectionId, taskToUpdate.status)
       } catch (err) {
         console.error(`[toggleTaskCompleted] Failed to toggle task "${taskId}" completion:`, err)
@@ -350,7 +347,6 @@ export function ListView({ projectId }: ListViewProps) {
   }, [])
 
   useEffect(() => {
-    // This effect ensures the collapsed state is initialized when sections are loaded
     if (sections) {
       setCollapsed(prevCollapsed => {
         const newCollapsedState: Record<string, boolean> = {}
@@ -480,77 +476,16 @@ export function ListView({ projectId }: ListViewProps) {
         </div>
         {sections.map(section => (
           <div key={section.id} className="w-full">
-            <div className="flex w-full items-center gap-2 px-5 py-4">
-              <button
-                onClick={() => toggleSection(section.id)}
-                className="inline-flex items-center justify-center rounded-md p-1 hover:bg-muted/40"
-                aria-label={collapsed[section.id] ? "Expand section" : "Collapse section"}
-                title={collapsed[section.id] ? "Expand" : "Collapse"}
-              >
-                {collapsed[section.id] ? (
-                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                ) : (
-                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                )}
-              </button>
-
-              {editingSectionId === section.id ? (
-                <Input
-                  autoFocus
-                  defaultValue={section.title}
-                  className="h-8 w-64"
-                  onBlur={e => renameSection(section.id, e.target.value.trim())}
-                  onKeyDown={e => {
-                    if (e.key === "Enter") (e.target as HTMLInputElement).blur()
-                    if (e.key === "Escape") setEditingSectionId(null)
-                  }}
-                  disabled={isSectionMutating}
-                />
-              ) : (
-                <button
-                  className="text-sm font-semibold text-left hover:underline"
-                  onClick={() => setEditingSectionId(section.id)}
-                  title="Rename section"
-                  disabled={isSectionMutating}
-                >
-                  {section.title}
-                </button>
-              )}
-
-              <div className="ml-auto flex items-center gap-2">
-                {!newTaskOpen[section.id] && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="bg-[#4ab5ae] text-white hover:bg-[#419d97]"
-                    onClick={() => openNewTask(section.id)}
-                   // disabled={isTaskMutating}
-                  >
-                    + Add task
-                  </Button>
-                )}
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 w-8 p-0"
-                      disabled={isSectionMutating}
-                    >
-                      <EllipsisVertical className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem
-                      onClick={() => handleOpenDeleteSectionModal(section)}
-                      className="text-red-600"
-                    >
-                      <Trash2 className="h-4 w-4 mr-2" /> Delete Section
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            </div>
+            <ProjectSectionHeader
+              section={section}
+              collapsed={!!collapsed[section.id]}
+              onToggleCollapse={() => toggleSection(section.id)}
+              onRename={(title) => renameSection(section.id, title)}
+              onDelete={() => handleOpenDeleteSectionModal(section)}
+              onOpenNewTask={() => openNewTask(section.id)}
+              newTaskOpen={!!newTaskOpen[section.id]}
+              isSectionMutating={isSectionMutating}
+            />
 
             {!collapsed[section.id] && (
               <div className="w-full">
@@ -561,7 +496,7 @@ export function ListView({ projectId }: ListViewProps) {
                     selected={!!selected[task.id]}
                     onSelect={checked => toggleSelect(task.id, checked)}
                     onToggleCompleted={() => toggleTaskCompleted(section.id, task.id)}
-                    onChange={updates => updateTask(section.id, task.id, updates)}
+                    onUpdate={updates => updateTask(section.id, task.id, updates)}
                     onOpen={() => openSheetFor(section.id, task.id)}
                     onDelete={() => openDeleteTaskModal(section.id, task)}
                     assignees={availableAssignees}
@@ -582,7 +517,7 @@ export function ListView({ projectId }: ListViewProps) {
                               }))
                             }
                             placeholder="Task title"
-                           // disabled={isTaskMutating}
+                            // disabled={isTaskMutating}
                           />
                         </div>
                         <div className="space-y-2">
@@ -651,7 +586,7 @@ export function ListView({ projectId }: ListViewProps) {
                                 [section.id]: { ...(p[section.id] as NewTaskForm), priority: v },
                               }))
                             }
-                           // disabled={isTaskMutating}
+                            // disabled={isTaskMutating}
                           >
                             <SelectTrigger>
                               <SelectValue placeholder="Priority" />
@@ -687,7 +622,7 @@ export function ListView({ projectId }: ListViewProps) {
                                 }))
                               }
                               min={0}
-                             // disabled={isTaskMutating}
+                              // disabled={isTaskMutating}
                             />
                             <Button
                               aria-label="Create task"
@@ -880,24 +815,154 @@ export function ListView({ projectId }: ListViewProps) {
   )
 }
 
+interface ProjectSectionHeaderProps {
+  section: SectionUI
+  collapsed: boolean
+  onToggleCollapse: () => void
+  onRename: (title: string) => void
+  onDelete: () => void
+  onOpenNewTask: () => void
+  newTaskOpen: boolean
+  isSectionMutating: boolean
+}
+
+function ProjectSectionHeader({
+  section,
+  collapsed,
+  onToggleCollapse,
+  onRename,
+  onDelete,
+  onOpenNewTask,
+  newTaskOpen,
+  isSectionMutating,
+}: ProjectSectionHeaderProps) {
+  const [isEditing, setIsEditing] = useState(false)
+  const [localTitle, setLocalTitle] = useState(section.title)
+
+  // Sync local title with props if props change from outside
+  useEffect(() => {
+    setLocalTitle(section.title)
+  }, [section.title])
+
+  const handleBlur = () => {
+    setIsEditing(false)
+    if (localTitle.trim() && localTitle !== section.title) {
+      onRename(localTitle.trim())
+    } else {
+      setLocalTitle(section.title) // Revert if empty or unchanged
+    }
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      e.currentTarget.blur()
+    }
+    if (e.key === "Escape") {
+      setIsEditing(false)
+      setLocalTitle(section.title) // Revert
+    }
+  }
+
+  return (
+    <div className="flex w-full items-center gap-2 px-5 py-4">
+      <button
+        onClick={onToggleCollapse}
+        className="inline-flex items-center justify-center rounded-md p-1 hover:bg-muted/40"
+        aria-label={collapsed ? "Expand section" : "Collapse section"}
+        title={collapsed ? "Expand" : "Collapse"}
+      >
+        {collapsed ? (
+          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+        ) : (
+          <ChevronDown className="h-4 w-4 text-muted-foreground" />
+        )}
+      </button>
+
+      {isEditing ? (
+        <Input
+          autoFocus
+          value={localTitle}
+          onChange={e => setLocalTitle(e.target.value)}
+          className="h-8 w-64"
+          onBlur={handleBlur}
+          onKeyDown={handleKeyDown}
+          disabled={isSectionMutating}
+        />
+      ) : (
+        <button
+          className="text-sm font-semibold text-left hover:underline"
+          onClick={() => setIsEditing(true)}
+          title="Rename section"
+          disabled={isSectionMutating}
+        >
+          {localTitle}
+        </button>
+      )}
+
+      <div className="ml-auto flex items-center gap-2">
+        {!newTaskOpen && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="bg-[#4ab5ae] text-white hover:bg-[#419d97]"
+            onClick={onOpenNewTask}
+            // disabled={isTaskMutating}
+          >
+            + Add task
+          </Button>
+        )}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" disabled={isSectionMutating}>
+              <EllipsisVertical className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={onDelete} className="text-red-600">
+              <Trash2 className="h-4 w-4 mr-2" /> Delete Section
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    </div>
+  )
+}
+
 interface TaskRowProps {
   task: TaskUI
   selected: boolean
   onSelect: (checked: boolean) => void
   onToggleCompleted: () => void
-  onChange: (updates: Partial<TaskUI>) => void
+  onUpdate: (updates: Partial<TaskUI>) => void
   onOpen: () => void
   onDelete: () => void
   assignees: UserAvatarPartial[]
 }
 
-function TaskRow({ task, selected, onSelect, onToggleCompleted, onChange, onOpen, onDelete, assignees }: TaskRowProps) {
+function TaskRow({ task, selected, onSelect, onToggleCompleted, onUpdate, onOpen, onDelete, assignees }: TaskRowProps) {
   const Icon = task.completed ? CheckCircle2 : Circle
   const cellInput =
     "h-8 w-full bg-transparent border-0 focus-visible:ring-0 focus-visible:border-0 focus:outline-none text-sm"
   const assignee = task.assignee
   const assigneeInitials = `${assignee?.firstName?.[0] || ""}${assignee?.lastName?.[0] || ""}`.trim() || "?"
   const assigneeName = `${assignee?.firstName || ""} ${assignee?.lastName || ""}`.trim() || "Unassigned"
+
+  // Local state for immediate UI updates and buffering inputs
+  const [localTitle, setLocalTitle] = useState(task.title)
+  useEffect(() => setLocalTitle(task.title), [task.title])
+
+  const [localPriority, setLocalPriority] = useState<PriorityUI>(task.priority)
+  useEffect(() => setLocalPriority(task.priority), [task.priority])
+
+  const [localPoints, setLocalPoints] = useState(task.points)
+  useEffect(() => setLocalPoints(task.points), [task.points])
+
+  const handleBlur = (field: keyof TaskUI, value: any) => {
+    // Only update if value actually changed
+    if (value !== task[field]) {
+      onUpdate({ [field]: value })
+    }
+  }
 
   return (
     <div className="grid grid-cols-[40px_1fr_200px_150px_120px_80px_96px] items-center gap-2 px-10 py-2 hover:bg-muted/40 focus-within:bg-emerald-50/50 focus-within:ring-1 focus-within:ring-emerald-200 rounded-md">
@@ -922,15 +987,19 @@ function TaskRow({ task, selected, onSelect, onToggleCompleted, onChange, onOpen
             "min-w-0 rounded-sm focus-visible:bg-emerald-50 focus-visible:ring-2 focus-visible:ring-emerald-500/60 focus-visible:ring-offset-0",
             task.completed && "line-through text-muted-foreground"
           )}
-          value={task.title}
-          onChange={e => onChange({ title: e.target.value })}
+          value={localTitle}
+          onChange={e => setLocalTitle(e.target.value)}
+          onBlur={() => handleBlur("title", localTitle)}
+          onKeyDown={e => {
+            if (e.key === "Enter") (e.target as HTMLInputElement).blur()
+          }}
           onFocus={e => e.currentTarget.select()}
         />
       </div>
       <div>
         <Select
           value={assignee?.id || "null"}
-          onValueChange={v => onChange({ assignee: v === "null" ? null : assignees.find(a => a.id === v) })}
+          onValueChange={v => onUpdate({ assignee: v === "null" ? null : assignees.find(a => a.id === v) })}
         >
           <SelectTrigger className="h-8">
             <div className="flex items-center gap-2">
@@ -973,19 +1042,28 @@ function TaskRow({ task, selected, onSelect, onToggleCompleted, onChange, onOpen
       <div>
         <Input
           type="date"
-          value={formatDateForInput(task.endDate)}
-          onChange={e => onChange({ endDate: e.target.value })}
+          defaultValue={formatDateForInput(task.endDate)}
+          onBlur={e => handleBlur("endDate", e.target.value)}
           className="h-8"
         />
       </div>
       <div>
-        <Select value={task.priority} onValueChange={(v: PriorityUI) => onChange({ priority: v })}>
+        <Select 
+          value={localPriority} 
+          onValueChange={(v: PriorityUI) => {
+            setLocalPriority(v) // Update UI immediately
+            onUpdate({ priority: v }) // Trigger API
+          }}
+        >
           <SelectTrigger className="h-8">
             <div
-              className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-xs", priorityStyles[task.priority])}
+              className={cn(
+                "inline-flex items-center rounded-full px-2 py-0.5 text-xs",
+                priorityStyles[localPriority] || priorityStyles[task.priority]
+              )}
             >
-              <span className={cn("mr-2 h-2 w-2 rounded-full", priorityDot[task.priority])} />
-              {task.priority}
+              <span className={cn("mr-2 h-2 w-2 rounded-full", priorityDot[localPriority] || priorityDot[task.priority])} />
+              {localPriority}
             </div>
           </SelectTrigger>
           <SelectContent>
@@ -1004,12 +1082,19 @@ function TaskRow({ task, selected, onSelect, onToggleCompleted, onChange, onOpen
         <Input
           className={cellInput}
           type="number"
-          value={task.points ?? ""}
+          value={localPoints ?? ""}
           onChange={e =>
-            onChange({
-              points: Number.isNaN(Number.parseInt(e.target.value)) ? 0 : Number.parseInt(e.target.value),
-            })
+             setLocalPoints(e.target.value === "" ? null : parseInt(e.target.value))
           }
+          onBlur={e =>
+            handleBlur(
+              "points",
+              Number.isNaN(Number.parseInt(e.target.value)) ? null : Number.parseInt(e.target.value)
+            )
+          }
+          onKeyDown={e => {
+            if (e.key === "Enter") (e.target as HTMLInputElement).blur()
+          }}
           min={0}
         />
       </div>

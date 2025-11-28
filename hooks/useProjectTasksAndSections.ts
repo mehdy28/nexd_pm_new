@@ -233,6 +233,61 @@ export function useProjectTasksAndSections(projectId: string, sprintIdFromProps?
     [updateProjectSectionMutation]
   )
 
+
+
+
+
+  const renameSection = useCallback(
+    async (id: string, name: string) => {
+      console.log(`[renameSection] Initiated. ID: ${id}, Name: ${name}`)
+      
+      // FIX: Retrieve the current order from the cached data.
+      // If we don't include 'order', Apollo cache writing fails because the active query expects it.
+      const currentSection = data?.getProjectTasksAndSections?.sections.find(s => s.id === id)
+      const currentOrder = currentSection?.order ?? 0
+
+      const optimisticResponse = {
+          updateProjectSection: {
+            __typename: "Section",
+            id,
+            name,
+            order: currentOrder, // Mandatory field for cupdateProjectSectionache consistency
+          },
+      }
+
+      await updateProjectSectionMutation({
+        variables: { id, name },
+        optimisticResponse,
+        update: (cache, { data: mutationData }) => {
+          const newName = mutationData?.updateProjectSection.name
+          if (newName) {
+            const sectionCacheId = cache.identify({ __typename: "Section", id })
+            if (sectionCacheId) {
+              cache.modify({
+                id: sectionCacheId,
+                fields: {
+                  name: () => newName,
+                },
+              })
+            }
+          }
+        },
+      })
+    },
+    [updateProjectSectionMutation, data]
+  )
+
+
+
+
+
+
+
+
+
+
+
+
   const deleteSection = useCallback(
     async (id: string, options: { deleteTasks: boolean; reassignToSectionId?: string | null }) => {
       const variables = { id, options }
@@ -313,6 +368,7 @@ export function useProjectTasksAndSections(projectId: string, sprintIdFromProps?
     isCreatingSection,
     updateSection,
     deleteSection,
+    renameSection,
     reorderSections, // <-- Expose the new function
     projectMembers,
     defaultSelectedSprintId: sprintIdFromProps !== undefined ? sprintIdFromProps : defaultSprintIdToSuggest,

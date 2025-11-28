@@ -245,7 +245,6 @@ model WorkspaceMember {
   workspace   Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@unique([workspaceId, userId])
   @@map("workspace_members")
 }
 
@@ -264,7 +263,6 @@ model WorkspaceInvitation {
   workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   invitedBy   User      @relation("Inviter", fields: [invitedById], references: [id], onDelete: Cascade)
 
-  @@unique([workspaceId, email])
   @@map("workspace_invitations")
 }
 
@@ -312,7 +310,6 @@ model ProjectMember {
   project   Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
   user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@unique([projectId, userId])
   @@map("project_members")
 }
 
@@ -375,7 +372,6 @@ model PersonalSection {
 
   tasks Task[]
 
-  @@unique([userId, name])
   @@map("personal_sections")
 }
 
@@ -446,7 +442,6 @@ model Label {
   workspace   Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   tasks       TaskLabel[]
 
-  @@unique([name, workspaceId])
   @@map("labels")
 }
 
@@ -524,7 +519,6 @@ model Mention {
   comment   Comment @relation(fields: [commentId], references: [id], onDelete: Cascade)
   user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@unique([commentId, userId])
   @@map("mentions")
 }
 
@@ -642,7 +636,6 @@ model TaskDependency {
   precedingTask   Task           @relation("PrecedingTask", fields: [precedingTaskId], references: [id], onDelete: Cascade)
   dependentTask   Task           @relation("DependentTask", fields: [dependentTaskId], references: [id], onDelete: Cascade)
 
-  @@unique([precedingTaskId, dependentTaskId])
   @@map("task_dependencies")
 }
 
@@ -683,7 +676,6 @@ model ConversationParticipant {
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@unique([conversationId, userId])
   @@map("conversation_participants")
 }
 

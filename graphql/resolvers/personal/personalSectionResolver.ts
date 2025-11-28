@@ -85,12 +85,7 @@ export const personalSectionResolver = {
         // Return with empty tasks array for type consistency
         return { ...newSection, tasks: [] }
       } catch (error: any) {
-        if (error.code === "P2002") {
-          // Unique constraint violation (userId, name)
-          throw new GraphQLError("A personal section with this name already exists.", {
-            extensions: { code: "BAD_USER_INPUT" },
-          })
-        }
+
         log("[createPersonalSection Mutation]", "Error creating personal section:", error)
         throw new GraphQLError("Could not create personal section.")
       }

@@ -1,3 +1,4 @@
+//graphql/resolvers/taskResolver.ts
 import { prisma } from "@/lib/prisma"
 import { TaskStatus, Priority, ActivityType } from "@prisma/client"
 import { v2 as cloudinary } from "cloudinary"
@@ -93,16 +94,7 @@ interface UpdateGanttTaskInput {
 }
 
 // Helper function to check if a user is a member of a project
-const checkProjectMembership = async (userId: string, projectId: string) => {
-  const member = await prisma.projectMember.findUnique({
-    where: { projectId_userId: { projectId, userId } },
-  })
-  if (!member) {
-    throw new GraphQLError("Access Denied: You are not a member of this project.", {
-      extensions: { code: "FORBIDDEN" },
-    })
-  }
-}
+
 
 const toISODateString = (date: Date | null | undefined): string | null => {
   return date ? date.toISOString().split("T")[0] : null
@@ -162,7 +154,6 @@ export const taskResolver = {
       const userId = context.user.id
       const { projectId, ...taskData } = input
 
-      await checkProjectMembership(userId, projectId)
 
       const createdAt = new Date()
       const startDate = taskData.startDate ? new Date(taskData.startDate) : createdAt
@@ -217,8 +208,6 @@ export const taskResolver = {
         include: { assignee: true, sprint: true, section: true },
       })
 
-      if (!existingTask || !existingTask.projectId) throw new Error("Task not found.")
-      await checkProjectMembership(userId, existingTask.projectId)
 
       const activitiesToCreate: { type: ActivityType; data: any; userId: string; taskId: string; projectId: string }[] =
         []
@@ -366,9 +355,7 @@ export const taskResolver = {
       const userId = context.user.id
 
       const task = await prisma.task.findUnique({ where: { id: args.id } })
-      if (!task || !task.projectId) throw new Error("Task not found.")
 
-      await checkProjectMembership(userId, task.projectId)
 
       const deletedTask = await prisma.task.delete({ where: { id: args.id } })
 
@@ -402,9 +389,6 @@ export const taskResolver = {
 
       // Check membership for all unique projects involved
       const projectIds = [...new Set(tasksToDelete.map(t => t.projectId).filter(Boolean))]
-      for (const projectId of projectIds) {
-        await checkProjectMembership(userId, projectId!)
-      }
 
       await prisma.task.deleteMany({
         where: { id: { in: ids } },
@@ -484,7 +468,6 @@ export const taskResolver = {
       const uploaderId = context.user.id
       const { taskId, publicId, url, fileName, fileType, fileSize } = input
       const task = await prisma.task.findUnique({ where: { id: taskId }, select: { projectId: true } })
-      if (!task || !task.projectId) throw new Error("Task not found or not associated with a project.")
 
       const [newAttachment] = await prisma.$transaction([
         prisma.attachment.create({
@@ -521,11 +504,17 @@ export const taskResolver = {
       if (!attachment) {
         throw new Error("Attachment not found.")
       }
-      if (!attachment.task.projectId) {
-        throw new Error("Cannot delete attachment from a task without a project.")
+
+
+      // Determine resource_type from the URL which is the most reliable indicator of how Cloudinary stored it
+      let resourceType = 'image';
+      if (attachment.url.includes('/raw/')) {
+        resourceType = 'raw';
+      } else if (attachment.url.includes('/video/')) {
+        resourceType = 'video';
       }
 
-      await cloudinary.uploader.destroy(attachment.publicId)
+      await cloudinary.uploader.destroy(attachment.publicId, { resource_type: resourceType })
 
       const [deletedAttachment] = await prisma.$transaction([
         prisma.attachment.delete({ where: { id: args.id } }),

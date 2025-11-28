@@ -1,14 +1,14 @@
+//components/prompt-lab/variable-discovery-builder.tsx
 'use client'
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { useLazyQuery } from '@apollo/client';
@@ -64,6 +64,14 @@ export function VariableDiscoveryBuilder({ open, onOpenChange, onCreate, project
   projectId?: string;
   workspaceId?: string;
 }) {
+  // LOG: Init
+  useEffect(() => {
+    if(open) {
+      console.log('🔥🔥 [VariableDiscoveryBuilder] MOUNT/OPEN 🔥🔥');
+      console.log('Props:', { projectId, workspaceId });
+    }
+  }, [open, projectId, workspaceId]);
+
   const [activeTab, setActiveTab] = useState<'library' | 'builder'>('library');
   const [builderMode, setBuilderMode] = useState<'dynamic' | 'manual'>('dynamic');
   
@@ -87,6 +95,21 @@ export function VariableDiscoveryBuilder({ open, onOpenChange, onCreate, project
   const [description, setDescription] = useState('');
   const [defaultValue, setDefaultValue] = useState('');
   
+  // LOG: Detailed State Tracking
+  useEffect(() => {
+    if(!open) return;
+    console.log('⚡ [VariableDiscoveryBuilder] STATE UPDATE ⚡', {
+      activeTab,
+      builderMode,
+      entity,
+      retrievalType,
+      field,
+      aggregation,
+      filtersCount: filters.length,
+      name
+    });
+  }, [activeTab, builderMode, entity, retrievalType, field, aggregation, filters, name, open]);
+
   // --- HOOKS ---
   const { dataCategories, getEntityDefinition } = useEntityDefinitions();
   const entityDef = useMemo(() => entity ? getEntityDefinition(entity) : null, [entity, getEntityDefinition]);
@@ -94,7 +117,23 @@ export function VariableDiscoveryBuilder({ open, onOpenChange, onCreate, project
   // --- LIVE PREVIEW ---
   const [sourceForPreview, setSourceForPreview] = useState<PromptVariableSource | null>(null);
   const [debouncedSource] = useDebounce(sourceForPreview, 800);
-  const [fetchPreview, { data: previewData, loading: isLoadingPreview, error: previewError }] = useLazyQuery(RESOLVE_PROMPT_VARIABLE_QUERY);
+  
+  const [fetchPreview, { data: previewData, loading: isLoadingPreview, error: previewError }] = useLazyQuery(RESOLVE_PROMPT_VARIABLE_QUERY, {
+    fetchPolicy: 'network-only',
+    notifyOnNetworkStatusChange: true
+  });
+
+  // LOG: Preview Fetching
+  useEffect(() => {
+    if (debouncedSource) {
+      console.log('👀 [VariableDiscoveryBuilder] Fetching Preview for:', debouncedSource);
+    }
+  }, [debouncedSource]);
+
+  useEffect(() => {
+    if (previewData) console.log('✅ [VariableDiscoveryBuilder] Preview Data Recieved:', previewData);
+    if (previewError) console.error('❌ [VariableDiscoveryBuilder] Preview Error:', previewError);
+  }, [previewData, previewError]);
 
   // --- PRESETS DEFINITION ---
   const PRESETS: VariablePreset[] = [
@@ -224,7 +263,6 @@ export function VariableDiscoveryBuilder({ open, onOpenChange, onCreate, project
         retrievalType: 'field',
         field: 'title',
         type: PromptVariableType.LIST_OF_STRINGS
-        // Note: No filters here. Previous bug was that this didn't clear Task filters.
       }
     },
     // --- MANUAL INPUTS ---
@@ -277,6 +315,17 @@ export function VariableDiscoveryBuilder({ open, onOpenChange, onCreate, project
       }, 200);
     }
   }, [open]);
+
+  // LOG FOR PICKER OPENING
+  useEffect(() => {
+    if (isItemPickerOpen) {
+        console.log('--------------------------------------------------');
+        console.log('📌 [VariableDiscoveryBuilder] Opening Item Picker');
+        console.log('   Entity:', entity);
+        console.log('   Filters:', filters);
+        console.log('--------------------------------------------------');
+    }
+  }, [isItemPickerOpen, entity, filters]);
 
   // 2. Fetch Preview (Only for Dynamic)
   useEffect(() => {
@@ -341,20 +390,19 @@ export function VariableDiscoveryBuilder({ open, onOpenChange, onCreate, project
 
   // --- HANDLERS ---
   const handleApplyPreset = (preset: VariablePreset) => {
+    console.log('🔘 [VariableDiscoveryBuilder] Applying Preset:', preset.id);
     setBuilderMode(preset.config.mode);
     setName(preset.title);
     setDescription(preset.description);
     setDefaultValue(preset.config.defaultValue || '');
 
     if (preset.config.mode === 'dynamic') {
-      // CRITICAL FIX: We must clear ALL previous state to avoid cross-contamination
-      // (e.g., Task Filters applied to Documents)
       setEntity(preset.config.entity!);
       setRetrievalType(preset.config.retrievalType!);
       setField(preset.config.field || null);
       setAggregation(preset.config.aggregation || null);
       setAggregationField(preset.config.aggregationField || null);
-      setFilters(preset.config.filters || []); // Clear filters if preset has none
+      setFilters(preset.config.filters || []); 
     } else {
       setManualType(preset.config.type);
     }
@@ -363,6 +411,7 @@ export function VariableDiscoveryBuilder({ open, onOpenChange, onCreate, project
   };
 
   const handleCreate = () => {
+    console.log('🚀 [VariableDiscoveryBuilder] Creating Variable. Name:', name);
     if (!name) return;
     
     let finalType = manualType;
@@ -380,19 +429,23 @@ export function VariableDiscoveryBuilder({ open, onOpenChange, onCreate, project
       }
     }
 
-    onCreate({
+    const payload = {
       name,
       placeholder: generatePlaceholder(name),
       description,
       type: finalType,
       defaultValue,
       source: finalSource,
-    });
+    };
+    
+    console.log('📦 [VariableDiscoveryBuilder] Payload:', payload);
+    onCreate(payload);
     onOpenChange(false);
   };
   
   // Handle adding specific IDs from the modal
   const handleAddSpecificItems = (ids: string[]) => {
+      console.log('📌 [VariableDiscoveryBuilder] Adding Specific Items:', ids);
       // Remove existing ID filter if present
       const newFilters = filters.filter(f => f.field !== 'id');
       
@@ -400,7 +453,7 @@ export function VariableDiscoveryBuilder({ open, onOpenChange, onCreate, project
           newFilters.push({
               field: 'id',
               operator: FilterOperator.IN_LIST,
-              value: ids, // We pass the array of IDs here
+              value: ids, 
               type: PromptVariableType.LIST_OF_STRINGS
           });
       }
@@ -505,6 +558,7 @@ export function VariableDiscoveryBuilder({ open, onOpenChange, onCreate, project
                           <button
                             key={cat.value}
                             onClick={() => { 
+                                console.log('🖱️ [VariableDiscoveryBuilder] Selected Entity:', cat.value);
                                 // Aggressively reset all state when switching entities manually
                                 setEntity(cat.value as any); 
                                 setField(null); 
@@ -539,7 +593,7 @@ export function VariableDiscoveryBuilder({ open, onOpenChange, onCreate, project
                                 <Rows3 className={cn("h-4 w-4", retrievalType === 'field' ? "text-indigo-600" : "text-slate-500")}/>
                                 <span className="font-semibold text-slate-900">List of Values</span>
                               </div>
-                              <Select value={field || ''} onValueChange={setField}>
+                              <Select value={field || ''} onValueChange={(v) => { console.log('Set Field:', v); setField(v); }}>
                                   <SelectTrigger className="bg-white border-slate-200"><SelectValue placeholder="Select field..." /></SelectTrigger>
                                   <SelectContent>{entityDef.fields.map(f => <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>)}</SelectContent>
                               </Select>
@@ -581,7 +635,16 @@ export function VariableDiscoveryBuilder({ open, onOpenChange, onCreate, project
                                     <CheckSquare className="h-3 w-3" /> Pick Specific {entityDef.label}s
                                 </Button>
                              )}
-                             <FilterPopover entityDef={entityDef} onAddFilter={(f) => setFilters([...filters, f])} />
+                             {/* CHANGED: Using FilterAddDialog instead of Popover to fix Select close issues */}
+                             <FilterAddDialog 
+                                entityDef={entityDef} 
+                                onAddFilter={(f) => {
+                                    console.log('➕ [FilterAdd] Adding:', f);
+                                    setFilters([...filters, f]);
+                                }} 
+                                projectId={projectId}
+                                workspaceId={workspaceId}
+                             />
                           </div>
                         </div>
 
@@ -763,6 +826,9 @@ export function VariableDiscoveryBuilder({ open, onOpenChange, onCreate, project
             onOpenChange={setIsItemPickerOpen}
             onConfirm={handleAddSpecificItems}
             existingSelection={filters.find(f => f.field === 'id' && f.operator === FilterOperator.IN_LIST)?.value as string[] || []}
+            projectId={projectId}
+            workspaceId={workspaceId}
+            currentFilters={filters}
           />
       )}
     </Dialog>
@@ -771,36 +837,80 @@ export function VariableDiscoveryBuilder({ open, onOpenChange, onCreate, project
 
 
 // =================================================================
-// SPECIFIC ITEM PICKER COMPONENT (New)
+// SPECIFIC ITEM PICKER COMPONENT
 // =================================================================
-function SpecificItemPicker({ entityType, open, onOpenChange, onConfirm, existingSelection }: {
+function SpecificItemPicker({ entityType, open, onOpenChange, onConfirm, existingSelection, projectId, workspaceId, currentFilters = [] }: {
     entityType: PromptVariableSource['entityType'],
     open: boolean,
     onOpenChange: (val: boolean) => void,
     onConfirm: (ids: string[]) => void,
-    existingSelection: string[]
+    existingSelection: string[],
+    projectId?: string,
+    workspaceId?: string,
+    currentFilters?: FilterCondition[]
 }) {
     const [selectedIds, setSelectedIds] = useState<string[]>(existingSelection);
     const [searchTerm, setSearchTerm] = useState('');
     const [debouncedSearch] = useDebounce(searchTerm, 300);
 
-    // Fetch data using existing hook
-    const { tasks, documents, loading } = usePromptDataLookups({ selectedEntityType: entityType });
+    // DEBUG LOG
+    console.log('[SpecificItemPicker] Initializing with entityType:', entityType);
 
-    // Normalize data for display
+    // Fetch data using existing hook
+    const { tasks, documents, loading } = usePromptDataLookups({ 
+        selectedEntityType: entityType,
+        projectId,
+        workspaceId 
+    });
+
+    // DEBUG LOG
+    useEffect(() => {
+        console.log('[SpecificItemPicker] Data Loaded:', { loading, tasks: tasks?.length, docs: documents?.length });
+    }, [tasks, documents, loading]);
+
+    // Normalize data for display AND apply client-side filtering
     const items = useMemo(() => {
-        let rawItems: any[] = [];
-        if (entityType === 'TASK') rawItems = tasks;
-        else if (entityType === 'DOCUMENT') rawItems = documents;
+        console.log('[SpecificItemPicker] Calculation Items. Search:', debouncedSearch);
         
-        return rawItems
-            .filter(item => item.title.toLowerCase().includes(debouncedSearch.toLowerCase()))
-            .map(item => ({
-                id: item.id,
-                title: item.title,
-                subtitle: (entityType === 'TASK' && item.sprint) ? item.sprint.name : (item.updatedAt ? new Date(item.updatedAt).toLocaleDateString() : '')
-            }));
-    }, [entityType, tasks, documents, debouncedSearch]);
+        let rawItems: any[] = [];
+        if (entityType === 'TASK') rawItems = tasks || [];
+        else if (entityType === 'DOCUMENT') rawItems = documents || [];
+        
+        const filtered = rawItems.filter(item => {
+            // 1. Filter by Search Term
+            if (!item || !item.title) return false;
+            if (!item.title.toLowerCase().includes(debouncedSearch.toLowerCase())) return false;
+
+            // 2. Filter by Current Filters (Client Side)
+            for (const filter of currentFilters) {
+                if (filter.field === 'id') continue;
+                if (filter.specialValue) continue;
+
+                const itemValue = item[filter.field];
+                
+                if (filter.operator === FilterOperator.EQ) {
+                     if (itemValue != filter.value) return false;
+                }
+                else if (filter.operator === FilterOperator.NEQ) {
+                     if (itemValue == filter.value) return false;
+                }
+                else if (filter.operator === FilterOperator.GT) {
+                     if (Number(itemValue) <= Number(filter.value)) return false;
+                }
+                else if (filter.operator === FilterOperator.LT) {
+                     if (Number(itemValue) >= Number(filter.value)) return false;
+                }
+            }
+
+            return true;
+        });
+            
+        return filtered.map(item => ({
+            id: item.id,
+            title: item.title,
+            subtitle: (entityType === 'TASK' && item.sprint) ? item.sprint.name : (item.updatedAt ? new Date(item.updatedAt).toLocaleDateString() : '')
+        }));
+    }, [entityType, tasks, documents, debouncedSearch, currentFilters]);
 
     const handleToggle = (id: string) => {
         setSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
@@ -838,7 +948,14 @@ function SpecificItemPicker({ entityType, open, onOpenChange, onConfirm, existin
                     {loading ? (
                         <div className="flex items-center justify-center py-10 gap-2 text-slate-500"><Loader2 className="h-5 w-5 animate-spin text-indigo-600"/> Loading...</div>
                     ) : items.length === 0 ? (
-                        <div className="text-center py-10 text-slate-500">No items found matching your search.</div>
+                        <div className="text-center py-10 text-slate-500">
+                             <div>No items found.</div>
+                             {currentFilters.filter(f => f.field !== 'id').length > 0 && (
+                                 <div className="text-xs text-slate-400 mt-1">
+                                    (Filtered by: {currentFilters.filter(f => f.field !== 'id').map(f => `${f.field} ${f.operator} ${f.value}`).join(', ')})
+                                 </div>
+                             )}
+                        </div>
                     ) : (
                         <div className="space-y-2">
                             {items.map(item => (
@@ -874,11 +991,13 @@ function SpecificItemPicker({ entityType, open, onOpenChange, onConfirm, existin
 
 
 // =================================================================
-// FILTER POPOVER COMPONENT
+// FILTER DIALOG COMPONENT (Replaces Popover to fix Select issue)
 // =================================================================
-function FilterPopover({ entityDef, onAddFilter }: { 
+function FilterAddDialog({ entityDef, onAddFilter, projectId, workspaceId }: { 
     entityDef: any, 
-    onAddFilter: (f: FilterCondition) => void 
+    onAddFilter: (f: FilterCondition) => void,
+    projectId?: string,
+    workspaceId?: string
 }) {
     const [open, setOpen] = useState(false);
     const [selectedField, setSelectedField] = useState<string>('');
@@ -887,13 +1006,25 @@ function FilterPopover({ entityDef, onAddFilter }: {
     const [specialValue, setSpecialValue] = useState<string>('');
     
     // Reset internal state when opening
-    useEffect(() => { if(open) { setSelectedField(''); setValue(''); setSpecialValue(''); } }, [open]);
+    useEffect(() => { 
+        if(open) { 
+            console.log('🔓 [FilterAddDialog] Opened');
+            setSelectedField(''); 
+            setValue(''); 
+            setSpecialValue(''); 
+        } 
+    }, [open]);
 
     // Derived Lookups
     const fieldDef = entityDef.filters?.find((f: any) => f.field === selectedField);
-    const { members, sprints } = usePromptDataLookups({ selectedEntityType: entityDef.value });
+    const { members, sprints } = usePromptDataLookups({ 
+        selectedEntityType: entityDef.value,
+        projectId,
+        workspaceId
+    });
     
     const handleAdd = () => {
+        console.log('📝 [FilterAddDialog] Submitting filter:', { selectedField, operator, value, specialValue });
         if (!selectedField) return;
         
         const filter: FilterCondition = {
@@ -908,79 +1039,94 @@ function FilterPopover({ entityDef, onAddFilter }: {
     };
 
     return (
-        <Popover open={open} onOpenChange={setOpen}>
-            <PopoverTrigger asChild>
+        <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
                 <Button variant="outline" size="sm" className="h-8 gap-1 rounded-full border-dashed border-indigo-200 text-indigo-600 hover:bg-indigo-50 bg-white">
                     <Plus className="h-3 w-3" /> Filter
                 </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-[320px] p-4 bg-white border-slate-200 shadow-xl rounded-lg" align="end">
-                <div className="space-y-3">
-                    <h4 className="font-medium text-sm text-slate-900">Add Filter</h4>
-                    
+            </DialogTrigger>
+            <DialogContent className="w-[400px] p-6 bg-white border-slate-200 shadow-xl rounded-lg">
+                <DialogHeader>
+                    <DialogTitle className="text-lg font-semibold text-slate-900">Add Filter</DialogTitle>
+                    <DialogDescription>Define a condition to filter your data.</DialogDescription>
+                </DialogHeader>
+
+                <div className="space-y-4 py-2">
                     {/* 1. Field */}
-                    <Select value={selectedField} onValueChange={setSelectedField}>
-                        <SelectTrigger className="bg-white border-slate-200"><SelectValue placeholder="Field to filter by..." /></SelectTrigger>
-                        <SelectContent>
-                            {/* Filter out hidden/special filters from the dropdown (like the picker ID) */}
-                            {entityDef.filters?.filter((f: any) => !f.isItemPicker).map((f: any) => <SelectItem key={f.field} value={f.field}>{f.label}</SelectItem>)}
-                        </SelectContent>
-                    </Select>
+                    <div className="space-y-1">
+                        <label className="text-xs font-semibold text-slate-500 uppercase">Field</label>
+                        <Select value={selectedField} onValueChange={(v) => { console.log('Selected Filter Field:', v); setSelectedField(v); }}>
+                            <SelectTrigger className="bg-white border-slate-200"><SelectValue placeholder="Select field..." /></SelectTrigger>
+                            <SelectContent>
+                                {entityDef.filters?.filter((f: any) => !f.isItemPicker).map((f: any) => <SelectItem key={f.field} value={f.field}>{f.label}</SelectItem>)}
+                            </SelectContent>
+                        </Select>
+                    </div>
 
                     {selectedField && (
                         <>
                         {/* 2. Operator */}
-                        <Select value={operator} onValueChange={(v) => setOperator(v as FilterOperator)}>
-                            <SelectTrigger className="bg-white border-slate-200"><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value={FilterOperator.EQ}>is</SelectItem>
-                                <SelectItem value={FilterOperator.NEQ}>is not</SelectItem>
-                                {fieldDef?.type === 'NUMBER' && (
-                                    <>
-                                    <SelectItem value={FilterOperator.GT}>greater than</SelectItem>
-                                    <SelectItem value={FilterOperator.LT}>less than</SelectItem>
-                                    </>
-                                )}
-                            </SelectContent>
-                        </Select>
+                        <div className="space-y-1">
+                            <label className="text-xs font-semibold text-slate-500 uppercase">Operator</label>
+                            <Select value={operator} onValueChange={(v) => setOperator(v as FilterOperator)}>
+                                <SelectTrigger className="bg-white border-slate-200"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value={FilterOperator.EQ}>is</SelectItem>
+                                    <SelectItem value={FilterOperator.NEQ}>is not</SelectItem>
+                                    {fieldDef?.type === 'NUMBER' && (
+                                        <>
+                                        <SelectItem value={FilterOperator.GT}>greater than</SelectItem>
+                                        <SelectItem value={FilterOperator.LT}>less than</SelectItem>
+                                        </>
+                                    )}
+                                </SelectContent>
+                            </Select>
+                        </div>
 
                         {/* 3. Value (Dynamic based on field type) */}
-                        {fieldDef?.lookupEntity === 'MEMBER' ? (
-                            <Select value={value || specialValue} onValueChange={(v) => {
-                                if (v === SpecialFilterValue.CURRENT_USER) { setSpecialValue(v); setValue(''); }
-                                else { setValue(v); setSpecialValue(''); }
-                            }}>
-                                <SelectTrigger className="bg-white border-slate-200"><SelectValue placeholder="Select Member" /></SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value={SpecialFilterValue.CURRENT_USER} className="text-purple-600 font-medium">Me (Current User)</SelectItem>
-                                    {members.map(m => <SelectItem key={m.id} value={m.user.id}>{m.user.firstName} {m.user.lastName}</SelectItem>)}
-                                </SelectContent>
-                            </Select>
-                        ) : fieldDef?.lookupEntity === 'SPRINT' ? (
-                            <Select value={value || specialValue} onValueChange={(v) => {
-                                if (v === SpecialFilterValue.ACTIVE_SPRINT) { setSpecialValue(v); setValue(''); }
-                                else { setValue(v); setSpecialValue(''); }
-                            }}>
-                                <SelectTrigger className="bg-white border-slate-200"><SelectValue placeholder="Select Sprint" /></SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value={SpecialFilterValue.ACTIVE_SPRINT} className="text-purple-600 font-medium">Current Active Sprint</SelectItem>
-                                    {sprints.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
-                                </SelectContent>
-                            </Select>
-                        ) : fieldDef?.options ? (
-                             <Select value={value} onValueChange={setValue}>
-                                <SelectTrigger className="bg-white border-slate-200"><SelectValue placeholder="Select..." /></SelectTrigger>
-                                <SelectContent>{fieldDef.options.map((o: string) => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
-                            </Select>
-                        ) : (
-                            <Input placeholder="Value..." value={value} onChange={e => setValue(e.target.value)} className="bg-white border-slate-200" />
-                        )}
-
-                        <Button className="w-full mt-2" onClick={handleAdd}>Add Filter</Button>
+                        <div className="space-y-1">
+                            <label className="text-xs font-semibold text-slate-500 uppercase">Value</label>
+                            {fieldDef?.lookupEntity === 'MEMBER' ? (
+                                <Select value={value || specialValue} onValueChange={(v) => {
+                                    console.log('Selected Member:', v);
+                                    if (v === SpecialFilterValue.CURRENT_USER) { setSpecialValue(v); setValue(''); }
+                                    else { setValue(v); setSpecialValue(''); }
+                                }}>
+                                    <SelectTrigger className="bg-white border-slate-200"><SelectValue placeholder="Select Member" /></SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value={SpecialFilterValue.CURRENT_USER} className="text-purple-600 font-medium">Me (Current User)</SelectItem>
+                                        {members.map(m => <SelectItem key={m.id} value={m.user.id}>{m.user.firstName} {m.user.lastName}</SelectItem>)}
+                                    </SelectContent>
+                                </Select>
+                            ) : fieldDef?.lookupEntity === 'SPRINT' ? (
+                                <Select value={value || specialValue} onValueChange={(v) => {
+                                    console.log('Selected Sprint:', v);
+                                    if (v === SpecialFilterValue.ACTIVE_SPRINT) { setSpecialValue(v); setValue(''); }
+                                    else { setValue(v); setSpecialValue(''); }
+                                }}>
+                                    <SelectTrigger className="bg-white border-slate-200"><SelectValue placeholder="Select Sprint" /></SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value={SpecialFilterValue.ACTIVE_SPRINT} className="text-purple-600 font-medium">Current Active Sprint</SelectItem>
+                                        {sprints.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                                    </SelectContent>
+                                </Select>
+                            ) : fieldDef?.options ? (
+                                <Select value={value} onValueChange={setValue}>
+                                    <SelectTrigger className="bg-white border-slate-200"><SelectValue placeholder="Select..." /></SelectTrigger>
+                                    <SelectContent>{fieldDef.options.map((o: string) => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+                                </Select>
+                            ) : (
+                                <Input placeholder="Type a value..." value={value} onChange={e => setValue(e.target.value)} className="bg-white border-slate-200" />
+                            )}
+                        </div>
                         </>
                     )}
                 </div>
-            </PopoverContent>
-        </Popover>
+
+                <DialogFooter className="mt-2">
+                    <Button onClick={handleAdd} disabled={!selectedField} className="w-full">Add Filter</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
     )
 }

@@ -89,6 +89,8 @@ export function useTaskDetails(taskId: string | null) {
     const { signature, timestamp, apiKey, cloudName } = signatureData.getAttachmentUploadSignature;
 
     // 2. Prepare form data and upload directly to Cloudinary
+    // We use 'auto' resource type. This puts PDFs into 'image' (usually public) 
+    // and Zip/Excel into 'raw' (which works for non-previewable files).
     const formData = new FormData();
     formData.append('file', file);
     formData.append('api_key', apiKey);
@@ -103,7 +105,7 @@ export function useTaskDetails(taskId: string | null) {
     const cloudinaryResponse = await response.json();
 
     if (!response.ok) {
-        throw new Error(cloudinaryResponse.error.message || 'Cloudinary upload failed');
+        throw new Error(cloudinaryResponse.error?.message || 'Cloudinary upload failed');
     }
 
     // 3. Confirm the upload with our backend

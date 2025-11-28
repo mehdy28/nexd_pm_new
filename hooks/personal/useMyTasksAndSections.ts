@@ -206,6 +206,48 @@ export function useMyTasksAndSections() {
     [updatePersonalSectionMutation]
   )
 
+
+
+  const renameSection = useCallback(
+    async (id: string, name: string) => {
+      console.log(`[renameSection] Initiated. ID: ${id}, Name: ${name}`)
+      
+      // FIX: Retrieve the current order from the cached data.
+      // If we don't include 'order', Apollo cache writing fails because the active query expects it.
+      const currentSection = data?.getMyTasksAndSections?.personalSections.find(s => s.id === id)
+      const currentOrder = currentSection?.order ?? 0
+
+      const optimisticResponse = {
+          updatePersonalSection: {
+            __typename: "PersonalSection",
+            id,
+            name,
+            order: currentOrder, // Mandatory field for cache consistency
+          },
+      }
+
+      await updatePersonalSectionMutation({
+        variables: { id, name },
+        optimisticResponse,
+        update: (cache, { data: mutationData }) => {
+          const newName = mutationData?.updatePersonalSection.name
+          if (newName) {
+            const sectionCacheId = cache.identify({ __typename: "PersonalSection", id })
+            if (sectionCacheId) {
+              cache.modify({
+                id: sectionCacheId,
+                fields: {
+                  name: () => newName,
+                },
+              })
+            }
+          }
+        },
+      })
+    },
+    [updatePersonalSectionMutation, data]
+  )
+
   const deleteSection = useCallback(
     async (id: string, options: { deleteTasks: boolean; reassignToSectionId?: string | null }) => {
       console.log(`[deleteSection] Initiated. ID: ${id}, Options:`, options)
@@ -289,7 +331,28 @@ export function useMyTasksAndSections() {
     refetchMyTasksAndSections: refetch,
     createSection,
     updateSection,
+    renameSection,
     deleteSection,
     reorderSections,
   }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

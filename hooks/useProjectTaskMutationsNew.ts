@@ -223,6 +223,24 @@ export function useProjectTaskMutations(projectId: string, currentSprintId?: str
     [updateTask]
   )
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   const deleteTask = useCallback(
     async (taskId: string, sectionId: string) => {
       console.log(`[deleteTask] Initiated for task ID: ${taskId} in section ID: ${sectionId}`)

@@ -1,3 +1,4 @@
+//components/personal/personalTaskDetailSheet.tsx
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
@@ -133,12 +134,21 @@ const formatDateForInput = (isoDateString: string | null | undefined): string =>
 
 // Helper to transform a Cloudinary URL to force download
 const getDownloadableUrl = (url: string) => {
+    // 1. Raw Files: Cloudinary 'raw' files (zips, etc) do not support image transformations.
+    // 2. PDFs: If a PDF is stored as an 'image' (default), applying 'fl_attachment' attempts to 
+    //    process it, which often fails or crashes if the account isn't configured for it.
+    // Return original URL for these cases to let the browser handle the download/view.
+    if (url.includes('/raw/') || url.toLowerCase().endsWith('.pdf')) {
+        return url;
+    }
+
+    // Only apply the attachment flag for standard images (jpg, png) to force download
+    // instead of opening in a new tab.
     const parts = url.split('/upload/');
     if (parts.length === 2) {
-        // fl_attachment flag tells Cloudinary to send Content-Disposition header
         return `${parts[0]}/upload/fl_attachment/${parts[1]}`;
     }
-    return url; // Return original URL if format is unexpected
+    return url;
 };
 
 interface TaskDetailSheetProps {

@@ -1,3 +1,4 @@
+//hooks/personal/usePersonalTaskMutations.ts
 import { useMutation, useApolloClient, gql } from "@apollo/client"
 import { useCallback } from "react"
 import { CREATE_PERSONAL_TASK_MUTATION } from "@/graphql/mutations/personal/createPersonalTask"
@@ -28,6 +29,7 @@ interface UpdatePersonalTaskVariables {
     status?: "TODO" | "DONE"
     priority?: Priority
     endDate?: string | null
+    startDate?: string | null
     points?: number | null
     personalSectionId?: string | null
   }
@@ -85,6 +87,7 @@ export function usePersonalTaskmutations() {
           personalSectionId: personalSectionId,
           completed: false,
           sprintId: null,
+          startDate: null,
           assignee: null,
         },
       }
@@ -140,6 +143,8 @@ export function usePersonalTaskmutations() {
       // LOG 1: Log the initial call to see what's being updated.
       console.log(`🚀 [updateTask] Initiated. Task ID: ${taskId}, Input:`, input)
 
+      // FIX: Removed sprintId as it causes cache miss if not fetched by main query.
+      // Kept startDate as it is needed for UI sorting/priority logic.
       const fragment = gql`
         fragment ExistingTaskData on TaskListView {
           id
@@ -148,6 +153,7 @@ export function usePersonalTaskmutations() {
           status
           priority
           endDate
+          startDate
           points
           completed
           personalSectionId
@@ -169,7 +175,7 @@ export function usePersonalTaskmutations() {
         fragment,
       })
 
-      // LOG 3: Log the result of the fragment read. THIS IS THE MOST IMPORTANT LOG.
+      // LOG 3: Log the result of the fragment read.
       console.log("📦 [updateTask] Fragment read result:", taskFragment)
 
       if (!taskFragment) {
@@ -179,10 +185,17 @@ export function usePersonalTaskmutations() {
         return updatePersonalTaskApolloMutation({ variables: { input: { id: taskId, ...input } } })
       }
 
+      // FIX: Determine the correct personalSectionId for the optimistic response.
+      const resolvedSectionId =
+        input.personalSectionId !== undefined
+          ? input.personalSectionId
+          : taskFragment.personalSectionId ?? currentSectionId
+
       const optimisticResponsePayload = {
         __typename: "TaskListView",
         ...taskFragment,
         ...input,
+        personalSectionId: resolvedSectionId,
       }
 
       // LOG 4: Log the complete object that will be used for the optimistic update.
@@ -256,7 +269,6 @@ export function usePersonalTaskmutations() {
                         )
                         return existingTaskRefs
                       }
-                      // *** CHANGE HERE: Add the new task to the BEGINNING of the array ***
                       const updatedTasks = [{ __ref: newTaskRef }, ...existingTaskRefs]
                       console.log(
                         `🔄 [updateTask Cache Update] New section task count changed from ${existingTaskRefs.length} to ${updatedTasks.length}. Task added to the top.`

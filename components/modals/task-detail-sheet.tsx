@@ -144,6 +144,10 @@ const formatDateForInput = (isoDateString: string | null | undefined): string =>
 
 // Helper to transform a Cloudinary URL to force download
 const getDownloadableUrl = (url: string) => {
+      if (url.includes('/raw/') || url.toLowerCase().endsWith('.pdf')) {
+        return url;
+    }
+
     const parts = url.split('/upload/');
     if (parts.length === 2) {
         // fl_attachment flag tells Cloudinary to send Content-Disposition header

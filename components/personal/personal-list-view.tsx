@@ -21,7 +21,6 @@ import {
   Trash2,
   Loader2,
   EllipsisVertical,
-  ListOrdered,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Label } from "@/components/ui/label"
@@ -65,16 +64,15 @@ export function PersonalListView() {
   console.log("[PersonalListView] Component rendering or re-rendering.")
 
   const {
-    personalSections: sections, // Use the data from the hook directly
+    personalSections: sections,
     loading,
     error,
     refetchMyTasksAndSections,
     createSection,
-    updateSection,
+    renameSection: renameSectionMutation,
     deleteSection,
   } = useMyTasksAndSections()
 
-  // Logging data fetching status
   useEffect(() => {
     console.log("[PersonalListView] Data fetching state changed.", { loading, error })
     if (loading) {
@@ -100,8 +98,7 @@ export function PersonalListView() {
     updateLoading,
   } = usePersonalTaskmutations()
 
-  // Removed local `sections` state to use the Apollo cache as the single source of truth.
-  const [editingSectionId, setEditingSectionId] = useState<string | null>(null)
+  // editingSectionId removed to allow local state management in SectionHeader
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
   const [selected, setSelected] = useState<Record<string, boolean>>({})
   const [sheetTask, setSheetTask] = useState<{ personalSectionId: string; taskId: string } | null>(null)
@@ -134,16 +131,16 @@ export function PersonalListView() {
   const renameSection = useCallback(
     async (id: string, title: string) => {
       console.log("[PersonalListView] Initiating renameSection.", { id, title })
-      setEditingSectionId(null) // Exit editing mode immediately
+      // No longer need to setEditingSectionId(null) here as it is handled locally in SectionHeader
       if (!title.trim()) {
         console.warn("[PersonalListView] renameSection aborted: title is empty.")
         return
       }
       setIsSectionMutating(true)
       try {
-        console.log("[PersonalListView] Calling updateSection mutation.", { id, title })
-        await updateSection(id, title)
-        console.log("[PersonalListView] updateSection mutation successful.")
+        console.log("[PersonalListView] Calling renameSection mutation.", { id, title })
+        await renameSectionMutation(id, title)
+        console.log("[PersonalListView] renameSection mutation successful.")
       } catch (err) {
         console.error("[PersonalListView] Failed to rename section:", { id, title }, err)
       } finally {
@@ -151,7 +148,7 @@ export function PersonalListView() {
         console.log("[PersonalListView] renameSection finished.")
       }
     },
-    [updateSection]
+    [renameSectionMutation]
   )
 
   const addSection = useCallback(async () => {
@@ -184,7 +181,6 @@ export function PersonalListView() {
           personalSectionId,
           currentStatus: taskToUpdate.status,
         })
-        // ADJUSTMENT: Pass personalSectionId to the mutation hook. This is the fix.
         await toggleTaskCompletedMutation(taskId, personalSectionId, taskToUpdate.status)
         console.log("[PersonalListView] toggleTaskCompleted mutation successful.")
       } catch (err) {
@@ -243,7 +239,6 @@ export function PersonalListView() {
 
     try {
       console.log("[PersonalListView] Calling deleteTask mutation.", { taskId, personalSectionId })
-      // ADJUSTMENT: Pass personalSectionId to the mutation hook. This is the fix.
       await deleteTaskMutation(taskId, personalSectionId)
       console.log("[PersonalListView] deleteTask mutation successful.")
     } catch (err) {
@@ -506,77 +501,16 @@ export function PersonalListView() {
         </div>
         {sections.map(section => (
           <div key={section.id} className="w-full">
-            <div className="flex w-full items-center gap-2 px-5 py-4">
-              <button
-                onClick={() => toggleSection(section.id)}
-                className="inline-flex items-center justify-center rounded-md p-1 hover:bg-muted/40"
-                aria-label={collapsed[section.id] ? "Expand section" : "Collapse section"}
-                title={collapsed[section.id] ? "Expand" : "Collapse"}
-              >
-                {collapsed[section.id] ? (
-                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                ) : (
-                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                )}
-              </button>
-
-              {editingSectionId === section.id ? (
-                <Input
-                  autoFocus
-                  defaultValue={section.title}
-                  className="h-8 w-64"
-                  onBlur={e => renameSection(section.id, e.target.value.trim())}
-                  onKeyDown={e => {
-                    if (e.key === "Enter") (e.target as HTMLInputElement).blur()
-                    if (e.key === "Escape") setEditingSectionId(null)
-                  }}
-                  disabled={isSectionMutating}
-                />
-              ) : (
-                <button
-                  className="text-sm font-semibold text-left hover:underline"
-                  onClick={() => setEditingSectionId(section.id)}
-                  title="Rename section"
-                  disabled={isSectionMutating}
-                >
-                  {section.title}
-                </button>
-              )}
-
-              <div className="ml-auto flex items-center gap-2">
-                {!newTaskOpen[section.id] && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="bg-[#4ab5ae] text-white hover:bg-[#419d97]"
-                    onClick={() => openNewTask(section.id)}
-                    //disabled={isTaskMutating}
-                  >
-                    + Add task
-                  </Button>
-                )}
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 w-8 p-0"
-                      disabled={isSectionMutating}
-                    >
-                      <EllipsisVertical className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem
-                      onClick={() => handleOpenDeleteSectionModal(section)}
-                      className="text-red-600"
-                    >
-                      <Trash2 className="h-4 w-4 mr-2" /> Delete Section
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            </div>
+            <SectionHeader
+              section={section}
+              collapsed={collapsed[section.id]}
+              onToggleCollapse={() => toggleSection(section.id)}
+              onRename={(newTitle) => renameSection(section.id, newTitle)}
+              onDelete={() => handleOpenDeleteSectionModal(section)}
+              onOpenNewTask={() => openNewTask(section.id)}
+              newTaskOpen={!!newTaskOpen[section.id]}
+              isSectionMutating={isSectionMutating}
+            />
 
             {!collapsed[section.id] && (
               <div className="w-full">
@@ -863,6 +797,119 @@ export function PersonalListView() {
   )
 }
 
+interface SectionHeaderProps {
+  section: SectionUI
+  collapsed: boolean
+  onToggleCollapse: () => void
+  onRename: (title: string) => void
+  onDelete: () => void
+  onOpenNewTask: () => void
+  newTaskOpen: boolean
+  isSectionMutating: boolean
+}
+
+function SectionHeader({
+  section,
+  collapsed,
+  onToggleCollapse,
+  onRename,
+  onDelete,
+  onOpenNewTask,
+  newTaskOpen,
+  isSectionMutating,
+}: SectionHeaderProps) {
+  const [isEditing, setIsEditing] = useState(false)
+  const [localTitle, setLocalTitle] = useState(section.title)
+
+  // Sync local title with props if props change from outside (e.g. server refresh)
+  useEffect(() => {
+    setLocalTitle(section.title)
+  }, [section.title])
+
+  const handleBlur = () => {
+    setIsEditing(false)
+    if (localTitle.trim() && localTitle !== section.title) {
+      onRename(localTitle.trim())
+    } else {
+      setLocalTitle(section.title) // Revert if empty or unchanged
+    }
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      e.currentTarget.blur()
+    }
+    if (e.key === "Escape") {
+      setIsEditing(false)
+      setLocalTitle(section.title) // Revert
+    }
+  }
+
+  return (
+    <div className="flex w-full items-center gap-2 px-5 py-4">
+      <button
+        onClick={onToggleCollapse}
+        className="inline-flex items-center justify-center rounded-md p-1 hover:bg-muted/40"
+        aria-label={collapsed ? "Expand section" : "Collapse section"}
+        title={collapsed ? "Expand" : "Collapse"}
+      >
+        {collapsed ? (
+          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+        ) : (
+          <ChevronDown className="h-4 w-4 text-muted-foreground" />
+        )}
+      </button>
+
+      {isEditing ? (
+        <Input
+          autoFocus
+          value={localTitle}
+          onChange={e => setLocalTitle(e.target.value)}
+          className="h-8 w-64"
+          onBlur={handleBlur}
+          onKeyDown={handleKeyDown}
+          disabled={isSectionMutating}
+        />
+      ) : (
+        <button
+          className="text-sm font-semibold text-left hover:underline"
+          onClick={() => setIsEditing(true)}
+          title="Rename section"
+          disabled={isSectionMutating}
+        >
+          {localTitle}
+        </button>
+      )}
+
+      <div className="ml-auto flex items-center gap-2">
+        {!newTaskOpen && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="bg-[#4ab5ae] text-white hover:bg-[#419d97]"
+            onClick={onOpenNewTask}
+            //disabled={isTaskMutating}
+          >
+            + Add task
+          </Button>
+        )}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" disabled={isSectionMutating}>
+              <EllipsisVertical className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={onDelete} className="text-red-600">
+              <Trash2 className="h-4 w-4 mr-2" /> Delete Section
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    </div>
+  )
+}
+
 interface TaskRowProps {
   task: TaskUI
   selected: boolean
@@ -882,6 +929,11 @@ function TaskRow({ task, selected, onSelect, onToggleCompleted, onUpdate, onOpen
   useEffect(() => {
     setLocalTitle(task.title)
   }, [task.title])
+
+  const [localPriority, setLocalPriority] = useState<PriorityUI>(task.priority)
+  useEffect(() => {
+    setLocalPriority(task.priority)
+  }, [task.priority])
 
   const handleBlur = (field: keyof TaskUI, value: any) => {
     if (value !== task[field]) {
@@ -930,13 +982,22 @@ function TaskRow({ task, selected, onSelect, onToggleCompleted, onUpdate, onOpen
         />
       </div>
       <div>
-        <Select value={task.priority} onValueChange={(v: PriorityUI) => onUpdate({ priority: v })}>
+        <Select
+          value={localPriority}
+          onValueChange={(v: PriorityUI) => {
+            setLocalPriority(v) 
+            onUpdate({ priority: v })
+          }}
+        >
           <SelectTrigger className="h-8">
             <div
-              className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-xs", priorityStyles[task.priority])}
+              className={cn(
+                "inline-flex items-center rounded-full px-2 py-0.5 text-xs",
+                priorityStyles[localPriority] || priorityStyles[task.priority]
+              )}
             >
-              <span className={cn("mr-2 h-2 w-2 rounded-full", priorityDot[task.priority])} />
-              {task.priority}
+              <span className={cn("mr-2 h-2 w-2 rounded-full", priorityDot[localPriority] || priorityDot[task.priority])} />
+              {localPriority}
             </div>
           </SelectTrigger>
           <SelectContent>
