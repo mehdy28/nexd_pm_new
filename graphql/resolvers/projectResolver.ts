@@ -102,15 +102,15 @@ export const projectResolver = {
         const completedTasks = project.tasks.filter(task => task.status === 'DONE').length;
         const inProgressTasks = project.tasks.filter(task => task.status === 'TODO').length;
         const overdueTasks = project.tasks.filter(task =>
-          task.dueDate && new Date(task.dueDate) < new Date() && task.status !== 'DONE'
+          task.endDate && new Date(task.endDate) < new Date() && task.status !== 'DONE'
         ).length;
         const upcomingDeadlines = project.tasks.filter(task => {
-          if (!task.dueDate || task.status === 'DONE') return false;
-          const dueDate = new Date(task.dueDate);
+          if (!task.endDate || task.status === 'DONE') return false;
+          const endDate = new Date(task.endDate);
           const now = new Date();
           const oneWeekLater = new Date();
           oneWeekLater.setDate(now.getDate() + 7);
-          return dueDate > now && dueDate < oneWeekLater;
+          return endDate > now && endDate < oneWeekLater;
         }).length;
 
         const transformedMembers = project.members.map(member => ({
@@ -162,6 +162,38 @@ export const projectResolver = {
         throw error;
       }
     },
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
     getGanttData: async (_parent: unknown, args: GetGanttDataArgs, context: GraphQLContext) => {

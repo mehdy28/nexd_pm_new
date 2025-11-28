@@ -4,8 +4,7 @@ import { useState, useCallback, useEffect } from "react"
 import { ProjectPromptList } from "../prompt-lab/project-prompt-list"
 import { PromptLab } from "../prompt-lab/prompt-lab"
 import { LoadingPlaceholder, ErrorPlaceholder } from "@/components/placeholders/status-placeholders"
-// Use the new project hook
-import { useProjectPromptsList } from "@/hooks/useProjectPromptsList" 
+import { useProjectPromptsList } from "@/hooks/useProjectPromptsList"
 import { usePromptDetails } from "@/hooks/usePromptDetails"
 import { PromptTemplate } from "@/lib/prompts/prompt-templates"
 import { generateClientKey } from "@/lib/utils"
@@ -17,14 +16,12 @@ interface ProjectPromptLabContainerProps {
 export function ProjectPromptLabContainer({ projectId }: ProjectPromptLabContainerProps) {
   console.log("[ProjectPromptLabContainer] [Trace: Render] Component rendering for Project ID:", projectId)
 
-  // Ensure we have a projectId before proceeding
   if (!projectId) {
     return <ErrorPlaceholder error={new Error("Project ID is missing.")} />
   }
 
   const [selectedPromptId, setSelectedPromptId] = useState<string | null>(null)
   const [isCreatingTemplate, setIsCreatingTemplate] = useState(false)
-  // Track when we are actively loading a newly created prompt to prevent UI flashing
   const [isPostCreationLoading, setIsPostCreationLoading] = useState(false)
 
   const {
@@ -33,6 +30,7 @@ export function ProjectPromptLabContainer({ projectId }: ProjectPromptLabContain
     listError,
     createPrompt: createPromptInList,
     deletePrompt: deletePromptFromList,
+    deleteManyPrompts: deleteManyPromptsFromList,
     triggerPromptsListFetch,
     q,
     setQ,
@@ -42,7 +40,7 @@ export function ProjectPromptLabContainer({ projectId }: ProjectPromptLabContain
     setPageSize,
     totalPages,
     totalPromptsCount,
-  } = useProjectPromptsList(projectId, selectedPromptId) // Use project hook with projectId
+  } = useProjectPromptsList(projectId, selectedPromptId)
 
   const {
     selectedPromptDetails,
@@ -58,9 +56,8 @@ export function ProjectPromptLabContainer({ projectId }: ProjectPromptLabContain
     loadingVersionContent,
     versionContentError,
     currentLoadedVersionContent,
-  } = usePromptDetails(selectedPromptId, projectId) // Pass projectId to usePromptDetails if required for authorization/caching
+  } = usePromptDetails(selectedPromptId, projectId)
   
-  // When details finish loading, turn off the post-creation loading flag.
   useEffect(() => {
     if (!loadingDetails && isPostCreationLoading) {
       setIsPostCreationLoading(false)
@@ -73,7 +70,6 @@ export function ProjectPromptLabContainer({ projectId }: ProjectPromptLabContain
       console.log("[ProjectPromptLabContainer] [Trace: Select] selectPrompt called with ID:", id)
       setSelectedPromptId(id)
       if (id === null) {
-        // Trigger a list refresh when returning to the list view
         triggerPromptsListFetch(true)
       }
     },
@@ -84,19 +80,18 @@ export function ProjectPromptLabContainer({ projectId }: ProjectPromptLabContain
     console.log(
       "[ProjectPromptLabContainer] [Trace: HandleCreate] handleCreateNewPrompt: Initiating project prompt creation.",
     )
-    setIsPostCreationLoading(true) // Set loading state before creation
+    setIsPostCreationLoading(true)
     try {
-      // createPromptInList already knows the projectId from the hook context
       const newPrompt = await createPromptInList({ projectId }) 
       if (newPrompt) {
         console.log("[ProjectPromptLabContainer] [Trace: HandleCreate] New prompt created:", newPrompt.id)
         selectPrompt(newPrompt.id)
       } else {
-        setIsPostCreationLoading(false) // Unset if creation fails
+        setIsPostCreationLoading(false)
       }
     } catch (err) {
       console.error("[ProjectPromptLabContainer] [Error: Create] Failed to create new prompt:", err)
-      setIsPostCreationLoading(false) // Unset on error
+      setIsPostCreationLoading(false)
     }
   }, [createPromptInList, selectPrompt, projectId])
 
@@ -106,7 +101,7 @@ export function ProjectPromptLabContainer({ projectId }: ProjectPromptLabContain
         `[ProjectPromptLabContainer] [Trace: HandleCreateTemplate] Creating project prompt from template: "${template.name}"`,
       )
       setIsCreatingTemplate(true)
-      setIsPostCreationLoading(true) // Set loading state before creation
+      setIsPostCreationLoading(true)
       try {
         const promptData = {
           title: template.name,
@@ -117,7 +112,7 @@ export function ProjectPromptLabContainer({ projectId }: ProjectPromptLabContain
           variables: template.variables.map(v => ({ ...v, id: generateClientKey("var-") })),
           tags: [template.category],
           isPublic: false,
-          projectId: projectId, // Ensure projectId is explicitly passed with template data
+          projectId: projectId,
         }
 
         const newPrompt = await createPromptInList(promptData)
@@ -128,14 +123,14 @@ export function ProjectPromptLabContainer({ projectId }: ProjectPromptLabContain
           )
           selectPrompt(newPrompt.id)
         } else {
-          setIsPostCreationLoading(false) // Unset if creation fails
+          setIsPostCreationLoading(false)
         }
       } catch (err) {
         console.error(
           "[ProjectPromptLabContainer] [Error: CreateTemplate] Failed to create prompt from template:",
           err,
         )
-        setIsPostCreationLoading(false) // Unset on error
+        setIsPostCreationLoading(false)
       } finally {
         setIsCreatingTemplate(false)
       }
@@ -150,12 +145,30 @@ export function ProjectPromptLabContainer({ projectId }: ProjectPromptLabContain
         id,
       )
       await deletePromptFromList(id)
+      console.log("[ProjectPromptLabContainer] [Trace: HandleDelete] Deletion promise resolved.")
+
       if (selectedPromptId === id) {
         console.log("[ProjectPromptLabContainer] [Trace: HandleDelete] Deselecting deleted prompt.")
         selectPrompt(null)
       }
     },
     [deletePromptFromList, selectedPromptId, selectPrompt],
+  )
+
+  const handleDeleteManyPrompts = useCallback(
+    async (ids: string[]) => {
+      console.log(
+        "[ProjectPromptLabContainer] [Trace: HandleDeleteMany] handleDeleteManyPrompts: Initiating deletion for IDs:",
+        ids,
+      )
+      await deleteManyPromptsFromList(ids)
+      console.log("[ProjectPromptLabContainer] [Trace: HandleDeleteMany] Bulk deletion promise resolved.")
+
+      if (selectedPromptId && ids.includes(selectedPromptId)) {
+        selectPrompt(null)
+      }
+    },
+    [deleteManyPromptsFromList, selectedPromptId, selectPrompt]
   )
 
   const handleBack = () => {
@@ -176,28 +189,20 @@ export function ProjectPromptLabContainer({ projectId }: ProjectPromptLabContain
   const error = listError || detailsError
   let loaderMessage = isPostCreationLoading || selectedPromptId ? "Loading prompt details..." : "Loading project prompts..."
 
-  // Use the new post-creation flag to force the loader screen
   if (isPostCreationLoading || (isLoading && !selectedPromptDetails && prompts.length === 0)) {
-    console.log(
-      `[ProjectPromptLabContainer] [Trace: Render] Rendering GLOBAL LOADER. Message: "${loaderMessage}".`,
-    )
     return <LoadingPlaceholder message={loaderMessage} />
   }
 
   if (error) {
-    console.log("[ProjectPromptLabContainer] [Trace: Render] Rendering ERROR STATE. Error:", error)
     return <ErrorPlaceholder error={new Error(error)} onRetry={handleRetry} />
   }
 
   if (selectedPromptId && selectedPromptDetails) {
-    console.log(
-      `[ProjectPromptLabContainer] [Trace: Render] Rendering PromptLab component with prompt ID: ${selectedPromptId}.`,
-    )
     return (
       <PromptLab
         prompt={selectedPromptDetails}
         onBack={handleBack}
-        projectId={projectId} // Pass projectId to PromptLab
+        projectId={projectId}
         isLoading={loadingDetails}
         error={detailsError}
         refetch={refetchPromptDetails}
@@ -214,16 +219,13 @@ export function ProjectPromptLabContainer({ projectId }: ProjectPromptLabContain
     )
   }
 
-  console.log(
-    "[ProjectPromptLabContainer] [Trace: Render] Rendering ProjectPromptList component. Prompts count:",
-    prompts.length,
-  )
   return (
     <ProjectPromptList
       prompts={prompts}
       onSelectPrompt={selectPrompt}
       onCreatePrompt={handleCreateNewPrompt}
       onDeletePrompt={handleDeletePrompt}
+      onDeleteManyPrompts={handleDeleteManyPrompts}
       onSelectTemplate={handleCreateFromTemplate}
       isCreatingFromTemplate={isCreatingTemplate}
       isLoading={loadingList}

@@ -1,4 +1,3 @@
-// src/graphql/mutations/wireframes.ts
 import { gql } from "@apollo/client";
 
 export const CREATE_WIREFRAME = gql`
@@ -31,6 +30,14 @@ export const DELETE_WIREFRAME = gql`
       id
       title
       projectId
+    }
+  }
+`;
+
+export const DELETE_MANY_WIREFRAMES = gql`
+  mutation DeleteManyWireframes($ids: [ID!]!) {
+    deleteManyWireframes(ids: $ids) {
+      count
     }
   }
 `;

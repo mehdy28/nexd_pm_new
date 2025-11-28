@@ -115,6 +115,7 @@ const WireframeListView = ({
     createWireframe,
     updateWireframe,
     deleteWireframe,
+    deleteManyPersonalWireframes,
   } = usePersonalWireframes()
 
   const [selected, setSelected] = useState<Record<string, boolean>>({})
@@ -206,30 +207,58 @@ const WireframeListView = ({
     if (!deleteTarget) return
     try {
       const idsToDelete = Array.isArray(deleteTarget) ? deleteTarget : [deleteTarget]
-      await Promise.all(idsToDelete.map(id => deleteWireframe(id)))
+      
+      if (idsToDelete.length > 1) {
+        await deleteManyPersonalWireframes(idsToDelete)
+      } else {
+        await deleteWireframe(idsToDelete[0])
+      }
+      
       setSelected({})
     } catch (err) {
       console.error("Failed to delete wireframe(s):", err)
     } finally {
       setDeleteTarget(null)
     }
-  }, [deleteTarget, deleteWireframe])
+  }, [deleteTarget, deleteWireframe, deleteManyPersonalWireframes])
 
   const handleBulkDelete = useCallback(() => {
     const idsToDelete = Object.keys(selected).filter(id => selected[id])
     if (idsToDelete.length > 0) setDeleteTarget(idsToDelete)
   }, [selected])
 
-  const handleExportSelected = useCallback(() => {
+  const handleExportSelected = useCallback(async () => {
     const idsToExport = Object.keys(selected).filter(id => selected[id])
-    const dataToExport = pageItems.filter(w => idsToExport.includes(w.id))
-    const blob = new Blob([JSON.stringify(dataToExport, null, 2)], { type: "application/json" })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement("a")
-    a.href = url
-    a.download = `wireframes-export-${new Date().toISOString().slice(0, 10)}.json`
-    a.click()
-    URL.revokeObjectURL(url)
+    const itemsToExport = pageItems.filter(w => idsToExport.includes(w.id))
+
+    // Iterate sequentially to avoid browser blocking multiple simultaneous downloads
+    for (const item of itemsToExport) {
+      if (!item.data || !item.data.elements || item.data.elements.length === 0) continue
+
+      try {
+        const canvas = await exportToCanvas({
+          elements: item.data.elements,
+          appState: {
+            ...item.data.appState,
+            viewBackgroundColor: item.data.appState.viewBackgroundColor || "transparent",
+            exportPadding: 20,
+          },
+          files: null,
+        })
+
+        const url = canvas.toDataURL("image/png")
+        const a = document.createElement("a")
+        a.href = url
+        // Sanitize filename
+        const safeTitle = item.title.replace(/[^a-z0-9]/gi, "_").toLowerCase()
+        a.download = `${safeTitle}-${new Date().toISOString().slice(0, 10)}.png`
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+      } catch (err) {
+        console.error(`Failed to export wireframe: ${item.title}`, err)
+      }
+    }
   }, [selected, pageItems])
 
   if (loading && pageItems.length === 0) {
@@ -478,7 +507,7 @@ const WireframeListView = ({
         isCreating={isCreatingTemplate}
       />
 
-      <AlertDialog open={!!deleteTarget} onOpenChange={open => !open && setDelete-Target(null)}>
+      <AlertDialog open={!!deleteTarget} onOpenChange={open => !open && setDeleteTarget(null)}>
         <AlertDialogContent className="bg-white">
           <AlertDialogHeader>
             <AlertDialogTitle>Are you sure?</AlertDialogTitle>

@@ -33,3 +33,11 @@ export const DELETE_WIREFRAME = gql`
     }
   }
 `
+
+export const DELETE_MANY_WIREFRAMES = gql`
+  mutation DeleteManyWireframes($ids: [ID!]!) {
+    deleteManyWireframes(ids: $ids) {
+      count
+    }
+  }
+`;

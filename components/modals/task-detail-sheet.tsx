@@ -189,10 +189,18 @@ export function TaskDetailSheet({
     isMutating: isTaskDetailsMutating,
   } = useTaskDetails(sheetTask?.taskId || null);
 
+  // SEPARATED EFFECT 1: Reset active tab only when the Task ID changes (User opens a new task)
+  useEffect(() => {
+    if (sheetTask?.taskId) {
+      setActiveTab("description");
+    }
+  }, [sheetTask?.taskId]);
+
+  // SEPARATED EFFECT 2: Sync local state with taskDetails updates (without resetting the tab)
   useEffect(() => {
     if (taskDetails) {
       setEditingTaskLocal(taskDetails);
-      setActiveTab("description");
+      // Removed setActiveTab("description") from here
     } else {
       setEditingTaskLocal(null);
     }
@@ -417,7 +425,9 @@ export function TaskDetailSheet({
                               <div key={attachment.id} className="flex items-center justify-between p-3 bg-white rounded-md shadow-sm border border-gray-200">
                                   <div className="flex items-center gap-3">
                                       {getFileIcon(attachment.fileType)}
-                                      <a href={getDownloadableUrl(attachment.url)} download={attachment.fileName} rel="noopener noreferrer" className="text-sm font-medium text-gray-800 hover:underline">{attachment.fileName}</a>
+                                      <a href={getDownloadableUrl(attachment.url)}
+                                       target="_blank"
+                                       download={attachment.fileName} rel="noopener noreferrer" className="text-sm font-medium text-gray-800 hover:underline">{attachment.fileName}</a>
                                   </div>
                                   <Button variant="ghost" size="sm" className="h-7 w-7 p-0" title="Remove attachment" onClick={() => deleteAttachment(attachment.id)} disabled={isTaskDetailsMutating}><X className="h-4 w-4 text-gray-500" /></Button>
                               </div>

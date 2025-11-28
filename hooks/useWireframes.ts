@@ -2,7 +2,7 @@ import { useQuery, useMutation, NetworkStatus, Reference } from "@apollo/client"
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useDebounce } from "use-debounce";
 import { GET_PROJECT_WIREFRAMES, GET_WIREFRAME_DETAILS } from "@/graphql/queries/wireframes"; 
-import { CREATE_WIREFRAME, UPDATE_WIREFRAME, DELETE_WIREFRAME } from "@/graphql/mutations/wireframes";
+import { CREATE_WIREFRAME, UPDATE_WIREFRAME, DELETE_WIREFRAME, DELETE_MANY_WIREFRAMES } from "@/graphql/mutations/wireframes";
 import {
   CREATE_PERSONAL_WIREFRAME,
 } from "@/graphql/mutations/personal/personalWireframes";
@@ -101,6 +101,13 @@ export const useProjectWireframes = (projectId?: string) => {
     refetchQueries: [{ query: GET_PROJECT_WIREFRAMES, variables: listVariables }],
   });
 
+  const [deleteManyWireframeMutation] = useMutation(DELETE_MANY_WIREFRAMES, {
+    onCompleted: () => {
+      // Logic handled by refetch
+    },
+    refetchQueries: [{ query: GET_PROJECT_WIREFRAMES, variables: listVariables }],
+  });
+
   const createWireframe = useCallback(async (title: string, initialData: JsonScalar, thumbnail?: string | null) => {
       // projectId is correctly included here in the input object: { projectId, title, data: initialData, thumbnail }
       if (!projectId) throw new Error("projectId is required.");
@@ -119,6 +126,11 @@ export const useProjectWireframes = (projectId?: string) => {
       return data?.deleteWireframe;
     }, [deleteWireframeMutation]);
 
+  const deleteManyProjectWireframes = useCallback(async (ids: string[]) => {
+      const { data } = await deleteManyWireframeMutation({ variables: { ids } });
+      return data?.deleteManyWireframes;
+  }, [deleteManyWireframeMutation]);
+
   return {
     wireframes,
     totalCount,
@@ -134,6 +146,7 @@ export const useProjectWireframes = (projectId?: string) => {
     createWireframe,
     updateWireframe,
     deleteWireframe,
+    deleteManyProjectWireframes,
   };
 };
 

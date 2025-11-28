@@ -364,6 +364,7 @@ const personalDocumentResolvers = {
         throw error
       }
     },
+
     createDocumentComment: async (
       _parent: any,
       { documentId, content }: { documentId: string; content: string },

@@ -1,26 +1,25 @@
-// hooks/useProjectDocuments.ts
-
 import { useState, useEffect, useCallback, useMemo } from "react"
 import { useQuery, useMutation, NetworkStatus, gql } from "@apollo/client"
 import type { Block } from "@blocknote/core"
 import { useDebounce } from "use-debounce"
 
-// We must ensure we fetch details *with comments* to support the editor view.
-// Assuming a new query or an updated existing query handles this.
 import {
   GET_PROJECT_DOCUMENTS
 } from "@/graphql/queries/documents"
-import { CREATE_DOCUMENT, UPDATE_DOCUMENT, DELETE_DOCUMENT } from "@/graphql/mutations/documents"
+import { 
+  CREATE_DOCUMENT, 
+  UPDATE_DOCUMENT, 
+  DELETE_DOCUMENT,
+  DELETE_MANY_DOCUMENTS 
+} from "@/graphql/mutations/documents"
 import { GET_DOCUMENT_DETAILS_WITH_COMMENTS } from "@/graphql/queries/personal/personalDocuments"
 
-
-// Replicating Comment types from usePersonalDocuments for compatibility
 export interface CommentAuthor {
   id: string
   firstName: string | null
   lastName: string | null
-  avatar?: string | null // Optional based on usePersonalDocuments
-  avatarColor?: string | null // Added avatarColor
+  avatar?: string | null 
+  avatarColor?: string | null 
 }
 
 export interface DocumentComment {
@@ -30,7 +29,6 @@ export interface DocumentComment {
   author: CommentAuthor
 }
 
-// Updated ProjectDocument to include comments and reflect the expected structure
 export interface ProjectDocument {
   id: string
   title: string
@@ -39,10 +37,9 @@ export interface ProjectDocument {
   dataUrl: string | null
   type: "doc" | "pdf"
   projectId: string
-  comments: DocumentComment[] // ADDED comments array
+  comments: DocumentComment[] 
 }
 
-// Omit functions that will be provided by the hook itself.
 type HookProvidedState = {
   documents: ProjectDocument[]
   totalCount: number
@@ -60,8 +57,9 @@ interface UseProjectDocumentsHook extends HookProvidedState {
   setSearch: (search: string) => void
   createProjectDocument: (title: string, initialContent?: Block[]) => Promise<ProjectDocument | undefined>
   createPdfFromDataUrl: (dataUrl: string, name: string) => Promise<ProjectDocument | undefined>
-  updateProjectDocument: (id: string, updates: Partial<Omit<ProjectDocument, "id" | "type" | "projectId" | "comments">> /* Exclude comments from direct updates */) => void
+  updateProjectDocument: (id: string, updates: Partial<Omit<ProjectDocument, "id" | "type" | "projectId" | "comments">>) => void
   deleteProjectDocument: (id: string) => void
+  deleteManyProjectDocuments: (ids: string[]) => void
   selectDocument: (id: string | null) => void
   refetchDocumentsList: () => Promise<any>
 }
@@ -88,11 +86,10 @@ export function useProjectDocuments(projectId: string): UseProjectDocumentsHook 
       take: pageSize,
     },
     skip: !projectId,
-    fetchPolicy: "network-only", // Changed to network-only like the personal hook
+    fetchPolicy: "network-only", 
     notifyOnNetworkStatusChange: true,
   })
 
-  // Reset to page 1 when search or page size changes
   useEffect(() => {
     setPage(1)
   }, [debouncedSearch, pageSize])
@@ -102,9 +99,8 @@ export function useProjectDocuments(projectId: string): UseProjectDocumentsHook 
       documentsListData?.getProjectDocuments.documents.map((doc: any) => ({
         ...doc,
         updatedAt: new Date(doc.updatedAt).getTime(),
-        // Ensure list items are cast correctly, although they won't have content/comments initially
         comments: [],
-        type: doc.content ? "doc" : (doc.dataUrl ? "pdf" : "doc"), // Infer type if not explicitly provided by list API
+        type: doc.content ? "doc" : (doc.dataUrl ? "pdf" : "doc"), 
       })) || []
     )
   }, [documentsListData])
@@ -114,7 +110,7 @@ export function useProjectDocuments(projectId: string): UseProjectDocumentsHook 
   }, [documentsListData])
 
   const { data: documentDetailsData, loading: detailsLoading } = useQuery(
-    GET_DOCUMENT_DETAILS_WITH_COMMENTS, // Use the query that fetches comments
+    GET_DOCUMENT_DETAILS_WITH_COMMENTS, 
     {
       variables: { id: selectedId },
       skip: !selectedId,
@@ -139,24 +135,22 @@ export function useProjectDocuments(projectId: string): UseProjectDocumentsHook 
         updatedAt: new Date(details.updatedAt).getTime(),
         type: details.type || (details.content ? "doc" : "pdf"),
         comments: details.comments || [],
-      } as ProjectDocument // Assert type with comments
+      } as ProjectDocument 
     }
     
-    // Fallback to list data while details are loading
     const docFromList = documents.find(doc => doc.id === selectedId)
     if (docFromList) {
         return {
             ...docFromList,
-            content: null, // Clear content while details load
-            dataUrl: null, // Clear dataUrl while details load
-            comments: [], // Clear comments while details load
+            content: null, 
+            dataUrl: null, 
+            comments: [], 
         } as ProjectDocument
     }
     
     return null
   }, [selectedId, documentDetailsData, documents])
 
-  // Mutation Refetch Variables definition
   const refetchVars = useMemo(() => ({
     projectId,
     search: debouncedSearch,
@@ -180,7 +174,7 @@ export function useProjectDocuments(projectId: string): UseProjectDocumentsHook 
       if (!updatedDocumentId) return [];
       return [
         {
-          query: GET_DOCUMENT_DETAILS_WITH_COMMENTS, // Refetch details with comments
+          query: GET_DOCUMENT_DETAILS_WITH_COMMENTS, 
           variables: { id: updatedDocumentId },
         },
         {
@@ -200,14 +194,21 @@ export function useProjectDocuments(projectId: string): UseProjectDocumentsHook 
     refetchQueries: [{ query: GET_PROJECT_DOCUMENTS, variables: refetchVars }],
   })
 
-  // Exposed functions
+  const [deleteManyDocumentMutation] = useMutation(DELETE_MANY_DOCUMENTS, {
+    onCompleted: () => {
+      // If selected doc is among deleted, clear selection (handled by parent or UI state)
+      // Refetch handles list update
+    },
+    refetchQueries: [{ query: GET_PROJECT_DOCUMENTS, variables: refetchVars }],
+  })
+
   const selectDocument = useCallback((id: string | null) => setSelectedId(id), [])
 
   const createProjectDocument = useCallback(
     async (title: string, initialContent: Block[] = []) => {
       if (!projectId) return undefined
       const { data } = await createDocumentMutation({
-        variables: { input: { projectId, title, content: initialContent, dataUrl: null, type: "doc" } }, // Ensure 'type' is passed if needed by backend
+        variables: { input: { projectId, title, content: initialContent, dataUrl: null, type: "doc" } }, 
       })
       return data?.createDocument
     },
@@ -218,7 +219,7 @@ export function useProjectDocuments(projectId: string): UseProjectDocumentsHook 
     async (dataUrl: string, name: string) => {
       if (!projectId) return undefined
       const { data } = await createDocumentMutation({
-        variables: { input: { projectId, title: name, dataUrl, content: null, type: "pdf" } }, // Ensure 'type' is passed if needed by backend
+        variables: { input: { projectId, title: name, dataUrl, content: null, type: "pdf" } }, 
       })
       return data?.createDocument
     },
@@ -239,6 +240,13 @@ export function useProjectDocuments(projectId: string): UseProjectDocumentsHook 
     [deleteDocumentMutation],
   )
 
+  const deleteManyProjectDocuments = useCallback(
+    (ids: string[]) => {
+      deleteManyDocumentMutation({ variables: { ids } })
+    },
+    [deleteManyDocumentMutation]
+  )
+
   const loading = listLoading || detailsLoading || networkStatus === NetworkStatus.refetch
 
   return {
@@ -257,6 +265,7 @@ export function useProjectDocuments(projectId: string): UseProjectDocumentsHook 
     createPdfFromDataUrl,
     updateProjectDocument,
     deleteProjectDocument,
+    deleteManyProjectDocuments,
     selectDocument,
     refetchDocumentsList,
   }

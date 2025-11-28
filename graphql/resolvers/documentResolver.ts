@@ -309,7 +309,6 @@ const documentResolvers = {
         throw error;
       }
     },
-
     deleteDocument: async (
       _parent: any,
       { id }: { id: string },
@@ -379,6 +378,53 @@ const documentResolvers = {
         throw error;
       }
     },
+
+
+    deleteManyDocuments: async (
+      _parent: any,
+      { ids }: { ids: string[] },
+      context: GraphQLContext
+    ): Promise<{ count: number }> => {
+      console.log("[deleteManyDocuments Mutation] called with IDs:", ids);
+      const { user } = context;
+
+      if (!user?.id) {
+        console.log("[deleteManyDocuments Mutation] Authentication required.");
+        throw new GraphQLError("Authentication required", {
+          extensions: { code: "UNAUTHENTICATED" },
+        });
+      }
+
+      if (!ids || ids.length === 0) {
+        return { count: 0 };
+      }
+
+      try {
+        // We use a direct deleteMany with OR logic to efficiently matching authorized documents.
+        // It matches if the ID is in the list AND (the user owns it OR it belongs to a project).
+        // This mirrors the logic in single deleteDocument where we authorize if projectId exists.
+        
+        const { count } = await prisma.document.deleteMany({
+          where: {
+            id: { in: ids },
+            OR: [
+              { userId: user.id },            // User is the owner (personal document)
+              { projectId: { not: null } }    // Document belongs to a project (project document)
+            ]
+          },
+        });
+
+        console.log(`[deleteManyDocuments Mutation] Successfully deleted ${count} documents.`);
+        return { count };
+      } catch (error) {
+        console.error("[deleteManyDocuments Mutation] Error deleting documents:", error);
+        throw error;
+      }
+    },
+
+
+
+
   },
   Document: {
     // This remains as a pass-through
@@ -397,3 +443,9 @@ type PrismaDocumentType = Prisma.DocumentGetPayload<{
     }
   }
 }>
+
+
+
+
+
+

@@ -63,15 +63,25 @@ enum ActivityType {
   TASK_UPDATED
   TASK_COMPLETED
   TASK_ASSIGNED
+  TASK_DELETED
   PROJECT_CREATED
   PROJECT_UPDATED
+  PROJECT_DELETED
   DOCUMENT_CREATED
   DOCUMENT_UPDATED
+  DOCUMENT_DELETED
   WIREFRAME_CREATED
   WIREFRAME_UPDATED
+  WIREFRAME_DELETED
+  PROMPT_CREATED
+  PROMPT_UPDATED
+  PROMPT_DELETED
   COMMENT_ADDED
+  COMMENT_UPDATED
+  COMMENT_DELETED
   MEMBER_ADDED
   MEMBER_REMOVED
+  MEMBER_UPDATED
   STATUS_UPDATED
   PRIORITY_UPDATED
   DUE_DATE_UPDATED
@@ -80,6 +90,7 @@ enum ActivityType {
   ATTACHMENT_ADDED
   ATTACHMENT_REMOVED
 }
+
 enum PromptVariableType {
   STRING
   NUMBER
@@ -646,6 +657,7 @@ type UserFullDetails {
 type SprintNameId {
   id: ID!
   name: String!
+  description: String
 }
 
 type TaskListView {
@@ -781,6 +793,10 @@ type PromptListItem {
   isPublic: Boolean!
   projectId: ID
   model: String
+}
+
+type DeleteManyPayload {
+  count: Int!
 }
 
 # ----------------------------------
@@ -1431,17 +1447,20 @@ type Mutation {
   createPersonalDocument(input: CreatePersonalDocumentInput!): DocumentListItem!
   updateDocument(input: UpdateDocumentInput!): DocumentListItem!
   deleteDocument(id: ID!): DocumentListItem!
+  deleteManyDocuments(ids: [ID!]!): DeleteManyPayload!
 
   # Wireframes (Project & Personal)
   createWireframe(input: CreateWireframeInput!): WireframeListItem!
   createPersonalWireframe(input: CreatePersonalWireframeInput!): WireframeListItem!
   updateWireframe(input: UpdateWireframeInput!): WireframeListItem!
   deleteWireframe(id: ID!): WireframeListItem!
+  deleteManyWireframes(ids: [ID!]!): DeleteManyPayload!
 
   # Prompts (Project & Personal)
   createPrompt(input: CreatePromptInput!): Prompt!
   updatePrompt(input: UpdatePromptInput!): Prompt
   deletePrompt(id: ID!): Prompt!
+  deleteManyPrompts(ids: [ID!]!): DeleteManyPayload!
   snapshotPrompt(input: SnapshotPromptInput!): Prompt!
   setActivePromptVersion(promptId: ID!, versionId: ID!): Prompt!
   updateVersionDescription(input: UpdateVersionDescriptionInput!): Prompt!

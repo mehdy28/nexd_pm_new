@@ -1,4 +1,3 @@
-// graphql/resolvers/promptResolver.ts
 import { GraphQLResolveInfo } from 'graphql';
 import { prisma } from "@/lib/prisma";
 import { type Prompt, type PromptVariable, type Version, Block } from '@/components/prompt-lab/store';
@@ -361,6 +360,19 @@ const promptResolvers = {
     ): Promise<Prompt> => {
       const deletedPrompt = await prisma.prompt.delete({ where: { id } });
       return deletedPrompt as unknown as Prompt;
+    },
+
+    deleteManyPrompts: async (
+      _parent: any,
+      { ids }: { ids: string[] },
+      context: GraphQLContext
+    ): Promise<{ count: number }> => {
+      const result = await prisma.prompt.deleteMany({
+        where: {
+          id: { in: ids }
+        }
+      });
+      return { count: result.count };
     },
 
     updateVersionDescription: async (

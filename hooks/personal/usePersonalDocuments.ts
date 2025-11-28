@@ -8,6 +8,7 @@ import {
   CREATE_PERSONAL_DOCUMENT,
   UPDATE_DOCUMENT,
   DELETE_DOCUMENT,
+  DELETE_MANY_DOCUMENTS,
 } from "@/graphql/mutations/personal/personalDocuments"
 
 export interface CommentAuthor {
@@ -60,6 +61,7 @@ interface UsePersonalDocumentsHook extends HookProvidedState {
     updates: Partial<Omit<PersonalDocument, "id" | "type" | "projectId">>,
   ) => void
   deletePersonalDocument: (id: string) => void
+  deleteManyPersonalDocuments: (ids: string[]) => void
   selectDocument: (id: string | null) => void
   refetchDocumentsList: () => Promise<any>
 }
@@ -189,6 +191,21 @@ export function usePersonalDocuments(): UsePersonalDocumentsHook {
     ],
   })
 
+  const [deleteManyDocumentMutation] = useMutation(DELETE_MANY_DOCUMENTS, {
+    onCompleted: (data, clientOptions) => {
+      // If the currently selected document was in the deleted list, deselect it.
+      // Since we don't have direct access to the `ids` variable here easily without context,
+      // we rely on the parent component or refetch to handle visual state.
+      // However, refetchQueries handles the list update.
+    },
+    refetchQueries: [
+      {
+        query: GET_MY_DOCUMENTS,
+        variables: { search: debouncedSearch, skip: (page - 1) * pageSize, take: pageSize },
+      },
+    ],
+  })
+
   const selectDocument = useCallback((id: string | null) => setSelectedId(id), [])
 
   const createPersonalDocument = useCallback(
@@ -229,6 +246,13 @@ export function usePersonalDocuments(): UsePersonalDocumentsHook {
     [deleteDocumentMutation],
   )
 
+  const deleteManyPersonalDocuments = useCallback(
+    (ids: string[]) => {
+      deleteManyDocumentMutation({ variables: { ids } })
+    },
+    [deleteManyDocumentMutation]
+  )
+
   const loading = listLoading || detailsLoading || networkStatus === NetworkStatus.refetch
 
   return {
@@ -247,6 +271,7 @@ export function usePersonalDocuments(): UsePersonalDocumentsHook {
     createPdfFromDataUrl,
     updatePersonalDocument,
     deletePersonalDocument,
+    deleteManyPersonalDocuments,
     selectDocument,
     refetchDocumentsList,
   }

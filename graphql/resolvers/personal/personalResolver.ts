@@ -114,7 +114,7 @@ export const personalResolver = {
         const completedTasks = tasks.filter(task => task.status === TaskStatus.DONE).length
         const inProgressTasks = tasks.filter(task => task.status === TaskStatus.TODO).length
         const overdueTasks = tasks.filter(
-          task => task.dueDate && new Date(task.dueDate) < new Date() && task.status !== TaskStatus.DONE
+          task => task.endDate && new Date(task.endDate) < new Date() && task.status !== TaskStatus.DONE
         ).length
 
         const kpis = {

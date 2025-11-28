@@ -1,4 +1,3 @@
-// hooks/personal/usePersonalPromptsList.ts
 "use client"
 
 import { useState, useCallback, useMemo } from "react"
@@ -9,16 +8,14 @@ import { GET_MY_PROMPTS_QUERY } from "@/graphql/queries/personal/personalPromptR
 import {
   CREATE_PROMPT_MUTATION,
   DELETE_PROMPT_MUTATION,
+  DELETE_MANY_PROMPTS_MUTATION,
 } from "@/graphql/mutations/personal/personalPromptRelatedMutations"
 import { Prompt, Block, PromptVariable } from "@/components/prompt-lab/store"
 
-// This function should ideally be in a shared utility file.
-// It generates temporary keys for client-side state, not database IDs.
 function generateClientKey(prefix: string = ""): string {
   return `${prefix}${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
 }
 
-// Defining the type for the optional initial data passed to createPrompt
 type PromptCreationData = Partial<{
   title: string
   content: Block[]
@@ -36,9 +33,9 @@ interface UsePersonalPromptsListHook {
   loadingList: boolean
   listError: string | null
   createPrompt: (initialData?: PromptCreationData) => Promise<Prompt | undefined>
-  deletePrompt: (id: string) => void
+  deletePrompt: (id: string) => Promise<void>
+  deleteManyPrompts: (ids: string[]) => Promise<void>
   triggerPromptsListFetch: (forceRefetch?: boolean) => void
-  // Search and Pagination
   q: string
   setQ: (q: string) => void
   page: number
@@ -52,16 +49,15 @@ interface UsePersonalPromptsListHook {
 const ITEMS_PER_PAGE = 9
 
 export function usePersonalPromptsList(selectedId: string | null): UsePersonalPromptsListHook {
-  const [prompts, setPrompts] = useState<Prompt[]>([])
   const [localListError, setLocalListError] = useState<string | null>(null)
 
   // Search and Pagination State
   const [q, setQ] = useState("")
-  const [debouncedQ] = useDebounce(q, 300) // Debounce search input
+  const [debouncedQ] = useDebounce(q, 300)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(ITEMS_PER_PAGE)
-  const [totalPromptsCount, setTotalPromptsCount] = useState(0)
 
+  // --- QUERY ---
   const {
     data: promptsListData,
     loading: apolloListLoading,
@@ -73,40 +69,98 @@ export function usePersonalPromptsList(selectedId: string | null): UsePersonalPr
       take: pageSize,
       q: debouncedQ,
     },
-    skip: selectedId !== null, // Skip query if a prompt is selected
+    skip: selectedId !== null,
     fetchPolicy: "network-only",
-    onCompleted: data => {
-      console.log(
-        "[usePersonalPromptsList] [Trace: QueryListComplete] GET_MY_PROMPTS_QUERY onCompleted. Data length:",
-        data?.getMyPrompts.prompts.length,
-        "prompts. Total Count:",
-        data?.getMyPrompts.totalCount,
-      )
-      setLocalListError(null)
-      const mappedPrompts: Prompt[] = data.getMyPrompts.prompts.map((p: any) => ({
-        id: p.id,
-        title: p.title,
-        description: p.description,
-        tags: p.tags,
-        isPublic: p.isPublic,
-        createdAt: p.createdAt,
-        updatedAt: p.updatedAt,
-        model: p.model || "gpt-4o",
-        projectId: p.projectId,
-        // These fields are not part of the list query response. Initialize them as empty.
-        activeVersion: undefined,
-        versions: [],
-      }))
-      setPrompts(mappedPrompts)
-      setTotalPromptsCount(data.getMyPrompts.totalCount)
-    },
+    notifyOnNetworkStatusChange: true,
     onError: err => {
-      console.error("[usePersonalPromptsList] [Error: QueryList] Error fetching personal prompts list:", err)
+      console.error("[usePersonalPromptsList] [Error: QueryList]", err)
       setLocalListError("Failed to load prompts list.")
     },
   })
 
-  // Handlers that reset page number when search or page size changes
+  // --- DERIVED STATE (Fix for Deletion Issue) ---
+  // We use useMemo instead of onCompleted + useState to ensure UI stays in sync with Apollo Cache/Refetches
+  const prompts = useMemo(() => {
+    if (!promptsListData?.getMyPrompts?.prompts) {
+      return []
+    }
+    
+    console.log(`[usePersonalPromptsList] [Trace: Memo] Recalculating prompts. Count: ${promptsListData.getMyPrompts.prompts.length}`)
+
+    return promptsListData.getMyPrompts.prompts.map((p: any) => ({
+      id: p.id,
+      title: p.title,
+      description: p.description,
+      tags: p.tags,
+      isPublic: p.isPublic,
+      createdAt: p.createdAt,
+      updatedAt: p.updatedAt,
+      model: p.model || "gpt-4o",
+      projectId: p.projectId,
+      activeVersion: undefined,
+      versions: [],
+    })) as Prompt[]
+  }, [promptsListData])
+
+  const totalPromptsCount = useMemo(() => {
+    return promptsListData?.getMyPrompts?.totalCount || 0
+  }, [promptsListData])
+
+  const totalPages = useMemo(() => {
+    return Math.max(1, Math.ceil(totalPromptsCount / pageSize))
+  }, [totalPromptsCount, pageSize])
+
+  // --- MUTATIONS ---
+
+  const [createPromptMutation] = useMutation(CREATE_PROMPT_MUTATION, {
+    refetchQueries: [
+      {
+        query: GET_MY_PROMPTS_QUERY,
+        variables: { skip: (page - 1) * pageSize, take: pageSize, q: debouncedQ },
+      },
+    ],
+    awaitRefetchQueries: true,
+    onError: err => setLocalListError("Failed to create prompt."),
+  })
+
+  const [deletePromptMutation] = useMutation(DELETE_PROMPT_MUTATION, {
+    refetchQueries: [
+      {
+        query: GET_MY_PROMPTS_QUERY,
+        variables: { skip: (page - 1) * pageSize, take: pageSize, q: debouncedQ },
+      },
+    ],
+    awaitRefetchQueries: true,
+    onCompleted: data => {
+      console.log(`[usePersonalPromptsList] [Trace: DeleteMutation] Completed. Deleted ID: ${data?.deletePrompt?.id}`)
+      // If we deleted the last item on the page, go back
+      if (prompts.length === 1 && page > 1) {
+        setPage(p => p - 1)
+      }
+    },
+    onError: err => setLocalListError("Failed to delete prompt."),
+  })
+
+  const [deleteManyPromptsMutation] = useMutation(DELETE_MANY_PROMPTS_MUTATION, {
+    refetchQueries: [
+      {
+        query: GET_MY_PROMPTS_QUERY,
+        variables: { skip: (page - 1) * pageSize, take: pageSize, q: debouncedQ },
+      },
+    ],
+    awaitRefetchQueries: true,
+    onCompleted: data => {
+      const count = data?.deleteManyPrompts?.count || 0
+      console.log(`[usePersonalPromptsList] [Trace: DeleteManyMutation] Completed. Deleted count: ${count}`)
+      if (prompts.length <= count && page > 1) {
+        setPage(p => p - 1)
+      }
+    },
+    onError: err => setLocalListError("Failed to delete selected prompts."),
+  })
+
+  // --- HANDLERS ---
+
   const handleSetQ = (newQ: string) => {
     setPage(1)
     setQ(newQ)
@@ -120,63 +174,18 @@ export function usePersonalPromptsList(selectedId: string | null): UsePersonalPr
   const triggerPromptsListFetch = useCallback(
     (forceRefetch: boolean = false) => {
       if (forceRefetch) {
-        console.log(
-          "[usePersonalPromptsList] [Trace: TriggerFetch] Explicitly triggering GET_MY_PROMPTS_QUERY refetch.",
-        )
+        console.log("[usePersonalPromptsList] [Trace] Force refetch triggering.")
         setLocalListError(null)
-        setPage(1) // Reset to page 1 on a manual full refresh
+        setPage(1)
         apolloRefetchPromptsList()
       }
     },
     [apolloRefetchPromptsList],
   )
 
-  const totalPages = useMemo(() => {
-    return Math.max(1, Math.ceil(totalPromptsCount / pageSize))
-  }, [totalPromptsCount, pageSize])
-
-  const [createPromptMutation] = useMutation(CREATE_PROMPT_MUTATION, {
-    onCompleted: data => {
-      if (data?.createPrompt) {
-        console.log(
-          "[usePersonalPromptsList] [Trace: MutationCreateComplete] CREATE_PROMPT_MUTATION onCompleted. New prompt ID:",
-          data.createPrompt.id,
-        )
-        // Refetch the entire list to ensure pagination and sorting are correct
-        apolloRefetchPromptsList()
-      }
-    },
-    onError: err => {
-      console.error("[usePersonalPromptsList] [Error: MutationCreate] Mutation Error: Create Prompt", err)
-      setLocalListError("Failed to create prompt.")
-    },
-  })
-
-  const [deletePromptMutation] = useMutation(DELETE_PROMPT_MUTATION, {
-    onCompleted: data => {
-      if (data?.deletePrompt.id) {
-        console.log(
-          "[usePersonalPromptsList] [Trace: MutationDeleteComplete] DELETE_PROMPT_MUTATION onCompleted. Deleted prompt ID:",
-          data.deletePrompt.id,
-        )
-        if (prompts.length === 1 && page > 1) {
-          setPage(p => p - 1)
-        } else {
-          apolloRefetchPromptsList()
-        }
-      }
-    },
-    onError: err => {
-      console.error("[usePersonalPromptsList] [Error: MutationDelete] Mutation Error: Delete Prompt", err)
-      setLocalListError("Failed to delete prompt.")
-      apolloRefetchPromptsList()
-    },
-  })
-
   const createPrompt = useCallback(
     async (initialData?: PromptCreationData): Promise<Prompt | undefined> => {
       setLocalListError(null)
-      console.log("[usePersonalPromptsList] [Trace: Create] createPrompt: Initiating creation for personal prompt.")
       try {
         const defaultPromptInput = {
           title: "Untitled Prompt",
@@ -192,52 +201,44 @@ export function usePersonalPromptsList(selectedId: string | null): UsePersonalPr
         }
 
         const finalInput = { ...defaultPromptInput, ...initialData }
-
-        const cleanContent =
-          finalInput.content?.map(({ __typename, id, ...block }, index) => ({
+        const cleanContent = finalInput.content?.map(({ __typename, id, ...block }, index) => ({
             ...block,
             order: index,
           })) ?? []
-
-        const cleanVariables =
-          finalInput.variables?.map(({ __typename, id, ...variable }) => variable) ?? []
+        const cleanVariables = finalInput.variables?.map(({ __typename, id, ...variable }) => variable) ?? []
 
         const { data } = await createPromptMutation({
           variables: {
-            input: {
-              ...finalInput,
-              content: cleanContent,
-              variables: cleanVariables,
-            },
+            input: { ...finalInput, content: cleanContent, variables: cleanVariables },
           },
         })
 
         if (data?.createPrompt) {
-          // Construct the returned prompt object from the new structure
-          const newPrompt: Prompt = {
-            id: data.createPrompt.id,
-            title: data.createPrompt.title,
-            description: data.createPrompt.description,
-            tags: data.createPrompt.tags,
-            isPublic: data.createPrompt.isPublic,
-            createdAt: data.createPrompt.createdAt,
-            updatedAt: data.createPrompt.updatedAt,
-            model: data.createPrompt.model,
-            projectId: data.createPrompt.projectId,
-            activeVersion: data.createPrompt.activeVersion ? {
-                ...data.createPrompt.activeVersion,
-                content: data.createPrompt.activeVersion.content as Block[],
-                variables: data.createPrompt.activeVersion.variables as PromptVariable[],
-            } : undefined,
-            versions: data.createPrompt.versions.map((v: any) => ({
-              ...v,
-              id: v.id || generateClientKey("db-ver-"),
-            })),
-          }
+            // Helper to format returned data
+            const newPrompt: Prompt = {
+              id: data.createPrompt.id,
+              title: data.createPrompt.title,
+              description: data.createPrompt.description,
+              tags: data.createPrompt.tags,
+              isPublic: data.createPrompt.isPublic,
+              createdAt: data.createPrompt.createdAt,
+              updatedAt: data.createPrompt.updatedAt,
+              model: data.createPrompt.model,
+              projectId: data.createPrompt.projectId,
+              activeVersion: data.createPrompt.activeVersion ? {
+                  ...data.createPrompt.activeVersion,
+                  content: data.createPrompt.activeVersion.content as Block[],
+                  variables: data.createPrompt.activeVersion.variables as PromptVariable[],
+              } : undefined,
+              versions: data.createPrompt.versions.map((v: any) => ({
+                ...v,
+                id: v.id || generateClientKey("db-ver-"),
+              })),
+            }
           return newPrompt
         }
-      } catch (err: any) {
-        console.error("[usePersonalPromptsList] [Error: CreateGraphQL] Error creating prompt via GraphQL:", err)
+      } catch (err) {
+        console.error(err)
         setLocalListError("Failed to create prompt.")
       }
       return undefined
@@ -246,16 +247,21 @@ export function usePersonalPromptsList(selectedId: string | null): UsePersonalPr
   )
 
   const deletePrompt = useCallback(
-    (id: string) => {
+    async (id: string) => {
       setLocalListError(null)
-      console.log("[usePersonalPromptsList] [Trace: Delete] deletePrompt: Initiating deletion for prompt ID:", id)
-      deletePromptMutation({ variables: { id } }).catch(err => {
-        console.error("[usePersonalPromptsList] [Error: DeleteGraphQL] Error deleting prompt via GraphQL:", err)
-        setLocalListError("Failed to delete prompt.")
-        apolloRefetchPromptsList()
-      })
+      console.log(`[usePersonalPromptsList] [Trace: Delete] Calling mutation for ID: ${id}`)
+      await deletePromptMutation({ variables: { id } })
     },
-    [deletePromptMutation, apolloRefetchPromptsList],
+    [deletePromptMutation],
+  )
+
+  const deleteManyPrompts = useCallback(
+    async (ids: string[]) => {
+      setLocalListError(null)
+      console.log(`[usePersonalPromptsList] [Trace: DeleteMany] Calling mutation for IDs: ${ids.join(', ')}`)
+      await deleteManyPromptsMutation({ variables: { ids } })
+    },
+    [deleteManyPromptsMutation]
   )
 
   return {
@@ -264,6 +270,7 @@ export function usePersonalPromptsList(selectedId: string | null): UsePersonalPr
     listError: localListError || apolloListError?.message || null,
     createPrompt,
     deletePrompt,
+    deleteManyPrompts,
     triggerPromptsListFetch,
     q,
     setQ: handleSetQ,

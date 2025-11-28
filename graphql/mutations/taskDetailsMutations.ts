@@ -14,6 +14,7 @@ export const CREATE_TASK_COMMENT_MUTATION = gql`
         firstName
         lastName
         avatar
+        avatarColor
       }
     }
   }
@@ -55,6 +56,7 @@ export const CONFIRM_ATTACHMENT_UPLOAD_MUTATION = gql`
         firstName
         lastName
         avatar
+        avatarColor
       }
     }
   }

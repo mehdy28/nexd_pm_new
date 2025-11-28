@@ -1,4 +1,3 @@
-// components/personal/personal-prompt-lab-container.tsx
 "use client"
 
 import { useState, useCallback, useEffect } from "react"
@@ -15,7 +14,6 @@ export function PersonalPromptLabContainer() {
 
   const [selectedPromptId, setSelectedPromptId] = useState<string | null>(null)
   const [isCreatingTemplate, setIsCreatingTemplate] = useState(false)
-  // FIX: Track when we are actively loading a newly created prompt to prevent UI flashing
   const [isPostCreationLoading, setIsPostCreationLoading] = useState(false)
 
   const {
@@ -24,6 +22,7 @@ export function PersonalPromptLabContainer() {
     listError,
     createPrompt: createPromptInList,
     deletePrompt: deletePromptFromList,
+    deleteManyPrompts: deleteManyPromptsFromList,
     triggerPromptsListFetch,
     q,
     setQ,
@@ -50,14 +49,12 @@ export function PersonalPromptLabContainer() {
     versionContentError,
     currentLoadedVersionContent,
   } = usePromptDetails(selectedPromptId, undefined)
-  
-  // FIX: When details finish loading, turn off the post-creation loading flag.
+
   useEffect(() => {
     if (!loadingDetails && isPostCreationLoading) {
       setIsPostCreationLoading(false)
     }
   }, [loadingDetails, isPostCreationLoading])
-
 
   const selectPrompt = useCallback(
     (id: string | null) => {
@@ -74,18 +71,18 @@ export function PersonalPromptLabContainer() {
     console.log(
       "[PersonalPromptLabContainer] [Trace: HandleCreate] handleCreateNewPrompt: Initiating prompt creation.",
     )
-    setIsPostCreationLoading(true) // FIX: Set loading state before creation
+    setIsPostCreationLoading(true)
     try {
       const newPrompt = await createPromptInList()
       if (newPrompt) {
         console.log("[PersonalPromptLabContainer] [Trace: HandleCreate] New prompt created:", newPrompt.id)
         selectPrompt(newPrompt.id)
       } else {
-        setIsPostCreationLoading(false) // FIX: Unset if creation fails
+        setIsPostCreationLoading(false)
       }
     } catch (err) {
       console.error("[PersonalPromptLabContainer] [Error: Create] Failed to create new prompt:", err)
-      setIsPostCreationLoading(false) // FIX: Unset on error
+      setIsPostCreationLoading(false)
     }
   }, [createPromptInList, selectPrompt])
 
@@ -95,7 +92,7 @@ export function PersonalPromptLabContainer() {
         `[PersonalPromptLabContainer] [Trace: HandleCreateTemplate] Creating prompt from template: "${template.name}"`,
       )
       setIsCreatingTemplate(true)
-      setIsPostCreationLoading(true) // FIX: Set loading state before creation
+      setIsPostCreationLoading(true)
       try {
         const promptData = {
           title: template.name,
@@ -116,14 +113,14 @@ export function PersonalPromptLabContainer() {
           )
           selectPrompt(newPrompt.id)
         } else {
-          setIsPostCreationLoading(false) // FIX: Unset if creation fails
+          setIsPostCreationLoading(false)
         }
       } catch (err) {
         console.error(
           "[PersonalPromptLabContainer] [Error: CreateTemplate] Failed to create prompt from template:",
           err,
         )
-        setIsPostCreationLoading(false) // FIX: Unset on error
+        setIsPostCreationLoading(false)
       } finally {
         setIsCreatingTemplate(false)
       }
@@ -138,12 +135,33 @@ export function PersonalPromptLabContainer() {
         id,
       )
       await deletePromptFromList(id)
+      
+      console.log("[PersonalPromptLabContainer] [Trace: HandleDelete] Deletion promise resolved.")
+      
       if (selectedPromptId === id) {
         console.log("[PersonalPromptLabContainer] [Trace: HandleDelete] Deselecting deleted prompt.")
         selectPrompt(null)
       }
     },
     [deletePromptFromList, selectedPromptId, selectPrompt],
+  )
+
+  const handleDeleteManyPrompts = useCallback(
+    async (ids: string[]) => {
+      console.log(
+        "[PersonalPromptLabContainer] [Trace: HandleDeleteMany] handleDeleteManyPrompts: Initiating deletion for IDs:",
+        ids,
+      )
+      await deleteManyPromptsFromList(ids)
+      
+      console.log("[PersonalPromptLabContainer] [Trace: HandleDeleteMany] Bulk deletion promise resolved.")
+
+      // If the currently selected prompt is in the deleted list, deselect it
+      if (selectedPromptId && ids.includes(selectedPromptId)) {
+        selectPrompt(null)
+      }
+    },
+    [deleteManyPromptsFromList, selectedPromptId, selectPrompt],
   )
 
   const handleBack = () => {
@@ -162,25 +180,18 @@ export function PersonalPromptLabContainer() {
 
   const isLoading = loadingList || loadingDetails
   const error = listError || detailsError
-  let loaderMessage = isPostCreationLoading || selectedPromptId ? "Loading prompt details..." : "Loading your prompts..."
+  let loaderMessage =
+    isPostCreationLoading || selectedPromptId ? "Loading prompt details..." : "Loading your prompts..."
 
-  // FIX: Use the new post-creation flag to force the loader screen
   if (isPostCreationLoading || (isLoading && !selectedPromptDetails && prompts.length === 0)) {
-    console.log(
-      `[PersonalPromptLabContainer] [Trace: Render] Rendering GLOBAL LOADER. Message: "${loaderMessage}".`,
-    )
     return <LoadingPlaceholder message={loaderMessage} />
   }
 
   if (error) {
-    console.log("[PersonalPromptLabContainer] [Trace: Render] Rendering ERROR STATE. Error:", error)
     return <ErrorPlaceholder error={new Error(error)} onRetry={handleRetry} />
   }
 
   if (selectedPromptId && selectedPromptDetails) {
-    console.log(
-      `[PersonalPromptLabContainer] [Trace: Render] Rendering PromptLab component with prompt ID: ${selectedPromptId}.`,
-    )
     return (
       <PromptLab
         prompt={selectedPromptDetails}
@@ -202,16 +213,13 @@ export function PersonalPromptLabContainer() {
     )
   }
 
-  console.log(
-    "[PersonalPromptLabContainer] [Trace: Render] Rendering PromptList component. Prompts count:",
-    prompts.length,
-  )
   return (
     <PromptList
       prompts={prompts}
       onSelectPrompt={selectPrompt}
       onCreatePrompt={handleCreateNewPrompt}
       onDeletePrompt={handleDeletePrompt}
+      onDeleteManyPrompts={handleDeleteManyPrompts}
       onSelectTemplate={handleCreateFromTemplate}
       isCreatingFromTemplate={isCreatingTemplate}
       isLoading={loadingList}

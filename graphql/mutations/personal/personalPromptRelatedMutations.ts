@@ -1,4 +1,3 @@
-// graphql/mutations/personal/personalPromptRelatedMutations.ts
 import { gql } from "graphql-tag"
 
 
@@ -66,6 +65,14 @@ export const DELETE_PROMPT_MUTATION = gql`
   mutation DeletePrompt($id: ID!) {
     deletePrompt(id: $id) {
       id
+    }
+  }
+`
+
+export const DELETE_MANY_PROMPTS_MUTATION = gql`
+  mutation DeleteManyPrompts($ids: [ID!]!) {
+    deleteManyPrompts(ids: $ids) {
+      count
     }
   }
 `

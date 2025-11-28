@@ -1,4 +1,3 @@
-//hooks/personal/usePersonalWireframes.ts
 import { useQuery, useMutation, NetworkStatus } from "@apollo/client"
 import { useState, useEffect, useCallback, useMemo } from "react"
 import { useDebounce } from "use-debounce"
@@ -7,6 +6,7 @@ import {
   CREATE_PERSONAL_WIREFRAME,
   UPDATE_WIREFRAME,
   DELETE_WIREFRAME,
+  DELETE_MANY_WIREFRAMES,
 } from "@/graphql/mutations/personal/personalWireframes"
 
 type JsonScalar = any
@@ -15,9 +15,9 @@ export type WireframeListItem = {
   id: string
   title: string
   updatedAt: string
-  data: JsonScalar // <-- CHANGED THIS LINE (removed ?)
+  data: JsonScalar
   thumbnail: string | null
-  projectId: string | null // Can be null for personal wireframes
+  projectId: string | null
 }
 
 export type WireframeDetails = {
@@ -75,6 +75,10 @@ export const usePersonalWireframes = () => {
   const [createWireframeMutation] = useMutation(CREATE_PERSONAL_WIREFRAME, { refetchQueries })
   const [updateWireframeMutation] = useMutation(UPDATE_WIREFRAME, { refetchQueries })
   const [deleteWireframeMutation] = useMutation(DELETE_WIREFRAME, { refetchQueries })
+  
+  const [deleteManyWireframeMutation] = useMutation(DELETE_MANY_WIREFRAMES, {
+    refetchQueries,
+  })
 
   const createWireframe = useCallback(
     async (title: string, initialData: JsonScalar, thumbnail?: string | null) => {
@@ -102,6 +106,14 @@ export const usePersonalWireframes = () => {
     [deleteWireframeMutation]
   )
 
+  const deleteManyPersonalWireframes = useCallback(
+    async (ids: string[]) => {
+      const { data } = await deleteManyWireframeMutation({ variables: { ids } })
+      return data?.deleteManyWireframes
+    },
+    [deleteManyWireframeMutation]
+  )
+
   return {
     wireframes,
     totalCount,
@@ -117,6 +129,7 @@ export const usePersonalWireframes = () => {
     createWireframe,
     updateWireframe,
     deleteWireframe,
+    deleteManyPersonalWireframes,
   }
 }
 

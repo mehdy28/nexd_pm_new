@@ -320,50 +320,96 @@ const personalWireframeResolvers = {
     deleteWireframe: async (
       _parent: any,
       { id }: { id: string },
-      context: GraphQLContext
+      context: GraphQLContext,
     ): Promise<WireframeListItemOutput> => {
-      const operation = "deleteWireframe"
-      log("info", `${operation} called for personal context.`, { wireframeId: id })
-      const { user } = context
+      const operation = "deleteWireframe";
+      log("info", `${operation} called.`, { wireframeId: id });
+
+      const { user } = context;
       if (!user?.id) {
-        throw new GraphQLError("Authentication required", { extensions: { code: "UNAUTHENTICATED" } })
+        log("warn", `${operation}: Authentication required.`);
+        throw new GraphQLError("Authentication required", { extensions: { code: "UNAUTHENTICATED" } });
       }
+      log("info", `${operation}: User ${user.id} authenticated.`, { userId: user.id });
 
-      const existingWireframe = await prisma.wireframe.findUnique({ where: { id } })
-      if (!existingWireframe) {
-        throw new GraphQLError("Wireframe not found.", { extensions: { code: "NOT_FOUND" } })
-      }
-
-      if (existingWireframe.userId !== user.id && !existingWireframe.projectId) {
-        throw new GraphQLError("Forbidden: Not authorized to delete this wireframe", {
-          extensions: { code: "FORBIDDEN" },
-        })
-      }
-      // If it's a project wireframe, additional checks would be needed here.
-
-      await prisma.wireframe.delete({ where: { id } })
-
-      // Conditionally create activity log if it was a project wireframe
-      if (existingWireframe.projectId) {
-        await prisma.activity.create({
-          data: {
-            type: "WIREFRAME_DELETED",
-            data: { wireframeTitle: existingWireframe.title },
-            userId: user.id,
-            projectId: existingWireframe.projectId,
-            wireframeId: existingWireframe.id,
+      let existingWireframe;
+      try {
+        existingWireframe = await prisma.wireframe.findUnique({
+          where: { id },
+          select: {
+            id: true, title: true, projectId: true, userId: true, updatedAt: true, thumbnail: true,
+            project: { select: { workspaceId: true, members: { where: { userId: user.id } } } },
           },
-        })
+        });
+      } catch (error: any) {
+        log("error", `${operation}: Database error fetching existing wireframe ${id} for authorization.`, { wireframeId: id, errorName: error.name, errorMessage: error.message });
+        throw new GraphQLError(`Failed to authorize wireframe deletion: ${error.message}`, { extensions: { code: "DATABASE_ERROR" } });
       }
 
-      return {
+      if (!existingWireframe) {
+        log("warn", `${operation}: Wireframe ${id} not found.`, { wireframeId: id });
+        throw new GraphQLError("Wireframe not found.", { extensions: { code: "NOT_FOUND" } });
+      }
+      log("info", `${operation}: Found existing wireframe for deletion.`, { wireframeId: id, projectId: existingWireframe.projectId, ownerUserId: existingWireframe.userId });
+
+      let isAuthorized = false;
+      if (existingWireframe.projectId) {
+        if (!existingWireframe.project) {
+          log("error", `${operation}: Project data inconsistency (project relation missing for existingWireframe).`, { wireframeId: id, projectId: existingWireframe.projectId });
+          throw new GraphQLError("Project data inconsistency for this wireframe.", { extensions: { code: "INTERNAL_SERVER_ERROR" } });
+        }
+        const isProjectMember = existingWireframe.project.members.length > 0;
+        const isWorkspaceMember = await prisma.workspaceMember.findFirst({
+          where: { workspaceId: existingWireframe.project.workspaceId, userId: user.id },
+        });
+        isAuthorized = isProjectMember || !!isWorkspaceMember;
+      } else if (existingWireframe.userId) {
+        isAuthorized = existingWireframe.userId === user.id;
+      } else {
+        log("error", `${operation}: Wireframe ${id} has no associated project or user.`, { wireframeId: id });
+        throw new GraphQLError("Wireframe has no associated project or user.", { extensions: { code: "FORBIDDEN" } });
+      }
+
+      if (!isAuthorized) {
+        log("warn", `${operation}: Forbidden: User ${user.id} not authorized to delete wireframe ${id}.`, { wireframeId: id, userId: user.id });
+        throw new GraphQLError("Forbidden: Not authorized to delete this wireframe", { extensions: { code: "FORBIDDEN" } });
+      }
+      log("info", `${operation}: User ${user.id} authorized to delete wireframe ${id}.`, { wireframeId: id, userId: user.id });
+
+      // NOTE: Since the delete operation returns the item *before* deletion, 
+      // we must fetch the data field if the GraphQL schema requires it for the 
+      // return type (WireframeListItemOutput).
+      let wireframeBeforeDelete: { data: any | null } | null = null;
+      try {
+         wireframeBeforeDelete = await prisma.wireframe.findUnique({
+             where: { id },
+             select: { data: true }
+         });
+      } catch (e) {
+         log("warn", `${operation}: Failed to fetch 'data' before deletion, proceeding with delete.`, { wireframeId: id });
+      }
+
+
+      const deletedWireframeInfo: WireframeListItemOutput = {
         id: existingWireframe.id,
         title: existingWireframe.title,
         updatedAt: existingWireframe.updatedAt.toISOString(),
-        data: existingWireframe.data,
         thumbnail: existingWireframe.thumbnail,
         projectId: existingWireframe.projectId,
+        data: wireframeBeforeDelete?.data ?? null, // Include data from the pre-fetch
         __typename: "WireframeListItem",
+      };
+
+      try {
+        await prisma.wireframe.delete({
+          where: { id },
+        });
+        log("info", `${operation}: Wireframe ${id} deleted.`, { wireframeId: id, title: existingWireframe.title });
+
+        return deletedWireframeInfo;
+      } catch (error: any) {
+        log("error", `${operation}: Failed to delete wireframe ${id}.`, { wireframeId: id, errorName: error.name, errorMessage: error.message, stack: error.stack });
+        throw new GraphQLError(`Failed to delete wireframe: ${error.message}`, { extensions: { code: "DATABASE_ERROR" } });
       }
     },
   },

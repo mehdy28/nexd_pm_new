@@ -234,6 +234,7 @@ const DocumentListView = ({
     createPersonalDocument,
     updatePersonalDocument,
     deletePersonalDocument,
+    deleteManyPersonalDocuments,
   } = usePersonalDocuments()
 
   const [selected, setSelected] = useState<Record<string, boolean>>({})
@@ -325,14 +326,20 @@ const DocumentListView = ({
     if (!deleteTarget) return
     try {
       const idsToDelete = Array.isArray(deleteTarget) ? deleteTarget : [deleteTarget]
-      await Promise.all(idsToDelete.map(id => deletePersonalDocument(id)))
+      
+      if (idsToDelete.length > 1) {
+        await deleteManyPersonalDocuments(idsToDelete)
+      } else {
+        await deletePersonalDocument(idsToDelete[0])
+      }
+      
       setSelected({})
     } catch (err) {
       console.error("Failed to delete document(s):", err)
     } finally {
       setDeleteTarget(null)
     }
-  }, [deleteTarget, deletePersonalDocument])
+  }, [deleteTarget, deletePersonalDocument, deleteManyPersonalDocuments])
 
   const handleBulkDelete = useCallback(() => {
     const idsToDelete = Object.keys(selected).filter(id => selected[id])

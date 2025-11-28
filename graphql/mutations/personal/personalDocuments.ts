@@ -35,3 +35,11 @@ export const DELETE_DOCUMENT = gql`
     }
   }
 `
+
+export const DELETE_MANY_DOCUMENTS = gql`
+  mutation DeleteManyDocuments($ids: [ID!]!) {
+    deleteManyDocuments(ids: $ids) {
+      count
+    }
+  }
+`

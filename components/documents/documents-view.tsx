@@ -1,8 +1,6 @@
-// components/documents/documents-view.tsx
 "use client"
 
 import { useEffect, useState, useCallback, KeyboardEvent, useMemo, useRef } from "react"
-import { useQuery } from "@apollo/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -256,6 +254,7 @@ const DocumentListView = ({
     // createPdfFromDataUrl removed
     updateProjectDocument,
     deleteProjectDocument,
+    deleteManyProjectDocuments,
   } = useProjectDocuments(projectId) // Using Project Documents hook
 
   const [selected, setSelected] = useState<Record<string, boolean>>({})
@@ -367,14 +366,20 @@ const DocumentListView = ({
     if (!deleteTarget) return
     try {
       const idsToDelete = Array.isArray(deleteTarget) ? deleteTarget : [deleteTarget]
-      await Promise.all(idsToDelete.map(id => deleteProjectDocument(id)))
+      
+      if (idsToDelete.length > 1) {
+        await deleteManyProjectDocuments(idsToDelete)
+      } else {
+        await deleteProjectDocument(idsToDelete[0])
+      }
+      
       setSelected({})
     } catch (err) {
       console.error("Failed to delete document(s):", err)
     } finally {
       setDeleteTarget(null)
     }
-  }, [deleteTarget, deleteProjectDocument])
+  }, [deleteTarget, deleteProjectDocument, deleteManyProjectDocuments])
 
   const handleBulkDelete = useCallback(() => {
     const idsToDelete = Object.keys(selected).filter(id => selected[id])

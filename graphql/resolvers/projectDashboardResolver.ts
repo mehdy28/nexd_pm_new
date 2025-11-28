@@ -79,7 +79,7 @@ export const projectDashboardResolvers = {
             tasks[0].createdAt,
           )
           endDate = tasks.reduce((latest, task) => {
-            const dateToCompare = task.endDate || task.dueDate || task.createdAt
+            const dateToCompare = task.endDate || task.endDate || task.createdAt
             return dateToCompare > latest ? dateToCompare : latest
           }, new Date(0))
         } else {
@@ -121,7 +121,7 @@ export const projectDashboardResolvers = {
         totalTasks,
         completedTasks,
         inProgressTasks: tasks.filter(t => t.status === "TODO" && t.assigneeId).length, // Simplified to assigned but not done
-        overdueTasks: tasks.filter(t => t.dueDate && isBefore(t.dueDate, now) && t.status !== "DONE").length,
+        overdueTasks: tasks.filter(t => t.endDate && isBefore(t.endDate, now) && t.status !== "DONE").length,
         totalPoints,
         completedPoints,
         completionPercentage: totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0,

@@ -468,7 +468,6 @@ const wireframeResolvers = {
         throw new GraphQLError(`Failed to update wireframe: ${error.message}`, { extensions: { code: "DATABASE_ERROR" } });
       }
     },
-
     deleteWireframe: async (
       _parent: any,
       { id }: { id: string },
@@ -558,25 +557,53 @@ const wireframeResolvers = {
         });
         log("info", `${operation}: Wireframe ${id} deleted.`, { wireframeId: id, title: existingWireframe.title });
 
-        try {
-          await prisma.activity.create({
-            data: {
-              type: "WIREFRAME_DELETED",
-              data: { wireframeTitle: existingWireframe.title },
-              userId: user.id,
-              projectId: existingWireframe.projectId,
-              wireframeId: existingWireframe.id,
-            },
-          });
-          log("info", `${operation}: Activity log created.`, { wireframeId: existingWireframe.id, activityType: "WIREFRAME_DELETED" });
-        } catch (activityError: any) {
-          log("warn", `${operation}: Failed to create activity log.`, { wireframeId: existingWireframe.id, activityError: activityError.message });
-        }
-
         return deletedWireframeInfo;
       } catch (error: any) {
         log("error", `${operation}: Failed to delete wireframe ${id}.`, { wireframeId: id, errorName: error.name, errorMessage: error.message, stack: error.stack });
         throw new GraphQLError(`Failed to delete wireframe: ${error.message}`, { extensions: { code: "DATABASE_ERROR" } });
+      }
+    },
+        
+    deleteManyWireframes: async (
+      _parent: any,
+      { ids }: { ids: string[] },
+      context: GraphQLContext
+    ): Promise<{ count: number }> => {
+      const operation = "deleteManyWireframes";
+      log("info", `${operation} called.`, { ids });
+
+      const { user } = context;
+      if (!user?.id) {
+        log("warn", `${operation}: Authentication required.`);
+        throw new GraphQLError("Authentication required", {
+          extensions: { code: "UNAUTHENTICATED" },
+        });
+      }
+
+      if (!ids || ids.length === 0) {
+        return { count: 0 };
+      }
+
+      try {
+        // We use a direct deleteMany with OR logic to efficiently matching authorized wireframes.
+        // It matches if the ID is in the list AND (the user owns it OR it belongs to a project).
+        // This mirrors the logic in deleteManyDocuments.
+        
+        const { count } = await prisma.wireframe.deleteMany({
+          where: {
+            id: { in: ids },
+            OR: [
+              { userId: user.id },            // User is the owner (personal wireframe)
+              { projectId: { not: null } }    // Wireframe belongs to a project
+            ]
+          },
+        });
+
+        log("info", `${operation}: Successfully deleted ${count} wireframes.`);
+        return { count };
+      } catch (error: any) {
+        log("error", `${operation}: Error deleting wireframes.`, { errorName: error.name, errorMessage: error.message });
+        throw error;
       }
     },
   },
