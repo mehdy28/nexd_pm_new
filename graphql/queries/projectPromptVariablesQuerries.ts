@@ -35,7 +35,7 @@ export const GET_PROJECT_TASKS_LOOKUP_QUERY = gql`
       title
       status
       priority
-      dueDate
+      endDate
       assignee {
         id
         firstName

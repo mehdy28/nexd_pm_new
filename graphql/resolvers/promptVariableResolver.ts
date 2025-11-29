@@ -16,14 +16,19 @@ interface GraphQLContext {
 // Helper to safely parse JSON
 function safeParseJson(jsonString: any): any {
   if (typeof jsonString === 'string') {
-    try { return JSON.parse(jsonString); } catch (e) { return null; }
+    try { 
+        // Handle potential double encoding
+        const parsed = JSON.parse(jsonString); 
+        if (typeof parsed === 'string') return safeParseJson(parsed);
+        return parsed;
+    } catch (e) { return null; }
   }
   return jsonString;
 }
 
 // Helper: Check if a field exists in Prisma model definition
 const VALID_FILTERS: Record<string, string[]> = {
-    'TASK': ['id', 'status', 'priority', 'assigneeId', 'sprintId', 'points', 'dueDate', 'title'],
+    'TASK': ['id', 'status', 'priority', 'assigneeId', 'sprintId', 'points', 'endDate', 'title'],
     'DOCUMENT': ['id', 'projectId', 'title', 'content'], 
     'SPRINT': ['id', 'status', 'name', 'goal', 'startDate', 'endDate'],
     'MEMBER': ['id', 'role'],
@@ -173,8 +178,13 @@ const promptVariableResolver = {
           .reduce((acc: any, condition) => {
              let value: any = condition.value;
 
+             // Handle Special Values
              if (condition.specialValue === SpecialFilterValue.CURRENT_USER) {
                  value = context.user!.id;
+             } else if (condition.specialValue === SpecialFilterValue.TODAY || condition.specialValue === SpecialFilterValue.NOW) {
+                 // Use ISO string to ensure consistent comparison across Date and String fields in DB
+                 // and prevent implicit string conversion issues (e.g. "Fri Nov..." > "2025...")
+                 value = new Date().toISOString();
              } else if (condition.specialValue === SpecialFilterValue.ACTIVE_SPRINT) {
                  // Future: Async lookup for active sprint ID
                  return acc; 
@@ -185,18 +195,49 @@ const promptVariableResolver = {
                  case FilterOperator.EQ: opClause = value; break;
                  case FilterOperator.NEQ: opClause = { not: value }; break;
                  case FilterOperator.IN_LIST: opClause = { in: Array.isArray(value) ? value : [value] }; break;
-                 case FilterOperator.GT: opClause = { gt: Number(value) }; break;
-                 case FilterOperator.LT: opClause = { lt: Number(value) }; break;
+                 case FilterOperator.GT: 
+                    // Handle Dates vs Numbers
+                    if (value instanceof Date) {
+                        opClause = { gt: value };
+                    } else if (typeof value === 'string' && !isNaN(Date.parse(value)) && isNaN(Number(value))) {
+                         // It is a valid Date string but NOT a number string
+                         opClause = { gt: value }; 
+                    } else if (typeof value === 'string' && isNaN(Number(value))) {
+                         // It is a string, not a date, not a number
+                         opClause = { gt: value };
+                    } else {
+                        opClause = { gt: Number(value) };
+                    }
+                    break;
+                 case FilterOperator.LT: 
+                    if (value instanceof Date) {
+                        opClause = { lt: value };
+                    } else if (typeof value === 'string' && !isNaN(Date.parse(value)) && isNaN(Number(value))) {
+                        opClause = { lt: value }; 
+                    } else if (typeof value === 'string' && isNaN(Number(value))) {
+                        opClause = { lt: value };
+                    } else {
+                        opClause = { lt: Number(value) };
+                    }
+                    break;
              }
              
              if (Object.keys(opClause).length > 0 || typeof opClause !== 'object') {
-                 acc[condition.field] = opClause;
+                 // Merge Logic: If field already exists (e.g. range query), merge properties
+                 if (acc[condition.field] && typeof acc[condition.field] === 'object' && typeof opClause === 'object') {
+                     acc[condition.field] = { ...acc[condition.field], ...opClause };
+                 } else {
+                     acc[condition.field] = opClause;
+                 }
              }
              return acc;
         }, {});
 
         const combinedWhere = { ...baseWhere, ...filterWhere };
         let result: any = null;
+
+        // Helper: Determine target field (Field property OR AggregationField property)
+        const getTargetField = () => source.field || (source.aggregation === 'LIST_FIELD_VALUES' ? source.aggregationField : null);
 
         // 3. Execution Logic
         switch (source.entityType) {
@@ -206,32 +247,37 @@ const promptVariableResolver = {
                  } else if (source.aggregation === 'SUM' && source.aggregationField) {
                      const agg = await prisma.task.aggregate({ _sum: { [source.aggregationField]: true }, where: combinedWhere });
                      result = agg._sum[source.aggregationField as 'points'];
-                 } else if (source.field) {
-                     const tasks = await prisma.task.findMany({
-                         where: combinedWhere,
-                         select: { [source.field]: true },
-                         orderBy: { createdAt: 'desc' },
-                         take: 50
-                     });
-                     const values = tasks.map((t: any) => t[source.field!]);
-                     result = formatOutput(values, effectiveFormat);
-                     return result; 
+                 } else {
+                     // Handle standard fetch OR List Aggregation
+                     const targetField = getTargetField();
+                     if (targetField) {
+                         const tasks = await prisma.task.findMany({
+                             where: combinedWhere,
+                             select: { [targetField]: true },
+                             orderBy: { createdAt: 'desc' },
+                             take: 50
+                         });
+                         const values = tasks.map((t: any) => t[targetField]);
+                         result = formatOutput(values, effectiveFormat);
+                         return result; 
+                     }
                  }
                  break;
             }
 
             case 'DOCUMENT': {
-                if (source.field) {
+                const targetField = getTargetField();
+                if (targetField) {
                     const docs = await prisma.document.findMany({
                         where: combinedWhere,
-                        select: { [source.field]: true },
+                        select: { [targetField]: true },
                         orderBy: { updatedAt: 'desc' },
                         take: 50
                     });
                     
                     const values = docs.map((d: any) => {
-                        const val = d[source.field!];
-                        if (source.field === 'content') {
+                        const val = d[targetField];
+                        if (targetField === 'content') {
                             return parseBlockNoteToMarkdown(val);
                         }
                         return val;
@@ -244,9 +290,10 @@ const promptVariableResolver = {
             }
 
             case 'MEMBER': {
-                if (source.field) {
-                     const isNested = source.field.includes('.');
-                     const select = isNested ? { user: { select: { firstName: true, lastName: true, email: true } } } : { [source.field]: true };
+                const targetField = getTargetField();
+                if (targetField) {
+                     const isNested = targetField.includes('.');
+                     const select = isNested ? { user: { select: { firstName: true, lastName: true, email: true } } } : { [targetField]: true };
                      
                      const members = await prisma.projectMember.findMany({
                          where: combinedWhere,
@@ -255,10 +302,10 @@ const promptVariableResolver = {
                      });
 
                      const values = members.map((m: any) => {
-                         if (source.field === 'user.firstName') return m.user?.firstName;
-                         if (source.field === 'user.lastName') return m.user?.lastName;
-                         if (source.field === 'user.email') return m.user?.email;
-                         return m[source.field!];
+                         if (targetField === 'user.firstName') return m.user?.firstName;
+                         if (targetField === 'user.lastName') return m.user?.lastName;
+                         if (targetField === 'user.email') return m.user?.email;
+                         return m[targetField];
                      });
                      result = formatOutput(values, effectiveFormat);
                      return result;
@@ -268,7 +315,8 @@ const promptVariableResolver = {
 
             case 'USER': {
                 // Returns data for the CURRENT authenticated user
-                if (source.field) {
+                const targetField = getTargetField();
+                if (targetField) {
                     const currentUser = await prisma.user.findUnique({
                         where: { id: context.user.id }
                     });
@@ -277,9 +325,9 @@ const promptVariableResolver = {
 
                     const values = [currentUser].map((u: any) => {
                         // Handle Computed fields
-                        if (source.field === 'fullName') return `${u.firstName || ''} ${u.lastName || ''}`.trim();
+                        if (targetField === 'fullName') return `${u.firstName || ''} ${u.lastName || ''}`.trim();
                         // Handle standard fields
-                        return u[source.field!];
+                        return u[targetField];
                     });
 
                     result = formatOutput(values, effectiveFormat);
@@ -289,13 +337,14 @@ const promptVariableResolver = {
             }
 
             case 'PROJECT': {
-                if (source.field) {
+                const targetField = getTargetField();
+                if (targetField) {
                     const projects = await prisma.project.findMany({
                         where: combinedWhere,
-                        select: { [source.field]: true },
+                        select: { [targetField]: true },
                         take: 1
                     });
-                    const values = projects.map((p: any) => p[source.field!]);
+                    const values = projects.map((p: any) => p[targetField]);
                     result = formatOutput(values, effectiveFormat);
                     return result;
                 }
@@ -303,14 +352,15 @@ const promptVariableResolver = {
             }
 
             case 'SPRINT': {
-                if (source.field) {
+                const targetField = getTargetField();
+                if (targetField) {
                     const sprints = await prisma.sprint.findMany({
                         where: combinedWhere,
-                        select: { [source.field]: true },
+                        select: { [targetField]: true },
                         orderBy: { startDate: 'desc' },
                         take: 50
                     });
-                    const values = sprints.map((s: any) => s[source.field!]);
+                    const values = sprints.map((s: any) => s[targetField]);
                     result = formatOutput(values, effectiveFormat);
                     return result;
                 }

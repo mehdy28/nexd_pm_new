@@ -1,4 +1,4 @@
-//components/prompt-lab/variable-discovery-builder.tsx
+// components/prompt-lab/variable-discovery-builder.tsx
 'use client'
 
 import React, { useState, useEffect, useMemo } from 'react';
@@ -31,6 +31,20 @@ function generatePlaceholder(name: string): string {
   if (!name) return '';
   const cleaned = name.toLowerCase().trim().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
   return `{{${cleaned}}}`;
+}
+
+// --- HELPER: Operator Labels ---
+const getOperatorLabel = (op: FilterOperator, type: PromptVariableType) => {
+    switch(op) {
+        case FilterOperator.EQ: return 'is';
+        case FilterOperator.NEQ: return 'is not';
+        case FilterOperator.GT: return type === PromptVariableType.DATE ? 'after' : 'greater than';
+        case FilterOperator.LT: return type === PromptVariableType.DATE ? 'before' : 'less than';
+        case FilterOperator.GTE: return type === PromptVariableType.DATE ? 'on or after' : 'greater or equal';
+        case FilterOperator.LTE: return type === PromptVariableType.DATE ? 'on or before' : 'less or equal';
+        case FilterOperator.IN_LIST: return 'is in';
+        default: return op;
+    }
 }
 
 // --- TYPES FOR PRESETS ---
@@ -635,7 +649,7 @@ export function VariableDiscoveryBuilder({ open, onOpenChange, onCreate, project
                                     <CheckSquare className="h-3 w-3" /> Pick Specific {entityDef.label}s
                                 </Button>
                              )}
-                             {/* CHANGED: Using FilterAddDialog instead of Popover to fix Select close issues */}
+                             {/* ADDED: Filter Dialog */}
                              <FilterAddDialog 
                                 entityDef={entityDef} 
                                 onAddFilter={(f) => {
@@ -653,7 +667,7 @@ export function VariableDiscoveryBuilder({ open, onOpenChange, onCreate, project
                             {filters.map((f, i) => (
                               <Badge key={i} variant="secondary" className="px-3 py-1 text-sm flex gap-2 items-center bg-white border-slate-200 shadow-sm text-slate-700">
                                   <span className="font-medium text-slate-500">{f.label || f.field}</span>
-                                  <span className="font-bold text-indigo-600">{f.operator === FilterOperator.IN_LIST ? 'in' : (f.operator === FilterOperator.EQ ? '=' : f.operator)}</span>
+                                  <span className="font-bold text-indigo-600">{getOperatorLabel(f.operator, f.type)}</span>
                                   <span className="max-w-[150px] truncate">
                                       {f.operator === FilterOperator.IN_LIST 
                                         ? `[${Array.isArray(f.value) ? f.value.length : 0} items]` 
@@ -708,9 +722,9 @@ export function VariableDiscoveryBuilder({ open, onOpenChange, onCreate, project
 
                       <div className="p-4 bg-amber-50 text-amber-900 rounded-lg text-sm border border-amber-100 flex items-start gap-3">
                          <Keyboard className="h-5 w-5 shrink-0 mt-0.5 text-amber-600" />
-                         <div>
+                         <div className="min-w-0 flex-1">
                             <p className="font-semibold text-amber-800">Manual Input Field</p>
-                            <p className="mt-1 opacity-90 text-amber-700">
+                            <p className="mt-1 opacity-90 text-amber-700 break-all">
                                 This creates a blank space in your prompt. You will be asked to type <strong>{currentPlaceholder || '{{...}}'}</strong> manually every time you use this prompt.
                             </p>
                          </div>
@@ -724,7 +738,7 @@ export function VariableDiscoveryBuilder({ open, onOpenChange, onCreate, project
                      <div>
                        <label className="text-sm font-medium mb-1.5 block text-slate-700">Variable Name</label>
                        <Input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Completed Tasks" className="bg-white border-slate-200" />
-                       <p className="text-xs text-slate-500 mt-1">Placeholder: <code className="bg-slate-100 px-1 py-0.5 rounded text-slate-700">{currentPlaceholder}</code></p>
+                       <p className="text-xs text-slate-500 mt-1">Placeholder: <code className="bg-slate-100 px-1 py-0.5 rounded text-slate-700 break-all">{currentPlaceholder}</code></p>
                      </div>
                      <div>
                         <label className="text-sm font-medium mb-1.5 block text-slate-700">Default Value</label>
@@ -792,7 +806,7 @@ export function VariableDiscoveryBuilder({ open, onOpenChange, onCreate, project
                                     <span className="text-purple-600 font-bold">WHERE</span>
                                     {filters.map((f, i) => (
                                         <div key={i} className="ml-1">
-                                            {f.field} <span className="text-slate-400">{f.operator === FilterOperator.IN_LIST ? 'in' : f.operator}</span> 
+                                            {f.field} <span className="text-slate-400">{getOperatorLabel(f.operator, f.type)}</span> 
                                             {f.operator === FilterOperator.IN_LIST 
                                               ? ` [${Array.isArray(f.value) ? f.value.length : 0} items]` 
                                               : ` ${f.specialValue || f.value}`}
@@ -884,7 +898,7 @@ function SpecificItemPicker({ entityType, open, onOpenChange, onConfirm, existin
             // 2. Filter by Current Filters (Client Side)
             for (const filter of currentFilters) {
                 if (filter.field === 'id') continue;
-                if (filter.specialValue) continue;
+                if (filter.specialValue) continue; // Skip special values logic on client side for now
 
                 const itemValue = item[filter.field];
                 
@@ -895,10 +909,26 @@ function SpecificItemPicker({ entityType, open, onOpenChange, onConfirm, existin
                      if (itemValue == filter.value) return false;
                 }
                 else if (filter.operator === FilterOperator.GT) {
-                     if (Number(itemValue) <= Number(filter.value)) return false;
+                     if (filter.type === PromptVariableType.DATE) {
+                         // Date Comparison (Item Date must be > Filter Date)
+                         const itemDate = new Date(itemValue).getTime();
+                         const filterDate = new Date(filter.value).getTime();
+                         if (isNaN(itemDate) || isNaN(filterDate)) return true; // Safety
+                         if (itemDate <= filterDate) return false;
+                     } else {
+                         if (Number(itemValue) <= Number(filter.value)) return false;
+                     }
                 }
                 else if (filter.operator === FilterOperator.LT) {
-                     if (Number(itemValue) >= Number(filter.value)) return false;
+                     if (filter.type === PromptVariableType.DATE) {
+                         // Date Comparison (Item Date must be < Filter Date)
+                         const itemDate = new Date(itemValue).getTime();
+                         const filterDate = new Date(filter.value).getTime();
+                         if (isNaN(itemDate) || isNaN(filterDate)) return true;
+                         if (itemDate >= filterDate) return false;
+                     } else {
+                         if (Number(itemValue) >= Number(filter.value)) return false;
+                     }
                 }
             }
 
@@ -1071,14 +1101,11 @@ function FilterAddDialog({ entityDef, onAddFilter, projectId, workspaceId }: {
                             <Select value={operator} onValueChange={(v) => setOperator(v as FilterOperator)}>
                                 <SelectTrigger className="bg-white border-slate-200"><SelectValue /></SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value={FilterOperator.EQ}>is</SelectItem>
-                                    <SelectItem value={FilterOperator.NEQ}>is not</SelectItem>
-                                    {fieldDef?.type === 'NUMBER' && (
-                                        <>
-                                        <SelectItem value={FilterOperator.GT}>greater than</SelectItem>
-                                        <SelectItem value={FilterOperator.LT}>less than</SelectItem>
-                                        </>
-                                    )}
+                                    {fieldDef?.operators?.map((op: FilterOperator) => (
+                                         <SelectItem key={op} value={op}>
+                                            {getOperatorLabel(op, fieldDef.type)}
+                                         </SelectItem>
+                                    ))}
                                 </SelectContent>
                             </Select>
                         </div>
@@ -1110,6 +1137,34 @@ function FilterAddDialog({ entityDef, onAddFilter, projectId, workspaceId }: {
                                         {sprints.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
                                     </SelectContent>
                                 </Select>
+                            ) : fieldDef?.type === PromptVariableType.DATE ? (
+                                <div className="flex gap-2">
+                                     {/* Date Value Selection: Special or Specific */}
+                                     <Select 
+                                        value={specialValue ? specialValue : 'SPECIFIC'} 
+                                        onValueChange={(v) => {
+                                            if (v === 'SPECIFIC') { setSpecialValue(''); }
+                                            else { setSpecialValue(v); setValue(''); }
+                                        }}
+                                    >
+                                        <SelectTrigger className="w-[120px] bg-white border-slate-200">
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="SPECIFIC">Specific Date</SelectItem>
+                                            <SelectItem value={SpecialFilterValue.TODAY} className="text-purple-600 font-medium">Today</SelectItem>
+                                        </SelectContent>
+                                     </Select>
+
+                                     {!specialValue && (
+                                         <Input 
+                                            type="date" 
+                                            value={value} 
+                                            onChange={e => setValue(e.target.value)} 
+                                            className="flex-1 bg-white border-slate-200" 
+                                         />
+                                     )}
+                                </div>
                             ) : fieldDef?.options ? (
                                 <Select value={value} onValueChange={setValue}>
                                     <SelectTrigger className="bg-white border-slate-200"><SelectValue placeholder="Select..." /></SelectTrigger>

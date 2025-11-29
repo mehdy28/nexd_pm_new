@@ -175,11 +175,11 @@ export function ProjectPromptList({
                     onClick={() => onSelectTemplate(template)}
                     className="group relative cursor-pointer overflow-hidden rounded-lg border text-left outline-none transition-all hover:border-[#4ab5ae] hover:shadow-sm focus-visible:ring-2 focus-visible:ring-[#4ab5ae] focus-visible:ring-offset-2"
                   >
-                   <div className="aspect-[16/10] overflow-hidden bg-slate-50 p-2 flex items-center justify-center">
-                     <div className="text-xs text-slate-400 font-mono p-2 border border-dashed rounded bg-white w-full h-full overflow-hidden select-none">
-                       {template.description.substring(0, 60)}...
-                     </div>
-                   </div>
+                    <div className="aspect-[16/10] overflow-hidden bg-slate-50 px-4 py-3 flex items-center justify-center">
+                      <p className="w-full text-center text-sm font-medium text-slate-600 leading-relaxed select-none">
+                        {template.description.substring(0, 170)}...
+                      </p>
+                    </div>
                     <div className="border-t p-3 bg-white">
                       <h3 className="truncate text-sm font-medium">{template.name}</h3>
                     </div>

@@ -199,39 +199,63 @@ export function PromptLab({
         let notes = 'Untitled Version';
         let aiContent = null;
 
-        // PRIORITY 1: Local Cache (The "Draft" state that survives tab switches)
+        const mergedVersion = mergedVersions.find(v => v.id === selectedVersionId);
+        const override = selectedVersionId ? versionOverrides[selectedVersionId] : undefined;
+
+        // Determine Base Data Source (Server State)
+        // Priority: Loaded Content > Active Version in Object
+        let baseData: { content?: Block[], context?: string, variables?: PromptVariable[], aiEnhancedContent?: string | null } | null = null;
+        
+        if (currentLoadedVersionContent && currentLoadedVersionContent.id === selectedVersionId) {
+            baseData = currentLoadedVersionContent;
+        } else if (isSelectedVersionActive && currentPrompt.activeVersion) {
+            baseData = currentPrompt.activeVersion;
+        }
+
+        // --- RESOLVE VARIABLES ---
+        if (override?.variables) {
+            vars = override.variables;
+        } else if (baseData?.variables) {
+            vars = baseData.variables;
+        } else if (mergedVersion?.variables) {
+            // Fallback for when variables exist in the summary list but not loaded content
+            vars = mergedVersion.variables;
+        }
+
+        // --- RESOLVE CONTEXT ---
+        if (override?.context !== undefined) {
+            context = override.context;
+        } else if (baseData?.context !== undefined) {
+             context = baseData.context;
+        } else if (mergedVersion?.context !== undefined) {
+             context = mergedVersion.context;
+        }
+
+        // --- RESOLVE AI CONTENT ---
+        if (override?.aiEnhancedContent !== undefined) {
+             aiContent = override.aiEnhancedContent;
+        } else if (baseData?.aiEnhancedContent !== undefined) {
+             aiContent = baseData.aiEnhancedContent ?? null;
+        } else if (mergedVersion?.aiEnhancedContent !== undefined) {
+             aiContent = mergedVersion.aiEnhancedContent;
+        }
+
+        // --- RESOLVE BLOCKS (CONTENT) ---
+        // 1. Cache (Editor State - High Priority for text editing)
+        // 2. Override (Unlikely for blocks as they go to cache, but for safety)
+        // 3. Base Data
         if (selectedVersionId && blockCache.current[selectedVersionId]) {
             blocks = blockCache.current[selectedVersionId];
-            
-            // We still need context/vars from the loaded source though:
-            if (currentLoadedVersionContent && currentLoadedVersionContent.id === selectedVersionId) {
-                context = currentLoadedVersionContent.context ?? '';
-                vars = currentLoadedVersionContent.variables ?? [];
-                aiContent = currentLoadedVersionContent.aiEnhancedContent;
-            } else if (isSelectedVersionActive && currentPrompt.activeVersion) {
-                context = currentPrompt.activeVersion.context ?? '';
-                vars = currentPrompt.activeVersion.variables ?? [];
-                aiContent = currentPrompt.activeVersion.aiEnhancedContent;
-            }
-             // Use mergedVersions to get the latest optimistic notes
-             notes = mergedVersions.find(v => v.id === selectedVersionId)?.notes ?? 'Untitled Version';
-        } 
-        // PRIORITY 2: Loaded Content (Server State)
-        else if (currentLoadedVersionContent && currentLoadedVersionContent.id === selectedVersionId) {
-            blocks = currentLoadedVersionContent.content ?? [];
-            context = currentLoadedVersionContent.context ?? '';
-            vars = currentLoadedVersionContent.variables ?? [];
-            notes = mergedVersions.find(v => v.id === selectedVersionId)?.notes ?? 'Untitled Version';
-            aiContent = currentLoadedVersionContent.aiEnhancedContent ?? null;
-        } 
-        // PRIORITY 3: Active Version in Prompt Object (Fallback)
-        else if (isSelectedVersionActive && currentPrompt.activeVersion) {
-            blocks = currentPrompt.activeVersion.content ?? [];
-            context = currentPrompt.activeVersion.context ?? '';
-            vars = currentPrompt.activeVersion.variables ?? [];
-            notes = mergedVersions.find(v => v.id === activeVersionId)?.notes ?? 'Untitled Version';
-            aiContent = currentPrompt.activeVersion.aiEnhancedContent ?? null;
+        } else if (override?.content) {
+            blocks = override.content as Block[];
+        } else if (baseData?.content) {
+            blocks = baseData.content;
+        } else if (mergedVersion?.content) {
+            blocks = mergedVersion.content;
         }
+
+        // --- RESOLVE NOTES ---
+        notes = mergedVersion?.notes ?? 'Untitled Version';
 
         return { 
             contentToDisplay: blocks, 
@@ -241,7 +265,7 @@ export function PromptLab({
             aiEnhancedContentToDisplay: aiContent 
         };
         
-    }, [isSelectedVersionActive, currentPrompt.activeVersion, mergedVersions, currentLoadedVersionContent, selectedVersionId, activeVersionId, rightTab]);
+    }, [isSelectedVersionActive, currentPrompt.activeVersion, mergedVersions, currentLoadedVersionContent, selectedVersionId, activeVersionId, rightTab, versionOverrides]);
 
     // Determining editing state
     const hasCacheForCurrentVersion = selectedVersionId && !!blockCache.current[selectedVersionId];
@@ -882,18 +906,26 @@ function VariableItem({ variable, onRemove }: { variable: PromptVariable; onRemo
         }
     }, [drag, preview, variable.id, variable.name]);
 
+    const truncate = (str: string, n: number) => {
+        return (str.length > n) ? str.slice(0, n - 1) + '...' : str;
+    };
+
     return (
         <div
             id={variable.id + '-drag-source'}
             className={`cursor-grab rounded px-2 py-1 mb-2 border ${isDragging ? 'opacity-0' : 'bg-gray-100'} flex items-center justify-between group`}
         >
-            <div>
-                <div className="font-semibold overflow-hidden whitespace-nowrap text-ellipsis">{variable.name}</div>
-                <div className="text-xs text-gray-500 mt-1">({variable.placeholder})</div>
+            <div className="min-w-0 flex-1">
+                <div className="font-semibold text-sm" title={variable.name}>
+                    {truncate(variable.name, 30)}
+                </div>
+                <div className="text-xs text-gray-500 mt-1 truncate" title={variable.placeholder}>
+                    ({variable.placeholder})
+                </div>
             </div>
             <button
                 onClick={() => onRemove(variable.id)}
-                className="ml-2 p-1 rounded-full text-gray-400 hover:bg-gray-200 hover:text-red-600 transition-opacity"
+                className="ml-2 p-1 rounded-full text-gray-400 hover:bg-gray-200 hover:text-red-600 transition-opacity flex-shrink-0"
                 aria-label={`Remove variable ${variable.name}`}
             >
                 <Trash2 className="h-3 w-3" />
@@ -1558,4 +1590,3 @@ function VersionsPanel({
         </div>
     )
 }
-

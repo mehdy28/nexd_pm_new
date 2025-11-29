@@ -53,6 +53,8 @@ export enum FilterOperator {
 export enum SpecialFilterValue {
     CURRENT_USER = 'CURRENT_USER',
     ACTIVE_SPRINT = 'ACTIVE_SPRINT',
+    NOW = "NOW",
+    TODAY = "TODAY",
 }
 
 // Defines a single filter condition

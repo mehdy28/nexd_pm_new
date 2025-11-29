@@ -1,3 +1,4 @@
+//components/prompt-lab/manual-variable-discovery-builder.tsx
 'use client'
 
 import React, { useState, useEffect } from 'react';
@@ -301,9 +302,9 @@ export function ManualVariableDiscoveryBuilder({ open, onOpenChange, onCreate, p
 
                       <div className="p-4 bg-amber-50 text-amber-900 rounded-lg text-sm border border-amber-100 flex items-start gap-3">
                          <Keyboard className="h-5 w-5 shrink-0 mt-0.5 text-amber-600" />
-                         <div>
+                         <div className="min-w-0 flex-1">
                             <p className="font-semibold text-amber-800">Manual Input Field</p>
-                            <p className="mt-1 opacity-90 text-amber-700">
+                            <p className="mt-1 opacity-90 text-amber-700 break-all">
                                 This creates a blank space in your prompt. You will be asked to type <strong>{currentPlaceholder || '{{...}}'}</strong> manually every time you use this prompt.
                             </p>
                          </div>

@@ -168,22 +168,22 @@ export function PromptList({
             <div className="relative">
               <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
                 {templates.slice(0, 3).map(template => (
-                   <div
-                   key={template.name}
-                   role="button"
-                   tabIndex={0}
-                   onClick={() => onSelectTemplate(template)}
-                   className="group relative cursor-pointer overflow-hidden rounded-lg border text-left outline-none transition-all hover:border-[#4ab5ae] hover:shadow-sm focus-visible:ring-2 focus-visible:ring-[#4ab5ae] focus-visible:ring-offset-2"
-                 >
-                   <div className="aspect-[16/10] overflow-hidden bg-slate-50 p-2 flex items-center justify-center">
-                     <div className="text-xs text-slate-400 font-mono p-2 border border-dashed rounded bg-white w-full h-full overflow-hidden select-none">
-                       {template.description.substring(0, 60)}...
-                     </div>
-                   </div>
-                   <div className="border-t p-3 bg-white">
-                     <h3 className="truncate text-sm font-medium">{template.name}</h3>
-                   </div>
-                 </div>
+                  <div
+                    key={template.name}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => onSelectTemplate(template)}
+                    className="group relative cursor-pointer overflow-hidden rounded-lg border text-left outline-none transition-all hover:border-[#4ab5ae] hover:shadow-sm focus-visible:ring-2 focus-visible:ring-[#4ab5ae] focus-visible:ring-offset-2"
+                  >
+                    <div className="aspect-[16/10] overflow-hidden bg-slate-50 px-4 py-3 flex items-center justify-center">
+                      <p className="w-full text-center text-sm font-medium text-slate-600 leading-relaxed select-none">
+                        {template.description.substring(0, 170)}...
+                      </p>
+                    </div>
+                    <div className="border-t p-3 bg-white">
+                      <h3 className="truncate text-sm font-medium">{template.name}</h3>
+                    </div>
+                  </div>
                 ))}
                 <button
                   onClick={() => setIsTemplatesModalOpen(true)}
@@ -236,7 +236,7 @@ export function PromptList({
                   <Loader2 className="h-6 w-6 animate-spin" />
                 </div>
               )}
-              
+
               {prompts.length > 0 ? (
                 <div className="rounded-lg border">
                   <Table>
@@ -247,7 +247,7 @@ export function PromptList({
                             checked={isAllSelected}
                             onCheckedChange={(checked) => handleSelectAll(!!checked)}
                             aria-label="Select all rows"
-                            className="rounded-full" 
+                            className="rounded-full"
                           />
                         </TableHead>
                         <TableHead>Title</TableHead>
@@ -305,7 +305,7 @@ export function PromptList({
                 </div>
               ) : !isLoading ? (
                 <div className="flex h-full min-h-[200px] items-center justify-center rounded-md border border-dashed text-center text-sm text-slate-500">
-                   <div>
+                  <div>
                     <p>No prompts found.</p>
                     <p className="mt-1">Click “New Prompt” to get started.</p>
                   </div>
@@ -368,10 +368,10 @@ export function PromptList({
         isCreating={isCreatingFromTemplate}
       />
 
-      <AlertDialog 
-        open={!!deleteTarget || !!deleteManyTarget} 
+      <AlertDialog
+        open={!!deleteTarget || !!deleteManyTarget}
         onOpenChange={open => {
-          if(!open) {
+          if (!open) {
             setDeleteTarget(null)
             setDeleteManyTarget(null)
           }
@@ -384,11 +384,11 @@ export function PromptList({
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction 
+            <AlertDialogAction
               onClick={() => {
-                if(deleteTarget) confirmSingleDelete();
-                if(deleteManyTarget) confirmBulkDelete();
-              }} 
+                if (deleteTarget) confirmSingleDelete();
+                if (deleteManyTarget) confirmBulkDelete();
+              }}
               className="bg-red-600 hover:bg-red-700"
             >
               Delete
@@ -399,3 +399,4 @@ export function PromptList({
     </>
   )
 }
+

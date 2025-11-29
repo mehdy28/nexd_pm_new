@@ -77,7 +77,7 @@ const lookupResolvers = {
             title: true,
             status: true,
             priority: true,
-            dueDate: true,
+            endDate: true,
             assignee: {
               select: { id: true, firstName: true, lastName: true },
             },

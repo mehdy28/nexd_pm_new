@@ -34,6 +34,7 @@ export interface TaskLookupItem {
     title: string;
     status: string;
     priority: string;
+    endDate?: string | null;
     dueDate?: string | null;
     assignee?: {
         id: string;

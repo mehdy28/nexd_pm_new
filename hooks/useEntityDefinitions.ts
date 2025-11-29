@@ -94,7 +94,7 @@ export function useEntityDefinitions() {
             { value: 'description', label: 'Description', type: PromptVariableType.STRING },
             { value: 'status', label: 'Status', type: PromptVariableType.STRING },
             { value: 'priority', label: 'Priority', type: PromptVariableType.STRING },
-            { value: 'dueDate', label: 'Due Date', type: PromptVariableType.DATE },
+            { value: 'endDate', label: 'Due Date', type: PromptVariableType.DATE },
             { value: 'points', label: 'Story Points', type: PromptVariableType.NUMBER },
           ],
           aggregations: [
@@ -116,7 +116,7 @@ export function useEntityDefinitions() {
               label: 'Status', 
               type: PromptVariableType.STRING, 
               operators: [FilterOperator.EQ, FilterOperator.NEQ], 
-              options: ['TODO', 'DONE', 'IN_PROGRESS'] 
+              options: ['TODO', 'DONE'] 
             },
             { 
               field: 'priority', 
@@ -144,6 +144,13 @@ export function useEntityDefinitions() {
               label: 'Story Points', 
               type: PromptVariableType.NUMBER, 
               operators: [FilterOperator.GT, FilterOperator.LT, FilterOperator.EQ, FilterOperator.GTE, FilterOperator.LTE] 
+            },
+            // ADDED: Due Date Filter
+            {
+              field: 'endDate',
+              label: 'Due Date',
+              type: PromptVariableType.DATE,
+              operators: [FilterOperator.GT, FilterOperator.LT, FilterOperator.EQ]
             }
           ]
         };
