@@ -342,7 +342,7 @@ export function CommunicationWindow({
                   <AvatarImage src={message.sender.avatar || undefined} alt={senderName} />
                   <AvatarFallback 
                     className="text-xs text-white"
-                    style={{ backgroundColor: (message.sender as any).avatarColor || "#6366f1" }}
+                    style={{ backgroundColor: (message.sender as any).avatarColor   }}
                   >
                     {getInitials(senderName || 'U')}
                   </AvatarFallback>

@@ -51,7 +51,7 @@ export default function AccountPage() {
     if (user) {
       setFirstName(user.firstName || "");
       setLastName(user.lastName || "");
-      setAvatarColor(user.avatarColor || "#6366f1");
+      setAvatarColor(user.avatarColor  );
     }
     if (notificationSettings) {
       setNotifState({

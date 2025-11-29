@@ -140,7 +140,7 @@ const DocumentComments = ({
                     <AvatarImage src={comment.author.avatar || undefined} />
                     <AvatarFallback 
                         className="text-xs text-white"
-                        style={{ backgroundColor: comment.author.avatarColor || "#6366f1" }}
+                        style={{ backgroundColor: comment.author.avatarColor   }}
                     >
                         {getInitials(comment.author.firstName, comment.author.lastName)}
                     </AvatarFallback>

@@ -241,7 +241,7 @@ export default function WorkspacePage() {
                       */}
                       <AvatarFallback 
                         className="text-white font-semibold"
-                        style={{ backgroundColor: (member.user as any).avatarColor || "#6366f1" }}
+                        style={{ backgroundColor: (member.user as any).avatarColor   }}
                       >
                         {`${member.user.firstName?.[0] || ""}${member.user.lastName?.[0] || ""}` || "?"}
                       </AvatarFallback>

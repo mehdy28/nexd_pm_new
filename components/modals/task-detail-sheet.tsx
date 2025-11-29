@@ -368,7 +368,7 @@ export function TaskDetailSheet({
                               <AvatarImage src={comment.author.avatar || undefined} />
                               <AvatarFallback 
                                 className="text-xs text-white" 
-                                style={{ backgroundColor: (comment.author as any)?.avatarColor || "#6366f1" }}
+                                style={{ backgroundColor: (comment.author as any)?.avatarColor   }}
                               >
                                 {`${comment.author.firstName?.[0] || ''}${comment.author.lastName?.[0] || ''}`}
                               </AvatarFallback>
@@ -383,7 +383,9 @@ export function TaskDetailSheet({
                       </div>
                       <div className="mt-4 bg-white p-4 border-t border-gray-200 flex-shrink-0">
                         <div className="flex items-end gap-2">
-                          <Avatar className="h-8 w-8 flex-shrink-0"><AvatarImage src="https://github.com/shadcn.png" /><AvatarFallback className="bg-gray-200 text-gray-800">You</AvatarFallback></Avatar>
+                          <Avatar className="h-8 w-8 flex-shrink-0">
+                            <AvatarFallback className="text-xs text-white" style={{ backgroundColor: "#6366f1" }}>You</AvatarFallback>
+                          </Avatar>
                           <Textarea placeholder="Add a comment..." rows={1} value={newComment} onChange={(e) => setNewComment(e.target.value)} className="flex-1 bg-gray-50 border border-gray-200 rounded-md p-2 focus-visible:ring-0 focus-visible:ring-offset-0 focus:border-blue-500 resize-none overflow-hidden" style={{ minHeight: '38px' }}/>
                           <Button size="sm" onClick={handleAddComment} className="h-9 bg-blue-600 hover:bg-blue-700 text-white flex-shrink-0" disabled={isTaskDetailsMutating || !newComment.trim()}>{isTaskDetailsMutating ? <Loader2 className="h-4 w-4 animate-spin"/> : 'Send'}</Button>
                         </div>
@@ -455,16 +457,23 @@ export function TaskDetailSheet({
                       <SelectTrigger id="assignee-select" className={cn("w-full text-gray-700 hover:bg-gray-50 rounded-md py-2 px-3 transition-colors border", jiraSelectTriggerStyle)}>
                         <SelectValue placeholder="Unassigned">
                           <div className="flex items-center gap-2">
-                            <Avatar className="h-6 w-6">
-                                <AvatarImage src={editingTaskLocal.assignee?.avatar || undefined} />
-                                <AvatarFallback 
-                                    className="text-xs text-white"
-                                    style={{ backgroundColor: (editingTaskLocal.assignee as any)?.avatarColor || "#6366f1" }}
-                                >
-                                    {`${editingTaskLocal.assignee?.firstName?.[0] || ''}${editingTaskLocal.assignee?.lastName?.[0] || ''}` || '?'}
-                                </AvatarFallback>
-                            </Avatar>
-                            <span>{editingTaskLocal.assignee?.firstName} {editingTaskLocal.assignee?.lastName || 'Unassigned'}</span>
+                            {editingTaskLocal.assignee ? (
+                                <Avatar className="h-6 w-6">
+                                    <AvatarImage src={editingTaskLocal.assignee.avatar || undefined} />
+                                    <AvatarFallback 
+                                        className="text-xs text-white"
+                                        style={{ backgroundColor: (editingTaskLocal.assignee as any)?.avatarColor   }}
+                                    >
+                                        {`${editingTaskLocal.assignee.firstName?.[0] || ''}${editingTaskLocal.assignee.lastName?.[0] || ''}`}
+                                    </AvatarFallback>
+                                </Avatar>
+                            ) : (
+                                <Avatar className="h-6 w-6 border bg-gray-100">
+                                    <AvatarImage src={undefined} />
+                                    <AvatarFallback className="text-xs text-gray-700">?</AvatarFallback>
+                                </Avatar>
+                            )}
+                            <span>{editingTaskLocal.assignee ? `${editingTaskLocal.assignee.firstName} ${editingTaskLocal.assignee.lastName}` : 'Unassigned'}</span>
                           </div>
                         </SelectValue>
                       </SelectTrigger>
@@ -478,7 +487,7 @@ export function TaskDetailSheet({
                                         <AvatarImage src={a.avatar || undefined} />
                                         <AvatarFallback 
                                             className="text-xs text-white" 
-                                            style={{ backgroundColor: (a as any).avatarColor || "#6366f1" }}
+                                            style={{ backgroundColor: (a as any).avatarColor   }}
                                         >
                                             {`${a.firstName?.[0] || ''}${a.lastName?.[0] || ''}` || '?'}
                                         </AvatarFallback>
@@ -675,7 +684,7 @@ function ActivityLogItem({ user, action, details, time, icon, accentColor }: Act
         {user.avatar && <AvatarImage src={user.avatar} />}
         <AvatarFallback 
             className="text-white text-xs" 
-            style={{ backgroundColor: (user as any).avatarColor || "#6366f1" }}
+            style={{ backgroundColor: (user as any).avatarColor   }}
         >
             {userInitials}
         </AvatarFallback>

@@ -25,13 +25,17 @@ export function ErrorPlaceholder({ error, onRetry }: ErrorPlaceholderProps) {
         <AlertTriangle className="h-16 w-16 text-destructive" />
         <h3 className="text-2xl font-semibold text-destructive">Oops, something went wrong.</h3>
         <p className="text-base text-muted-foreground">
-          {error?.message || "We couldn't load the required data. Please try again later."}
+          {"We couldn't load the required data. Please try again later."}
         </p>
-        {onRetry && (
-          <Button variant="destructive" onClick={onRetry} className="mt-4 h-10 px-6">
-            Try Again
-          </Button>
-        )}
+        
+        <Button 
+          variant="destructive" 
+          onClick={() => onRetry ? onRetry() : window.location.reload()} 
+          className="mt-4 h-10 px-6"
+        >
+          Try Again
+        </Button>
+        
       </div>
     </div>
   )

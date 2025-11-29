@@ -91,7 +91,7 @@ export function AssignProjectMembersModal({ isOpen, onClose, workspaceId, projec
                               <AvatarImage src={member.user.avatar || undefined} />
                               <AvatarFallback 
                                 className="text-white text-xs"
-                                style={{ backgroundColor: (member.user as any).avatarColor || "#6366f1" }}
+                                style={{ backgroundColor: (member.user as any).avatarColor   }}
                               >
                                 {`${member.user.firstName?.[0] || ''}${member.user.lastName?.[0] || ''}`}
                               </AvatarFallback>

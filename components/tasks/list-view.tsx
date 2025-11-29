@@ -536,10 +536,40 @@ export function ListView({ projectId }: ListViewProps) {
                             //disabled={isTaskMutating}
                           >
                             <SelectTrigger>
-                              <SelectValue placeholder="Assignee" />
+                                <SelectValue placeholder="Assignee">
+                                    <div className="flex items-center gap-2">
+                                        {availableAssignees.find(a => a.id === newTask[section.id]?.assigneeId) ? (
+                                            <Avatar className="h-5 w-5">
+                                                <AvatarImage src={availableAssignees.find(a => a.id === newTask[section.id]?.assigneeId)?.avatar || undefined} />
+                                                <AvatarFallback 
+                                                    className="text-xs text-white" 
+                                                    style={{ backgroundColor: (availableAssignees.find(a => a.id === newTask[section.id]?.assigneeId) as any)?.avatarColor || "#6366f1" }}
+                                                >
+                                                    {`${availableAssignees.find(a => a.id === newTask[section.id]?.assigneeId)?.firstName?.[0] || ""}${availableAssignees.find(a => a.id === newTask[section.id]?.assigneeId)?.lastName?.[0] || ""}` || "?"}
+                                                </AvatarFallback>
+                                            </Avatar>
+                                        ) : (
+                                            <Avatar className="h-5 w-5 border bg-gray-100">
+                                                <AvatarImage src={undefined} />
+                                                <AvatarFallback className="text-[10px] text-gray-700">?</AvatarFallback>
+                                            </Avatar>
+                                        )}
+                                        <span>
+                                            {availableAssignees.find(a => a.id === newTask[section.id]?.assigneeId) ? `${availableAssignees.find(a => a.id === newTask[section.id]?.assigneeId)?.firstName} ${availableAssignees.find(a => a.id === newTask[section.id]?.assigneeId)?.lastName}` : 'Unassigned'}
+                                        </span>
+                                    </div>
+                                </SelectValue>
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="null">Unassigned</SelectItem>
+                              <SelectItem value="null">
+                                <div className="flex items-center gap-2">
+                                    <Avatar className="h-5 w-5 border bg-gray-100">
+                                        <AvatarImage src={undefined} />
+                                        <AvatarFallback className="text-[10px] text-gray-700">?</AvatarFallback>
+                                    </Avatar>
+                                    <span>Unassigned</span>
+                                </div>
+                              </SelectItem>
                               <DropdownMenuSeparator />
                               {availableAssignees.map(a => (
                                 <SelectItem key={a.id} value={a.id}>
@@ -548,7 +578,7 @@ export function ListView({ projectId }: ListViewProps) {
                                       <AvatarImage src={a.avatar || undefined} />
                                       <AvatarFallback 
                                         className="text-xs text-white" 
-                                        style={{ backgroundColor: (a as any).avatarColor || "#6366f1" }}
+                                        style={{ backgroundColor: (a as any).avatarColor   }}
                                       >
                                         {`${a.firstName?.[0] || ""}${a.lastName?.[0] || ""}` || "?"}
                                       </AvatarFallback>
@@ -1002,21 +1032,38 @@ function TaskRow({ task, selected, onSelect, onToggleCompleted, onUpdate, onOpen
           onValueChange={v => onUpdate({ assignee: v === "null" ? null : assignees.find(a => a.id === v) })}
         >
           <SelectTrigger className="h-8">
-            <div className="flex items-center gap-2">
-              <Avatar className="h-6 w-6 border">
-                <AvatarImage src={assignee?.avatar || undefined} />
-                <AvatarFallback 
-                  className="text-[10px] text-white" 
-                  style={{ backgroundColor: (assignee as any)?.avatarColor || "#6366f1" }}
-                >
-                  {assigneeInitials}
-                </AvatarFallback>
-              </Avatar>
-              <span className="text-sm truncate">{assigneeName}</span>
-            </div>
+            <SelectValue placeholder="Unassigned">
+                <div className="flex items-center gap-2">
+                    {assignee ? (
+                        <Avatar className="h-6 w-6 border">
+                            <AvatarImage src={assignee.avatar || undefined} />
+                            <AvatarFallback 
+                            className="text-[10px] text-white" 
+                            style={{ backgroundColor: (assignee as any)?.avatarColor || "#6366f1" }}
+                            >
+                            {assigneeInitials}
+                            </AvatarFallback>
+                        </Avatar>
+                    ) : (
+                        <Avatar className="h-6 w-6 border bg-gray-100">
+                            <AvatarImage src={undefined} />
+                            <AvatarFallback className="text-xs text-gray-700">?</AvatarFallback>
+                        </Avatar>
+                    )}
+                    <span className="text-sm truncate">{assigneeName}</span>
+                </div>
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="null">Unassigned</SelectItem>
+            <SelectItem value="null">
+                <div className="flex items-center gap-2">
+                    <Avatar className="h-6 w-6 border bg-gray-100">
+                        <AvatarImage src={undefined} />
+                        <AvatarFallback className="text-xs text-gray-700">?</AvatarFallback>
+                    </Avatar>
+                    <span>Unassigned</span>
+                </div>
+            </SelectItem>
             <Separator className="my-1" />
             {assignees.map(a => (
               <SelectItem key={a.id} value={a.id}>
@@ -1025,7 +1072,7 @@ function TaskRow({ task, selected, onSelect, onToggleCompleted, onUpdate, onOpen
                     <AvatarImage src={a.avatar || undefined} />
                     <AvatarFallback 
                       className="text-xs text-white"
-                      style={{ backgroundColor: (a as any).avatarColor || "#6366f1" }}
+                      style={{ backgroundColor: (a as any).avatarColor   }}
                     >
                       {`${a.firstName?.[0] || ""}${a.lastName?.[0] || ""}` || "?"}
                     </AvatarFallback>

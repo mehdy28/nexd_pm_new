@@ -27,7 +27,7 @@ export function KanbanCard({
   }, [card.editing])
 
   const assignee = card.assignee
-  const assigneeInitials = `${assignee?.firstName?.[0] || ""}${assignee?.lastName?.[0] || ""}`.trim().toUpperCase() || "NA"
+  const assigneeInitials = `${assignee?.firstName?.[0] || ""}${assignee?.lastName?.[0] || ""}`.trim().toUpperCase()
 
   if (card.editing) {
     return (
@@ -71,15 +71,22 @@ export function KanbanCard({
       </div>
 
       <div className="flex items-center gap-3 text-xs">
-        <Avatar className="h-6 w-6 border-2 border-background shadow-sm">
-          <AvatarImage src={assignee?.avatar || undefined} />
-          <AvatarFallback 
-            className="text-[10px] font-medium text-white"
-            style={{ backgroundColor: (assignee as any)?.avatarColor || "#6366f1" }}
-          >
-            {assigneeInitials}
-          </AvatarFallback>
-        </Avatar>
+        {assignee ? (
+            <Avatar className="h-6 w-6 border-2 border-background shadow-sm">
+                <AvatarImage src={assignee.avatar || undefined} />
+                <AvatarFallback 
+                    className="text-[10px] font-medium text-white"
+                    style={{ backgroundColor: (assignee as any)?.avatarColor }}
+                >
+                    {assigneeInitials}
+                </AvatarFallback>
+            </Avatar>
+        ) : (
+            <Avatar className="h-6 w-6 border-2 border-background shadow-sm bg-gray-100">
+                <AvatarImage src={undefined} />
+                <AvatarFallback className="text-[10px] font-medium text-gray-700">?</AvatarFallback>
+            </Avatar>
+        )}
         <span className="text-muted-foreground font-medium flex-1">{card.endDate || "No due date"}</span>
         {/* <Button
           size="sm"

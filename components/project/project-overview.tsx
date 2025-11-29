@@ -507,7 +507,7 @@ export function ProjectOverview({ projectId }: ProjectOverviewProps) {
                         {/* Use stored color, fallback to indigo-500 */}
                         <AvatarFallback 
                           className="text-white font-semibold"
-                          style={{ backgroundColor: (member.user as any).avatarColor || "#6366f1" }}
+                          style={{ backgroundColor: (member.user as any).avatarColor   }}
                         >
                           {`${member.user.firstName?.[0] || ""}${member.user.lastName?.[0] || ""}` || "?"}
                         </AvatarFallback>
