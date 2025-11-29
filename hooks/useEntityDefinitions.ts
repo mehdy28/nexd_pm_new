@@ -153,7 +153,7 @@ export function useEntityDefinitions() {
           ...base,
           fields: [
             { value: 'name', label: 'Sprint Name', type: PromptVariableType.STRING },
-            { value: 'goal', label: 'Sprint Goal', type: PromptVariableType.STRING },
+           // { value: 'goal', label: 'Sprint Goal', type: PromptVariableType.STRING },
             { value: 'startDate', label: 'Start Date', type: PromptVariableType.DATE },
             { value: 'endDate', label: 'End Date', type: PromptVariableType.DATE },
           ],
@@ -221,7 +221,7 @@ export function useEntityDefinitions() {
             fields: [
                 { value: 'email', label: 'My Email', type: PromptVariableType.STRING },
                 { value: 'fullName', label: 'My Name', type: PromptVariableType.STRING },
-                { value: 'id', label: 'My ID', type: PromptVariableType.STRING },
+                //{ value: 'id', label: 'My ID', type: PromptVariableType.STRING },
             ],
             aggregations: [],
             filters: []

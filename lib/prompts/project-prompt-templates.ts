@@ -193,7 +193,7 @@ export const projectTemplates: PromptTemplate[] = [
       { type: "text", id: "t1", value: "Draft a 2-week sprint plan for the project: " },
       { type: "variable", id: "p1", name: "Project Name", placeholder: "{{PROJECT_NAME}}" },
       { type: "text", id: "t2", value: ". The primary goal for this sprint is:\n**" },
-      { type: "variable", id: "p2", name: "Sprint Goal", placeholder: "{{SPRINT_GOAL}}" },
+     // { type: "variable", id: "p2", name: "Sprint Goal", placeholder: "{{SPRINT_GOAL}}" },
       { type: "text", id: "t3", value: "**\n\nBased on this goal, review the following high-priority tasks from the backlog and select a realistic scope for the sprint:\n\n**High-Priority Backlog:**\n" },
       { type: "variable", id: "p3", name: "High-Priority Tasks", placeholder: "{{HIGH_PRIORITY_TASKS}}" },
       { type: "text", id: "t4", value: "\n\nPropose a final list of tasks for the sprint backlog and provide a brief justification for why this scope is achievable and aligns with the sprint goal." },
@@ -201,7 +201,7 @@ export const projectTemplates: PromptTemplate[] = [
     context: "Output should have two sections: 'Proposed Sprint Goal' and 'Proposed Sprint Backlog'. The justification should consider potential team capacity and task complexity.",
     variables: [
       { name: "Project Name", placeholder: "{{PROJECT_NAME}}", type: PromptVariableType.STRING, source: { entityType: "PROJECT", field: "name" } },
-      { name: "Sprint Goal", placeholder: "{{SPRINT_GOAL}}", type: PromptVariableType.STRING, description: "Define the single, primary objective for this sprint.", defaultValue: "Launch the user authentication and profile page feature." },
+      //{ name: "Sprint Goal", placeholder: "{{SPRINT_GOAL}}", type: PromptVariableType.STRING, description: "Define the single, primary objective for this sprint.", defaultValue: "Launch the user authentication and profile page feature." },
       { name: "High-Priority Tasks", placeholder: "{{HIGH_PRIORITY_TASKS}}", type: PromptVariableType.LIST_OF_STRINGS, source: { entityType: "TASK", aggregation: AggregationType.LIST_FIELD_VALUES, aggregationField: "title", format: FormatType.NUMBERED_LIST, filters: [{ field: "priority", operator: FilterOperator.EQ, value: "HIGH" }, { field: "sprintId", operator: FilterOperator.EQ, value: null }] } },
     ],
   },

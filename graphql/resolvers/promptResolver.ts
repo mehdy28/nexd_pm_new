@@ -375,18 +375,7 @@ const promptResolvers = {
       return { count: result.count };
     },
 
-    updateVersionDescription: async (
-      _parent: any,
-      { input }: { input: { promptId: string; versionId: string; description: string } },
-      context: GraphQLContext
-    ): Promise<Prompt> => {
-      await prisma.version.update({
-        where: { id: input.versionId, promptId: input.promptId },
-        data: { description: input.description },
-      });
 
-      return await getFullPrompt(input.promptId) as unknown as Prompt;
-    },
 
     snapshotPrompt: async (
       _parent: any,

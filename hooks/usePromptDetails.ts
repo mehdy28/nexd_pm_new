@@ -123,14 +123,9 @@ export function usePromptDetails(selectedPromptId: string | null, projectId: str
         }
     });
     
-    const [updatePromptVersionMutation] = useMutation(UPDATE_PROMPT_VERSION_MUTATION, {
-        onCompleted: (data) => {
-             if (data?.updatePromptVersion) {
-                // This refetch is still acceptable for general version updates, though could be optimized further if needed.
-                apolloRefetchPromptDetails();
-            }
-        }
-    });
+    // We remove the global onCompleted here to handle it specifically in the updatePromptVersion wrapper
+    // where we have access to the specific versionId and updates being applied.
+    const [updatePromptVersionMutation] = useMutation(UPDATE_PROMPT_VERSION_MUTATION);
     
     const fetchVersionContent = useCallback((versionId: string) => {
         if (!selectedPromptId || !versionId) return;
@@ -143,8 +138,34 @@ export function usePromptDetails(selectedPromptId: string | null, projectId: str
     }, [updatePromptMutation]);
     
     const updatePromptVersion = useCallback((promptId: string, versionId: string, updates: any) => {
-        updatePromptVersionMutation({ variables: { input: { promptId, versionId, ...updates } } });
-    }, [updatePromptVersionMutation]);
+        updatePromptVersionMutation({ 
+            variables: { input: { promptId, versionId, ...updates } },
+            onCompleted: (data) => {
+                 if (data?.updatePromptVersion) {
+                    // FIX: Immediately update the currentLoadedVersionContent state if it matches the updated version.
+                    // This ensures new variables or content changes appear in the UI immediately.
+                    setCurrentLoadedVersionContent(prev => {
+                        if (prev && prev.id === data.updatePromptVersion.id) {
+                            return {
+                                ...prev,
+                                // Use the variables from the response (preferred) or the optimistic updates
+                                variables: data.updatePromptVersion.variables 
+                                    ? data.updatePromptVersion.variables.map((v: any) => ({...v, id: v.id || cuid('db-var-')})) 
+                                    : (updates.variables || prev.variables),
+                                content: data.updatePromptVersion.content || updates.content || prev.content,
+                                context: data.updatePromptVersion.context !== undefined ? data.updatePromptVersion.context : (updates.context ?? prev.context),
+                                aiEnhancedContent: data.updatePromptVersion.aiEnhancedContent
+                            }
+                        }
+                        return prev;
+                    });
+
+                    // Still refetch main details to keep version metadata (lists, active state) in sync
+                    apolloRefetchPromptDetails();
+                 }
+            }
+        });
+    }, [updatePromptVersionMutation, apolloRefetchPromptDetails]);
 
     const snapshotPrompt = useCallback((notes?: string) => {
         if (!selectedPromptId) throw new Error("No prompt selected to snapshot.");

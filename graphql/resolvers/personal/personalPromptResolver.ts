@@ -74,44 +74,51 @@ const personalPromptResolvers = {
   },
 
   Mutation: {
-
-
-
     updateVersionDescription: async (
       _parent: any,
       { input }: { input: { promptId: string; versionId: string; description: string } }
     ): Promise<Prompt> => {
-      const prompt = await prisma.prompt.findUnique({
-        where: { id: input.promptId },
-      })
+      try {
+        // We use a nested update here. 
+        // This attempts to update the Prompt, and specifically finds the Version 
+        // within that prompt's relation to update it.
+        const updatedPrompt = await prisma.prompt.update({
+          where: { 
+            id: input.promptId 
+          },
+          data: {
+            versions: {
+              update: {
+                where: { 
+                  id: input.versionId 
+                },
+                data: { 
+                  description: input.description 
+                }
+              }
+            },
+            updatedAt: new Date(),
+          },
+          // CRITICAL: We must include 'versions' in the response because 
+          // the GraphQL return type expects the Prompt object to contain them.
+          include: {
+            versions: {
+              orderBy: { createdAt: 'desc' }
+            }
+          }
+        })
 
-      if (!prompt) {
-        throw new GraphQLError("Prompt not found", { extensions: { code: "NOT_FOUND" } })
+        return updatedPrompt as unknown as Prompt
+
+      } catch (error: any) {
+        // Prisma throws code P2025 if the record to update (Prompt or Version) is not found
+        if (error.code === 'P2025') {
+          throw new GraphQLError("Version or Prompt not found", { extensions: { code: "NOT_FOUND" } })
+        }
+        
+        console.error("Error updating version description:", error)
+        throw new GraphQLError("Failed to update description", { extensions: { code: "INTERNAL_SERVER_ERROR" } })
       }
-
-      const versions = (prompt.versions as Version[]) || []
-      const versionIndex = versions.findIndex(v => v.id === input.versionId)
-
-      if (versionIndex === -1) {
-        throw new GraphQLError("Version not found", { extensions: { code: "NOT_FOUND" } })
-      }
-
-      const updatedVersions = [...versions]
-      updatedVersions[versionIndex] = {
-        ...updatedVersions[versionIndex],
-        description: input.description,
-      }
-
-      const updatedPrompt = await prisma.prompt.update({
-        where: { id: input.promptId },
-        data: {
-          versions: updatedVersions,
-          updatedAt: new Date(),
-        },
-        include: { content: { orderBy: { order: 'asc' } } }
-      })
-
-      return updatedPrompt as unknown as Prompt
     },
   },
 

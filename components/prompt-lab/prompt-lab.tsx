@@ -1,3 +1,4 @@
+//components/prompt-lab/prompt-lab.tsx
 'use client'
 
 import React, { useEffect, useMemo, useRef, useState, useCallback, useId } from "react"
@@ -19,6 +20,7 @@ import { useUpdatePromptAiEnhancedContent } from "@/hooks/usePromptsAi";
 import { useLazyQuery } from "@apollo/client";
 import { RESOLVE_PROMPT_VARIABLE_QUERY } from "@/graphql/queries/projectPromptVariablesQuerries";
 
+// --- HELPER: Deep Compare ---
 function deepCompareBlocks(arr1: Block[], arr2: Block[]): boolean {
     if (arr1.length !== arr2.length) return false;
     for (let i = 0; i < arr1.length; i++) {
@@ -61,6 +63,7 @@ const AnimatedDots = () => {
     return <span className="ml-1 w-4 inline-block text-left">{dots}</span>;
 };
 
+// --- TYPES ---
 interface PromptLabProps {
     prompt: Prompt;
     onBack: () => void;
@@ -79,6 +82,9 @@ interface PromptLabProps {
     currentLoadedVersionContent: { id: string; content: Block[]; context: string; variables: PromptVariable[]; aiEnhancedContent?: string | null } | null;
 }
 
+// =================================================================================================
+// PROMPT LAB COMPONENT
+// =================================================================================================
 export function PromptLab({
     prompt: currentPrompt,
     onBack,
@@ -99,45 +105,80 @@ export function PromptLab({
 
     const { updatePrompt: enhancePrompt } = useUpdatePromptAiEnhancedContent();
 
+    // --- STATE CACHE: This Ref survives Tab Switches ---
+    // We store the user's latest local edits here (Content Blocks).
+    const blockCache = useRef<Record<string, Block[]>>({});
+
+    // --- STATE OVERRIDES: Immediate UI updates for Metadata (Notes, Title) ---
+    // This allows the Left Panel list to update immediately when typing in the Editor
+    const [versionOverrides, setVersionOverrides] = useState<Record<string, Partial<Version>>>({});
+
+    // --- Logic: Merged Versions (Single Source of Truth) ---
+    // Combines server data with local optimistic updates
+    const mergedVersions = useMemo(() => {
+        if (!currentPrompt.versions) return [];
+        return currentPrompt.versions.map(v => {
+            const override = versionOverrides[v.id];
+            // Merge: Server Data <- Override Data
+            return override ? { ...v, ...override } : v;
+        });
+    }, [currentPrompt.versions, versionOverrides]);
+
+    // --- Logic: Sorting Versions ---
     const rawSortedVersions = useMemo(() => {
-        if (!currentPrompt.versions) return [];
-        return [...currentPrompt.versions].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-    }, [currentPrompt.versions]);
+        return [...mergedVersions].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    }, [mergedVersions]);
 
+    // --- Logic: Determine Active Version ---
     const activeVersionId = useMemo(() => {
-        if (currentPrompt.activeVersion?.id) {
-            return currentPrompt.activeVersion.id;
-        }
-        const activeInList = currentPrompt.versions?.find((v: Version & { isActive?: boolean }) => v.isActive);
-        if (activeInList) {
-            return activeInList.id;
-        }
-        if (rawSortedVersions.length > 0) {
-            return rawSortedVersions[0].id;
-        }
+        if (currentPrompt.activeVersion?.id) return currentPrompt.activeVersion.id;
+        const activeInList = mergedVersions.find((v: Version & { isActive?: boolean }) => v.isActive);
+        if (activeInList) return activeInList.id;
+        if (rawSortedVersions.length > 0) return rawSortedVersions[0].id;
         return null;
-    }, [currentPrompt.activeVersion, currentPrompt.versions, rawSortedVersions]);
+    }, [currentPrompt.activeVersion, mergedVersions, rawSortedVersions]);
 
+    // --- Logic: Sorted with Active Flag ---
     const sortedVersionsWithStatus = useMemo(() => {
-        if (!currentPrompt.versions) return [];
-        return [...currentPrompt.versions]
+        return [...mergedVersions]
             .map(v => ({
                 ...v,
                 isActive: v.id === activeVersionId,
             }))
             .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-    }, [currentPrompt.versions, activeVersionId]);
-
+    }, [mergedVersions, activeVersionId]);
 
     const [selectedVersionId, setSelectedVersionId] = useState<string | null>(null);
+    const [isTransitioning, setIsTransitioning] = useState(false);
 
+    // Sync selected version with active on load
     useEffect(() => {
-        if (activeVersionId && (!selectedVersionId || !currentPrompt.versions.some(v => v.id === selectedVersionId))) {
+        if (activeVersionId && (!selectedVersionId || !mergedVersions.some(v => v.id === selectedVersionId))) {
             setSelectedVersionId(activeVersionId);
         }
-    }, [activeVersionId, selectedVersionId, currentPrompt.versions]);
+    }, [activeVersionId, selectedVersionId, mergedVersions]);
 
+    // --- Transition Effect Timer ---
+    useEffect(() => {
+        let timer: NodeJS.Timeout;
+        if (isTransitioning) {
+            timer = setTimeout(() => {
+                setIsTransitioning(false);
+            }, 500); // Minimum loader display time
+        }
+        return () => {
+            if (timer) clearTimeout(timer);
+        };
+    }, [isTransitioning]);
 
+    // Helper to switch versions and trigger loader immediately
+    const handleVersionSwitch = useCallback((versionId: string) => {
+        if (versionId === selectedVersionId) return;
+        setIsTransitioning(true); // Immediate UI blocking
+        setSelectedVersionId(versionId);
+    }, [selectedVersionId]);
+
+    // Fetch content if selecting a non-active version
     useEffect(() => {
         if (selectedVersionId && selectedVersionId !== activeVersionId) {
             fetchVersionContent(selectedVersionId);
@@ -145,39 +186,78 @@ export function PromptLab({
     }, [selectedVersionId, activeVersionId, fetchVersionContent]);
 
     const isSelectedVersionActive = selectedVersionId === activeVersionId;
-
-    const { contentToDisplay, contextToDisplay, variablesToDisplay, notesToDisplay, aiEnhancedContentToDisplay } = useMemo(() => {
-        if (isSelectedVersionActive && currentPrompt.activeVersion) {
-            return {
-                contentToDisplay: currentPrompt.activeVersion.content ?? [],
-                contextToDisplay: currentPrompt.activeVersion.context ?? '',
-                variablesToDisplay: currentPrompt.activeVersion.variables ?? [],
-                notesToDisplay: currentPrompt.versions.find(v => v.id === activeVersionId)?.notes ?? 'Untitled Version',
-                aiEnhancedContentToDisplay: currentPrompt.activeVersion.aiEnhancedContent ?? null,
-            };
-        }
-        if (currentLoadedVersionContent && currentLoadedVersionContent.id === selectedVersionId) {
-            return {
-                contentToDisplay: currentLoadedVersionContent.content ?? [],
-                contextToDisplay: currentLoadedVersionContent.context ?? '',
-                variablesToDisplay: currentLoadedVersionContent.variables ?? [],
-                notesToDisplay: currentPrompt.versions.find(v => v.id === selectedVersionId)?.notes ?? 'Untitled Version',
-                aiEnhancedContentToDisplay: currentLoadedVersionContent.aiEnhancedContent ?? null,
-            };
-        }
-        return { contentToDisplay: [], contextToDisplay: '', variablesToDisplay: [], notesToDisplay: 'Untitled Version', aiEnhancedContentToDisplay: null };
-    }, [isSelectedVersionActive, currentPrompt.activeVersion, currentPrompt.versions, currentLoadedVersionContent, selectedVersionId, activeVersionId]);
-
-    const isEditorContentLoading = loadingVersionContent && !isSelectedVersionActive;
-
+    
+    // Tab states
     const [rightTab, setRightTab] = useState<"editor" | "version-details" | "preview">("editor")
     const [leftTab, setLeftTab] = useState<"versions" | "variables">("variables")
+
+    // --- Logic: Data To Display (The "Source of Truth" for the UI) ---
+    const { contentToDisplay, contextToDisplay, variablesToDisplay, notesToDisplay, aiEnhancedContentToDisplay } = useMemo(() => {
+        let blocks: Block[] = [];
+        let context = '';
+        let vars: PromptVariable[] = [];
+        let notes = 'Untitled Version';
+        let aiContent = null;
+
+        // PRIORITY 1: Local Cache (The "Draft" state that survives tab switches)
+        if (selectedVersionId && blockCache.current[selectedVersionId]) {
+            blocks = blockCache.current[selectedVersionId];
+            
+            // We still need context/vars from the loaded source though:
+            if (currentLoadedVersionContent && currentLoadedVersionContent.id === selectedVersionId) {
+                context = currentLoadedVersionContent.context ?? '';
+                vars = currentLoadedVersionContent.variables ?? [];
+                aiContent = currentLoadedVersionContent.aiEnhancedContent;
+            } else if (isSelectedVersionActive && currentPrompt.activeVersion) {
+                context = currentPrompt.activeVersion.context ?? '';
+                vars = currentPrompt.activeVersion.variables ?? [];
+                aiContent = currentPrompt.activeVersion.aiEnhancedContent;
+            }
+             // Use mergedVersions to get the latest optimistic notes
+             notes = mergedVersions.find(v => v.id === selectedVersionId)?.notes ?? 'Untitled Version';
+        } 
+        // PRIORITY 2: Loaded Content (Server State)
+        else if (currentLoadedVersionContent && currentLoadedVersionContent.id === selectedVersionId) {
+            blocks = currentLoadedVersionContent.content ?? [];
+            context = currentLoadedVersionContent.context ?? '';
+            vars = currentLoadedVersionContent.variables ?? [];
+            notes = mergedVersions.find(v => v.id === selectedVersionId)?.notes ?? 'Untitled Version';
+            aiContent = currentLoadedVersionContent.aiEnhancedContent ?? null;
+        } 
+        // PRIORITY 3: Active Version in Prompt Object (Fallback)
+        else if (isSelectedVersionActive && currentPrompt.activeVersion) {
+            blocks = currentPrompt.activeVersion.content ?? [];
+            context = currentPrompt.activeVersion.context ?? '';
+            vars = currentPrompt.activeVersion.variables ?? [];
+            notes = mergedVersions.find(v => v.id === activeVersionId)?.notes ?? 'Untitled Version';
+            aiContent = currentPrompt.activeVersion.aiEnhancedContent ?? null;
+        }
+
+        return { 
+            contentToDisplay: blocks, 
+            contextToDisplay: context, 
+            variablesToDisplay: vars, 
+            notesToDisplay: notes, 
+            aiEnhancedContentToDisplay: aiContent 
+        };
+        
+    }, [isSelectedVersionActive, currentPrompt.activeVersion, mergedVersions, currentLoadedVersionContent, selectedVersionId, activeVersionId, rightTab]);
+
+    // Determining editing state
+    const hasCacheForCurrentVersion = selectedVersionId && !!blockCache.current[selectedVersionId];
+    const isMatchingContentAvailable = currentLoadedVersionContent?.id === selectedVersionId;
+    
+    const isEditorContentLoading = (!isSelectedVersionActive && !hasCacheForCurrentVersion && !versionContentError) && (loadingVersionContent || !isMatchingContentAvailable);
+
+    // COMBINED LOADING STATE
+    const shouldShowBigLoader = isLoadingDetails || isEditorContentLoading || isTransitioning;
+
     const [showVariableBuilder, setShowVariableBuilder] = useState(false);
     
     // Preview States
     const [previewVariableValues, setPreviewVariableValues] = useState<Record<string, string>>({});
-    const [renderedPreviewString, setRenderedPreviewString] = useState(""); // For Copy
-    const [renderedPreviewNodes, setRenderedPreviewNodes] = useState<React.ReactNode>(null); // For Display
+    const [renderedPreviewString, setRenderedPreviewString] = useState("");
+    const [renderedPreviewNodes, setRenderedPreviewNodes] = useState<React.ReactNode>(null);
     const [isResolvingVariables, setIsResolvingVariables] = useState(false);
 
     const [pendingNotes, setPendingNotes] = useState("");
@@ -194,7 +274,7 @@ export function PromptLab({
     // --- Dynamic Variable Resolution ---
     const [resolveVariable] = useLazyQuery(RESOLVE_PROMPT_VARIABLE_QUERY, { fetchPolicy: 'network-only' });
 
-    // 1. Initialize static/default values and set loading state
+    // 1. Initialize static/default values
     useEffect(() => {
         const initialPreviewValues: Record<string, string> = {};
         const dynamicVars = (variablesToDisplay || []).filter(v => v.source);
@@ -204,8 +284,6 @@ export function PromptLab({
         });
         
         setPreviewVariableValues(initialPreviewValues);
-        
-        // If we have dynamic variables, we are in a loading state until the next effect runs
         if (dynamicVars.length > 0) {
             setIsResolvingVariables(true);
         } else {
@@ -241,12 +319,10 @@ export function PromptLab({
                     if (data?.resolvePromptVariable) {
                         updates[variable.placeholder] = data.resolvePromptVariable;
                     } else {
-                        // If no data returned, fallback to default value or just the placeholder
                         updates[variable.placeholder] = variable.defaultValue || variable.placeholder;
                     }
                 } catch (err) {
                     console.error(`Failed to resolve variable ${variable.name}:`, err);
-                    // On error, fallback to default value or just the placeholder
                     updates[variable.placeholder] = variable.defaultValue || variable.placeholder;
                 }
             }));
@@ -259,9 +335,8 @@ export function PromptLab({
     }, [variablesToDisplay, projectId, resolveVariable]);
 
 
-    // 3. Generate Preview (Both String for Copy and Nodes for Display)
+    // 3. Generate Preview
     useEffect(() => {
-        // --- Helper to render context with highlights ---
         const renderContextWithHighlights = (text: string, values: Record<string, string>, vars: PromptVariable[]): React.ReactNode[] => {
             if (!text) return [];
             
@@ -281,8 +356,6 @@ export function PromptLab({
             });
         };
 
-        // --- Generate Plain String (For Copy) ---
-        // Join with newlines to ensure separation between blocks
         let strContent = contentToDisplay.map(block => {
             if (block.type === 'text') return block.value ?? '';
             if (block.type === 'variable') return previewVariableValues[block.placeholder] || block.placeholder;
@@ -298,31 +371,23 @@ export function PromptLab({
         const fullString = [strContent, strContext].filter(Boolean).join('\n\n');
         setRenderedPreviewString(fullString);
 
-        // --- Generate JSX Nodes (For Display) ---
         const nodes: React.ReactNode[] = [];
-
-        // 1. Content Blocks
         contentToDisplay.forEach((block, idx) => {
             if (block.type === 'text') {
                 nodes.push(<span key={`blk-${idx}`}>{block.value ?? ''}</span>);
             } else if (block.type === 'variable') {
                 const val = previewVariableValues[block.placeholder] || block.placeholder;
-                // BOLD and COLORED (blue)
                 nodes.push(<span key={`blk-${idx}`} className="font-bold text-blue-600">{val}</span>);
             }
-
-            // ADD NEWLINE between blocks
             if (idx < contentToDisplay.length - 1) {
                 nodes.push("\n");
             }
         });
 
-        // 2. Newline separator between content and context
         if (contentToDisplay.length > 0 && contextToDisplay) {
             nodes.push(<div key="sep" className="h-4"></div>); 
         }
 
-        // 3. Context
         if (contextToDisplay) {
            const contextNodes = renderContextWithHighlights(contextToDisplay, previewVariableValues, variablesToDisplay);
            nodes.push(<div key="ctx">{contextNodes}</div>);
@@ -358,12 +423,31 @@ export function PromptLab({
         };
     }, [isEnhancing, enhancementPhases.length]);
 
+    // --- HANDLER: Update Version ---
     const handleUpdateVersion = useCallback((patch: Partial<Version>) => {
         if (!selectedVersionId) {
             toast.error("No version selected to update.");
             return;
         }
 
+        console.group('📡 [PromptLab] handleUpdateVersion Triggered');
+        console.log('Target Version ID:', selectedVersionId);
+        console.log('Patch Data:', patch);
+
+        // --- OPTIMISTIC UI UPDATE: Immediate List Reflection ---
+        setVersionOverrides(prev => ({
+            ...prev,
+            [selectedVersionId]: { ...(prev[selectedVersionId] || {}), ...patch }
+        }));
+
+        // --- CACHE UPDATE: Content Caching ---
+        if (patch.content) {
+            console.log('💾 [PromptLab] Caching content for version:', selectedVersionId);
+            blockCache.current[selectedVersionId] = patch.content as Block[];
+        }
+        console.groupEnd();
+
+        // Cleaning Data for Network Request
         if (patch.variables) {
             patch.variables = patch.variables.map(v => {
                 const { __typename, ...variableWithoutTypename } = v as PromptVariable & { __typename?: string };
@@ -396,11 +480,13 @@ export function PromptLab({
     }, [currentPrompt.id, selectedVersionId, updatePromptVersion]);
 
     const handleUpdatePrompt = useCallback((patch: Partial<Prompt>) => {
+        console.log('📡 [PromptLab] handleUpdatePrompt:', patch);
         updatePromptDetails(currentPrompt.id, patch);
     }, [currentPrompt.id, updatePromptDetails]);
 
 
     const handleSnapshot = useCallback(async (notes?: string) => {
+        console.log('📸 [PromptLab] Snapshotting Version. Notes:', notes);
         setIsSnapshotting(true);
         try {
             await snapshotPrompt(notes);
@@ -414,6 +500,7 @@ export function PromptLab({
     }, [currentPrompt.id, snapshotPrompt]);
 
     const handleSetActiveVersion = useCallback(async (versionId: string) => {
+        console.log('🏁 [PromptLab] Setting Active Version:', versionId);
         setIsSettingActive(true);
         try {
             await setActivePromptVersion(versionId);
@@ -425,17 +512,30 @@ export function PromptLab({
         }
     }, [currentPrompt.id, setActivePromptVersion]);
 
+    // --- HANDLER: Create Variable ---
     const handleCreateVariable = useCallback((newVariable: Omit<PromptVariable, 'id'>) => {
+        console.group('➕ [PromptLab] Creating Variable');
+        console.log('Input Data:', newVariable);
+        
         const variableWithId: PromptVariable = {
             ...newVariable,
             id: generateClientKey('p-var-'),
         };
+        console.log('Generated Variable:', variableWithId);
+
         const updatedVariables = [...variablesToDisplay, variableWithId];
+        console.log('New Variable List (Length):', updatedVariables.length);
+
+        // Send update
         handleUpdateVersion({ variables: updatedVariables });
+        
         setShowVariableBuilder(false);
+        setLeftTab("variables"); 
+        console.groupEnd();
     }, [variablesToDisplay, handleUpdateVersion]);
 
     const handleRemoveVariable = useCallback((variableId: string) => {
+        console.log('🗑️ [PromptLab] Removing Variable ID:', variableId);
         const updatedVariables = variablesToDisplay.filter(v => v.id !== variableId);
         handleUpdateVersion({ variables: updatedVariables });
     }, [variablesToDisplay, handleUpdateVersion]);
@@ -550,9 +650,7 @@ export function PromptLab({
                                                                             ? 'border-green-300'
                                                                             : ''
                                                                         }`}
-                                                                    onClick={() => {
-                                                                        setSelectedVersionId(v.id)
-                                                                    }}
+                                                                    onClick={() => handleVersionSwitch(v.id)}
                                                                     title={v.notes || 'Untitled Version'}
                                                                 >
                                                                     <div className="flex justify-between items-start">
@@ -599,11 +697,6 @@ export function PromptLab({
 
                         {/* Right side */}
                         <div className="saas-card h-full min-h-0 flex flex-col overflow-hidden relative">
-                            {(isLoadingDetails || isEditorContentLoading) && (
-                                <div className="absolute inset-0 z-20 flex items-center justify-center bg-background/80 backdrop-blur-sm rounded-lg">
-                                    <Loader2 className="h-10 w-10 animate-spin text-primary" />
-                                </div>
-                            )}
                             <div className="flex-1 min-h-0 overflow-y-auto">
                                 <Tabs value={rightTab} onValueChange={(v) => { setRightTab(v as any); }} className="flex h-full flex-col">
                                     <div className="flex justify-between items-center border-b pr-3" style={{ borderColor: "var(--border)" }}>
@@ -631,105 +724,116 @@ export function PromptLab({
                                             )}
                                         </div>
                                     </div>
-                                    <div className="min-h-0 flex-1 overflow-y-auto">
-                                        <TabsContent value="editor" className="m-0 outline-none flex-1 overflow-y-auto">
-                                            <EditorPanel
-                                                prompt={currentPrompt}
-                                                onUpdateVersion={handleUpdateVersion}
-                                                onUpdatePrompt={handleUpdatePrompt}
-                                                onSnapshot={handleSnapshot}
-                                                pendingNotes={pendingNotes}
-                                                setPendingNotes={setPendingNotes}
-                                                isSnapshotting={isSnapshotting}
-                                                contentToDisplay={contentToDisplay}
-                                                contextToDisplay={contextToDisplay}
-                                                notesToDisplay={notesToDisplay}
-                                                isEditingEnabled={!isLoadingDetails && !isEditorContentLoading}
-                                                versionId={selectedVersionId}
-                                            />
-                                        </TabsContent>
-
-                                        <TabsContent value="version-details" className="m-0 outline-none p-4 flex-1 overflow-y-auto">
-                                            <VersionsPanel
-                                                promptId={currentPrompt.id}
-                                                versions={currentPrompt.versions || []}
-                                                selectedVersionId={selectedVersionId}
-                                                updateVersionDescription={updateVersionDescription}
-                                                contentToDisplay={contentToDisplay}
-                                                contextToDisplay={contextToDisplay}
-                                                variablesToDisplay={variablesToDisplay}
-                                            />
-                                        </TabsContent>
-
-                                        <TabsContent value="preview" className="m-0 outline-none p-4 flex-1 flex flex-col">
-                                            <div className="mb-4 flex flex-col h-full">
-                                                <div className="mb-2 flex items-center justify-between">
-                                                    <div className="text-sm font-medium">Original Preview</div>
-                                                    <Button size="sm" onClick={() => copy(renderedPreviewString, 'original')} className="h-8 btn-primary" disabled={copiedStatus === 'original'}>
-                                                        {copiedStatus === 'original' ? '✓ Copied!' : <><Copy className="mr-1 h-4 w-4" />Copy</>}
-                                                    </Button>
-                                                </div>
-                                                
-                                                <div className="relative w-full min-h-[200px] bg-[#f8f8f8] border border-[#e0e0e0] rounded-md overflow-hidden">
-                                                    {isResolvingVariables && (
-                                                        <div className="absolute inset-0 z-10 flex items-center justify-center bg-[#f8f8f8] rounded-md">
-                                                            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                                                        </div>
-                                                    )}
-                                                    <pre className="font-mono whitespace-pre-wrap text-[#333] p-2 w-full h-full"
-                                                        style={{ lineHeight: "1.5", whiteSpace: "pre-wrap", wordWrap: "break-word" }}>
-                                                        {renderedPreviewNodes}
-                                                    </pre>
-                                                </div>
+                                    
+                                    <div className="min-h-0 flex-1 overflow-y-auto relative">
+                                        {shouldShowBigLoader ? (
+                                            <div className="absolute inset-0 z-20 flex items-center justify-center bg-background">
+                                                <Loader2 className="h-12 w-12 animate-spin text-primary" />
                                             </div>
+                                        ) : (
+                                            <>
+                                                <TabsContent value="editor" className="m-0 outline-none flex-1 h-full">
+                                                    <EditorPanel
+                                                        // KEY IS CRITICAL: Forces clean slate on version switch, but state is restored via cache in parent
+                                                        key={selectedVersionId || 'no-selection'}
+                                                        prompt={currentPrompt}
+                                                        onUpdateVersion={handleUpdateVersion}
+                                                        onUpdatePrompt={handleUpdatePrompt}
+                                                        onSnapshot={handleSnapshot}
+                                                        pendingNotes={pendingNotes}
+                                                        setPendingNotes={setPendingNotes}
+                                                        isSnapshotting={isSnapshotting}
+                                                        contentToDisplay={contentToDisplay}
+                                                        contextToDisplay={contextToDisplay}
+                                                        notesToDisplay={notesToDisplay}
+                                                        isEditingEnabled={!isLoadingDetails && !isEditorContentLoading}
+                                                        versionId={selectedVersionId}
+                                                    />
+                                                </TabsContent>
 
-                                            <div className="mt-4 pt-4 border-t">
-                                                <Button onClick={handleEnhancePrompt} disabled={isEnhancing || isResolvingVariables} className="btn-primary w-full sm:w-auto">
-                                                    {isEnhancing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-                                                    Enhance Prompt with AI
-                                                </Button>
-                                                <div className="mt-4">
-                                                    {isEnhancing && (
-                                                        <div className="py-2 text-sm">
-                                                            {enhancementPhases.map((phase, index) => {
-                                                                if (index > currentPhaseIndex) return null;
-                                                                const isCompleted = index < currentPhaseIndex;
-                                                                const isActive = index === currentPhaseIndex && index < enhancementPhases.length;
-                                                                return (
-                                                                    <div key={phase} className="flex items-center mb-2 last:mb-0 transition-opacity duration-300">
-                                                                        <div className="w-6 flex-shrink-0 flex items-center justify-center">
-                                                                            {isCompleted ? <span className="text-green-500 font-bold">✓</span> : isActive ? <Loader2 className="h-4 w-4 animate-spin text-slate-500" /> : null}
-                                                                        </div>
-                                                                        <span className={`${isCompleted ? 'text-slate-400' : 'text-slate-700'}`}>{phase}</span>
-                                                                        {isActive && <AnimatedDots />}
-                                                                    </div>
-                                                                );
-                                                            })}
+                                                <TabsContent value="version-details" className="m-0 outline-none p-4 flex-1 overflow-y-auto">
+                                                    <VersionsPanel
+                                                        promptId={currentPrompt.id}
+                                                        versions={mergedVersions || []}
+                                                        selectedVersionId={selectedVersionId}
+                                                        updateVersionDescription={updateVersionDescription}
+                                                        contentToDisplay={contentToDisplay}
+                                                        contextToDisplay={contextToDisplay}
+                                                        variablesToDisplay={variablesToDisplay}
+                                                    />
+                                                </TabsContent>
+
+                                                <TabsContent value="preview" className="m-0 outline-none p-4 flex-1 flex flex-col">
+                                                    <div className="mb-4 flex flex-col h-full">
+                                                        <div className="mb-2 flex items-center justify-between">
+                                                            <div className="text-sm font-medium">Original Preview</div>
+                                                            <Button size="sm" onClick={() => copy(renderedPreviewString, 'original')} className="h-8 btn-primary" disabled={copiedStatus === 'original'}>
+                                                                {copiedStatus === 'original' ? '✓ Copied!' : <><Copy className="mr-1 h-4 w-4" />Copy</>}
+                                                            </Button>
                                                         </div>
-                                                    )}
-                                                    {enhancementError && (
-                                                        <div className="p-4 border rounded-md bg-red-50 text-red-700 border-red-200">
-                                                            <h4 className="font-bold">Error</h4>
-                                                            <p>{enhancementError}</p>
-                                                        </div>
-                                                    )}
-                                                    {enhancedResult && !isEnhancing && (
-                                                        <div>
-                                                            <div className="mb-2 flex items-center justify-between">
-                                                                <div className="text-sm font-medium text-green-700">AI Enhanced Result</div>
-                                                                <Button size="sm" onClick={() => copy(enhancedResult, 'enhanced')} className="h-8 btn-primary" disabled={copiedStatus === 'enhanced'}>
-                                                                    {copiedStatus === 'enhanced' ? '✓ Copied!' : <><Copy className="mr-1 h-4 w-4" />Copy</>}
-                                                                </Button>
-                                                            </div>
-                                                            <pre className="font-mono whitespace-pre-wrap bg-green-50 text-green-900 border border-green-200 rounded-md p-2 w-full"
+                                                        
+                                                        <div className="relative w-full min-h-[200px] bg-[#f8f8f8] border border-[#e0e0e0] rounded-md overflow-hidden">
+                                                            {isResolvingVariables && (
+                                                                <div className="absolute inset-0 z-10 flex items-center justify-center bg-[#f8f8f8] rounded-md">
+                                                                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                                                                </div>
+                                                            )}
+                                                            <pre className="font-mono whitespace-pre-wrap text-[#333] p-2 w-full h-full"
                                                                 style={{ lineHeight: "1.5", whiteSpace: "pre-wrap", wordWrap: "break-word" }}>
-                                                                {enhancedResult}
+                                                                {renderedPreviewNodes}
                                                             </pre>
                                                         </div>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </TabsContent>
+                                                    </div>
+
+                                                    <div className="mt-4 pt-4 border-t">
+                                                        <Button onClick={handleEnhancePrompt} disabled={isEnhancing || isResolvingVariables} className="btn-primary w-full sm:w-auto">
+                                                            {isEnhancing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                                                            Enhance Prompt with AI
+                                                        </Button>
+                                                        <div className="mt-4">
+                                                            {isEnhancing && (
+                                                                <div className="py-2 text-sm">
+                                                                    {enhancementPhases.map((phase, index) => {
+                                                                        if (index > currentPhaseIndex) return null;
+                                                                        const isCompleted = index < currentPhaseIndex;
+                                                                        const isActive = index === currentPhaseIndex && index < enhancementPhases.length;
+                                                                        return (
+                                                                            <div key={phase} className="flex items-center mb-2 last:mb-0 transition-opacity duration-300">
+                                                                                <div className="w-6 flex-shrink-0 flex items-center justify-center">
+                                                                                    {isCompleted ? <span className="text-green-500 font-bold">✓</span> : isActive ? <Loader2 className="h-4 w-4 animate-spin text-slate-500" /> : null}
+                                                                                </div>
+                                                                                <span className={`${isCompleted ? 'text-slate-400' : 'text-slate-700'}`}>{phase}</span>
+                                                                                {isActive && <AnimatedDots />}
+                                                                            </div>
+                                                                        );
+                                                                    })}
+                                                                </div>
+                                                            )}
+                                                            {enhancementError && (
+                                                                <div className="p-4 border rounded-md bg-red-50 text-red-700 border-red-200">
+                                                                    <h4 className="font-bold">Error</h4>
+                                                                    <p>{enhancementError}</p>
+                                                                </div>
+                                                            )}
+                                                            {enhancedResult && !isEnhancing && (
+                                                                <div>
+                                                                    <div className="mb-2 flex items-center justify-between">
+                                                                        <div className="text-sm font-medium text-green-700">AI Enhanced Result</div>
+                                                                        <Button size="sm" onClick={() => copy(enhancedResult, 'enhanced')} className="h-8 btn-primary" disabled={copiedStatus === 'enhanced'}>
+                                                                            {copiedStatus === 'enhanced' ? '✓ Copied!' : <><Copy className="mr-1 h-4 w-4" />Copy</>}
+                                                                        </Button>
+                                                                    </div>
+                                                                    <pre className="font-mono whitespace-pre-wrap bg-green-50 text-green-900 border border-green-200 rounded-md p-2 w-full"
+                                                                        style={{ lineHeight: "1.5", whiteSpace: "pre-wrap", wordWrap: "break-word" }}>
+                                                                        {enhancedResult}
+                                                                    </pre>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </TabsContent>
+                                            </>
+                                        )}
                                     </div>
                                 </Tabs>
                             </div>
@@ -764,9 +868,6 @@ function VariableItem({ variable, onRemove }: { variable: PromptVariable; onRemo
         item: { id: variable.id, placeholder: variable.placeholder, name: variable.name },
         collect: (monitor) => {
             const dragging = monitor.isDragging();
-            if (dragging) {
-                console.log(`[VariableItem] Started dragging variable: ${variable.name} (${variable.id})`);
-            }
             return { isDragging: dragging };
         },
     }), [variable]);
@@ -802,6 +903,9 @@ function VariableItem({ variable, onRemove }: { variable: PromptVariable; onRemo
 
 }
 
+// =================================================================================================
+// EDITOR PANEL COMPONENT
+// =================================================================================================
 function EditorPanel({
     prompt,
     onUpdateVersion,
@@ -834,10 +938,22 @@ function EditorPanel({
     const [localContext, setLocalContext] = useState('');
     const [localModel, setLocalModel] = useState('');
     const isSwitchingVersions = useRef(true);
+    const hasInitialized = useRef(false);
 
+    // --- LOGGING: Initial Block Load ---
     useEffect(() => {
-        if (versionId && isEditingEnabled) {
+        // Because we key this component by VersionID in the parent, this component REMOUNTS on version switch.
+        // Therefore, we only want to load data ONCE when isEditingEnabled becomes true (data loaded).
+        // Any subsequent prop updates (e.g. stale data from parent re-renders) are ignored.
+        
+        if (isEditingEnabled && !hasInitialized.current) {
+            console.group('✏️ [EditorPanel] Initializing Version Content');
+            console.log('Version ID:', versionId);
+            console.log('Content:', contentToDisplay);
+            console.groupEnd();
+
             isSwitchingVersions.current = true;
+            hasInitialized.current = true;
 
             setLocalNotes(notesToDisplay);
             setLocalContext(contextToDisplay);
@@ -849,44 +965,57 @@ function EditorPanel({
             }, 500);
 
             return () => clearTimeout(timer);
+        } else if (hasInitialized.current && isEditingEnabled) {
+            // Debug log to confirm we are blocking the stale prop
+            // console.log('🛡️ [EditorPanel] Ignoring prop update (already initialized)');
         }
-    }, [versionId, contentToDisplay, contextToDisplay, notesToDisplay, prompt.model, isEditingEnabled]);
+    }, [isEditingEnabled, contentToDisplay, contextToDisplay, notesToDisplay, prompt.model, versionId]);
+
+    // --- LOGGING: Block State Changes ---
+    useEffect(() => {
+        if(!isSwitchingVersions.current) {
+            console.log('🔄 [EditorPanel] Blocks Updated (Local State):', blocks.length, 'blocks');
+        }
+    }, [blocks]);
 
     const [debouncedBlocks] = useDebounce(blocks, 500);
     const [debouncedLocalNotes] = useDebounce(localNotes, 300);
     const [debouncedLocalContext] = useDebounce(localContext, 300);
     const [debouncedLocalModel] = useDebounce(localModel, 300);
 
+    // Sync Blocks to Parent
     useEffect(() => {
         if (isSwitchingVersions.current || !isEditingEnabled) return;
         if (!deepCompareBlocks(debouncedBlocks, contentToDisplay)) {
+            console.log('📡 [EditorPanel] Syncing Blocks to Parent (Debounced):', debouncedBlocks);
             onUpdateVersion({ content: debouncedBlocks });
         }
-    }, [debouncedBlocks, contentToDisplay, isEditingEnabled, onUpdateVersion]);
+    }, [debouncedBlocks, isEditingEnabled, onUpdateVersion]); // Removed contentToDisplay from deps to avoid loop loops, relying on ref init
 
     useEffect(() => {
         if (isSwitchingVersions.current || !isEditingEnabled) return;
         if (debouncedLocalNotes !== notesToDisplay) {
             onUpdateVersion({ notes: debouncedLocalNotes });
         }
-    }, [debouncedLocalNotes, notesToDisplay, isEditingEnabled, onUpdateVersion]);
+    }, [debouncedLocalNotes, isEditingEnabled, onUpdateVersion]);
 
     useEffect(() => {
         if (isSwitchingVersions.current || !isEditingEnabled) return;
         if (debouncedLocalContext !== contextToDisplay) {
             onUpdateVersion({ context: debouncedLocalContext });
         }
-    }, [debouncedLocalContext, contextToDisplay, isEditingEnabled, onUpdateVersion]);
+    }, [debouncedLocalContext, isEditingEnabled, onUpdateVersion]);
 
     useEffect(() => {
         if (isSwitchingVersions.current || !isEditingEnabled) return;
         if (debouncedLocalModel !== prompt.model) {
             onUpdatePrompt({ model: debouncedLocalModel });
         }
-    }, [debouncedLocalModel, prompt.model, isEditingEnabled, onUpdatePrompt]);
+    }, [debouncedLocalModel, isEditingEnabled, onUpdatePrompt]);
 
 
     const insertVariableAt = useCallback((index: number, variable: { placeholder: string; id: string; name: string }) => {
+        console.log(`➕ [EditorPanel] Inserting Variable at index ${index}:`, variable);
         setBlocks(prev => {
             let copy = [...prev];
             const newVarBlock: Block = { type: 'variable', id: generateClientKey('v-'), varId: variable.id, placeholder: variable.placeholder, name: variable.name };
@@ -896,6 +1025,7 @@ function EditorPanel({
     }, []);
 
     const insertTextAt = useCallback((index: number, text = '') => {
+        console.log(`➕ [EditorPanel] Inserting Text Block at index ${index}. Text: "${text}"`);
         setBlocks(prev => {
             let copy = [...prev];
             const newBlock: Block = { type: 'text', id: generateClientKey('t-'), value: text }
@@ -905,6 +1035,7 @@ function EditorPanel({
     }, []);
 
     const updateTextBlock = useCallback((id: string, value: string) => {
+        // Logging intentionally skipped to avoid spam on every keystroke
         setBlocks(prev => {
             let updated = prev.map(b => b.type === 'text' && b.id === id ? { ...b, value } : b);
             if (value === '' && updated.length > 1) {
@@ -920,6 +1051,7 @@ function EditorPanel({
     }, []);
 
     const removeBlock = useCallback((index: number) => {
+        console.log(`🗑️ [EditorPanel] Removing Block at index ${index}`);
         setBlocks(prev => {
             let copy = [...prev];
             if (index < 0 || index >= copy.length) return prev;
@@ -932,6 +1064,7 @@ function EditorPanel({
     }, []);
 
     const moveBlock = useCallback((from: number, to: number) => {
+        console.log(`🚚 [EditorPanel] Moving Block from ${from} to ${to}`);
         setBlocks(prev => {
             let copy = [...prev];
             if (from < 0 || from >= copy.length || to < 0 || to > copy.length) return prev;
@@ -947,6 +1080,7 @@ function EditorPanel({
         accept: [ItemTypes.VARIABLE, ItemTypes.BLOCK],
         drop: (item: any, monitor) => {
             if (!isEditingEnabled || monitor.didDrop()) return;
+            console.log('⬇️ [EditorPanel] Item Dropped on Container', item);
             let targetIndex = blocks.length === 0 ? 0 : blocks.length;
             if (monitor.getItemType() === ItemTypes.VARIABLE) {
                 insertVariableAt(targetIndex, item);
@@ -966,7 +1100,7 @@ function EditorPanel({
     }), [blocks.length, insertVariableAt, moveBlock, isDraggingSomething, isEditingEnabled]);
 
     return (
-        <div className="flex h-full min-h-0 flex-col">
+        <div className="flex flex-col">
             <div className="saas-section-header pr-4 rounded-t-lg">
                 <h2 className="text-xl font-bold mb-2 px-3 pt-2 overflow-hidden whitespace-nowrap text-ellipsis">{prompt.title}</h2>
                 <div className="grid flex-1 grid-cols-1 gap-3 md:grid-cols-2">
@@ -992,7 +1126,7 @@ function EditorPanel({
                     </select>
                 </div>
             </div>
-            <div className="flex-1 overflow-auto p-4">
+            <div className="flex-1 p-4">
                 <section className="rounded-lg border p-4 mb-4">
                     <div className="mb-2 text-sm font-medium">Project context</div>
                     <Textarea
@@ -1014,8 +1148,8 @@ function EditorPanel({
                             <div className="flex-1 text-center py-12 text-gray-400">
                                 {!isEditingEnabled ? 'This version has no content and cannot be edited.' :
                                     <>
-                                        Drag variables or click "+ Add text" to start.
-                                        <button onClick={() => insertTextAt(0, '')} className="mt-4 px-3 py-1 border rounded-md text-sm text-gray-700 bg-white hover:bg-gray-100 flex items-center justify-center mx-auto">
+                                        Drag variables or click "Add text" to start.
+                                        <button onClick={() => insertTextAt(0, '')} className="mt-4 px-3 py-1 border rounded-md text-sm text-gray-700 bg-white  flex items-center justify-center mx-auto">
                                             <Text className="mr-1 h-4 w-4" /> Add text
                                         </button>
                                     </>
@@ -1026,7 +1160,7 @@ function EditorPanel({
                                 <React.Fragment key={`block-fragment-${b.id || i}`}>
                                     {i === 0 && isEditingEnabled && <HoverAddTextBlock key={`hover-insert-before-first`} index={0} insertTextAt={insertTextAt} />}
                                     <BlockRenderer key={b.id || i} block={b} index={i} allBlocks={blocks} updateTextBlock={updateTextBlock} removeBlock={removeBlock} moveBlock={moveBlock} insertVariableAt={insertVariableAt} isDraggingSomething={isDraggingSomething} insertTextAt={insertTextAt} isEditingEnabled={isEditingEnabled} />
-                                    {i + 1 === blocks.length && isEditingEnabled && <HoverAddTextBlock key={`hover-insert-after-${b.id || i}`} index={i + 1} insertTextAt={insertTextAt} />}
+                                    {isEditingEnabled && <HoverAddTextBlock key={`hover-insert-after-${b.id || i}`} index={i + 1} insertTextAt={insertTextAt} />}
                                 </React.Fragment>
                             ))
                         )}
@@ -1151,17 +1285,27 @@ function BlockRenderer({
         },
         drop(item: any, monitor) {
             if (!isEditingEnabled || monitor.didDrop()) return;
+            
+            console.log('⬇️ [BlockRenderer] Drop on Block', { targetIndex: index, item });
+
             const dragItemType = monitor.getItemType();
             setLocalDropTargetPosition(null);
             let targetIndex = localDropTargetPosition === 'after' ? index + 1 : index;
+
             if (dragItemType === ItemTypes.VARIABLE) {
                 insertVariableAt(targetIndex, item);
             } else if (dragItemType === ItemTypes.BLOCK) {
                 const dragIndex = item.index;
-                const isNoRealMove = (dragIndex === targetIndex) || (dragIndex + 1 === targetIndex && dragIndex < targetIndex) || (dragIndex === targetIndex + 1 && targetIndex < dragIndex);
-                if (isNoRealMove) {
-                    return
-                };
+                
+                // If dragging DOWN, removing the item from the array shifts indices up by 1.
+                // We must subtract 1 from the target index to account for this shift so the item lands
+                // in the correct visual position.
+                if (dragIndex < targetIndex) {
+                    targetIndex--;
+                }
+
+                if (dragIndex === targetIndex) return;
+                
                 moveBlock(dragIndex, targetIndex);
                 item.index = targetIndex;
             }
@@ -1257,7 +1401,7 @@ function HoverAddTextBlock({ index, insertTextAt }: { index: number; insertTextA
         <div className={`relative h-6 w-full flex justify-center items-center py-1 transition-all duration-100 ease-in-out group`} onMouseEnter={() => setIsHovering(true)} onMouseLeave={() => setIsHovering(false)}>
             <div className={`absolute top-0 w-full h-full bg-transparent transition-all duration-100 ease-in-out ${isHovering ? 'bg-gray-100/50' : 'bg-transparent'}`}></div>
             {isHovering && (
-                <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); insertTextAt(index); setIsHovering(false); }}
+                <Button  size="sm" onClick={(e) => { e.stopPropagation(); insertTextAt(index); setIsHovering(false); }}
                     className="relative z-10 h-6 px-2 py-1 text-xs bg-gray-200 text-gray-700 hover:bg-gray-300 focus:ring-2 focus:ring-gray-400 focus:ring-offset-2 transition-all duration-100 ease-in-out transform scale-90 group-hover:scale-100">
                     <Text className="mr-1 h-3 w-3" /> Add text
                 </Button>
@@ -1413,5 +1557,5 @@ function VersionsPanel({
             </div>
         </div>
     )
-
 }
+
