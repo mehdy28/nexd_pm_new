@@ -537,6 +537,20 @@ export const taskResolver = {
       // This is a specialized task creation. It maps to the main task model.
       if (!context.user?.id) throw new Error("Authentication required.")
 
+      // SENIOR ENGINEER CHANGE: Retrieve the first section for the project to auto-assign
+      // We order by 'order' ascending to ensure it lands in the first visible column (e.g., "To Do")
+      const firstSection = await prisma.section.findFirst({
+        where: {
+          projectId: input.projectId,
+        },
+        orderBy: {
+          order: 'asc',
+        },
+        select: {
+          id: true,
+        },
+      })
+
       const createdAt = new Date()
       const startDate = input.startDate ? new Date(input.startDate) : createdAt
       let endDate
@@ -558,12 +572,12 @@ export const taskResolver = {
           projectId: input.projectId,
           sprintId: input.sprintId,
           creatorId: context.user.id,
-          // Gantt tasks often don't belong to a board section initially
-          sectionId: null,
+          // SENIOR ENGINEER CHANGE: Use the found section ID, fallback to null if no sections exist
+          sectionId: firstSection?.id ?? null,
         },
         include: {
           assignee: {
-            select: { id: true, firstName: true, lastName: true, avatar: true ,avatarColor:true },
+            select: { id: true, firstName: true, lastName: true, avatar: true, avatarColor: true },
           },
         },
       })
@@ -585,7 +599,6 @@ export const taskResolver = {
         originalType: input.type.toUpperCase(), // e.g., 'TASK' or 'MILESTONE' for consistency
       }
     },
-    // your-resolver-file.ts
 
     updateGanttTask: async (_parent: unknown, { input }: { input: UpdateGanttTaskInput }, context: GraphQLContext) => {
       if (!context.user?.id) throw new Error("Authentication required.")

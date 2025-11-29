@@ -86,9 +86,13 @@ export function useProjectGanttMutations(projectId: string, currentSelectedSprin
       const existingData = cache.readQuery<GanttDataResponse>(queryOptions)
 
       if (existingData && existingData.getGanttData) {
-        const updatedTasks = existingData.getGanttData.tasks.filter(
-          (task: CustomGanttTask) => task.originalTaskId !== taskIdToDelete
-        )
+        const updatedTasks = existingData.getGanttData.tasks
+          .map((task) => ({
+            ...task,
+            start: new Date(task.start),
+            end: new Date(task.end),
+          }))
+          .filter((task: CustomGanttTask) => task.originalTaskId !== taskIdToDelete)
         cache.writeQuery({
           ...queryOptions,
           data: {
