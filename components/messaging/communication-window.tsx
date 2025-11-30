@@ -1,4 +1,4 @@
-//components/messaging/communication-window.tsx
+// components/messaging/communication-window.tsx
 "use client";
 
 import { useState, useRef, useEffect, useMemo } from "react";
@@ -150,14 +150,16 @@ export function CommunicationWindow({
   return (
     <Card className="h-full flex flex-col relative overflow-hidden border-0 shadow-none">
       <CardHeader className={cn("flex-shrink-0 py-4 px-6 border-b", headerStyle)}>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-             <div className="p-1.5 bg-white/50 rounded-md backdrop-blur-sm">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3 min-w-0">
+             <div className="p-1.5 bg-white/50 rounded-md backdrop-blur-sm flex-shrink-0">
                  <Icon className={cn("w-5 h-5", iconColor)} />
               </div>
-              <div>
-                <CardTitle className="text-lg text-gray-800">
-                  <span>{communicationItem.title}</span>
+              <div className="min-w-0">
+                <CardTitle className="text-lg text-gray-800" title={communicationItem.title}>
+                  {communicationItem.title.length > 30
+                    ? `${communicationItem.title.substring(0, 30)}...`
+                    : communicationItem.title}
                 </CardTitle>
                 <p className="text-xs text-muted-foreground capitalize mt-0.5">
                   {isTicket ? `Support Ticket` : `${isGroup ? 'Group' : 'Direct'} Conversation`}
@@ -165,7 +167,7 @@ export function CommunicationWindow({
               </div>
           </div>
           
-          <div className="flex items-center gap-2">
+          <div className="flex flex-shrink-0 items-center gap-2">
               {isTicket && ticketDetails && (
                 <div className="flex items-center space-x-2">
                    <Badge variant="outline" className={cn("capitalize font-semibold border-2", priorityBadgeColors[ticketDetails.priority])}>

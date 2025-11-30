@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, usePathname } from "next/navigation"
 import { useEffect, useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { ShieldX } from "lucide-react"
@@ -13,26 +13,27 @@ interface AdminGuardProps {
 
 export function AdminGuard({ children }: AdminGuardProps) {
   // Use useAuth hook
-  const { currentUser, loading } = useAuth() 
+  const { currentUser, loading } = useAuth()
   const router = useRouter()
+  const pathname = usePathname()
 
   useEffect(() => {
     if (loading) return
 
     // Check if the user is authenticated (currentUser is equivalent to 'user' from the old hook)
-    if (!currentUser) {
-      // Redirect to login if not authenticated
+    if (!currentUser && pathname !== "/admin-register") {
+      // Redirect to login if not authenticated and not on the admin-register page
       router.push("/login")
       return
     }
 
     // Check if the authenticated user has the ADMIN role
-    if (currentUser.role !== "ADMIN") {
+    if (currentUser && currentUser.role !== "ADMIN") {
       // Redirect away if they are logged in but not an Admin
       router.push("/workspace") // Changed from /dashboard to /workspace as per your preferred member destination
       return
     }
-  }, [currentUser, loading, router])
+  }, [currentUser, loading, router, pathname])
 
   if (loading) {
     return (
@@ -44,7 +45,7 @@ export function AdminGuard({ children }: AdminGuardProps) {
 
   // If not loading, check authorization explicitly before rendering children
   // This check serves as a fallback or a brief view before the useEffect redirect fires
-  if (!currentUser || currentUser.role !== "ADMIN") {
+  if (currentUser && currentUser.role !== "ADMIN") {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <Card className="w-full max-w-md">

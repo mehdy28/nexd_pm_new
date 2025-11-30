@@ -1,7 +1,13 @@
-"use client"
+ "use client";
+import React from 'react';
+import { CustomerSupport } from '@/components/admin/customer-support';      
+const CustomerSupportPage: React.FC = () => {
 
-import { CustomerSupport } from "@/components/admin/customer-support"
-
-export default function CustomerSupportPage() {
-  return <CustomerSupport />
-}
+  return (
+     <div className="w-full h-full ">
+      <CustomerSupport />     
+    </div>
+        );
+      };
+      
+export default CustomerSupportPage;

@@ -29,7 +29,7 @@ import { messagingResolvers } from "./messagingResolver";
 import { memberManagementResolvers } from "./memberManagementResolver";
 
 import promptResolversAi from "./promptResolverAi";
-
+import { adminSupportResolvers } from "./adminSupportResolvers";
 
 export const resolvers = {
   Query: {
@@ -59,6 +59,9 @@ export const resolvers = {
 
     // Messaging & Tickets
     ...messagingResolvers.Query,
+
+    // Admin Support
+    ...adminSupportResolvers.Query,
   },
   Mutation: {
     // General & Workspace
@@ -98,6 +101,9 @@ export const resolvers = {
     // Prompt AI
     ...promptResolversAi.Mutation,
 
+
+    // Admin Support
+    ...adminSupportResolvers.Mutation
     
   },
   Subscription: {

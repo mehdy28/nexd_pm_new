@@ -30,7 +30,7 @@ interface User {
 }
 
 // Define your public pages. These are pages anyone can visit, logged in or not.
-const PUBLIC_PAGES = ["/login", "/register", "/forgot-password", "/blog", "/"]; 
+const PUBLIC_PAGES = ["/login","/admin-register", "/register", "/forgot-password", "/blog", "/"]; 
 
 // Define where an authenticated user should go if they land on a public page
 const AUTH_REDIRECT_DESTINATION = "/workspace"; 

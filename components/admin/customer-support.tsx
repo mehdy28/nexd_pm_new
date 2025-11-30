@@ -1,3 +1,5 @@
+// components/admin/customer-support.tsx
+
 "use client"
 
 import { useState } from "react"
@@ -6,27 +8,41 @@ import { Input } from "@/components/ui/input"
 import { Search, User } from "lucide-react"
 import { SupportTicketList } from "./support-ticket-list"
 import { SupportChatWindow } from "./support-chat-window"
+import { useAdminSupport } from "@/hooks/useAdminSupport"
 
 export function CustomerSupport() {
-  const [selectedTicket, setSelectedTicket] = useState<string | null>(null)
+  const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
+  const { tickets, listLoading } = useAdminSupport();
+
+  const filteredTickets = tickets.filter(
+    (ticket) =>
+      ticket.subject.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      ticket.creator.firstName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      ticket.creator.lastName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      ticket.workspace.name.toLowerCase().includes(searchQuery.toLowerCase()),
+  );
 
   return (
-<div className="h-full overflow-y-auto">
-<div className="p-6 pt-0 space-y-6">
-
-      <div>
+    // CHANGE 1: Main page container is now a flex column. This is the foundation.
+    <div className="h-full flex flex-col p-6">
+      
+      {/* CHANGE 2: Page header. 'flex-shrink-0' prevents it from shrinking. */}
+      <div className="flex-shrink-0 pb-6">
         <h1 className="text-3xl font-bold text-gray-900">Customer Support</h1>
         <p className="text-gray-600">Manage customer inquiries and support tickets</p>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-1">
-          <Card>
-            <CardHeader>
+      <div className="grid gap-6 lg:grid-cols-4">
+
+        
+        {/* Left Panel: Ticket List */}
+        <div className="lg:col-span-1 flex flex-col h-[80vh]">
+        <Card className="flex flex-col h-full">
+        <CardHeader className="flex-shrink-0">
               <CardTitle>Support Tickets</CardTitle>
               <CardDescription>Active customer support requests</CardDescription>
-              <div className="relative">
+              <div className="relative mt-2">
                 <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder="Search tickets..."
@@ -36,21 +52,23 @@ export function CustomerSupport() {
                 />
               </div>
             </CardHeader>
-            <CardContent className="p-0">
+            <CardContent className="p-0 flex-1 overflow-y-auto"> {/* This now scrolls correctly */}
               <SupportTicketList
-                searchQuery={searchQuery}
-                selectedTicket={selectedTicket}
-                onSelectTicket={setSelectedTicket}
+                tickets={filteredTickets}
+                isLoading={listLoading}
+                selectedTicketId={selectedTicketId}
+                onSelectTicket={setSelectedTicketId}
               />
             </CardContent>
           </Card>
         </div>
 
-        <div className="lg:col-span-2">
-          {selectedTicket ? (
-            <SupportChatWindow ticketId={selectedTicket} />
+        {/* Right Panel: Chat Window */}
+        <div className="lg:col-span-3  h-[80vh]">
+          {selectedTicketId ? (
+            <SupportChatWindow key={selectedTicketId} ticketId={selectedTicketId} />
           ) : (
-            <Card className="h-[600px] flex items-center justify-center">
+            <Card className="h-full flex items-center justify-center">
               <div className="text-center text-muted-foreground">
                 <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gray-100 flex items-center justify-center">
                   <User className="w-8 h-8" />
@@ -62,7 +80,6 @@ export function CustomerSupport() {
           )}
         </div>
       </div>
-    </div>
     </div>
   )
 }

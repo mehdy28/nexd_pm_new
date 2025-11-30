@@ -944,6 +944,57 @@ type AuditLogResponse {
   totalCount: Int!
 }
 
+
+
+# ----------------------------------
+# NEW ADMIN SUPPORT TYPES
+# ----------------------------------
+
+type AdminTicketWorkspaceInfo {
+  id: ID!
+  name: String!
+  plan: Plan!
+}
+
+type AdminTicketListItem {
+  id: ID!
+  subject: String!
+  status: TicketStatus!
+  priority: Priority!
+  updatedAt: DateTime!
+  unreadCount: Int!
+  creator: UserLookupPartial!
+  workspace: AdminTicketWorkspaceInfo!
+}
+
+type AdminTicketWorkspaceDetails {
+  id: ID!
+  name: String!
+  plan: Plan!
+  memberCount: Int!
+}
+
+type AdminTicketDetails {
+  id: ID!
+  subject: String!
+  priority: Priority!
+  status: TicketStatus!
+  createdAt: DateTime!
+  creator: UserFullDetails!
+  workspace: AdminTicketWorkspaceDetails!
+  messages: [TicketMessage!]!
+}
+
+type TicketStatusPayload {
+  id: ID!
+  status: TicketStatus!
+}
+
+type TicketPriorityPayload {
+  id: ID!
+  priority: Priority!
+}
+
 # ----------------------------------
 # Inputs
 # ----------------------------------
@@ -1387,6 +1438,12 @@ type Query {
 
   # Enterprise
   getWorkspaceAuditLogs(workspaceId: ID!, skip: Int, take: Int): AuditLogResponse!
+
+
+
+  # Admin Support
+  adminGetSupportTickets: [AdminTicketListItem!]!
+  adminGetTicketDetails(id: ID!): AdminTicketDetails
 }
 
 # ----------------------------------
@@ -1517,6 +1574,12 @@ type Mutation {
 
   # Ai Prompt
   generatePromptFromWireframe(input: GeneratePromptFromWireframeInput!): String!
+
+# Admin Support
+  adminSendTicketMessage(ticketId: ID!, content: String!): TicketMessage!
+  adminUpdateTicketStatus(ticketId: ID!, status: TicketStatus!): TicketStatusPayload!
+  adminUpdateTicketPriority(ticketId: ID!, priority: Priority!): TicketPriorityPayload!
+
 }
 
 # ----------------------------------
