@@ -61,6 +61,11 @@ export const resolvers = {
     ...messagingResolvers.Query,
   },
   Mutation: {
+    // General & Workspace
+    ...workspaceResolver.Mutation,
+
+
+
     // Setup & User
     ...setupResolver.Mutation,
     ...userResolver.Mutation,

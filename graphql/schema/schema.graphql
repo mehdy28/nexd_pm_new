@@ -1313,7 +1313,14 @@ input UpdatePromptVersionInput {
   description: String
 }
 
-
+input UpdateWorkspaceInput {
+  id: ID!
+  name: String
+  description: String
+  industry: String
+  teamSize: String
+  workFields: [String!]
+}
 # ----------------------------------
 # NEW ACCOUNT INPUTS
 # ----------------------------------
@@ -1368,6 +1375,7 @@ type Query {
 
   # Workspace Members
   getWorkspaceMembers(workspaceId: ID!): [WorkspaceMemberDetails!]!
+  getAssignableProjectMembers(workspaceId: ID!, projectId: ID!): [WorkspaceMemberDetails!]!
 
   # Workspace Invitations
   getWorkspaceInvitations(workspaceId: ID!): [WorkspaceInvitation!]!
@@ -1399,7 +1407,8 @@ type Mutation {
   ): Workspace!
   updateMyProfile(firstName: String, lastName: String, avatar: String, avatarColor: String): User!
   updateMyNotificationSettings(input: UpdateNotificationSettingsInput!): UserNotificationSettings!
-
+  updateWorkspace(input: UpdateWorkspaceInput!): Workspace!
+  
   # Project
   createProject(workspaceId: ID!, name: String!, description: String): Project!
   updateProject(input: UpdateProjectInput!): Project!

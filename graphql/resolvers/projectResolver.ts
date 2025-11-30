@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { TaskStatus, Priority, SprintStatus, ProjectStatus, ProjectRole } from "@prisma/client";
+import { GraphQLError } from "graphql";
+
 
 function log(prefix: string, message: string, data?: any) {
   const timestamp = new Date().toISOString();
@@ -165,6 +167,44 @@ export const projectResolver = {
 
 
 
+
+
+    getAssignableProjectMembers: async (_: any, { workspaceId, projectId }: { workspaceId: string, projectId: string }, context: GraphQLContext) => {
+      const source = 'Query: getAssignableProjectMembers';
+      try {
+        log(source, 'Fired', { workspaceId, projectId });
+        const userId = context.user?.id;
+        if (!userId) throw new GraphQLError('Not authenticated');
+
+        // Authorization: Check if the current user is part of the workspace
+        const requestingMember = await prisma.workspaceMember.findFirst({ where: { workspaceId, userId } });
+        if (!requestingMember) throw new GraphQLError('Access denied to workspace');
+
+        // 1. Find all user IDs of members already in the specified project
+        const projectMembers = await prisma.projectMember.findMany({
+            where: { projectId },
+            select: { userId: true },
+        });
+        const projectMemberUserIds = projectMembers.map(member => member.userId);
+
+        // 2. Find all workspace members, excluding those already in the project
+        const assignableMembers = await prisma.workspaceMember.findMany({
+            where: {
+                workspaceId,
+                userId: {
+                    notIn: projectMemberUserIds,
+                },
+            },
+            include: { user: { select: { id: true, firstName: true, lastName: true, email: true, avatar: true, avatarColor: true } } },
+            orderBy: { user: { firstName: 'asc' } },
+        });
+
+        return assignableMembers;
+      } catch (error: any) {
+        log(source, 'ERROR', { error: error.message });
+        throw new GraphQLError(error.message || 'An error occurred fetching assignable project members.');
+      }
+    },
 
 
 
@@ -618,7 +658,7 @@ export const projectResolver = {
             },
         });
 
-        if (!member || ![ProjectRole.OWNER, ProjectRole.ADMIN].includes(member.role)) {
+        if (!member || ![ProjectRole.OWNER, ProjectRole.ADMIN].includes(member.role as "ADMIN" | "OWNER")) {
             log("[updateProject Mutation]", `User ${userId} does not have sufficient permissions for project ${id}.`);
             throw new Error("Forbidden: You do not have permission to update this project.");
         }

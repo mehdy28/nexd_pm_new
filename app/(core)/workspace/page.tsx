@@ -1,15 +1,17 @@
-//app/(core)/workspace/page.tsx
 "use client";
 
 import { useEffect, useState } from "react";
 import { useTopbar } from "@/components/layout/topbar-store";
-import { Users, Settings, Plus, MoreHorizontal, Trash2, Loader2 } from "lucide-react";
+import { Users, Settings, Plus, MoreHorizontal, Trash2, Loader2, Edit } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import Link from "next/link";
 import { useWorkspaceData } from "@/hooks/useWorkspaceData";
+import { useWorkspaceMutations } from "@/hooks/useWorkspaceMutations";
 import CreateProjectModal from "@/components/project/create-project-modal";
 import { LoadingPlaceholder, ErrorPlaceholder } from "@/components/placeholders/status-placeholders";
 import { InviteMembersModal } from "@/components/workspace/invite-members-modal";
@@ -19,50 +21,99 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useMemberManagement } from "@/hooks/useMemberManagement";
 import { useProjectMutations } from "@/hooks/useProjectMutations";
+import { useAuth } from "@/hooks/useAuth";
+import { WorkspaceRole } from "@/types/workspace";
 
 export default function WorkspacePage() {
   const { setConfig, setActiveKey } = useTopbar();
-
+  const { currentUser } = useAuth();
   const { workspaceData, loading, error, refetchWorkspaceData } = useWorkspaceData();
-  const { removeWorkspaceMembers, loading: removeMemberLoading } = useMemberManagement(workspaceData?.id || "");
+  const { updateWorkspace, loading: workspaceUpdateLoading } = useWorkspaceMutations();
+  const { 
+    removeWorkspaceMembers, 
+    updateWorkspaceRole, 
+    removeWorkspaceMembersLoading, 
+    updateWorkspaceRoleLoading 
+  } = useMemberManagement(workspaceData?.id || "");
   const { deleteProject, loading: deleteLoading } = useProjectMutations();
 
   const [isCreateProjectModalOpen, setIsCreateProjectModalOpen] = useState(false);
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [projectToDelete, setProjectToDelete] = useState<{ id: string; name: string } | null>(null);
   const [memberToRemove, setMemberToRemove] = useState<{ id: string; name: string } | null>(null);
+  
+  const [isUpdateRoleModalOpen, setIsUpdateRoleModalOpen] = useState(false);
+  const [memberToUpdate, setMemberToUpdate] = useState<{ id: string; name: string; role: WorkspaceRole } | null>(null);
+  const [newRole, setNewRole] = useState<WorkspaceRole | "">("");
 
-  console.log(`%c[RENDER] WorkspacePage`, 'color: orange; font-weight: bold;', {
-    loading,
-    deleteLoading,
-    error: error?.message || null,
-    projectToDelete,
-    memberToRemove,
-    isCreateProjectModalOpen,
-    isInviteModalOpen,
-    projectCount: workspaceData?.projects?.length
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [isEditingDescription, setIsEditingDescription] = useState(false);
+  const [workspaceFormData, setWorkspaceFormData] = useState({
+    name: "",
+    description: "",
   });
 
-
   useEffect(() => {
-    console.log("LOG: [useEffect] - Running effect to set Topbar config. Workspace data available:", !!workspaceData);
     setConfig({
       title: workspaceData?.name ? `${workspaceData?.name} Overview` : "Workspace Overview",
       tabs: [{ key: "overview", label: "Overview", icon: <Settings className="h-4 w-4" /> }],
       showShare: true,
     });
     setActiveKey("overview");
-  }, [workspaceData, setConfig, setActiveKey]);
+  }, [workspaceData?.name, setConfig, setActiveKey]);
+  
+  useEffect(() => {
+    if (workspaceData) {
+      setWorkspaceFormData({
+        name: workspaceData.name,
+        description: workspaceData.description || "",
+      });
+    }
+  }, [workspaceData]);
+
+  const currentUserMembership = workspaceData?.members.find(
+    (member) => member.user.id === currentUser?.id
+  );
+  const currentUserRole = currentUserMembership?.role;
+
+  const canManageWorkspace =
+    currentUserRole === WorkspaceRole.OWNER ||
+    currentUserRole === WorkspaceRole.ADMIN;
+
+  const handleUpdateWorkspace = async (field: 'name' | 'description', value: string) => {
+    if (!workspaceData) return;
+
+    const originalValue = workspaceData[field] || "";
+    if (value === originalValue) return;
+
+    const updatePayload = { [field]: value };
+    
+    try {
+      await updateWorkspace({ id: workspaceData.id, ...updatePayload });
+    } catch (err) {
+      console.error(`Failed to update workspace`, err);
+      // Revert on failure
+      setWorkspaceFormData({
+        name: workspaceData.name,
+        description: workspaceData.description || "",
+      });
+    }
+  };
 
   if (loading) {
-    console.log("LOG: [Render State] - Showing loading placeholder.");
     return <LoadingPlaceholder message="Loading workspace data..." />;
   }
 
   if (error) {
-    console.error("LOG: [Render State] - Showing error placeholder.", error);
     return <ErrorPlaceholder error={error} onRetry={refetchWorkspaceData} />;
   }
 
@@ -71,7 +122,6 @@ export default function WorkspacePage() {
     try {
       await removeWorkspaceMembers([memberToRemove.id]);
       setMemberToRemove(null);
-      refetchWorkspaceData(); // Refetch to update member list
     } catch (err) {
       console.error("Failed to remove member:", err);
       setMemberToRemove(null);
@@ -79,24 +129,28 @@ export default function WorkspacePage() {
   };
 
   const handleDeleteProject = async () => {
-    console.log(`%c[ACTION] handleDeleteProject - START`, 'color: red; font-weight: bold;', { projectToDelete });
-    if (!projectToDelete) {
-      console.warn("LOG: [handleDeleteProject] - Aborting. projectToDelete is null.");
-      return;
-    }
+    if (!projectToDelete) return;
     try {
-      console.log("LOG: [handleDeleteProject] - Awaiting deleteProject mutation...");
       await deleteProject(projectToDelete.id);
-      console.log("%c[SUCCESS] deleteProject mutation completed.", 'color: green;');
-      console.log("LOG: [handleDeleteProject] - Setting projectToDelete state to null to close modal.");
       setProjectToDelete(null);
-      console.log("LOG: [handleDeleteProject] - Calling refetchWorkspaceData().");
       refetchWorkspaceData();
-      console.log("LOG: [handleDeleteProject] - Refetch initiated.");
     } catch (err) {
       console.error("LOG: [handleDeleteProject] - deleteProject FAILED:", err);
-      console.log("LOG: [handleDeleteProject] - Setting projectToDelete state to null on error.");
       setProjectToDelete(null);
+    }
+  };
+  
+  const handleConfirmUpdateRole = async () => {
+    if (!memberToUpdate || !newRole || newRole === memberToUpdate.role) return;
+    try {
+      await updateWorkspaceRole(memberToUpdate.id, newRole as WorkspaceRole);
+      await refetchWorkspaceData();
+      setIsUpdateRoleModalOpen(false);
+      setMemberToUpdate(null);
+    } catch (err) {
+      console.error("Failed to update role.", err);
+      setIsUpdateRoleModalOpen(false);
+      setMemberToUpdate(null);
     }
   };
 
@@ -113,80 +167,115 @@ export default function WorkspacePage() {
   };
 
   const handleProjectCreated = () => {
-    console.log("LOG: [handleProjectCreated] - Project created. Refetching workspace data.");
     refetchWorkspaceData();
   }
 
   return (
     <>
       <div className="p-8 space-y-10 bg-muted/30 min-h-full">
-        {/* Workspace Description */}
         <div className="space-y-6">
           <div className="flex items-center justify-between">
-            <div className="space-y-2">
-              <h2 className="text-3xl font-bold text-foreground">{workspaceData?.name || "Workspace"}</h2>
-              <p className="text-muted-foreground leading-relaxed max-w-3xl">{workspaceData?.description}</p>
+            <div className="space-y-2 max-w-3xl">
+              {isEditingName ? (
+                <Input
+                  value={workspaceFormData.name}
+                  onChange={(e) => setWorkspaceFormData(prev => ({ ...prev, name: e.target.value }))}
+                  onBlur={(e) => {
+                    setIsEditingName(false);
+                    handleUpdateWorkspace('name', e.target.value);
+                  }}
+                  onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                  autoFocus
+                  className="text-3xl font-bold h-auto p-0 border-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+                  disabled={workspaceUpdateLoading}
+                />
+              ) : (
+                <h2
+                  className={`text-3xl font-bold text-foreground ${canManageWorkspace ? 'cursor-pointer' : ''}`}
+                  onClick={() => canManageWorkspace && setIsEditingName(true)}
+                >
+                  {workspaceFormData.name || "Workspace"}
+                </h2>
+              )}
+              {isEditingDescription ? (
+                <Textarea
+                  value={workspaceFormData.description}
+                  onChange={(e) => setWorkspaceFormData(prev => ({ ...prev, description: e.target.value }))}
+                  onBlur={(e) => {
+                    setIsEditingDescription(false);
+                    handleUpdateWorkspace('description', e.target.value);
+                  }}
+                  autoFocus
+                  className="text-muted-foreground leading-relaxed w-full p-0 border-0 focus-visible:ring-0 focus-visible:ring-offset-0 resize-none"
+                  disabled={workspaceUpdateLoading}
+                />
+              ) : (
+                <p
+                  className={`text-muted-foreground leading-relaxed min-h-[24px] ${canManageWorkspace ? 'cursor-pointer' : ''}`}
+                  onClick={() => canManageWorkspace && setIsEditingDescription(true)}
+                >
+                  {workspaceFormData.description || <span className="text-slate-400 italic">Click to add a description</span>}
+                </p>
+              )}
             </div>
           </div>
-          <div className="flex flex-wrap gap-2 text-sm text-muted-foreground">
-            {workspaceData?.industry && (<Badge variant="secondary" className="bg-gray-100 text-gray-800 border-0">Industry: {workspaceData?.industry}</Badge>)}
-            {workspaceData?.teamSize && (<Badge variant="secondary" className="bg-gray-100 text-gray-800 border-0">Team Size: {workspaceData?.teamSize}</Badge>)}
-            {workspaceData?.workFields && workspaceData?.workFields.map((field, index) => (<Badge key={index} variant="secondary" className="bg-gray-100 text-gray-800 border-0">{field}</Badge>))}
-          </div>
+          {(workspaceData?.industry || workspaceData?.teamSize || workspaceData?.workFields?.length) && (
+            <div className="flex flex-wrap gap-2 text-sm text-muted-foreground">
+              {workspaceData?.industry && (<Badge variant="secondary" className="bg-gray-100 text-gray-800 border-0">Industry: {workspaceData.industry}</Badge>)}
+              {workspaceData?.teamSize && (<Badge variant="secondary" className="bg-gray-100 text-gray-800 border-0">Team Size: {workspaceData.teamSize}</Badge>)}
+              {workspaceData?.workFields && workspaceData.workFields.map((field, index) => (<Badge key={index} variant="secondary" className="bg-gray-100 text-gray-800 border-0">{field}</Badge>))}
+            </div>
+          )}
         </div>
         {/* Projects Section */}
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <h3 className="text-2xl font-semibold text-foreground">Projects</h3>
-            <Button className="shadow-soft hover:shadow-medium transition-all duration-200" onClick={() => {
-              console.log("LOG: [New Project Button] - Clicked. Setting isCreateProjectModalOpen to true.");
-              setIsCreateProjectModalOpen(true)
-            }}>
-              <Plus className="h-4 w-4 mr-2" />
-              New Project
-            </Button>
+            {canManageWorkspace && (
+              <Button className="shadow-soft hover:shadow-medium transition-all duration-200" onClick={() => setIsCreateProjectModalOpen(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                New Project
+              </Button>
+            )}
           </div>
 
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
             {workspaceData?.projects.map(project => (
               <Card key={project.id} className="shadow-soft hover:shadow-medium hover:scale-[1.02] transition-all duration-200 group relative">
-                {/* The Link is now an invisible overlay for navigation */}
-                <Link href={`/project/${project.id}`} className="absolute inset-0 z-10" aria-label={`View project ${project.name}`} onClick={(e) => console.log(`%c[EVENT] Link OVERLAY for project '${project.name}' clicked. Navigation should occur.`, 'color: blue;')} />
-
-                {/* The content is rendered normally but is underneath the link overlay */}
+                <Link href={`/project/${project.id}`} className="absolute inset-0 z-10" aria-label={`View project ${project.name}`} />
                 <CardHeader className="pb-4">
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-3">
                       <div className={`w-4 h-4 rounded-full bg-indigo-500 shadow-sm`} />
                       <CardTitle className="text-lg font-semibold group-hover:text-primary transition-colors">{project.name}</CardTitle>
                     </div>
-                    {/* The Dropdown sits on top of the link overlay because of a higher z-index */}
-                    <div className="relative z-20">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                          >
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem
-                            className="text-destructive focus:text-destructive"
-                            onSelect={() => { // onSelect or onClick is fine now, no propagation to fight
-                              console.log("%c[EVENT] DropdownMenuItem 'Delete' SELECTED.", 'color: red; font-weight:bold;');
-                              console.log("LOG: [Delete MenuItem] - Calling setProjectToDelete with:", { id: project.id, name: project.name });
-                              setProjectToDelete({ id: project.id, name: project.name });
-                            }}
-                          >
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            <span>Delete</span>
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
+                    {canManageWorkspace && (
+                      <div className="relative z-20">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                            >
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              className="text-destructive focus:text-destructive"
+                              onSelect={(e) => {
+                                e.preventDefault();
+                                setProjectToDelete({ id: project.id, name: project.name });
+                              }}
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              <span>Delete</span>
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    )}
                   </div>
                   <CardDescription className="text-muted-foreground leading-relaxed">{project.description}</CardDescription>
                 </CardHeader>
@@ -214,13 +303,12 @@ export default function WorkspacePage() {
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <h3 className="text-2xl font-semibold text-foreground">Team Members</h3>
-            <Button variant="outline" className="shadow-soft hover:shadow-medium transition-all duration-200 bg-transparent" onClick={() => {
-              console.log("LOG: [Invite Members Button] - Clicked. Setting isInviteModalOpen to true.");
-              setIsInviteModalOpen(true);
-            }}>
-              <Users className="h-4 w-4 mr-2" />
-              Invite Members
-            </Button>
+            {canManageWorkspace && (
+              <Button variant="outline" className="shadow-soft hover:shadow-medium transition-all duration-200 bg-transparent" onClick={() => setIsInviteModalOpen(true)}>
+                <Users className="h-4 w-4 mr-2" />
+                Invite Members
+              </Button>
+            )}
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -229,29 +317,23 @@ export default function WorkspacePage() {
                 <CardContent className="p-4 flex items-center justify-between">
                   <div className="flex items-center space-x-4 flex-1 min-w-0">
                     <Avatar className="h-12 w-12 shadow-sm">
-                      {/* Only use the uploaded avatar if it exists. Otherwise, fall back to the AvatarFallback below */}
                       <AvatarImage 
                         src={member.user.avatar || undefined} 
                         alt={`${member.user.firstName || ""} ${member.user.lastName || ""}`} 
                       />
-                      {/* 
-                         Use the stored avatarColor from DB. 
-                         The text is white to match the 500-weight colors (e.g., bg-red-500).
-                         Fallback to indigo-500 if the color is missing.
-                      */}
                       <AvatarFallback 
                         className="text-white font-semibold"
-                        style={{ backgroundColor: (member.user as any).avatarColor   }}
+                        style={{ backgroundColor: (member.user as any).avatarColor }}
                       >
                         {`${member.user.firstName?.[0] || ""}${member.user.lastName?.[0] || ""}` || "?"}
                       </AvatarFallback>
                     </Avatar>
                     <div className="flex-1 min-w-0">
                       <p className="font-semibold text-foreground truncate group-hover:text-primary transition-colors">{`${member.user.firstName || ""} ${member.user.lastName || ""}`.trim() || member.user.email}</p>
-                      <p className="text-sm text-muted-foreground truncate">{member.role.replace(/_/g, " ")}</p>
+                      <p className="text-sm text-muted-foreground truncate">{member.role.charAt(0) + member.role.slice(1).toLowerCase()}</p>
                     </div>
                   </div>
-                  {member.role !== 'OWNER' && (
+                  {canManageWorkspace && member.role !== WorkspaceRole.OWNER && member.user.id !== currentUser?.id && (
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
@@ -259,7 +341,20 @@ export default function WorkspacePage() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem>Change Role</DropdownMenuItem>
+                        <DropdownMenuItem
+                          onSelect={() => {
+                            setMemberToUpdate({ 
+                                id: member.id, 
+                                name: `${member.user.firstName || ""} ${member.user.lastName || ""}`.trim() || member.user.email, 
+                                role: member.role as WorkspaceRole 
+                            });
+                            setNewRole(member.role as WorkspaceRole);
+                            setIsUpdateRoleModalOpen(true);
+                          }}
+                        >
+                          <Edit className="mr-2 h-4 w-4" />
+                          <span>Change Role</span>
+                        </DropdownMenuItem>
                         <DropdownMenuItem
                           onClick={() => setMemberToRemove({
                             id: member.id,
@@ -267,7 +362,8 @@ export default function WorkspacePage() {
                           })}
                           className="text-destructive focus:text-destructive"
                         >
-                          Remove from Workspace
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          <span>Remove from Workspace</span>
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -283,25 +379,18 @@ export default function WorkspacePage() {
         <>
           <CreateProjectModal
             isOpen={isCreateProjectModalOpen}
-            onClose={() => {
-              console.log("LOG: [CreateProjectModal] - onClose triggered. Setting isCreateProjectModalOpen to false.");
-              setIsCreateProjectModalOpen(false);
-            }}
+            onClose={() => setIsCreateProjectModalOpen(false)}
             currentWorkspaceId={workspaceData?.id}
             onProjectCreated={handleProjectCreated}
           />
           <InviteMembersModal
             isOpen={isInviteModalOpen}
-            onClose={() => {
-              console.log("LOG: [InviteMembersModal] - onClose triggered. Setting isInviteModalOpen to false.");
-              setIsInviteModalOpen(false);
-            }}
+            onClose={() => setIsInviteModalOpen(false)}
             workspaceId={workspaceData?.id}
           />
         </>
       )}
 
-      {/* Delete Project Confirmation Modal */}
       {projectToDelete && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
@@ -338,11 +427,10 @@ export default function WorkspacePage() {
         </div>
       )}
 
-      {/* Remove Member Confirmation Modal */}
       {memberToRemove && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
-          onClick={() => !removeMemberLoading && setMemberToRemove(null)}
+          onClick={() => !removeWorkspaceMembersLoading && setMemberToRemove(null)}
         >
           <div
             className="relative bg-white rounded-lg shadow-xl w-full max-w-lg m-4 p-6 space-y-4"
@@ -358,17 +446,74 @@ export default function WorkspacePage() {
               <Button
                 variant="outline"
                 onClick={() => setMemberToRemove(null)}
-                disabled={removeMemberLoading}
+                disabled={removeWorkspaceMembersLoading}
               >
                 Cancel
               </Button>
               <Button
                 variant="destructive"
                 onClick={handleConfirmRemoveMember}
-                disabled={removeMemberLoading}
+                disabled={removeWorkspaceMembersLoading}
               >
-                {removeMemberLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {removeWorkspaceMembersLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Remove
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {isUpdateRoleModalOpen && memberToUpdate && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+          onClick={() => !updateWorkspaceRoleLoading && setIsUpdateRoleModalOpen(false)}
+        >
+          <div
+            className="relative bg-white rounded-lg shadow-xl w-full max-w-lg m-4 p-6 space-y-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="space-y-2">
+              <h3 className="text-xl font-semibold text-foreground">Update Role</h3>
+              <p className="text-sm text-muted-foreground">
+                Change the workspace role for <strong>{memberToUpdate.name}</strong>.
+              </p>
+            </div>
+            
+            <div>
+              <Select
+                value={newRole}
+                onValueChange={(value) => setNewRole(value as WorkspaceRole)}
+                disabled={updateWorkspaceRoleLoading}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a role" />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.values(WorkspaceRole)
+                    .filter(role => role !== WorkspaceRole.OWNER)
+                    .map(role => (
+                      <SelectItem key={role} value={role}>
+                        {role.charAt(0) + role.slice(1).toLowerCase()}
+                      </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="flex justify-end gap-2 pt-4">
+              <Button
+                variant="outline"
+                onClick={() => setIsUpdateRoleModalOpen(false)}
+                disabled={updateWorkspaceRoleLoading}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleConfirmUpdateRole}
+                disabled={updateWorkspaceRoleLoading || !newRole || newRole === memberToUpdate.role}
+              >
+                {updateWorkspaceRoleLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Confirm Update
               </Button>
             </div>
           </div>

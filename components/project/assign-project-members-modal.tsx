@@ -1,7 +1,7 @@
 // components/project/assign-project-members-modal.tsx
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, JSXElementConstructor, Key, ReactElement, ReactNode, ReactPortal } from "react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
@@ -28,25 +28,49 @@ export function AssignProjectMembersModal({ isOpen, onClose, workspaceId, projec
   const [selectedMembers, setSelectedMembers] = useState<SelectedMember[]>([]);
 
   useEffect(() => {
+    console.log('[Modal] Props:', { isOpen, workspaceId, projectId });
+  }, [isOpen, workspaceId, projectId]);
+
+  useEffect(() => {
+    console.log('[Modal] Assignable members from hook:', assignableMembers);
+    console.log('[Modal] Loading state:', loading);
+  }, [assignableMembers, loading]);
+
+  useEffect(() => {
     if (!isOpen) {
       setSelectedMembers([]);
     }
   }, [isOpen]);
 
   const handleSelectMember = (userId: string, checked: boolean) => {
+    console.log(`[Modal] handleSelectMember called for userId: ${userId}, checked: ${checked}`);
     if (checked) {
-      setSelectedMembers(prev => [...prev, { userId, role: ProjectRole.MEMBER }]);
+      setSelectedMembers(prev => {
+        const newState = [...prev, { userId, role: ProjectRole.MEMBER }];
+        console.log('[Modal] New selectedMembers state after adding:', newState);
+        return newState;
+      });
     } else {
-      setSelectedMembers(prev => prev.filter(member => member.userId !== userId));
+      setSelectedMembers(prev => {
+        const newState = prev.filter(member => member.userId !== userId);
+        console.log('[Modal] New selectedMembers state after removing:', newState);
+        return newState;
+      });
     }
   };
 
   const handleRoleChange = (userId: string, role: ProjectRole) => {
-    setSelectedMembers(prev => prev.map(member => (member.userId === userId ? { ...member, role } : member)));
+    console.log(`[Modal] handleRoleChange called for userId: ${userId}, new role: ${role}`);
+    setSelectedMembers(prev => {
+      const newState = prev.map(member => (member.userId === userId ? { ...member, role } : member));
+      console.log('[Modal] New selectedMembers state after role change:', newState);
+      return newState;
+    });
   };
 
   const handleSubmit = async () => {
     if (selectedMembers.length === 0) return;
+    console.log('[Modal] handleSubmit called. Submitting members:', selectedMembers);
     try {
       await addProjectMembers(selectedMembers);
       onClose();
@@ -85,7 +109,7 @@ export function AssignProjectMembersModal({ isOpen, onClose, workspaceId, projec
                   {assignableMembers.length === 0 && (
                      <p className="text-center text-sm text-muted-foreground py-8">No assignable members found in this workspace.</p>
                   )}
-                  {assignableMembers.map(member => (
+                  {assignableMembers.map((member: { id: Key | null | undefined; user: { id: string; avatar: any; firstName: any[]; lastName: any[]; email: string | number | bigint | boolean | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | ReactPortal | Promise<string | number | bigint | boolean | ReactPortal | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | null | undefined> | null | undefined; }; }) => (
                     <div key={member.id} className="flex items-center gap-4">
                       <Checkbox
                         id={`member-${member.user.id}`}

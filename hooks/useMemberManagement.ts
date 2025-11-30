@@ -10,6 +10,7 @@ import {
   REMOVE_PROJECT_MEMBERS,
   GET_WORKSPACE_MEMBERS_FOR_PROJECT_ASSIGNMENT,
 } from '@/graphql/operations/members';
+// ASSUMPTION: Adjust this import path to where your project details query is defined.
 import { WorkspaceRole, ProjectRole } from '@/types/workspace';
 
 interface InvitationInput {
@@ -81,7 +82,12 @@ export const useMemberManagement = (workspaceId: string, projectId?: string) => 
     });
 
   const [addProjectMembers, { loading: addProjectMembersLoading, error: addProjectMembersError }] = useMutation(
-    ADD_PROJECT_MEMBERS
+    ADD_PROJECT_MEMBERS,
+    {
+      refetchQueries: projectId
+        ? [{ query: GET_WORKSPACE_MEMBERS_FOR_PROJECT_ASSIGNMENT, variables: { workspaceId, projectId } }]
+        : [],
+    }
   );
 
   const [updateProjectRole, { loading: updateProjectRoleLoading, error: updateProjectRoleError }] =
@@ -125,7 +131,7 @@ export const useMemberManagement = (workspaceId: string, projectId?: string) => 
   return {
     members: workspaceMembersData?.getWorkspaceMembers || [],
     invitations: workspaceMembersData?.getWorkspaceInvitations || [],
-    assignableMembers: assignableMembersData?.getWorkspaceMembers || [],
+    assignableMembers: assignableMembersData?.getAssignableProjectMembers || [],
     loading: workspaceMembersLoading || assignableMembersLoading,
     error: workspaceMembersError || assignableMembersError,
     

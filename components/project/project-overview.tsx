@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -24,6 +24,13 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   CalendarDays,
   Users,
   CheckCircle2,
@@ -33,13 +40,18 @@ import {
   Trash2,
   Loader2,
   Pencil,
+  MoreHorizontal,
+  Edit,
 } from "lucide-react";
 
 import { useProjectDetails } from "@/hooks/useProjectDetails";
 import { useSprintMutations } from "@/hooks/useSprintMutations";
 import { useProjectMutations } from "@/hooks/useProjectMutations";
+import { useMemberManagement } from "@/hooks/useMemberManagement";
+import { useAuth } from "@/hooks/useAuth";
 import { SprintStatus } from "@/types/sprint";
 import { ProjectStatus } from "@/types/project";
+import { ProjectRole } from "@/types/workspace";
 import { LoadingPlaceholder, ErrorPlaceholder } from "@/components/placeholders/status-placeholders";
 import { AssignProjectMembersModal } from "@/components/project/assign-project-members-modal";
 
@@ -68,9 +80,16 @@ interface ProjectOverviewProps {
 // --------------------------------------------------------------------------------
 
 export function ProjectOverview({ projectId }: ProjectOverviewProps) {
+  const { currentUser } = useAuth();
   const { projectDetails, loading, error, refetchProjectDetails } = useProjectDetails(projectId);
   const { createSprint, createLoading, createError, updateSprint, updateLoading, updateError, deleteSprint, deleteLoading, deleteError } = useSprintMutations(projectId);
   const { updateProject, loading: projectUpdateLoading } = useProjectMutations();
+  const { 
+    updateProjectRole, 
+    updateProjectRoleLoading,
+    removeProjectMembers,
+    removeProjectMembersLoading
+  } = useMemberManagement(projectDetails?.workspace.id || "", projectId);
 
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [isEditingDescription, setIsEditingDescription] = useState(false);
@@ -83,6 +102,12 @@ export function ProjectOverview({ projectId }: ProjectOverviewProps) {
   const [newSprintOpen, setNewSprintOpen] = useState(false);
   const [currentEditingSprint, setCurrentEditingSprint] = useState<SprintUi | null>(null);
   const [isAssignMembersModalOpen, setIsAssignMembersModalOpen] = useState(false);
+  
+  // State for member management modals
+  const [isUpdateRoleModalOpen, setIsUpdateRoleModalOpen] = useState(false);
+  const [memberToUpdate, setMemberToUpdate] = useState<{ id: string; name: string; role: ProjectRole } | null>(null);
+  const [newRole, setNewRole] = useState<ProjectRole | "">("");
+  const [memberToRemove, setMemberToRemove] = useState<{ id: string; name: string } | null>(null);
 
   const [newSprintFormData, setNewSprintFormData] = useState<SprintFormDataType>({ name: "", description: "", startDate: "", endDate: "", status: SprintStatus.PLANNING });
   const [editSprintFormData, setEditSprintFormData] = useState<SprintFormDataType>({ name: "", description: "", startDate: "", endDate: "", status: SprintStatus.PLANNING });
@@ -99,6 +124,9 @@ export function ProjectOverview({ projectId }: ProjectOverviewProps) {
       });
     }
   }, [projectDetails?.name, projectDetails?.description, projectDetails?.status]);
+  
+  const currentUserMembership = projectDetails?.members.find(member => member.user.id === currentUser?.id);
+  const canManageProject = currentUserMembership?.role === ProjectRole.OWNER || currentUserMembership?.role === ProjectRole.ADMIN;
 
   const combinedError = error || createError || updateError || deleteError;
 
@@ -114,7 +142,6 @@ export function ProjectOverview({ projectId }: ProjectOverviewProps) {
       await updateProject({ id: projectId, [field]: value });
     } catch (err) {
       console.error(`Failed to update project ${field}`, err);
-      // Revert UI on error by re-syncing with server data
       setProjectFormData({
         name: projectDetails.name,
         description: projectDetails.description || '',
@@ -211,6 +238,32 @@ export function ProjectOverview({ projectId }: ProjectOverviewProps) {
       refetchProjectDetails();
     } catch (err) { console.error("Error deleting sprint:", err); }
   };
+  
+  const handleConfirmUpdateRole = async () => {
+    if (!memberToUpdate || !newRole || newRole === memberToUpdate.role) return;
+    try {
+        await updateProjectRole(memberToUpdate.id, newRole);
+        await refetchProjectDetails();
+        setIsUpdateRoleModalOpen(false);
+        setMemberToUpdate(null);
+    } catch (err) {
+        console.error("Failed to update project role:", err);
+        setIsUpdateRoleModalOpen(false);
+        setMemberToUpdate(null);
+    }
+  };
+  
+  const handleConfirmRemoveMember = async () => {
+    if (!memberToRemove) return;
+    try {
+        await removeProjectMembers([memberToRemove.id]);
+        await refetchProjectDetails();
+        setMemberToRemove(null);
+    } catch (err) {
+        console.error("Failed to remove project member:", err);
+        setMemberToRemove(null);
+    }
+  };
 
   const handleCloseAssignModal = () => {
     setIsAssignMembersModalOpen(false);
@@ -224,7 +277,6 @@ export function ProjectOverview({ projectId }: ProjectOverviewProps) {
       <div className="p-6 pt-0 space-y-6">
         <div className="flex items-start justify-between">
           <div className="space-y-2 flex-1">
-            {/* <div className={`w-4 h-4 rounded-full`} style={{ backgroundColor: projectDetails.color }} /> */}
             <div className="flex items-center gap-2">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -454,7 +506,7 @@ export function ProjectOverview({ projectId }: ProjectOverviewProps) {
                           </div>
                         </div>
                         <div className="flex gap-2">
-                          <Button variant="ghost" size="sm" onClick={() => openEditSprintForm(sprint)} className="text-blue-600 hover:text-blue-700 hover:bg-blue-50" disabled={updateLoading}>
+                          <Button variant="ghost" size="sm" onClick={() => openEditSprintForm({ ...sprint, status: sprint.status as SprintStatus })} className="text-blue-600 hover:text-blue-700 hover:bg-blue-50" disabled={updateLoading}>
                             <Pencil className="h-4 w-4" />
                           </Button>
                           <Dialog>
@@ -489,33 +541,70 @@ export function ProjectOverview({ projectId }: ProjectOverviewProps) {
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <CardTitle>Team Members</CardTitle>
-                  <Button variant="outline" size="sm" onClick={() => setIsAssignMembersModalOpen(true)}>
-                    <Plus className="h-4 w-4 mr-2" />Add
-                  </Button>
+                  {canManageProject && (
+                    <Button variant="outline" size="sm" onClick={() => setIsAssignMembersModalOpen(true)}>
+                      <Plus className="h-4 w-4 mr-2" />Add
+                    </Button>
+                  )}
                 </div>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
                   {projectDetails.members.map(member => (
-                    <div key={member.user.id} className="flex items-center space-x-3">
-                      <Avatar className="h-8 w-8">
-                        {/* Use stored avatar, or fallback below */}
-                        <AvatarImage 
-                          src={member.user.avatar || undefined} 
-                          alt={`${member.user.firstName || ""} ${member.user.lastName || ""}`} 
-                        />
-                        {/* Use stored color, fallback to indigo-500 */}
-                        <AvatarFallback 
-                          className="text-white font-semibold"
-                          style={{ backgroundColor: (member.user as any).avatarColor   }}
-                        >
-                          {`${member.user.firstName?.[0] || ""}${member.user.lastName?.[0] || ""}` || "?"}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{`${member.user.firstName || ""} ${member.user.lastName || ""}`.trim() || member.user.email}</p>
-                        <p className="text-xs text-slate-500 truncate">{(member.role || "").replace(/_/g, " ")}</p>
+                    <div key={member.id} className="flex items-center justify-between">
+                      <div className="flex items-center space-x-3 flex-1 min-w-0">
+                        <Avatar className="h-8 w-8">
+                          <AvatarImage 
+                            src={member.user.avatar || undefined} 
+                            alt={`${member.user.firstName || ""} ${member.user.lastName || ""}`} 
+                          />
+                          <AvatarFallback 
+                            className="text-white font-semibold"
+                            style={{ backgroundColor: (member.user as any).avatarColor }}
+                          >
+                            {`${member.user.firstName?.[0] || ""}${member.user.lastName?.[0] || ""}` || "?"}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{`${member.user.firstName || ""} ${member.user.lastName || ""}`.trim() || member.user.email}</p>
+                          <p className="text-xs text-slate-500 truncate">{member.role.charAt(0) + member.role.slice(1).toLowerCase()}</p>
+                        </div>
                       </div>
+                      {canManageProject && member.role !== ProjectRole.OWNER && member.user.id !== currentUser?.id && (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              onSelect={() => {
+                                setMemberToUpdate({
+                                  id: member.id,
+                                  name: `${member.user.firstName || ""} ${member.user.lastName || ""}`.trim() || member.user.email,
+                                  role: member.role as ProjectRole,
+                                });
+                                setNewRole(member.role as ProjectRole);
+                                setIsUpdateRoleModalOpen(true);
+                              }}
+                            >
+                              <Edit className="mr-2 h-4 w-4" />
+                              <span>Change Role</span>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              className="text-destructive focus:text-destructive"
+                              onSelect={() => setMemberToRemove({
+                                id: member.id,
+                                name: `${member.user.firstName || ""} ${member.user.lastName || ""}`.trim() || member.user.email
+                              })}
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              <span>Remove from Project</span>
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      )}
                     </div>
                   ))}
                   {projectDetails.members.length === 0 && <p className="text-sm text-center text-slate-500">No members yet.</p>}
@@ -545,6 +634,84 @@ export function ProjectOverview({ projectId }: ProjectOverviewProps) {
           projectId={projectId}
           workspaceId={projectDetails.workspace.id}
         />
+      )}
+      
+      {/* Update Role Modal */}
+      {isUpdateRoleModalOpen && memberToUpdate && (
+        <div 
+            className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center"
+            onClick={() => setIsUpdateRoleModalOpen(false)}
+        >
+            <div 
+                className="bg-white rounded-lg shadow-xl w-full max-w-md p-6 space-y-4" 
+                onClick={(e) => e.stopPropagation()}
+            >
+                <div>
+                    <h2 className="text-lg font-semibold">Update Role</h2>
+                    <p className="text-sm text-slate-500 mt-1">
+                        Change the project role for <strong>{memberToUpdate.name}</strong>.
+                    </p>
+                </div>
+                <div className="py-4">
+                    <Select
+                        value={newRole}
+                        onValueChange={(value) => setNewRole(value as ProjectRole)}
+                        disabled={updateProjectRoleLoading}
+                    >
+                        <SelectTrigger>
+                            <SelectValue placeholder="Select a role" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {Object.values(ProjectRole)
+                                .filter(role => role !== ProjectRole.OWNER)
+                                .map(role => (
+                                    <SelectItem key={role} value={role}>
+                                        {role.charAt(0) + role.slice(1).toLowerCase()}
+                                    </SelectItem>
+                                ))}
+                        </SelectContent>
+                    </Select>
+                </div>
+                <div className="flex justify-end gap-2">
+                    <Button variant="outline" onClick={() => setIsUpdateRoleModalOpen(false)} disabled={updateProjectRoleLoading}>
+                        Cancel
+                    </Button>
+                    <Button onClick={handleConfirmUpdateRole} disabled={updateProjectRoleLoading || !newRole || newRole === memberToUpdate.role}>
+                        {updateProjectRoleLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Confirm Update
+                    </Button>
+                </div>
+            </div>
+        </div>
+      )}
+
+      {/* Remove Member Confirmation Modal */}
+      {memberToRemove && (
+        <div 
+            className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center"
+            onClick={() => setMemberToRemove(null)}
+        >
+            <div 
+                className="bg-white rounded-lg shadow-xl w-full max-w-md p-6 space-y-4" 
+                onClick={(e) => e.stopPropagation()}
+            >
+                <div>
+                    <h2 className="text-lg font-semibold">Remove Member</h2>
+                    <p className="text-sm text-slate-500 mt-1">
+                        Are you sure you want to remove <strong>{memberToRemove.name}</strong> from the project? This action cannot be undone.
+                    </p>
+                </div>
+                <div className="flex justify-end gap-2 pt-4">
+                    <Button variant="outline" onClick={() => setMemberToRemove(null)} disabled={removeProjectMembersLoading}>
+                        Cancel
+                    </Button>
+                    <Button variant="destructive" onClick={handleConfirmRemoveMember} disabled={removeProjectMembersLoading}>
+                        {removeProjectMembersLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Remove
+                    </Button>
+                </div>
+            </div>
+        </div>
       )}
     </div>
   );

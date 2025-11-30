@@ -1,4 +1,3 @@
-//graphql/operations/members.ts
 import { gql } from '@apollo/client';
 
 export const USER_LOOKUP_PARTIAL_FRAGMENT = gql`
@@ -25,6 +24,7 @@ export const USER_FULL_DETAILS_FRAGMENT = gql`
 
 export const WORKSPACE_MEMBER_DETAILS_FRAGMENT = gql`
   fragment WorkspaceMemberDetailsFragment on WorkspaceMemberDetails {
+    __typename
     id
     role
     user {
@@ -85,6 +85,7 @@ export const REVOKE_WORKSPACE_INVITATION = gql`
 export const UPDATE_WORKSPACE_MEMBER_ROLE = gql`
   mutation UpdateWorkspaceMemberRole($memberId: ID!, $role: WorkspaceRole!) {
     updateWorkspaceMemberRole(memberId: $memberId, role: $role) {
+      __typename
       id
       role
     }
@@ -101,7 +102,7 @@ export const REMOVE_WORKSPACE_MEMBERS = gql`
 
 export const GET_WORKSPACE_MEMBERS_FOR_PROJECT_ASSIGNMENT = gql`
   query GetWorkspaceMembersForProjectAssignment($workspaceId: ID!, $projectId: ID!) {
-    getWorkspaceMembers(workspaceId: $workspaceId) {
+    getAssignableProjectMembers(workspaceId: $workspaceId, projectId: $projectId) {
       id
       user {
         ...UserLookupPartialFragment
