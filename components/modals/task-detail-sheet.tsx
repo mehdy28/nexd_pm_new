@@ -429,11 +429,11 @@ export function TaskDetailSheet({
                       <div className="flex-1 space-y-3">
                           {taskDetails.attachments.map(attachment => (
                               <div key={attachment.id} className="flex items-center justify-between p-3 bg-white rounded-md shadow-sm border border-gray-200">
-                                  <div className="flex items-center gap-3">
+                                  <div className="flex items-center gap-3 min-w-0">
                                       {getFileIcon(attachment.fileType)}
                                       <a href={getDownloadableUrl(attachment.url)}
                                        target="_blank"
-                                       download={attachment.fileName} rel="noopener noreferrer" className="text-sm font-medium text-gray-800 hover:underline">{attachment.fileName}</a>
+                                       download={attachment.fileName} rel="noopener noreferrer" className="text-sm font-medium text-gray-800 hover:underline truncate">{attachment.fileName}</a>
                                   </div>
                                   <Button variant="ghost" size="sm" className="h-7 w-7 p-0" title="Remove attachment" onClick={() => deleteAttachment(attachment.id)} disabled={isTaskDetailsMutating}><X className="h-4 w-4 text-gray-500" /></Button>
                               </div>
@@ -473,29 +473,42 @@ export function TaskDetailSheet({
                                     <AvatarFallback className="text-xs text-gray-700">?</AvatarFallback>
                                 </Avatar>
                             )}
-                            <span>{editingTaskLocal.assignee ? `${editingTaskLocal.assignee.firstName} ${editingTaskLocal.assignee.lastName}` : 'Unassigned'}</span>
+                            <span className="truncate">
+                                {editingTaskLocal.assignee
+                                    ? `${editingTaskLocal.assignee.firstName} ${editingTaskLocal.assignee.lastName}`.length > 15
+                                    ? `${`${editingTaskLocal.assignee.firstName} ${editingTaskLocal.assignee.lastName}`.substring(0, 15)}...`
+                                    : `${editingTaskLocal.assignee.firstName} ${editingTaskLocal.assignee.lastName}`
+                                    : 'Unassigned'}
+                            </span>
                           </div>
                         </SelectValue>
                       </SelectTrigger>
                       <SelectContent className="bg-white border-border">
-                        <SelectItem value="null"><div className="flex items-center gap-2"><Avatar className="h-6 w-6 border bg-gray-100"><AvatarImage src={undefined} /><AvatarFallback className="text-xs text-gray-700">?</AvatarFallback></Avatar><span>Unassigned</span></div></SelectItem>
-                        <DropdownMenuSeparator />
-                        {availableAssignees.map((a) => (
-                            <SelectItem key={a.id} value={a.id}>
-                                <div className="flex items-center gap-2">
-                                    <Avatar className="h-6 w-6">
-                                        <AvatarImage src={a.avatar || undefined} />
-                                        <AvatarFallback 
-                                            className="text-xs text-white" 
-                                            style={{ backgroundColor: (a as any).avatarColor   }}
-                                        >
-                                            {`${a.firstName?.[0] || ''}${a.lastName?.[0] || ''}` || '?'}
-                                        </AvatarFallback>
-                                    </Avatar>
-                                    <span>{a.firstName} {a.lastName}</span>
-                                </div>
-                            </SelectItem>
-                        ))}
+                        <div className="max-h-48 overflow-y-auto overflow-x-hidden">
+                          <SelectItem value="null"><div className="flex items-center gap-2"><Avatar className="h-6 w-6 border bg-gray-100"><AvatarImage src={undefined} /><AvatarFallback className="text-xs text-gray-700">?</AvatarFallback></Avatar><span>Unassigned</span></div></SelectItem>
+                          <DropdownMenuSeparator />
+                          {availableAssignees.map((a) => {
+                              const fullName = `${a.firstName} ${a.lastName}`;
+                              return (
+                                  <SelectItem key={a.id} value={a.id}>
+                                      <div className="flex items-center gap-2">
+                                          <Avatar className="h-6 w-6">
+                                              <AvatarImage src={a.avatar || undefined} />
+                                              <AvatarFallback 
+                                                  className="text-xs text-white" 
+                                                  style={{ backgroundColor: (a as any).avatarColor   }}
+                                              >
+                                                  {`${a.firstName?.[0] || ''}${a.lastName?.[0] || ''}` || '?'}
+                                              </AvatarFallback>
+                                          </Avatar>
+                                          <span className="truncate">
+                                            {fullName.length > 15 ? `${fullName.substring(0, 15)}...` : fullName}
+                                          </span>
+                                      </div>
+                                  </SelectItem>
+                              )
+                          })}
+                        </div>
                       </SelectContent>
                     </Select>
                   </div>
@@ -694,7 +707,7 @@ function ActivityLogItem({ user, action, details, time, icon, accentColor }: Act
           {icon}
           <p className="font-semibold text-gray-800">{userName} <span className="text-sm text-muted-foreground font-normal">{action}</span></p>
         </div>
-        {details && <p className="text-xs text-gray-600 italic mt-1">{details}</p>}
+        {details && <p className="text-xs text-gray-600 italic mt-1 break-words">{details}</p>}
         <span className="text-xs text-muted-foreground block mt-1">{time}</span>
       </div>
     </div>

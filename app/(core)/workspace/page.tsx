@@ -49,7 +49,7 @@ export default function WorkspacePage() {
   useEffect(() => {
     console.log("LOG: [useEffect] - Running effect to set Topbar config. Workspace data available:", !!workspaceData);
     setConfig({
-      title: workspaceData?.name ? `${workspaceData.name} Overview` : "Workspace Overview",
+      title: workspaceData?.name ? `${workspaceData?.name} Overview` : "Workspace Overview",
       tabs: [{ key: "overview", label: "Overview", icon: <Settings className="h-4 w-4" /> }],
       showShare: true,
     });
@@ -124,14 +124,14 @@ export default function WorkspacePage() {
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <div className="space-y-2">
-              <h2 className="text-3xl font-bold text-foreground">{workspaceData.name}</h2>
-              <p className="text-muted-foreground leading-relaxed max-w-3xl">{workspaceData.description}</p>
+              <h2 className="text-3xl font-bold text-foreground">{workspaceData?.name || "Workspace"}</h2>
+              <p className="text-muted-foreground leading-relaxed max-w-3xl">{workspaceData?.description}</p>
             </div>
           </div>
           <div className="flex flex-wrap gap-2 text-sm text-muted-foreground">
-            {workspaceData.industry && (<Badge variant="secondary" className="bg-gray-100 text-gray-800 border-0">Industry: {workspaceData.industry}</Badge>)}
-            {workspaceData.teamSize && (<Badge variant="secondary" className="bg-gray-100 text-gray-800 border-0">Team Size: {workspaceData.teamSize}</Badge>)}
-            {workspaceData.workFields && workspaceData.workFields.map((field, index) => (<Badge key={index} variant="secondary" className="bg-gray-100 text-gray-800 border-0">{field}</Badge>))}
+            {workspaceData?.industry && (<Badge variant="secondary" className="bg-gray-100 text-gray-800 border-0">Industry: {workspaceData?.industry}</Badge>)}
+            {workspaceData?.teamSize && (<Badge variant="secondary" className="bg-gray-100 text-gray-800 border-0">Team Size: {workspaceData?.teamSize}</Badge>)}
+            {workspaceData?.workFields && workspaceData?.workFields.map((field, index) => (<Badge key={index} variant="secondary" className="bg-gray-100 text-gray-800 border-0">{field}</Badge>))}
           </div>
         </div>
         {/* Projects Section */}
@@ -148,7 +148,7 @@ export default function WorkspacePage() {
           </div>
 
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {workspaceData.projects.map(project => (
+            {workspaceData?.projects.map(project => (
               <Card key={project.id} className="shadow-soft hover:shadow-medium hover:scale-[1.02] transition-all duration-200 group relative">
                 {/* The Link is now an invisible overlay for navigation */}
                 <Link href={`/project/${project.id}`} className="absolute inset-0 z-10" aria-label={`View project ${project.name}`} onClick={(e) => console.log(`%c[EVENT] Link OVERLAY for project '${project.name}' clicked. Navigation should occur.`, 'color: blue;')} />
@@ -224,7 +224,7 @@ export default function WorkspacePage() {
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {workspaceData.members.map(member => (
+            {workspaceData?.members.map(member => (
               <Card key={member.id} className="shadow-soft hover:shadow-medium hover:scale-[1.02] transition-all duration-200 group">
                 <CardContent className="p-4 flex items-center justify-between">
                   <div className="flex items-center space-x-4 flex-1 min-w-0">
@@ -279,7 +279,7 @@ export default function WorkspacePage() {
         </div>
       </div>
 
-      {workspaceData.id && (
+      {workspaceData?.id && (
         <>
           <CreateProjectModal
             isOpen={isCreateProjectModalOpen}
@@ -287,7 +287,7 @@ export default function WorkspacePage() {
               console.log("LOG: [CreateProjectModal] - onClose triggered. Setting isCreateProjectModalOpen to false.");
               setIsCreateProjectModalOpen(false);
             }}
-            currentWorkspaceId={workspaceData.id}
+            currentWorkspaceId={workspaceData?.id}
             onProjectCreated={handleProjectCreated}
           />
           <InviteMembersModal
@@ -296,7 +296,7 @@ export default function WorkspacePage() {
               console.log("LOG: [InviteMembersModal] - onClose triggered. Setting isInviteModalOpen to false.");
               setIsInviteModalOpen(false);
             }}
-            workspaceId={workspaceData.id}
+            workspaceId={workspaceData?.id}
           />
         </>
       )}

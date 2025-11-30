@@ -561,34 +561,36 @@ export function ListView({ projectId }: ListViewProps) {
                                 </SelectValue>
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="null">
-                                <div className="flex items-center gap-2">
-                                    <Avatar className="h-5 w-5 border bg-gray-100">
-                                        <AvatarImage src={undefined} />
-                                        <AvatarFallback className="text-[10px] text-gray-700">?</AvatarFallback>
-                                    </Avatar>
-                                    <span>Unassigned</span>
-                                </div>
-                              </SelectItem>
-                              <DropdownMenuSeparator />
-                              {availableAssignees.map(a => (
-                                <SelectItem key={a.id} value={a.id}>
+                              <div className="max-h-48 overflow-y-auto">
+                                <SelectItem value="null">
                                   <div className="flex items-center gap-2">
-                                    <Avatar className="h-5 w-5">
-                                      <AvatarImage src={a.avatar || undefined} />
-                                      <AvatarFallback 
-                                        className="text-xs text-white" 
-                                        style={{ backgroundColor: (a as any).avatarColor   }}
-                                      >
-                                        {`${a.firstName?.[0] || ""}${a.lastName?.[0] || ""}` || "?"}
-                                      </AvatarFallback>
-                                    </Avatar>
-                                    <span>
-                                      {a.firstName} {a.lastName}
-                                    </span>
+                                      <Avatar className="h-5 w-5 border bg-gray-100">
+                                          <AvatarImage src={undefined} />
+                                          <AvatarFallback className="text-[10px] text-gray-700">?</AvatarFallback>
+                                      </Avatar>
+                                      <span>Unassigned</span>
                                   </div>
                                 </SelectItem>
-                              ))}
+                                <DropdownMenuSeparator />
+                                {availableAssignees.map(a => (
+                                  <SelectItem key={a.id} value={a.id}>
+                                    <div className="flex items-center gap-2">
+                                      <Avatar className="h-5 w-5">
+                                        <AvatarImage src={a.avatar || undefined} />
+                                        <AvatarFallback 
+                                          className="text-xs text-white" 
+                                          style={{ backgroundColor: (a as any).avatarColor   }}
+                                        >
+                                          {`${a.firstName?.[0] || ""}${a.lastName?.[0] || ""}` || "?"}
+                                        </AvatarFallback>
+                                      </Avatar>
+                                      <span>
+                                        {a.firstName} {a.lastName}
+                                      </span>
+                                    </div>
+                                  </SelectItem>
+                                ))}
+                              </div>
                             </SelectContent>
                           </Select>
                         </div>
@@ -1055,34 +1057,36 @@ function TaskRow({ task, selected, onSelect, onToggleCompleted, onUpdate, onOpen
             </SelectValue>
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="null">
-                <div className="flex items-center gap-2">
-                    <Avatar className="h-6 w-6 border bg-gray-100">
-                        <AvatarImage src={undefined} />
-                        <AvatarFallback className="text-xs text-gray-700">?</AvatarFallback>
-                    </Avatar>
-                    <span>Unassigned</span>
-                </div>
-            </SelectItem>
-            <Separator className="my-1" />
-            {assignees.map(a => (
-              <SelectItem key={a.id} value={a.id}>
-                <div className="flex items-center gap-2">
-                  <Avatar className="h-5 w-5">
-                    <AvatarImage src={a.avatar || undefined} />
-                    <AvatarFallback 
-                      className="text-xs text-white"
-                      style={{ backgroundColor: (a as any).avatarColor   }}
-                    >
-                      {`${a.firstName?.[0] || ""}${a.lastName?.[0] || ""}` || "?"}
-                    </AvatarFallback>
-                  </Avatar>
-                  <span>
-                    {a.firstName} {a.lastName}
-                  </span>
-                </div>
+            <div className="max-h-48 overflow-y-auto">
+              <SelectItem value="null">
+                  <div className="flex items-center gap-2">
+                      <Avatar className="h-6 w-6 border bg-gray-100">
+                          <AvatarImage src={undefined} />
+                          <AvatarFallback className="text-xs text-gray-700">?</AvatarFallback>
+                      </Avatar>
+                      <span>Unassigned</span>
+                  </div>
               </SelectItem>
-            ))}
+              <Separator className="my-1" />
+              {assignees.map(a => (
+                <SelectItem key={a.id} value={a.id}>
+                  <div className="flex items-center gap-2">
+                    <Avatar className="h-5 w-5">
+                      <AvatarImage src={a.avatar || undefined} />
+                      <AvatarFallback 
+                        className="text-xs text-white"
+                        style={{ backgroundColor: (a as any).avatarColor   }}
+                      >
+                        {`${a.firstName?.[0] || ""}${a.lastName?.[0] || ""}` || "?"}
+                      </AvatarFallback>
+                    </Avatar>
+                    <span>
+                      {a.firstName} {a.lastName}
+                    </span>
+                  </div>
+                </SelectItem>
+              ))}
+            </div>
           </SelectContent>
         </Select>
       </div>
