@@ -1,4 +1,5 @@
 # graphql/schema/schema.graphql
+
 # ----------------------------------
 # Enums
 # ----------------------------------
@@ -995,6 +996,67 @@ type TicketPriorityPayload {
   priority: Priority!
 }
 
+
+# ----------------------------------
+# NEW ADMIN DASHBOARD TYPES
+# ----------------------------------
+
+type AdminMetric {
+  value: String!
+  change: String!
+  trend: String! # 'up' or 'down'
+}
+
+type AdminKpiMetrics {
+  totalUsers: AdminMetric!
+  activeWorkspaces: AdminMetric!
+  totalProjects: AdminMetric!
+  tasksCreated: AdminMetric!
+  documents: AdminMetric!
+  wireframes: AdminMetric!
+  monthlyRevenue: AdminMetric!
+  churnRate: AdminMetric!
+}
+
+type AdminTimeChartPoint {
+  date: String!
+  value: Float!
+}
+
+type AdminMultiLineTimeChartPoint {
+  date: String!
+  users: Int
+  projects: Int
+  tasks: Int
+  documents: Int
+  wireframes: Int
+}
+
+type AdminDistributionChartPoint {
+  name: String!
+  value: Int!
+}
+
+type AdminTopWorkspace {
+  id: ID!
+  name: String!
+  activityCount: Int!
+}
+
+type AdminDashboardData {
+  kpis: AdminKpiMetrics!
+  userGrowth: [AdminMultiLineTimeChartPoint!]!
+  contentCreation: [AdminMultiLineTimeChartPoint!]!
+  mrrGrowth: [AdminTimeChartPoint!]!
+  churnRate: [AdminTimeChartPoint!]!
+  subscriptionDistribution: [AdminDistributionChartPoint!]!
+  revenueByPlan: [AdminDistributionChartPoint!]!
+  featureAdoption: [AdminDistributionChartPoint!]!
+  topWorkspaces: [AdminTopWorkspace!]!
+  recentActivities: [AuditLog!]!
+}
+
+
 # ----------------------------------
 # Inputs
 # ----------------------------------
@@ -1439,11 +1501,12 @@ type Query {
   # Enterprise
   getWorkspaceAuditLogs(workspaceId: ID!, skip: Int, take: Int): AuditLogResponse!
 
-
-
   # Admin Support
   adminGetSupportTickets: [AdminTicketListItem!]!
   adminGetTicketDetails(id: ID!): AdminTicketDetails
+
+  # Admin Dashboard
+  adminGetDashboardData(timeframe: String): AdminDashboardData!
 }
 
 # ----------------------------------
