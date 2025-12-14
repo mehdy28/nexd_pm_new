@@ -6,7 +6,7 @@ import { PersonalBoardView } from "@/components/personal/personal-board-view"
 import { PersonalListView } from "@/components/personal/personal-list-view"
 import { PersonalDocumentsView } from "@/components/personal/personal-documents-view"
 import { PersonalPromptLabContainer } from "@/components/personal/personal-prompt-lab-container"
-import { PersonalWireframesView } from "@/components/personal/PersonalWireframesView"
+import { PersonalWhiteboardsView } from "@/components/personal/PersonalwhiteboardsView"
 import { ListChecks, SquareKanban, CalendarDays, FileText, Layers3, Gauge, Wand2, BarChart3 } from "lucide-react"
 import PersonalGanttView from "@/components/personal/personal-gantt-view"
 import { MyDashboardView } from "@/components/personal/MyDashboardView"
@@ -20,7 +20,7 @@ const TABS = [
   { key: "gantt", label: "Gantt", icon: <BarChart3 className="h-4 w-4" /> },
   { key: "documents", label: "Documents", icon: <FileText className="h-4 w-4" /> },
   { key: "prompt-lab", label: "Prompt Lab", icon: <Wand2 className="h-4 w-4" /> },
-  { key: "wireframes", label: "Wireframes", icon: <Layers3 className="h-4 w-4" /> },
+  { key: "whiteboards", label: "whiteboards", icon: <Layers3 className="h-4 w-4" /> },
   { key: "dashboard", label: "Dashboard", icon: <Gauge className="h-4 w-4" /> },
 ]
 
@@ -46,7 +46,7 @@ export default function MyTasksPage() {
     if (currentKey === "gantt") return <PersonalGanttView />
     if (currentKey === "documents") return <PersonalDocumentsView />
     if (currentKey === "prompt-lab") return <PersonalPromptLabContainer />
-    if (currentKey === "wireframes") return <PersonalWireframesView />
+    if (currentKey === "whiteboards") return <PersonalWhiteboardsView />
     if (currentKey === "dashboard") return <MyDashboardView />
     return (
       <div className="flex items-center justify-center h-full">

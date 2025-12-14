@@ -8,19 +8,19 @@ import { templates, Template, templateCategories } from "@/lib/whiteBoard/whiteB
 import { Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
-interface WireframeTemplatesModalProps {
+interface WhiteboardTemplatesModalProps {
   isOpen: boolean
   onClose: () => void
   onSelectTemplate: (template: Template) => void
   isCreating: boolean
 }
 
-export const WireframeTemplatesModal = ({
+export const WhiteboardTemplatesModal = ({
   isOpen,
   onClose,
   onSelectTemplate,
   isCreating,
-}: WireframeTemplatesModalProps) => {
+}: WhiteboardTemplatesModalProps) => {
   const [search, setSearch] = useState("")
   const [category, setCategory] = useState("all")
 
@@ -126,7 +126,7 @@ export const WireframeTemplatesModal = ({
         {isCreating && (
           <div className="absolute inset-0 z-20 flex items-center justify-center rounded-lg bg-white/80 backdrop-blur-sm">
             <Loader2 className="h-8 w-8 animate-spin text-[#4ab5ae]" />
-            <span className="ml-3 text-lg font-medium">Creating wireframe...</span>
+            <span className="ml-3 text-lg font-medium">Creating Whiteboard...</span>
           </div>
         )}
       </DialogContent>

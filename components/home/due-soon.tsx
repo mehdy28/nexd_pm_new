@@ -4,7 +4,7 @@ export function DueSoon() {
   const tasks = [
     { id: "1", title: "Fix the auth system", due: "Tomorrow", points: 7 },
     { id: "2", title: "Random task", due: "May 22", points: 12 },
-    { id: "3", title: "Create wireframe system", due: "May 23", points: 13 },
+    { id: "3", title: "Create Whiteboard system", due: "May 23", points: 13 },
   ]
   return (
     <div className="rounded-lg border p-4 bg-white">

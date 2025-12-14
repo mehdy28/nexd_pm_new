@@ -210,7 +210,7 @@ export function UserManagement() {
                     <span className="text-sm font-medium">24</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-sm text-muted-foreground">Wireframes:</span>
+                    <span className="text-sm text-muted-foreground">Whiteboards:</span>
                     <span className="text-sm font-medium">15</span>
                   </div>
                 </CardContent>

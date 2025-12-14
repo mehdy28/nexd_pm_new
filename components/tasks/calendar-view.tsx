@@ -81,7 +81,7 @@ const seed: Task[] = [
   { id: "t-8", title: "Create a new feed page", date: "2025-06-30", priority: "MEDIUM" },
   { id: "t-9", title: "TASK", date: "2025-06-24", priority: "HIGH" },
   { id: "t-10", title: ":D", date: "2025-06-24", priority: "LOW" },
-  { id: "t-11", title: "Create wireframe system", date: "2025-06-24", priority: "MEDIUM" },
+  { id: "t-11", title: "Create Whiteboard system", date: "2025-06-24", priority: "MEDIUM" },
   { id: "t-12", title: "Create the kanban board", date: "2025-06-24", priority: "HIGH" },
   { id: "t-13", title: "Invitation system", date: "2025-06-24", priority: "LOW" },
 ]

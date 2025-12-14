@@ -29,7 +29,7 @@
 //   { key: "calendar", label: "Calendar", icon: <CalendarDays className="h-3 w-3" /> },
 //   { key: "documents", label: "Documents", icon: <FileText className="h-3 w-3" /> },
 //   { key: "prompt-lab", label: "Prompt Lab", icon: <Wand2 className="h-3 w-3" /> },
-//   { key: "wireframes", label: "Wireframes", icon: <Layers3 className="h-3 w-3" /> },
+//   { key: "Whiteboards", label: "Whiteboards", icon: <Layers3 className="h-3 w-3" /> },
 // ]
 
 // export function WorkspacePreview({ workspaceTitle, projectTitle, viewType, template }: WorkspacePreviewProps) {

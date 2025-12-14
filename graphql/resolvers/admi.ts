@@ -1,8 +1,8 @@
 // graphql/resolvers/admin.ts
 
-import { prisma } from "@/lib/prisma"
 import { GraphQLError } from "graphql"
 import { subDays, startOfDay, subMonths, format } from "date-fns"
+import { prisma } from "@/lib/prisma"
 
 interface GraphQLContext {
   prisma: typeof prisma
@@ -97,8 +97,8 @@ export const adminResolvers = {
         prevTaskCount,
         totalDocumentCount,
         prevDocumentCount,
-        totalWireframeCount,
-        prevWireframeCount,
+        totalWhiteboardCount,
+        prevWhiteboardCount,
         activeSubscriptions,
         recentActivities,
         subscriptionDistribution,
@@ -106,44 +106,44 @@ export const adminResolvers = {
         allProjects,
         allTasks,
         allDocuments,
-        allWireframes,
+        allWhiteboards,
         topWorkspaceActivity,
       ] = await Promise.all([
         // KPI Counts
-        context.prisma.user.count(),
-        context.prisma.user.count({ where: { createdAt: { lt: startDate } } }),
-        context.prisma.workspace.count(),
-        context.prisma.workspace.count({ where: { createdAt: { lt: startDate } } }),
-        context.prisma.project.count(),
-        context.prisma.project.count({ where: { createdAt: { lt: startDate } } }),
-        context.prisma.task.count(),
-        context.prisma.task.count({ where: { createdAt: { lt: startDate } } }),
-        context.prisma.document.count(),
-        context.prisma.document.count({ where: { createdAt: { lt: startDate } } }),
-        context.prisma.wireframe.count(),
-        context.prisma.wireframe.count({ where: { createdAt: { lt: startDate } } }),
+        prisma.user.count(),
+        prisma.user.count({ where: { createdAt: { lt: startDate } } }),
+        prisma.workspace.count(),
+        prisma.workspace.count({ where: { createdAt: { lt: startDate } } }),
+        prisma.project.count(),
+        prisma.project.count({ where: { createdAt: { lt: startDate } } }),
+        prisma.task.count(),
+        prisma.task.count({ where: { createdAt: { lt: startDate } } }),
+        prisma.document.count(),
+        prisma.document.count({ where: { createdAt: { lt: startDate } } }),
+        prisma.whiteboard.count(),
+        prisma.whiteboard.count({ where: { createdAt: { lt: startDate } } }),
         // Subscription & Revenue Data
-        context.prisma.subscription.findMany({ where: { status: "ACTIVE" } }),
+        prisma.subscription.findMany({ where: { status: "ACTIVE" } }),
         // Activity Log
-        context.prisma.auditLog.findMany({
+        prisma.auditLog.findMany({
           take: 7,
           orderBy: { createdAt: "desc" },
           include: { user: true },
         }),
         // Distribution Charts
-        context.prisma.subscription.groupBy({
+        prisma.subscription.groupBy({
           by: ["plan"],
           _count: { plan: true },
           where: { status: "ACTIVE" },
         }),
         // Time Series Data (fetching all records in range for JS processing)
-        context.prisma.user.findMany({ where: { createdAt: { gte: startDate } } }),
-        context.prisma.project.findMany({ where: { createdAt: { gte: startDate } } }),
-        context.prisma.task.findMany({ where: { createdAt: { gte: startDate } } }),
-        context.prisma.document.findMany({ where: { createdAt: { gte: startDate } } }),
-        context.prisma.wireframe.findMany({ where: { createdAt: { gte: startDate } } }),
+        prisma.user.findMany({ where: { createdAt: { gte: startDate } } }),
+        prisma.project.findMany({ where: { createdAt: { gte: startDate } } }),
+        prisma.task.findMany({ where: { createdAt: { gte: startDate } } }),
+        prisma.document.findMany({ where: { createdAt: { gte: startDate } } }),
+        prisma.whiteboard.findMany({ where: { createdAt: { gte: startDate } } }),
         // Top Workspaces - CORRECTED QUERY
-        context.prisma.auditLog.groupBy({
+        prisma.auditLog.groupBy({
           by: ["workspaceId"],
           _count: { id: true }, // Count by a specific field, 'id' is reliable
           where: { createdAt: { gte: startDate } },
@@ -167,28 +167,28 @@ export const adminResolvers = {
         totalProjects: { value: totalProjectCount.toLocaleString(), ...calculatePercentageChange(totalProjectCount, prevProjectCount) },
         tasksCreated: { value: totalTaskCount.toLocaleString(), ...calculatePercentageChange(totalTaskCount, prevTaskCount) },
         documents: { value: totalDocumentCount.toLocaleString(), ...calculatePercentageChange(totalDocumentCount, prevDocumentCount) },
-        wireframes: { value: totalWireframeCount.toLocaleString(), ...calculatePercentageChange(totalWireframeCount, prevWireframeCount) },
+        Whiteboards: { value: totalWhiteboardCount.toLocaleString(), ...calculatePercentageChange(totalWhiteboardCount, prevWhiteboardCount) },
         monthlyRevenue: { value: `$${mrr.toLocaleString()}`, ...calculatePercentageChange(mrr, prevMrr) },
         churnRate: { value: `${churn}%`, ...calculatePercentageChange(churn, prevChurn) },
       }
 
       // 3.2 Time Series Charts (Processing in JS)
-      const timeSeries: { [key: string]: { users: number; projects: number; tasks: number; documents: number; wireframes: number } } = {}
+      const timeSeries: { [key: string]: { users: number; projects: number; tasks: number; documents: number; Whiteboards: number } } = {}
       for (let i = 0; i <= 30; i++) {
         const date = format(subDays(now, 30 - i), "MMM d")
-        timeSeries[date] = { users: 0, projects: 0, tasks: 0, documents: 0, wireframes: 0 }
+        timeSeries[date] = { users: 0, projects: 0, tasks: 0, documents: 0, Whiteboards: 0 }
       }
 
       allUsers.forEach(u => { const d = format(u.createdAt, "MMM d"); if(timeSeries[d]) timeSeries[d].users++ })
       allProjects.forEach(p => { const d = format(p.createdAt, "MMM d"); if(timeSeries[d]) timeSeries[d].projects++ })
       allTasks.forEach(t => { const d = format(t.createdAt, "MMM d"); if(timeSeries[d]) timeSeries[d].tasks++ })
       allDocuments.forEach(doc => { const date = format(doc.createdAt, "MMM d"); if(timeSeries[date]) timeSeries[date].documents++ })
-      allWireframes.forEach(w => { const d = format(w.createdAt, "MMM d"); if(timeSeries[d]) timeSeries[d].wireframes++ })
+      allWhiteboards.forEach(w => { const d = format(w.createdAt, "MMM d"); if(timeSeries[d]) timeSeries[d].Whiteboards++ })
       
       const chartData = Object.entries(timeSeries).map(([date, values]) => ({ date, ...values }))
 
       const userGrowth = chartData.map(d => ({ date: d.date, users: d.users, projects: d.projects, tasks: d.tasks }))
-      const contentCreation = chartData.map(d => ({ date: d.date, documents: d.documents, wireframes: d.wireframes, tasks: d.tasks }))
+      const contentCreation = chartData.map(d => ({ date: d.date, documents: d.documents, Whiteboards: d.Whiteboards, tasks: d.tasks }))
 
       // 3.3 Distribution Charts
       const formattedSubDistribution = subscriptionDistribution.map(group => ({
@@ -203,7 +203,7 @@ export const adminResolvers = {
 
       // 3.4 Top Workspaces
       const workspaceIds = topWorkspaceActivity.map(w => w.workspaceId)
-      const workspaceDetails = await context.prisma.workspace.findMany({
+      const workspaceDetails = await prisma.workspace.findMany({
         where: { id: { in: workspaceIds } },
         select: { id: true, name: true },
       })
@@ -225,7 +225,7 @@ export const adminResolvers = {
         value: prevChurn + (churn - prevChurn) * (i / 30) * (1 + Math.sin(i * 0.5) * 0.1),
       }))
       const featureAdoption = [
-        { name: "Wireframes", value: 45 },
+        { name: "Whiteboards", value: 45 },
         { name: "Prompts", value: 25 },
         { name: "Gantt Charts", value: 60 },
         { name: "Documents", value: 85 },

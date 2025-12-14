@@ -8,7 +8,7 @@ import projectSectionResolver from "./projectSectionResolver";
 import taskResolver from "./taskResolver";
 import { sprintResolvers } from "./sprintResolver";
 import documentResolvers from "./documentResolver";
-import wireframeResolvers from "./wireframeResolver";
+import WhiteboardResolvers from "./WhiteboardResolver";
 import promptResolvers from "./promptResolver";
 import promptVariableResolver from "./promptVariableResolver";
 import lookupResolvers from "./lookupResolvers";
@@ -19,7 +19,7 @@ import personalResolver from "./personal/personalResolver";
 import personalSectionResolver from "./personal/personalSectionResolver";
 import personalTaskResolver from "./personal/personalTaskResolver";
 import personalDocumentResolvers from "./personal/personalDocumentResolver";
-import personalWireframeResolvers from "./personal/personalWireframeResolver";
+import personalWhiteboardResolvers from "./personal/personalWhiteboardResolver";
 import personalPromptResolvers from "./personal/personalPromptResolver";
 
 // Messaging and Ticketing resolvers
@@ -50,7 +50,7 @@ export const resolvers = {
     ...projectResolver.Query,
     ...taskResolver.Query,
     ...documentResolvers.Query,
-    ...wireframeResolvers.Query,
+    ...WhiteboardResolvers.Query,
     ...promptResolvers.Query,
     ...promptVariableResolver.Query,
     ...projectDashboardResolvers.Query,
@@ -58,7 +58,7 @@ export const resolvers = {
     // Personal
     ...personalResolver.Query,
     ...personalDocumentResolvers.Query,
-    ...personalWireframeResolvers.Query,
+    ...personalWhiteboardResolvers.Query,
     ...personalPromptResolvers.Query,
     ...personalTaskResolver.Query,
 
@@ -91,14 +91,14 @@ export const resolvers = {
     ...taskResolver.Mutation,
     ...sprintResolvers.Mutation,
     ...documentResolvers.Mutation,
-    ...wireframeResolvers.Mutation,
+    ...WhiteboardResolvers.Mutation,
     ...promptResolvers.Mutation,
 
     // Personal
     ...personalSectionResolver.Mutation,
     ...personalTaskResolver.Mutation,
     ...personalDocumentResolvers.Mutation,
-    ...personalWireframeResolvers.Mutation,
+    ...personalWhiteboardResolvers.Mutation,
     ...personalPromptResolvers.Mutation,
 
     // Messaging & Tickets
@@ -120,7 +120,7 @@ export const resolvers = {
   Task: taskResolver.Task,
   TaskListView: taskResolver.TaskListView,
   Document: documentResolvers.Document,
-  Wireframe: wireframeResolvers.Wireframe,
+  Whiteboard: WhiteboardResolvers.Whiteboard,
   Project: {
     ...projectResolver.Project,
     ...promptResolvers.Project,

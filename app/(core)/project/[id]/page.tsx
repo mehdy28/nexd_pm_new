@@ -8,7 +8,7 @@ import { DocumentsView } from "@/components/documents/documents-view"
 //import { CalendarView } from "@/components/tasks/calendar-view"
 import { DashboardView } from "@/components/tasks/dashboard-view"
 import { ProjectPromptLabContainer } from "@/components/prompt-lab/project-prompt-lab-container"
-import { WireframesView } from "@/components/wireframes/wireframes-view"
+import { WhiteboardsView } from "@/components/Whiteboards/whiteboards-view"
 import { ProjectOverview } from "@/components/project/project-overview"
 import {
   ListChecks,
@@ -67,7 +67,7 @@ const TABS = [
  // { key: "calendar", label: "Calendar", icon: <CalendarDays className="h-4 w-4" /> },
   { key: "documents", label: "Documents", icon: <FileText className="h-4 w-4" /> },
   { key: "prompt-lab", label: "Prompt Lab", icon: <Wand2 className="h-4 w-4" /> },
-  { key: "wireframes", label: "Wireframes", icon: <Layers3 className="h-4 w-4" /> },
+  { key: "whiteboards", label: "whiteboards", icon: <Layers3 className="h-4 w-4" /> },
   { key: "dashboard", label: "Dashboard", icon: <Gauge className="h-4 w-4" /> },
 ]
 
@@ -97,7 +97,7 @@ export default function ProjectPage() {
  /// if (currentKey === "calendar") return <CalendarView projectId={projectId} />
   if (currentKey === "documents") return <DocumentsView projectId={projectId} />
   if (currentKey === "prompt-lab") return <ProjectPromptLabContainer projectId={projectId} />
-  if (currentKey === "wireframes") return <WireframesView projectId={projectId} />
+  if (currentKey === "whiteboards") return <WhiteboardsView projectId={projectId} />
   if (currentKey === "dashboard") return <DashboardView projectId={projectId} />
   return <div className="page-scroller p-6 text-sm text-slate-500">This feature is not implemented yet.</div>
 }

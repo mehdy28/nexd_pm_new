@@ -88,9 +88,9 @@ enum ActivityType {
   DOCUMENT_CREATED
   DOCUMENT_UPDATED
   DOCUMENT_DELETED
-  WIREFRAME_CREATED
-  WIREFRAME_UPDATED
-  WIREFRAME_DELETED
+  WHITEBOARD_CREATED
+  WHITEBOARD_UPDATED
+  WHITEBOARD_DELETED
   PROMPT_CREATED
   PROMPT_UPDATED
   PROMPT_DELETED
@@ -172,7 +172,7 @@ model User {
   createdTasks         Task[]                  @relation("TaskCreator")
   personalTasks        Task[]                  @relation("UserPersonalTasks")
   personalDocuments    Document[]              @relation("UserPersonalDocuments")
-  personalWireframes   Wireframe[]             @relation("UserPersonalWireframes")
+  personalWhiteboards   Whiteboard[]             @relation("UserPersonalWhiteboards")
   personalPrompts      Prompt[]                @relation("UserPersonalPrompts")
   personalSections     PersonalSection[]
   activities           Activity[]
@@ -293,7 +293,7 @@ model Project {
   members    ProjectMember[]
   tasks      Task[]          @relation("ProjectTasks")
   documents  Document[]      @relation("ProjectDocuments")
-  wireframes Wireframe[]     @relation("ProjectWireframes")
+  Whiteboards Whiteboard[]     @relation("ProjectWhiteboards")
   prompts    Prompt[]        @relation("ProjectPrompts")
   activities Activity[]
   sprints    Sprint[]
@@ -476,7 +476,7 @@ model Document {
   @@map("documents")
 }
 
-model Wireframe {
+model Whiteboard {
   id           String    @id @default(cuid())
   title        String
   data         Json
@@ -485,13 +485,13 @@ model Wireframe {
   updatedAt    DateTime  @updatedAt
   projectId    String?
   userId       String?
-  project      Project?  @relation("ProjectWireframes", fields: [projectId], references: [id], onDelete: Cascade)
-  personalUser User?     @relation("UserPersonalWireframes", fields: [userId], references: [id], onDelete: Cascade)
+  project      Project?  @relation("ProjectWhiteboards", fields: [projectId], references: [id], onDelete: Cascade)
+  personalUser User?     @relation("UserPersonalWhiteboards", fields: [userId], references: [id], onDelete: Cascade)
   comments     Comment[]
   activities   Activity[]
   prompts      Prompt[]
 
-  @@map("wireframes")
+  @@map("Whiteboards")
 }
 
 model Comment {
@@ -503,11 +503,11 @@ model Comment {
   author      User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
   taskId      String?
   documentId  String?
-  wireframeId String?
+  WhiteboardId String?
   promptId    String?
   task        Task?      @relation(fields: [taskId], references: [id], onDelete: Cascade)
   document    Document?  @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  wireframe   Wireframe? @relation(fields: [wireframeId], references: [id], onDelete: Cascade)
+  Whiteboard   Whiteboard? @relation(fields: [WhiteboardId], references: [id], onDelete: Cascade)
   prompt      Prompt?    @relation(fields: [promptId], references: [id], onDelete: Cascade)
   mentions    Mention[]
 
@@ -534,12 +534,12 @@ model Activity {
   projectId   String?
   taskId      String?
   documentId  String?
-  wireframeId String?
+  WhiteboardId String?
   promptId    String?
   project     Project?     @relation(fields: [projectId], references: [id], onDelete: Cascade)
   task        Task?        @relation(fields: [taskId], references: [id], onDelete: Cascade)
   document    Document?    @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  wireframe   Wireframe?   @relation(fields: [wireframeId], references: [id], onDelete: Cascade)
+  Whiteboard   Whiteboard?   @relation(fields: [WhiteboardId], references: [id], onDelete: Cascade)
   prompt      Prompt?      @relation(fields: [promptId], references: [id], onDelete: Cascade)
 
   @@map("activities")
@@ -573,8 +573,8 @@ model Prompt {
   model       String?    @default("gpt-4o")
   projectId   String?
   userId      String?
-  wireframeId String?
-  wireframe   Wireframe? @relation(fields: [wireframeId], references: [id], onDelete: SetNull)
+  WhiteboardId String?
+  Whiteboard   Whiteboard? @relation(fields: [WhiteboardId], references: [id], onDelete: SetNull)
   project     Project?   @relation("ProjectPrompts", fields: [projectId], references: [id], onDelete: Cascade)
   user        User?      @relation("UserPersonalPrompts", fields: [userId], references: [id], onDelete: Cascade)
   comments    Comment[]

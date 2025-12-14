@@ -19,20 +19,20 @@ import {
   SocketId,
 } from "@excalidraw/excalidraw/types";
 
-import { useWireframeDetails, useProjectWireframes } from "@/hooks/useWireframes";
+import { useWhiteboardDetails, useProjectWhiteboards } from "@/hooks/useWhiteboards";
 import { GeneratePromptModal } from "@/components/modals/GeneratePromptModal";
 
 // --- Type definitions ---
-interface WireframeAppState
+interface WhiteboardAppState
   extends Partial<Omit<Omit<ExcalidrawAppState, "collaborators">, "files">> {
   collaborators?: Map<SocketId, Readonly<Collaborator>> | object;
 }
-interface WireframeContent {
+interface WhiteboardContent {
   elements?: ReadonlyArray<ExcalidrawElement>;
-  appState?: WireframeAppState;
+  appState?: WhiteboardAppState;
 }
-interface WireframeEditorPageProps {
-  wireframeId: string;
+interface WhiteboardEditorPageProps {
+  WhiteboardId: string;
   onBack: () => void;
 }
 
@@ -94,51 +94,51 @@ function debounce<T extends (...args: any[]) => any>(
   return debounced;
 }
 
-const WireframeEditorPage: React.FC<WireframeEditorPageProps> = memo(
-  ({ wireframeId, onBack }) => {
-    console.log(`LOG: [WireframeEditorPage] Rendering with wireframeId: ${wireframeId}`);
+const WhiteboardEditorPage: React.FC<WhiteboardEditorPageProps> = memo(
+  ({ WhiteboardId, onBack }) => {
+    console.log(`LOG: [WhiteboardEditorPage] Rendering with WhiteboardId: ${WhiteboardId}`);
     const [excalidrawAPI, setExcalidrawAPI] = useState<ExcalidrawAPI | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [wireframeImageForModal, setWireframeImageForModal] = useState<string | null>(null);
+    const [WhiteboardImageForModal, setWhiteboardImageForModal] = useState<string | null>(null);
     const [hasMounted, setHasMounted] = useState(false);
     const canSave = useRef(false);
 
-    const { wireframe, loading, error } = useWireframeDetails(wireframeId);
-    console.log(`LOG: [WireframeEditorPage] useWireframeDetails state:`, { loading, error, wireframe: !!wireframe });
+    const { Whiteboard, loading, error } = useWhiteboardDetails(WhiteboardId);
+    console.log(`LOG: [WhiteboardEditorPage] useWhiteboardDetails state:`, { loading, error, Whiteboard: !!Whiteboard });
 
     const [stableInitialData, setStableInitialData] = useState<{
         elements: ReadonlyArray<ExcalidrawElement>;
         appState: Partial<ExcalidrawAppState>;
     } | null>(null);
 
-    const projectIdRef = useRef<string | undefined | null>(wireframe?.project?.id);
-    if (wireframe && projectIdRef.current === undefined) {
-      projectIdRef.current = wireframe.project?.id || null;
+    const projectIdRef = useRef<string | undefined | null>(Whiteboard?.project?.id);
+    if (Whiteboard && projectIdRef.current === undefined) {
+      projectIdRef.current = Whiteboard.project?.id || null;
     }
     
-    const { updateWireframe } = useProjectWireframes(
+    const { updateWhiteboard } = useProjectWhiteboards(
       projectIdRef.current || undefined
     );
 
-    const [wireframeName, setWireframeName] = useState("");
+    const [WhiteboardName, setWhiteboardName] = useState("");
 
     useEffect(() => {
-      // Reset the save flag and stable data whenever the wireframe ID changes.
+      // Reset the save flag and stable data whenever the Whiteboard ID changes.
       canSave.current = false;
       setStableInitialData(null);
-    }, [wireframeId]);
+    }, [WhiteboardId]);
 
     useEffect(() => {
-      if (wireframe) {
-        if (wireframe.title !== wireframeName) {
-            console.log(`LOG: [WireframeEditorPage] useEffect syncing wireframeName from fetched data. New name: "${wireframe.title}"`);
-            setWireframeName(wireframe.title);
+      if (Whiteboard) {
+        if (Whiteboard.title !== WhiteboardName) {
+            console.log(`LOG: [WhiteboardEditorPage] useEffect syncing WhiteboardName from fetched data. New name: "${Whiteboard.title}"`);
+            setWhiteboardName(Whiteboard.title);
         }
 
         // Only compute and set the initial data ONCE when it first loads.
         if (!stableInitialData) {
-            console.log("LOG: [WireframeEditorPage] Preparing STABLE initial data for Excalidraw component from fetched wireframe.");
-            const content = wireframe.data;
+            console.log("LOG: [WhiteboardEditorPage] Preparing STABLE initial data for Excalidraw component from fetched Whiteboard.");
+            const content = Whiteboard.data;
             const elements = content.elements ?? [];
             const appState = content.appState ?? {};
             const preparedAppState: Partial<ExcalidrawAppState> = { ...appState };
@@ -146,26 +146,26 @@ const WireframeEditorPage: React.FC<WireframeEditorPageProps> = memo(
             setStableInitialData({ elements, appState: preparedAppState });
         }
       }
-    }, [wireframe]);
+    }, [Whiteboard]);
 
 
     useEffect(() => {
-      console.log("LOG: [WireframeEditorPage] Component has mounted. Setting hasMounted to true.");
+      console.log("LOG: [WhiteboardEditorPage] Component has mounted. Setting hasMounted to true.");
       setHasMounted(true);
     }, []);
 
-    // --- Save Wireframe Data function for Excalidraw content ---
-    const saveWireframeData = useCallback(async (
+    // --- Save Whiteboard Data function for Excalidraw content ---
+    const saveWhiteboardData = useCallback(async (
       elements: ReadonlyArray<ExcalidrawElement>,
       appState: ExcalidrawAppState,
       currentTitle: string
     ) => {
-      if (!wireframeId) {
-        console.warn("LOG: [WireframeEditorPage] Cannot save: wireframeId is missing.");
+      if (!WhiteboardId) {
+        console.warn("LOG: [WhiteboardEditorPage] Cannot save: WhiteboardId is missing.");
         return;
       }
 
-      console.log("LOG: [WireframeEditorPage] Executing saveWireframeData...");
+      console.log("LOG: [WhiteboardEditorPage] Executing saveWhiteboardData...");
 
       const filteredElements = elements.filter((element) => !element.isDeleted);
 
@@ -186,69 +186,69 @@ const WireframeEditorPage: React.FC<WireframeEditorPageProps> = memo(
       });
 
       try {
-        await updateWireframe(wireframeId, {
+        await updateWhiteboard(WhiteboardId, {
           title: currentTitle,
           data: {
             elements: filteredElements,
             appState: appStateToSave,
           },
         });
-        console.log("LOG: [WireframeEditorPage] Wireframe data saved successfully.");
+        console.log("LOG: [WhiteboardEditorPage] Whiteboard data saved successfully.");
         // After a successful save, disable further saves until the next user interaction.
         // This prevents the re-render caused by the data update from immediately triggering another save.
         canSave.current = false;
       } catch (err) {
-        console.error("LOG: [WireframeEditorPage] Error saving wireframe data:", err);
+        console.error("LOG: [WhiteboardEditorPage] Error saving Whiteboard data:", err);
       }
-    }, [wireframeId, updateWireframe]);
+    }, [WhiteboardId, updateWhiteboard]);
 
-    // --- Debounced version of saveWireframeData ---
-    const debouncedSaveWireframeData = useMemo(
+    // --- Debounced version of saveWhiteboardData ---
+    const debouncedSaveWhiteboardData = useMemo(
       () => {
-        console.log("LOG: [WireframeEditorPage] Creating debounced save function for wireframe data.");
-        return debounce(saveWireframeData, 1500);
+        console.log("LOG: [WhiteboardEditorPage] Creating debounced save function for Whiteboard data.");
+        return debounce(saveWhiteboardData, 1500);
       },
-      [saveWireframeData]
+      [saveWhiteboardData]
     );
 
-    // --- Save Wireframe Name function ---
-    const saveWireframeName = useCallback(async (id: string, title: string) => {
-      console.log(`LOG: [WireframeEditorPage] Executing saveWireframeName with title: "${title}"`);
+    // --- Save Whiteboard Name function ---
+    const saveWhiteboardName = useCallback(async (id: string, title: string) => {
+      console.log(`LOG: [WhiteboardEditorPage] Executing saveWhiteboardName with title: "${title}"`);
       try {
-        await updateWireframe(id, { title });
-        console.log(`LOG: [WireframeEditorPage] Wireframe name updated to "${title}".`);
+        await updateWhiteboard(id, { title });
+        console.log(`LOG: [WhiteboardEditorPage] Whiteboard name updated to "${title}".`);
       } catch (err) {
-        console.error("LOG: [WireframeEditorPage] Error updating wireframe name:", err);
+        console.error("LOG: [WhiteboardEditorPage] Error updating Whiteboard name:", err);
       }
-    }, [updateWireframe]);
+    }, [updateWhiteboard]);
 
-    // --- Debounced version of saveWireframeName ---
-    const debouncedSaveWireframeName = useMemo(
+    // --- Debounced version of saveWhiteboardName ---
+    const debouncedSaveWhiteboardName = useMemo(
       () => {
-        console.log("LOG: [WireframeEditorPage] Creating debounced save function for wireframe name.");
-        return debounce(saveWireframeName, 1000);
+        console.log("LOG: [WhiteboardEditorPage] Creating debounced save function for Whiteboard name.");
+        return debounce(saveWhiteboardName, 1000);
       },
-      [saveWireframeName]
+      [saveWhiteboardName]
     );
 
     // --- Excalidraw onChange Handler ---
     const handleExcalidrawChange = useCallback(
       (elements: ReadonlyArray<ExcalidrawElement>, appState: ExcalidrawAppState) => {
-        console.log("LOG: [WireframeEditorPage] handleExcalidrawChange triggered.");
+        console.log("LOG: [WhiteboardEditorPage] handleExcalidrawChange triggered.");
 
         if (!canSave.current) {
-          console.log("LOG: [WireframeEditorPage] Ignoring onChange event: save not enabled yet.");
+          console.log("LOG: [WhiteboardEditorPage] Ignoring onChange event: save not enabled yet.");
           return;
         }
         
-        debouncedSaveWireframeData(elements, appState, wireframeName);
+        debouncedSaveWhiteboardData(elements, appState, WhiteboardName);
       },
-      [debouncedSaveWireframeData, wireframeName]
+      [debouncedSaveWhiteboardData, WhiteboardName]
     );
     
     const handlePointerDown = useCallback(() => {
         if (!canSave.current) {
-            console.log("LOG: [WireframeEditorPage] First user interaction detected. Enabling save.");
+            console.log("LOG: [WhiteboardEditorPage] First user interaction detected. Enabling save.");
             canSave.current = true;
         }
     }, []);
@@ -259,35 +259,35 @@ const WireframeEditorPage: React.FC<WireframeEditorPageProps> = memo(
     }, []);
 
 
-    // --- Handle Wireframe Name Change Input ---
+    // --- Handle Whiteboard Name Change Input ---
     const handleNameChange = useCallback(
       (e: React.ChangeEvent<HTMLInputElement>) => {
         const newName = e.target.value;
-        console.log(`LOG: [WireframeEditorPage] handleNameChange. New value: "${newName}"`);
-        setWireframeName(newName);
-        if (!wireframeId) {
-          console.warn("LOG: [WireframeEditorPage] Cannot rename: wireframeId is missing.");
+        console.log(`LOG: [WhiteboardEditorPage] handleNameChange. New value: "${newName}"`);
+        setWhiteboardName(newName);
+        if (!WhiteboardId) {
+          console.warn("LOG: [WhiteboardEditorPage] Cannot rename: WhiteboardId is missing.");
           return;
         }
-        debouncedSaveWireframeName(wireframeId, newName);
+        debouncedSaveWhiteboardName(WhiteboardId, newName);
       },
-      [wireframeId, debouncedSaveWireframeName]
+      [WhiteboardId, debouncedSaveWhiteboardName]
     );
 
     // --- Back Callback ---
     const editorOnBack = useCallback(() => {
-      console.log("LOG: [WireframeEditorPage] Back button clicked. Flushing pending saves.");
-      debouncedSaveWireframeData.flush();
-      debouncedSaveWireframeName.flush();
+      console.log("LOG: [WhiteboardEditorPage] Back button clicked. Flushing pending saves.");
+      debouncedSaveWhiteboardData.flush();
+      debouncedSaveWhiteboardName.flush();
       onBack();
-    }, [onBack, debouncedSaveWireframeData, debouncedSaveWireframeName]);
+    }, [onBack, debouncedSaveWhiteboardData, debouncedSaveWhiteboardName]);
 
     const handleOpenModal = useCallback(async () => {
       if (!excalidrawAPI) {
-        console.warn("LOG: [WireframeEditorPage] Cannot generate prompt: Excalidraw API not ready.");
+        console.warn("LOG: [WhiteboardEditorPage] Cannot generate prompt: Excalidraw API not ready.");
         return;
       }
-      console.log("LOG: [WireframeEditorPage] Generating image for prompt modal using exportToBlob...");
+      console.log("LOG: [WhiteboardEditorPage] Generating image for prompt modal using exportToBlob...");
       try {
         const blob = await exportToBlob({
           elements: excalidrawAPI.getSceneElements(),
@@ -301,7 +301,7 @@ const WireframeEditorPage: React.FC<WireframeEditorPageProps> = memo(
         });
 
         if (!blob) {
-          console.error("LOG: [WireframeEditorPage] exportToBlob returned null or undefined.");
+          console.error("LOG: [WhiteboardEditorPage] exportToBlob returned null or undefined.");
           return;
         }
 
@@ -309,27 +309,27 @@ const WireframeEditorPage: React.FC<WireframeEditorPageProps> = memo(
         const reader = new FileReader();
         reader.onloadend = () => {
           const base64data = reader.result as string;
-          setWireframeImageForModal(base64data);
+          setWhiteboardImageForModal(base64data);
           setIsModalOpen(true);
         };
         reader.onerror = (error) => {
-          console.error("LOG: [WireframeEditorPage] FileReader error:", error);
+          console.error("LOG: [WhiteboardEditorPage] FileReader error:", error);
         };
         reader.readAsDataURL(blob);
 
       } catch (error) {
-        console.error("LOG: [WireframeEditorPage] Failed to export wireframe to blob:", error);
+        console.error("LOG: [WhiteboardEditorPage] Failed to export Whiteboard to blob:", error);
       }
     }, [excalidrawAPI]);
 
     const handleCloseModal = useCallback(() => {
       setIsModalOpen(false);
-      setWireframeImageForModal(null);
+      setWhiteboardImageForModal(null);
     }, []);
 
-    // Render loading state until wireframe data is fetched AND stable initial data is set.
+    // Render loading state until Whiteboard data is fetched AND stable initial data is set.
     if (!hasMounted || loading || !stableInitialData) {
-      console.log("LOG: [WireframeEditorPage] Rendering loading state (waiting for stableInitialData).");
+      console.log("LOG: [WhiteboardEditorPage] Rendering loading state (waiting for stableInitialData).");
       return (
         <div className="page-scroller grid h-full place-items-center p-4">
           <Loader2 className="h-8 w-8 animate-spin text-emerald-500" />
@@ -338,26 +338,26 @@ const WireframeEditorPage: React.FC<WireframeEditorPageProps> = memo(
     }
 
     if (error) {
-      console.log("LOG: [WireframeEditorPage] Rendering error state.", { error });
+      console.log("LOG: [WhiteboardEditorPage] Rendering error state.", { error });
       return (
         <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", height: "100vh", padding: "1rem" }}>
-          <p style={{ marginBottom: "1rem", color: "red" }}>Error loading wireframe: {error.message}</p>
+          <p style={{ marginBottom: "1rem", color: "red" }}>Error loading Whiteboard: {error.message}</p>
           <button onClick={editorOnBack}>Back</button>
         </div>
       );
     }
 
-    if (!wireframe) {
-      console.log("LOG: [WireframeEditorPage] Rendering 'not found' state.");
+    if (!Whiteboard) {
+      console.log("LOG: [WhiteboardEditorPage] Rendering 'not found' state.");
       return (
         <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", height: "100vh", padding: "1rem" }}>
-          <p style={{ marginBottom: "1rem" }}>Wireframe not found or is unavailable.</p>
+          <p style={{ marginBottom: "1rem" }}>Whiteboard not found or is unavailable.</p>
           <button onClick={editorOnBack}>Back</button>
         </div>
       );
     }
 
-    console.log("LOG: [WireframeEditorPage] Rendering main editor view.");
+    console.log("LOG: [WhiteboardEditorPage] Rendering main editor view.");
     return (
       <div style={{
         display: "flex",
@@ -376,9 +376,9 @@ const WireframeEditorPage: React.FC<WireframeEditorPageProps> = memo(
           </button>
           <input
             type="text"
-            value={wireframeName}
+            value={WhiteboardName}
             onChange={handleNameChange}
-            placeholder="Wireframe Name"
+            placeholder="Whiteboard Name"
             style={{ height: "2.25rem", width: "16.25rem", fontSize: "1.125rem", fontWeight: "600", textAlign: "center" }}
           />
 
@@ -416,13 +416,13 @@ const WireframeEditorPage: React.FC<WireframeEditorPageProps> = memo(
         <GeneratePromptModal
             isOpen={isModalOpen}
             onClose={handleCloseModal}
-            wireframeImageBase64={wireframeImageForModal}
-            wireframeId={wireframeId}
+            WhiteboardImageBase64={WhiteboardImageForModal}
+            WhiteboardId={WhiteboardId}
         />
       </div>
     );
   }
 );
 
-WireframeEditorPage.displayName = "WireframeEditorPage";
-export default WireframeEditorPage;
+WhiteboardEditorPage.displayName = "WhiteboardEditorPage";
+export default WhiteboardEditorPage;

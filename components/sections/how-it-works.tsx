@@ -49,7 +49,7 @@ export function HowItWorks() {
                   </div>
                   <div>
                     <span className="text-sm font-medium text-teal-600 bg-teal-100 px-3 py-1 rounded-full">Step 1</span>
-                    <h3 className="text-2xl font-bold text-gray-900 mt-2">Create Visual Wireframes</h3>
+                    <h3 className="text-2xl font-bold text-gray-900 mt-2">Create Visual Whiteboards</h3>
                   </div>
                 </div>
                 <p className="text-lg text-gray-600 leading-relaxed">
@@ -59,7 +59,7 @@ export function HowItWorks() {
                 <div className="space-y-3">
                   <div className="flex items-center gap-3">
                     <CheckCircle className="w-5 h-5 text-teal-600" />
-                    <span className="text-gray-700">Drag-and-drop wireframe builder</span>
+                    <span className="text-gray-700">Drag-and-drop Whiteboard builder</span>
                   </div>
                   <div className="flex items-center gap-3">
                     <CheckCircle className="w-5 h-5 text-teal-600" />
@@ -78,11 +78,11 @@ export function HowItWorks() {
 
               {/* 3D Layered Interface - Larger and Centered */}
               <div className="relative flex items-center justify-center">
-                {/* Background: Wireframe Editor - Shifted up slightly */}
+                {/* Background: Whiteboard Editor - Shifted up slightly */}
                 <div className="relative bg-white rounded-2xl shadow-2xl border border-gray-200 overflow-hidden w-full max-w-2xl">
                   <Image
-                    src="/wireframe-editor.png"
-                    alt="Visual Wireframe Editor"
+                    src="/Whiteboard-editor.png"
+                    alt="Visual Whiteboard Editor"
                     width={1400}
                     height={900}
                     className="w-full h-auto"

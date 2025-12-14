@@ -7,8 +7,8 @@ import { Loader2, Sparkles } from "lucide-react";
 interface GeneratePromptModalProps {
   isOpen: boolean;
   onClose: () => void;
-  wireframeImageBase64: string | null;
-  wireframeId?: string | null;
+  WhiteboardImageBase64: string | null;
+  WhiteboardId?: string | null;
 }
 
 const AnimatedDots = () => {
@@ -25,8 +25,8 @@ const AnimatedDots = () => {
 export const GeneratePromptModal: React.FC<GeneratePromptModalProps> = ({
   isOpen,
   onClose,
-  wireframeImageBase64,
-  wireframeId,
+  WhiteboardImageBase64,
+  WhiteboardId,
 }) => {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -44,7 +44,7 @@ export const GeneratePromptModal: React.FC<GeneratePromptModalProps> = ({
     error: createError 
   } = useCreatePrompt();
   
-  const generationPhases = useMemo(() => ['Thinking', 'Analyzing Wireframe', 'Generating Content'], []);
+  const generationPhases = useMemo(() => ['Thinking', 'Analyzing Whiteboard', 'Generating Content'], []);
   const [currentPhaseIndex, setCurrentPhaseIndex] = useState<number>(-1);
 
   useEffect(() => {
@@ -70,19 +70,19 @@ export const GeneratePromptModal: React.FC<GeneratePromptModalProps> = ({
   }, [isGenerating, generationPhases.length]);
 
   const handleGenerate = async () => {
-    if (!wireframeImageBase64) return;
+    if (!WhiteboardImageBase64) return;
 
     try {
       const result = await generate({
         variables: {
           input: {
-            imageBase64: wireframeImageBase64,
+            imageBase64: WhiteboardImageBase64,
             context: description,
           },
         },
       });
-      if (result.data?.generatePromptFromWireframe) {
-        setGeneratedContent(result.data.generatePromptFromWireframe);
+      if (result.data?.generatePromptFromWhiteboard) {
+        setGeneratedContent(result.data.generatePromptFromWhiteboard);
       }
     } catch (err) {
       console.error("Failed to generate content:", err);
@@ -90,9 +90,9 @@ export const GeneratePromptModal: React.FC<GeneratePromptModalProps> = ({
   };
 
   const handleCreatePrompt = async () => {
-    if (!generatedContent || !title || !wireframeId) return;
+    if (!generatedContent || !title || !WhiteboardId) return;
 
-    // Construct the version structure required by CreatePromptFromWireframeInput
+    // Construct the version structure required by CreatePromptFromWhiteboardInput
     const versionInput = {
       context: description, // Context for the version
       content: [{ type: "text", value: generatedContent, order: 0 }],
@@ -102,7 +102,7 @@ export const GeneratePromptModal: React.FC<GeneratePromptModalProps> = ({
     const input = {
       title,
       description,
-      wireframeId: wireframeId,
+      WhiteboardId: WhiteboardId,
       model: 'gemini-pro-vision',
       versions: [versionInput], // Wrap the version in an array
     };
@@ -133,20 +133,20 @@ export const GeneratePromptModal: React.FC<GeneratePromptModalProps> = ({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="p-6 border-b">
-          <h2 className="text-xl font-bold text-gray-800">Generate Prompt from Wireframe</h2>
-          <p className="text-sm text-gray-500">Use AI to generate a detailed prompt based on your wireframe image.</p>
+          <h2 className="text-xl font-bold text-gray-800">Generate Prompt from Whiteboard</h2>
+          <p className="text-sm text-gray-500">Use AI to generate a detailed prompt based on your Whiteboard image.</p>
         </div>
 
         <div className="flex-1 p-6 overflow-y-auto grid grid-cols-1 md:grid-cols-2 gap-8">
-          {/* Left Column: Wireframe Preview & Inputs */}
+          {/* Left Column: Whiteboard Preview & Inputs */}
           <div className="flex flex-col space-y-6">
             <div>
-              <label className="block text-sm font-medium text-gray-600 mb-2">Wireframe Preview</label>
-              {wireframeImageBase64 ? (
-                <img src={wireframeImageBase64} alt="Wireframe Preview" className="rounded-md border border-gray-200 shadow-sm w-full object-contain max-h-48" />
+              <label className="block text-sm font-medium text-gray-600 mb-2">Whiteboard Preview</label>
+              {WhiteboardImageBase64 ? (
+                <img src={WhiteboardImageBase64} alt="Whiteboard Preview" className="rounded-md border border-gray-200 shadow-sm w-full object-contain max-h-48" />
               ) : (
                 <div className="rounded-md border border-dashed border-gray-300 bg-gray-50 h-48 flex items-center justify-center">
-                  <p className="text-sm text-gray-500">No wireframe image provided.</p>
+                  <p className="text-sm text-gray-500">No Whiteboard image provided.</p>
                 </div>
               )}
             </div>
@@ -229,7 +229,7 @@ export const GeneratePromptModal: React.FC<GeneratePromptModalProps> = ({
               {!isGenerating && !generatedContent && (
                 <button
                   onClick={handleGenerate}
-                  disabled={!description || !title || !wireframeImageBase64}
+                  disabled={!description || !title || !WhiteboardImageBase64}
                   className="w-full mt-4 flex justify-center items-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-teal-500 hover:bg-teal-600 disabled:bg-gray-300 disabled:cursor-not-allowed focus:outline-none"
                 >
                   <Sparkles className="h-4 w-4 mr-2" />
@@ -252,7 +252,7 @@ export const GeneratePromptModal: React.FC<GeneratePromptModalProps> = ({
           </button>
           <button
             onClick={handleCreatePrompt}
-            disabled={!generatedContent || !title || isCreating || !wireframeId}
+            disabled={!generatedContent || !title || isCreating || !WhiteboardId}
             className="px-4 py-2 bg-teal-500 text-white rounded-lg hover:bg-teal-600 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center"
           >
             {isCreating ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : null}

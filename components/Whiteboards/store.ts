@@ -1,6 +1,6 @@
 "use client"
 
-export type Wireframe = {
+export type Whiteboard = {
   id: string
   title: string
   previewDataUrl?: string
@@ -14,23 +14,23 @@ export type Wireframe = {
   projectId?: string
 }
 
-const STORAGE_KEY = "nexdpm:wireframes"
+const STORAGE_KEY = "nexdpm:Whiteboards"
 
-function safeParse(raw: string | null): Wireframe[] {
+function safeParse(raw: string | null): Whiteboard[] {
   if (!raw) return []
   try {
-    const parsed = JSON.parse(raw) as Wireframe[]
+    const parsed = JSON.parse(raw) as Whiteboard[]
     return Array.isArray(parsed) ? parsed : []
   } catch {
     return []
   }
 }
 
-function loadAll(): Wireframe[] {
+function loadAll(): Whiteboard[] {
   if (typeof window === "undefined") return []
   return safeParse(localStorage.getItem(STORAGE_KEY))
 }
-function saveAll(list: Wireframe[]) {
+function saveAll(list: Whiteboard[]) {
   if (typeof window === "undefined") return
   localStorage.setItem(STORAGE_KEY, JSON.stringify(list))
 }
@@ -43,17 +43,17 @@ function genId() {
   }
 }
 
-export const wireframesStore = {
-  list(projectId?: string): Wireframe[] {
+export const WhiteboardsStore = {
+  list(projectId?: string): Whiteboard[] {
     const all = loadAll().sort((a, b) => b.updatedAt - a.updatedAt)
     if (!projectId) return all
     return all.filter((w) => w.projectId === projectId)
   },
-  get(id: string): Wireframe | undefined {
+  get(id: string): Whiteboard | undefined {
     return loadAll().find((w) => w.id === id)
   },
-  create(title = "Untitled Wireframe", projectId?: string): Wireframe {
-    const wf: Wireframe = {
+  create(title = "Untitled Whiteboard", projectId?: string): Whiteboard {
+    const wf: Whiteboard = {
       id: genId(),
       title,
       updatedAt: Date.now(),
@@ -70,7 +70,7 @@ export const wireframesStore = {
     saveAll(all)
     return wf
   },
-  update(id: string, patch: Partial<Wireframe>): Wireframe | undefined {
+  update(id: string, patch: Partial<Whiteboard>): Whiteboard | undefined {
     const all = loadAll()
     const idx = all.findIndex((w) => w.id === id)
     if (idx < 0) return

@@ -15,7 +15,7 @@ interface AnalyticsChartsProps {
   contentCreationData?: {
     date: string
     documents?: number | null
-    wireframes?: number | null
+    Whiteboards?: number | null
     tasks?: number | null
   }[]
 }
@@ -56,13 +56,13 @@ export function AnalyticsCharts({ userGrowthData, contentCreationData }: Analyti
       <Card className="lg:col-span-2">
         <CardHeader>
           <CardTitle>Content Creation Trends</CardTitle>
-          <CardDescription>Monthly creation of documents, wireframes, and tasks</CardDescription>
+          <CardDescription>Monthly creation of documents, Whiteboards, and tasks</CardDescription>
         </CardHeader>
         <CardContent>
           <ChartContainer
             config={{
               documents: { label: "Documents", color: "hsl(174, 70%, 54%)" },
-              wireframes: { label: "Wireframes", color: "hsl(210, 25%, 25%)" },
+              Whiteboards: { label: "Whiteboards", color: "hsl(210, 25%, 25%)" },
               tasks: { label: "Tasks", color: "hsl(200, 70%, 54%)" },
             }}
             className="h-[350px]"
@@ -75,7 +75,7 @@ export function AnalyticsCharts({ userGrowthData, contentCreationData }: Analyti
                 <ChartTooltip content={<ChartTooltipContent />} />
                 <Legend />
                 <Bar dataKey="documents" stackId="a" fill="var(--color-documents)" />
-                <Bar dataKey="wireframes" stackId="a" fill="var(--color-wireframes)" />
+                <Bar dataKey="Whiteboards" stackId="a" fill="var(--color-Whiteboards)" />
                 <Bar dataKey="tasks" stackId="a" fill="var(--color-tasks)" />
               </BarChart>
             </ResponsiveContainer>

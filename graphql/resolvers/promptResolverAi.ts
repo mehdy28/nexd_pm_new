@@ -3,7 +3,7 @@
 // import { GoogleGenerativeAI } from "@google/generative-ai";
 // import { GraphQLError } from "graphql";
 // import { prisma } from "@/lib/prisma";
-// import { WIREFRAME_TO_PROMPT_INSTRUCTIONS,ENHANCE_PROMPT_INSTRUCTIONS } from "@/lib/ai/instructions";
+// import { WHITEBOARD_TO_PROMPT_INSTRUCTIONS,ENHANCE_PROMPT_INSTRUCTIONS } from "@/lib/ai/instructions";
 
 // Define context shape based on your setup
 // interface GraphQLContext {
@@ -25,7 +25,7 @@
 //   };
 // }
 
-// Define the shape of the input for createPromptFromWireframe
+// Define the shape of the input for createPromptFromWhiteboard
 // interface ContentBlockInput {
 //   type: string;
 //   value?: string;
@@ -51,8 +51,8 @@
 //   description?: string;
 // }
 
-// interface CreatePromptFromWireframeInput {
-//   wireframeId: string;
+// interface CreatePromptFromWhiteboardInput {
+//   WhiteboardId: string;
 //   title: string;
 //   context?: string;
 //   description?: string;
@@ -67,7 +67,7 @@
 
 // const promptResolversAi = {
 //   Mutation: {
-//     generatePromptFromWireframe: async (
+//     generatePromptFromWhiteboard: async (
 //       _parent: any,
 //       { input }: { input: { imageBase64: string; context: string } },
 //       context: GraphQLContext
@@ -100,12 +100,12 @@
 //         4. Interact with Generative AI Model - Use the versioned model name for vision
 //         const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
-//         const fullPrompt = `${WIREFRAME_TO_PROMPT_INSTRUCTIONS}
+//         const fullPrompt = `${WHITEBOARD_TO_PROMPT_INSTRUCTIONS}
     
 //     User-provided context:
 //     "${userContext}"
     
-//     Begin generating the prompt based on the instructions and the provided wireframe image.`;
+//     Begin generating the prompt based on the instructions and the provided Whiteboard image.`;
 
 //         const imagePart = fileToGenerativePart(base64Data, "image/png");
 
@@ -116,7 +116,7 @@
 //         5. Return Result
 //         return text;
 //       } catch (error: any) {
-//         console.error("Error in generatePromptFromWireframe resolver:", error);
+//         console.error("Error in generatePromptFromWhiteboard resolver:", error);
 
 //         Log more specific details if available
 //         if (error.response) {
@@ -132,9 +132,9 @@
 //       }
 //     },
 
-//     createPromptFromWireframe: async (
+//     createPromptFromWhiteboard: async (
 //       _parent: any,
-//       { input }: { input: CreatePromptFromWireframeInput },
+//       { input }: { input: CreatePromptFromWhiteboardInput },
 //       context: GraphQLContext
 //     ) => {
 //       1. Authentication Check
@@ -144,11 +144,11 @@
 //         });
 //       }
 
-//       const { wireframeId, content, context: versionContext, variables: versionVariables, ...promptData } = input;
+//       const { WhiteboardId, content, context: versionContext, variables: versionVariables, ...promptData } = input;
 
 //       2. Input Validation
-//       if (!wireframeId || !promptData.title) {
-//         throw new GraphQLError("Wireframe ID and title are required.", {
+//       if (!WhiteboardId || !promptData.title) {
+//         throw new GraphQLError("Whiteboard ID and title are required.", {
 //           extensions: { code: "BAD_USER_INPUT" },
 //         });
 //       }
@@ -173,10 +173,10 @@
 //       }
 
 //       try {
-//         4. Find the wireframe to get its project ID (if any)
-//         const wireframe = await prisma.wireframe.findUnique({
+//         4. Find the Whiteboard to get its project ID (if any)
+//         const Whiteboard = await prisma.whiteboard.findUnique({
 //           where: {
-//             id: wireframeId,
+//             id: WhiteboardId,
 //           },
 //           select: {
 //             projectId: true,
@@ -184,15 +184,15 @@
 //           },
 //         });
 
-//         5. Handle Wireframe Not Found
-//         if (!wireframe) {
-//           throw new GraphQLError("Wireframe not found.", {
+//         5. Handle Whiteboard Not Found
+//         if (!Whiteboard) {
+//           throw new GraphQLError("Whiteboard not found.", {
 //             extensions: { code: "NOT_FOUND" },
 //           });
 //         }
 
-//         if (wireframe.userId && wireframe.userId !== context.user.id) {
-//           throw new GraphQLError("You are not authorized to create a prompt from this wireframe.", {
+//         if (Whiteboard.userId && Whiteboard.userId !== context.user.id) {
+//           throw new GraphQLError("You are not authorized to create a prompt from this Whiteboard.", {
 //             extensions: { code: "FORBIDDEN" },
 //           });
 //         }
@@ -238,9 +238,9 @@
 //         7. Prepare data for prompt creation
 //         const dataToCreate: any = {
 //           ...promptData,
-//           wireframeId: wireframeId,
+//           WhiteboardId: WhiteboardId,
 //           userId: context.user.id,
-//           projectId: wireframe.projectId,
+//           projectId: Whiteboard.projectId,
 //           versions: {
 //             create: [versionCreateData],
 //           },
@@ -265,7 +265,7 @@
 //         if (error instanceof GraphQLError) {
 //           throw error;
 //         }
-//         console.error("Error creating prompt from wireframe:", error);
+//         console.error("Error creating prompt from Whiteboard:", error);
 //         throw new GraphQLError("Could not create the prompt.", {
 //           extensions: { code: "INTERNAL_SERVER_ERROR" },
 //         });
@@ -392,7 +392,7 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { GraphQLError } from "graphql";
 import { prisma } from "@/lib/prisma";
-import { WIREFRAME_TO_PROMPT_INSTRUCTIONS,ENHANCE_PROMPT_INSTRUCTIONS } from "@/lib/ai/instructions";
+import { WHITEBOARD_TO_PROMPT_INSTRUCTIONS,ENHANCE_PROMPT_INSTRUCTIONS } from "@/lib/ai/instructions";
 
 // Define context shape based on your setup
 interface GraphQLContext {
@@ -414,7 +414,7 @@ function fileToGenerativePart(base64: string, mimeType: string) {
   };
 }
 
-// Define the shape of the input for createPromptFromWireframe
+// Define the shape of the input for createPromptFromWhiteboard
 interface ContentBlockInput {
   type: string;
   value?: string;
@@ -440,8 +440,8 @@ interface CreateVersionInput {
   description?: string;
 }
 
-interface CreatePromptFromWireframeInput {
-  wireframeId: string;
+interface CreatePromptFromWhiteboardInput {
+  WhiteboardId: string;
   title: string;
   context?: string;
   description?: string;
@@ -456,7 +456,7 @@ interface CreatePromptFromWireframeInput {
 
 const promptResolversAi = {
   Mutation: {
-    generatePromptFromWireframe: async (
+    generatePromptFromWhiteboard: async (
       _parent: any,
       { input }: { input: { imageBase64: string; context: string } },
       context: GraphQLContext
@@ -489,12 +489,12 @@ const promptResolversAi = {
         // 4. Interact with Generative AI Model - Use the versioned model name for vision
         const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
-        const fullPrompt = `${WIREFRAME_TO_PROMPT_INSTRUCTIONS}
+        const fullPrompt = `${WHITEBOARD_TO_PROMPT_INSTRUCTIONS}
     
     User-provided context:
     "${userContext}"
     
-    Begin generating the prompt based on the instructions and the provided wireframe image.`;
+    Begin generating the prompt based on the instructions and the provided Whiteboard image.`;
 
         const imagePart = fileToGenerativePart(base64Data, "image/png");
 
@@ -505,7 +505,7 @@ const promptResolversAi = {
         // 5. Return Result
         return text;
       } catch (error: any) {
-        console.error("Error in generatePromptFromWireframe resolver:", error);
+        console.error("Error in generatePromptFromWhiteboard resolver:", error);
 
         // Log more specific details if available
         if (error.response) {
@@ -521,9 +521,9 @@ const promptResolversAi = {
       }
     },
 
-    createPromptFromWireframe: async (
+    createPromptFromWhiteboard: async (
       _parent: any,
-      { input }: { input: CreatePromptFromWireframeInput },
+      { input }: { input: CreatePromptFromWhiteboardInput },
       context: GraphQLContext
     ) => {
       // 1. Authentication Check
@@ -533,11 +533,11 @@ const promptResolversAi = {
         });
       }
 
-      const { wireframeId, content, context: versionContext, variables: versionVariables, ...promptData } = input;
+      const { WhiteboardId, content, context: versionContext, variables: versionVariables, ...promptData } = input;
 
       // 2. Input Validation
-      if (!wireframeId || !promptData.title) {
-        throw new GraphQLError("Wireframe ID and title are required.", {
+      if (!WhiteboardId || !promptData.title) {
+        throw new GraphQLError("Whiteboard ID and title are required.", {
           extensions: { code: "BAD_USER_INPUT" },
         });
       }
@@ -562,10 +562,10 @@ const promptResolversAi = {
       }
 
       try {
-        // 4. Find the wireframe to get its project ID (if any)
-        const wireframe = await prisma.wireframe.findUnique({
+        // 4. Find the Whiteboard to get its project ID (if any)
+        const Whiteboard = await prisma.whiteboard.findUnique({
           where: {
-            id: wireframeId,
+            id: WhiteboardId,
           },
           select: {
             projectId: true,
@@ -573,15 +573,15 @@ const promptResolversAi = {
           },
         });
 
-        // 5. Handle Wireframe Not Found
-        if (!wireframe) {
-          throw new GraphQLError("Wireframe not found.", {
+        // 5. Handle Whiteboard Not Found
+        if (!Whiteboard) {
+          throw new GraphQLError("Whiteboard not found.", {
             extensions: { code: "NOT_FOUND" },
           });
         }
 
-        if (wireframe.userId && wireframe.userId !== context.user.id) {
-          throw new GraphQLError("You are not authorized to create a prompt from this wireframe.", {
+        if (Whiteboard.userId && Whiteboard.userId !== context.user.id) {
+          throw new GraphQLError("You are not authorized to create a prompt from this Whiteboard.", {
             extensions: { code: "FORBIDDEN" },
           });
         }
@@ -627,9 +627,9 @@ const promptResolversAi = {
         // 7. Prepare data for prompt creation
         const dataToCreate: any = {
           ...promptData,
-          wireframeId: wireframeId,
+          WhiteboardId: WhiteboardId,
           userId: context.user.id,
-          projectId: wireframe.projectId,
+          projectId: Whiteboard.projectId,
           versions: {
             create: [versionCreateData],
           },
@@ -654,7 +654,7 @@ const promptResolversAi = {
         if (error instanceof GraphQLError) {
           throw error;
         }
-        console.error("Error creating prompt from wireframe:", error);
+        console.error("Error creating prompt from Whiteboard:", error);
         throw new GraphQLError("Could not create the prompt.", {
           extensions: { code: "INTERNAL_SERVER_ERROR" },
         });

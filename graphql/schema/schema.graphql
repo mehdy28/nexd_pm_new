@@ -71,9 +71,9 @@ enum ActivityType {
   DOCUMENT_CREATED
   DOCUMENT_UPDATED
   DOCUMENT_DELETED
-  WIREFRAME_CREATED
-  WIREFRAME_UPDATED
-  WIREFRAME_DELETED
+  WHITEBOARD_CREATED
+  WHITEBOARD_UPDATED
+  WHITEBOARD_DELETED
   PROMPT_CREATED
   PROMPT_UPDATED
   PROMPT_DELETED
@@ -191,7 +191,7 @@ type User {
   createdTasks: [Task]
   personalTasks: [Task]
   personalDocuments: [Document]
-  personalWireframes: [Wireframe]
+  personalWhiteboards: [Whiteboard]
   personalPrompts: [Prompt]
   personalSections: [PersonalSection]
   activities: [Activity]
@@ -264,7 +264,7 @@ type Project {
   members: [ProjectMember!]!
   tasks: [Task!]!
   documents: [Document!]!
-  wireframes: [Wireframe!]!
+  Whiteboards: [Whiteboard!]!
   prompts: [Prompt!]!
   activities: [Activity!]!
   sprints: [Sprint!]!
@@ -404,7 +404,7 @@ type Document {
   comments: [Comment!]!
 }
 
-type Wireframe {
+type Whiteboard {
   id: ID!
   title: String!
   data: JSON!
@@ -417,7 +417,7 @@ type Wireframe {
   activities: [Activity!]!
 }
 
-type WireframeListItem {
+type WhiteboardListItem {
   id: ID!
   title: String
   data: JSON
@@ -434,7 +434,7 @@ type Comment {
   author: User!
   task: Task
   document: Document
-  wireframe: Wireframe
+  Whiteboard: Whiteboard
   prompt: Prompt
   mentions: [Mention!]!
 }
@@ -454,7 +454,7 @@ type Activity {
   project: Project
   task: Task
   document: Document
-  wireframe: Wireframe
+  Whiteboard: Whiteboard
   prompt: Prompt
 }
 
@@ -516,8 +516,8 @@ type Prompt {
   projectId: ID
   project: Project
   user: User
-  wireframeId: ID
-  wireframe: Wireframe
+  WhiteboardId: ID
+  Whiteboard: Whiteboard
   comments: [Comment!]
   activities: [Activity!]
   versions: [Version!]
@@ -775,8 +775,8 @@ type DocumentsListResponse {
   totalCount: Int!
 }
 
-type WireframesListResponse {
-  wireframes: [WireframeListItem!]!
+type WhiteboardsListResponse {
+  Whiteboards: [WhiteboardListItem!]!
   totalCount: Int!
 }
 
@@ -1013,7 +1013,7 @@ type AdminKpiMetrics {
   totalProjects: AdminMetric!
   tasksCreated: AdminMetric!
   documents: AdminMetric!
-  wireframes: AdminMetric!
+  Whiteboards: AdminMetric!
   monthlyRevenue: AdminMetric!
   churnRate: AdminMetric!
 }
@@ -1029,7 +1029,7 @@ type AdminMultiLineTimeChartPoint {
   projects: Int
   tasks: Int
   documents: Int
-  wireframes: Int
+  Whiteboards: Int
 }
 
 type AdminDistributionChartPoint {
@@ -1149,18 +1149,18 @@ input UpdateSprintInput {
   isCompleted: Boolean
   status: SprintStatus
 }
-input CreateWireframeInput {
+input CreateWhiteboardInput {
   projectId: ID!
   title: String!
   data: JSON!
   thumbnail: String
 }
-input CreatePersonalWireframeInput {
+input CreatePersonalWhiteboardInput {
   title: String!
   data: JSON!
   thumbnail: String
 }
-input UpdateWireframeInput {
+input UpdateWhiteboardInput {
   id: ID!
   title: String
   data: JSON
@@ -1291,8 +1291,8 @@ input CreatePromptInput {
   versions: [CreateVersionInput!]
 }
 
-input CreatePromptFromWireframeInput {
-  wireframeId: ID!
+input CreatePromptFromWhiteboardInput {
+  WhiteboardId: ID!
   title: String!
   content: [CreateContentBlockInput!]
   context: String
@@ -1352,7 +1352,7 @@ input ConfirmAttachmentInput {
 }
 
 
-input GeneratePromptFromWireframeInput {
+input GeneratePromptFromWhiteboardInput {
   imageBase64: String!
   context: String!
 }
@@ -1463,8 +1463,8 @@ type Query {
   getProjectTasksAndSections(projectId: ID!, sprintId: ID): ProjectTasksAndSectionsData
   getProjectDocuments(projectId: ID!, search: String, skip: Int, take: Int): DocumentsListResponse!
   getDocumentDetails(id: ID!): Document
-  getProjectWireframes(projectId: ID!, search: String, skip: Int, take: Int): WireframesListResponse!
-  getWireframeDetails(id: ID!): Wireframe
+  getProjectWhiteboards(projectId: ID!, search: String, skip: Int, take: Int): WhiteboardsListResponse!
+  getWhiteboardDetails(id: ID!): Whiteboard
   getProjectPrompts(projectId: ID, skip: Int, take: Int, q: String): PromptsListResponse!
   getPromptDetails(id: ID!): Prompt
   getPromptVersionContent(promptId: ID!, versionId: ID!): Version!
@@ -1478,7 +1478,7 @@ type Query {
   getMyGanttData: PersonalGanttDataResponse
   getMyTasksAndSections: UserTasksAndSectionsData!
   getMyDocuments(search: String, skip: Int, take: Int): DocumentsListResponse!
-  getMyWireframes(search: String, skip: Int, take: Int): WireframesListResponse!
+  getMyWhiteboards(search: String, skip: Int, take: Int): WhiteboardsListResponse!
   getMyPrompts(skip: Int, take: Int, q: String): PromptsListResponse!
   getMyDashboardData: UserDashboardData!
   getMyNotificationSettings: UserNotificationSettings
@@ -1578,12 +1578,12 @@ type Mutation {
   deleteDocument(id: ID!): DocumentListItem!
   deleteManyDocuments(ids: [ID!]!): DeleteManyPayload!
 
-  # Wireframes (Project & Personal)
-  createWireframe(input: CreateWireframeInput!): WireframeListItem!
-  createPersonalWireframe(input: CreatePersonalWireframeInput!): WireframeListItem!
-  updateWireframe(input: UpdateWireframeInput!): WireframeListItem!
-  deleteWireframe(id: ID!): WireframeListItem!
-  deleteManyWireframes(ids: [ID!]!): DeleteManyPayload!
+  # Whiteboards (Project & Personal)
+  createWhiteboard(input: CreateWhiteboardInput!): WhiteboardListItem!
+  createPersonalWhiteboard(input: CreatePersonalWhiteboardInput!): WhiteboardListItem!
+  updateWhiteboard(input: UpdateWhiteboardInput!): WhiteboardListItem!
+  deleteWhiteboard(id: ID!): WhiteboardListItem!
+  deleteManyWhiteboards(ids: [ID!]!): DeleteManyPayload!
 
   # Prompts (Project & Personal)
   createPrompt(input: CreatePromptInput!): Prompt!
@@ -1596,7 +1596,7 @@ type Mutation {
   updatePromptVersion(input: UpdatePromptVersionInput!): Prompt!
 
   # Prompts (Ai)
-  createPromptFromWireframe(input: CreatePromptFromWireframeInput!): Prompt!
+  createPromptFromWhiteboard(input: CreatePromptFromWhiteboardInput!): Prompt!
   updatePromptAiEnhancedContent(input: UpdatePromptAiEnhancedContentInput!): String!
 
   # Comments
@@ -1636,7 +1636,7 @@ type Mutation {
   removeProjectMembers(memberIds: [ID!]!): [ProjectMemberDetails!]!
 
   # Ai Prompt
-  generatePromptFromWireframe(input: GeneratePromptFromWireframeInput!): String!
+  generatePromptFromWhiteboard(input: GeneratePromptFromWhiteboardInput!): String!
 
 # Admin Support
   adminSendTicketMessage(ticketId: ID!, content: String!): TicketMessage!

@@ -21,7 +21,7 @@ const TABS: readonly TabItem[] = [
   { label: "Gantt", href: "#", Icon: BarChart3 },
   { label: "Calendar", href: "#", Icon: CalendarDays },
   { label: "Documents", href: "#", Icon: FileText },
-  { label: "Wireframes", href: "#", Icon: Layers3 },
+  { label: "Whiteboards", href: "#", Icon: Layers3 },
   { label: "Prompts", href: "/prompts", Icon: Lightbulb },
   { label: "Dashboard", href: "#", Icon: Gauge },
 ] as const

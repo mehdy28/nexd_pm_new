@@ -16,12 +16,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import WireframeEditorComponent from "@/components/wireframes/wireframe-editor"
-import { useProjectWireframes } from "@/hooks/useWireframes" // Assuming this hook handles project context
+import WhiteboardEditorComponent from "@/components/Whiteboards/Whiteboard-editor"
+import { useProjectWhiteboards } from "@/hooks/useWhiteboards" // Assuming this hook handles project context
 import { LoadingPlaceholder, ErrorPlaceholder } from "@/components/placeholders/status-placeholders"
 // Template imports matching personal view
 import { templates, Template } from "@/lib/whiteBoard/whiteBoard-templates"
-import { WireframeTemplatesModal } from "../modals/WireframeTemplatesModal"
+import { WhiteboardTemplatesModal } from "../modals/WhiteboardTemplatesModal"
 // Excalidraw imports for preview generation
 import { exportToCanvas } from "@excalidraw/excalidraw"
 import { ExcalidrawElement } from "@excalidraw/excalidraw/element/types"
@@ -39,8 +39,8 @@ function timeAgo(ts: number) {
   return `${d}d ago`
 }
 
-// Replicating WireframePreview component from PersonalWireframesView.tsx
-const WireframePreview = ({
+// Replicating WhiteboardPreview component from PersonalWhiteboardsView.tsx
+const WhiteboardPreview = ({
   data,
   title,
 }: {
@@ -83,7 +83,7 @@ const WireframePreview = ({
           setImageUrl(canvas.toDataURL("image/png"))
         }
       } catch (error) {
-        console.error("Failed to generate wireframe preview:", error)
+        console.error("Failed to generate Whiteboard preview:", error)
         if (isMounted) {
           setImageUrl("/placeholder.svg")
         }
@@ -100,7 +100,7 @@ const WireframePreview = ({
   return (
     <div ref={containerRef} className="flex h-full w-full items-center justify-center">
       {imageUrl ? (
-        // Use object-contain for wireframes to prevent clipping/distortion
+        // Use object-contain for Whiteboards to prevent clipping/distortion
         <img src={imageUrl} alt={`${title} preview`} className="max-h-full max-w-full object-contain" />
       ) : (
         <div className="grid h-full w-full place-items-center">
@@ -112,7 +112,7 @@ const WireframePreview = ({
 }
 
 
-const WireframeListView = ({
+const WhiteboardListView = ({
   projectId,
   onEdit,
   onCreate,
@@ -122,7 +122,7 @@ const WireframeListView = ({
   onCreate: (id: string) => void
 }) => {
   const {
-    wireframes: pageItems,
+    Whiteboards: pageItems,
     totalCount,
     loading,
     error,
@@ -133,15 +133,15 @@ const WireframeListView = ({
     search,
     setSearch,
     refetch,
-    createWireframe,
-    updateWireframe,
-    deleteWireframe,
-    deleteManyProjectWireframes,
-  } = useProjectWireframes(projectId)
+    createWhiteboard,
+    updateWhiteboard,
+    deleteWhiteboard,
+    deleteManyProjectWhiteboards,
+  } = useProjectWhiteboards(projectId)
 
   const [selected, setSelected] = useState<Record<string, boolean>>({})
   const [deleteTarget, setDeleteTarget] = useState<string | string[] | null>(null)
-  const [renamingWireframeId, setRenamingWireframeId] = useState<string | null>(null)
+  const [renamingWhiteboardId, setRenamingWhiteboardId] = useState<string | null>(null)
   const [editingTitle, setEditingTitle] = useState("")
   const [isTemplatesModalOpen, setIsTemplatesModalOpen] = useState(false)
   const [isCreatingTemplate, setIsCreatingTemplate] = useState(false)
@@ -161,15 +161,15 @@ const WireframeListView = ({
 
   const handleCreateNew = useCallback(async () => {
     try {
-      // Assuming project wireframes use the same default data structure as personal ones
-      const newWireframe = await createWireframe("Untitled Wireframe", { elements: [], appState: {} })
-      if (newWireframe) {
-        onCreate(newWireframe.id)
+      // Assuming project Whiteboards use the same default data structure as personal ones
+      const newWhiteboard = await createWhiteboard("Untitled Whiteboard", { elements: [], appState: {} })
+      if (newWhiteboard) {
+        onCreate(newWhiteboard.id)
       }
     } catch (err) {
-      console.error("Failed to create new wireframe:", err)
+      console.error("Failed to create new Whiteboard:", err)
     }
-  }, [createWireframe, onCreate])
+  }, [createWhiteboard, onCreate])
 
   const handleSelectTemplate = useCallback(
     async (template: Template) => {
@@ -182,46 +182,46 @@ const WireframeListView = ({
         const templateData = await response.json()
         
         // Ensure templateData structure is correct for the hook (e.g., { elements: [], appState: {} })
-        const newWireframe = await createWireframe(template.name, templateData)
+        const newWhiteboard = await createWhiteboard(template.name, templateData)
         
-        if (newWireframe) {
+        if (newWhiteboard) {
           setIsTemplatesModalOpen(false)
-          onCreate(newWireframe.id)
+          onCreate(newWhiteboard.id)
         }
       } catch (err) {
-        console.error("Failed to create wireframe from template:", err)
+        console.error("Failed to create Whiteboard from template:", err)
       } finally {
         setIsCreatingTemplate(false)
       }
     },
-    [createWireframe, onCreate],
+    [createWhiteboard, onCreate],
   )
 
   const handleStartRename = useCallback((id: string, currentTitle: string) => {
-    setRenamingWireframeId(id)
+    setRenamingWhiteboardId(id)
     setEditingTitle(currentTitle)
   }, [])
 
   const handleConfirmRename = useCallback(async () => {
-    if (!renamingWireframeId) return
-    const originalWireframe = pageItems.find(w => w.id === renamingWireframeId)
+    if (!renamingWhiteboardId) return
+    const originalWhiteboard = pageItems.find(w => w.id === renamingWhiteboardId)
     const newTitle = editingTitle.trim()
-    if (originalWireframe && newTitle && newTitle !== originalWireframe.title) {
+    if (originalWhiteboard && newTitle && newTitle !== originalWhiteboard.title) {
       try {
-        await updateWireframe(renamingWireframeId, { title: newTitle })
+        await updateWhiteboard(renamingWhiteboardId, { title: newTitle })
       } catch (err) {
-        console.error("Failed to rename wireframe:", err)
+        console.error("Failed to rename Whiteboard:", err)
       }
     }
-    setRenamingWireframeId(null)
+    setRenamingWhiteboardId(null)
     setEditingTitle("")
-  }, [renamingWireframeId, editingTitle, updateWireframe, pageItems])
+  }, [renamingWhiteboardId, editingTitle, updateWhiteboard, pageItems])
 
   const handleRenameInputKeyDown = useCallback(
     (e: KeyboardEvent<HTMLInputElement>) => {
       if (e.key === "Enter") handleConfirmRename()
       else if (e.key === "Escape") {
-        setRenamingWireframeId(null)
+        setRenamingWhiteboardId(null)
         setEditingTitle("")
       }
     },
@@ -234,18 +234,18 @@ const WireframeListView = ({
       const idsToDelete = Array.isArray(deleteTarget) ? deleteTarget : [deleteTarget]
       
       if (idsToDelete.length > 1) {
-        await deleteManyProjectWireframes(idsToDelete)
+        await deleteManyProjectWhiteboards(idsToDelete)
       } else {
-        await deleteWireframe(idsToDelete[0])
+        await deleteWhiteboard(idsToDelete[0])
       }
 
       setSelected({})
     } catch (err) {
-      console.error("Failed to delete wireframe(s):", err)
+      console.error("Failed to delete Whiteboard(s):", err)
     } finally {
       setDeleteTarget(null)
     }
-  }, [deleteTarget, deleteWireframe, deleteManyProjectWireframes])
+  }, [deleteTarget, deleteWhiteboard, deleteManyProjectWhiteboards])
 
   const handleBulkDelete = useCallback(() => {
     const idsToDelete = Object.keys(selected).filter(id => selected[id])
@@ -254,7 +254,7 @@ const WireframeListView = ({
 
   const handleExportSelected = useCallback(async () => {
     const idsToExport = Object.keys(selected).filter(id => selected[id])
-    // Assuming wireframes in pageItems have the 'data' field necessary for export
+    // Assuming Whiteboards in pageItems have the 'data' field necessary for export
     const itemsToExport = pageItems.filter((w: any) => idsToExport.includes(w.id))
 
     // Iterate sequentially to avoid browser blocking multiple simultaneous downloads
@@ -282,14 +282,14 @@ const WireframeListView = ({
         a.click()
         document.body.removeChild(a)
       } catch (err) {
-        console.error(`Failed to export wireframe: ${item.title}`, err)
+        console.error(`Failed to export Whiteboard: ${item.title}`, err)
       }
     }
   }, [selected, pageItems])
 
 
   if (loading && pageItems.length === 0) {
-    return <LoadingPlaceholder message="Loading project wireframes..." />
+    return <LoadingPlaceholder message="Loading project Whiteboards..." />
   }
 
   if (error) {
@@ -299,8 +299,8 @@ const WireframeListView = ({
 
   const deleteModalDescription =
     deleteTarget && Array.isArray(deleteTarget)
-      ? `You are about to permanently delete ${deleteTarget.length} wireframes. This action cannot be undone.`
-      : "You are about to permanently delete this wireframe. This action cannot be undone."
+      ? `You are about to permanently delete ${deleteTarget.length} Whiteboards. This action cannot be undone.`
+      : "You are about to permanently delete this Whiteboard. This action cannot be undone."
 
 
   return (
@@ -361,13 +361,13 @@ const WireframeListView = ({
 
           <section>
             <div className="mb-4">
-              <h2 className="text-xl font-semibold text-slate-800">Project wireframes</h2>
+              <h2 className="text-xl font-semibold text-slate-800">Project Whiteboards</h2>
               <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-[1fr_auto] md:items-center">
                 <Input
                   value={search}
                   onChange={e => setSearch(e.target.value)}
                   className="h-9 sm:w-[280px]"
-                  placeholder="Search wireframes..."
+                  placeholder="Search Whiteboards..."
                 />
                 <div className="flex items-center justify-start gap-2 md:justify-end">
                   {selectedCount > 0 && (
@@ -386,7 +386,7 @@ const WireframeListView = ({
                     onClick={handleCreateNew}
                   >
                     <Plus className="mr-1 h-4 w-4" />
-                    New wireframe
+                    New Whiteboard
                   </Button>
                 </div>
               </div>
@@ -400,23 +400,23 @@ const WireframeListView = ({
               )}
               {pageItems.length > 0 ? (
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                  {pageItems.map((w: any) => ( // Cast to 'any' since we don't have the full ProjectWireframe type but rely on 'data'
+                  {pageItems.map((w: any) => ( // Cast to 'any' since we don't have the full ProjectWhiteboard type but rely on 'data'
                     <article key={w.id} className="group relative overflow-hidden rounded-lg border">
                       <div className="absolute left-2 top-2 z-10">
                         <Checkbox
                           checked={!!selected[w.id]}
                           onCheckedChange={v => toggleSelect(w.id, !!v)}
-                          aria-label="Select wireframe"
+                          aria-label="Select Whiteboard"
                         />
                       </div>
-                      <div onClick={() => onEdit(w.id)} title="Open wireframe" className="block cursor-pointer">
+                      <div onClick={() => onEdit(w.id)} title="Open Whiteboard" className="block cursor-pointer">
                         <div className="aspect-[16/10] w-full bg-white p-2">
-                          <WireframePreview data={w.data} title={w.title} />
+                          <WhiteboardPreview data={w.data} title={w.title} />
                         </div>
                       </div>
                       <div className="flex items-center justify-between px-3 py-2">
                         <div className="min-w-0 flex-1">
-                          {renamingWireframeId === w.id ? (
+                          {renamingWhiteboardId === w.id ? (
                             <Input
                               autoFocus
                               value={editingTitle}
@@ -459,8 +459,8 @@ const WireframeListView = ({
               ) : !loading ? (
                 <div className="flex h-full min-h-[200px] items-center justify-center rounded-md border border-dashed text-center text-sm text-slate-500">
                   <div>
-                    <p>No wireframes found.</p>
-                    <p className="mt-1">Click “New wireframe” to get started.</p>
+                    <p>No Whiteboards found.</p>
+                    <p className="mt-1">Click “New Whiteboard” to get started.</p>
                   </div>
                 </div>
               ) : null}
@@ -512,7 +512,7 @@ const WireframeListView = ({
         </div>
       </div>
 
-      <WireframeTemplatesModal
+      <WhiteboardTemplatesModal
         isOpen={isTemplatesModalOpen}
         onClose={() => setIsTemplatesModalOpen(false)}
         onSelectTemplate={handleSelectTemplate}
@@ -537,26 +537,26 @@ const WireframeListView = ({
   )
 }
 
-export function WireframesView({ projectId }: { projectId: string }) {
-  const [editingWireframeId, setEditingWireframeId] = useState<string | null>(null)
-  const { refetch } = useProjectWireframes(projectId) // Use hook to get refetch function
+export function WhiteboardsView({ projectId }: { projectId: string }) {
+  const [editingWhiteboardId, setEditingWhiteboardId] = useState<string | null>(null)
+  const { refetch } = useProjectWhiteboards(projectId) // Use hook to get refetch function
 
   const handleEditorBack = useCallback(() => {
-    setEditingWireframeId(null)
+    setEditingWhiteboardId(null)
     refetch() // Refetch list after returning from editor
   }, [refetch])
 
 
 
-  if (editingWireframeId) {
-    return <WireframeEditorComponent wireframeId={editingWireframeId} onBack={handleEditorBack} />
+  if (editingWhiteboardId) {
+    return <WhiteboardEditorComponent WhiteboardId={editingWhiteboardId} onBack={handleEditorBack} />
   }
 
   return (
-    <WireframeListView 
+    <WhiteboardListView 
       projectId={projectId} 
-      onEdit={setEditingWireframeId} 
-      onCreate={setEditingWireframeId} 
+      onEdit={setEditingWhiteboardId} 
+      onCreate={setEditingWhiteboardId} 
     />
   )
 }

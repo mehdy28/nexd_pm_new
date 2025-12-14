@@ -37,9 +37,9 @@ export enum ActivityType {
     TASK_CREATED = "TASK_CREATED",
     TASK_DELETED = "TASK_DELETED",
     TASK_UPDATED = "TASK_UPDATED",
-    WIREFRAME_CREATED = "WIREFRAME_CREATED",
-    WIREFRAME_DELETED = "WIREFRAME_DELETED",
-    WIREFRAME_UPDATED = "WIREFRAME_UPDATED",
+    WHITEBOARD_CREATED = "WHITEBOARD_CREATED",
+    WHITEBOARD_DELETED = "WHITEBOARD_DELETED",
+    WHITEBOARD_UPDATED = "WHITEBOARD_UPDATED",
   }
   
   export enum AggregationType {
@@ -312,7 +312,7 @@ export enum ActivityType {
     author: User;
     task: Task | null;
     document: Document | null;
-    wireframe: Wireframe | null;
+    WHITEBOARD: WHITEBOARD | null;
     prompt: Prompt | null;
     mentions: (Mention)[];
   }
@@ -334,7 +334,7 @@ export enum ActivityType {
     project: Project | null;
     task: Task | null;
     document: Document | null;
-    wireframe: Wireframe | null;
+    WHITEBOARD: WHITEBOARD | null;
     prompt: Prompt | null;
   }
   
@@ -481,7 +481,7 @@ export enum ActivityType {
     createdTasks: (Task)[] | null;
     personalTasks: (Task)[] | null;
     personalDocuments: (Document)[] | null;
-    personalWireframes: (Wireframe)[] | null;
+    personalWHITEBOARDs: (WHITEBOARD)[] | null;
     personalPrompts: (Prompt)[] | null;
     personalSections: (PersonalSection)[] | null;
     activities: (Activity)[] | null;
@@ -507,8 +507,8 @@ export enum ActivityType {
     comments: (Comment)[];
   }
   
-  export interface Wireframe {
-    __typename: "Wireframe";
+  export interface WHITEBOARD {
+    __typename: "WHITEBOARD";
     id: string;
     title: string;
     data: any; // JSON
@@ -570,8 +570,8 @@ export enum ActivityType {
     projectId: string | null;
     project: Project | null;
     user: User | null;
-    wireframeId: string | null;
-    wireframe: Wireframe | null;
+    WHITEBOARDId: string | null;
+    WHITEBOARD: WHITEBOARD | null;
     comments: (Comment)[] | null;
     activities: (Activity)[] | null;
     versions: (Version)[] | null;
@@ -593,7 +593,7 @@ export enum ActivityType {
     members: (ProjectMember)[];
     tasks: (Task)[];
     documents: (Document)[];
-    wireframes: (Wireframe)[];
+    WHITEBOARDs: (WHITEBOARD)[];
     prompts: (Prompt)[];
     activities: (Activity)[];
     sprints: (Sprint)[];

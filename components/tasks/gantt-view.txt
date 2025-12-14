@@ -86,7 +86,7 @@ const mockTasks: Task[] = [
   },
   {
     id: "2",
-    title: "Wireframe Creation",
+    title: "Whiteboard Creation",
     assignee: { name: "John Doe", avatar: "/placeholder.svg?height=32&width=32" },
     status: "completed",
     startDate: "2024-01-29",
@@ -99,7 +99,7 @@ const mockTasks: Task[] = [
   },
   {
     id: "2.1",
-    title: "LOW-fidelity Wireframes",
+    title: "LOW-fidelity Whiteboards",
     assignee: { name: "John Doe", avatar: "/placeholder.svg?height=32&width=32" },
     status: "completed",
     startDate: "2024-01-29",
@@ -113,7 +113,7 @@ const mockTasks: Task[] = [
   },
   {
     id: "2.2",
-    title: "HIGH-fidelity Wireframes",
+    title: "HIGH-fidelity Whiteboards",
     assignee: { name: "John Doe", avatar: "/placeholder.svg?height=32&width=32" },
     status: "completed",
     startDate: "2024-02-06",

@@ -11,12 +11,12 @@ const GET_ADMIN_DASHBOARD_DATA = gql`
         totalProjects { value change trend }
         tasksCreated { value change trend }
         documents { value change trend }
-        wireframes { value change trend }
+        Whiteboards { value change trend }
         monthlyRevenue { value change trend }
         churnRate { value change trend }
       }
       userGrowth { date users projects tasks }
-      contentCreation { date documents wireframes tasks }
+      contentCreation { date documents Whiteboards tasks }
       mrrGrowth { date value }
       churnRate { date value }
       subscriptionDistribution { name value }

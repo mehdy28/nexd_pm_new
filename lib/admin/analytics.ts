@@ -1,13 +1,13 @@
 import { db } from "@/lib/firebase"
 import { collection, getDocs, query, where, orderBy, limit } from "firebase/firestore"
-
+import { prisma } from "../prisma"
 export interface DashboardMetrics {
   totalUsers: number
   activeWorkspaces: number
   totalProjects: number
   tasksCreated: number
   documentsCount: number
-  wireframesCount: number
+  WhiteboardsCount: number
   monthlyRevenue: number
   churnRate: number
 }
@@ -31,20 +31,20 @@ export interface SubscriptionData {
 export interface ContentCreationData {
   month: string
   documents: number
-  wireframes: number
+  Whiteboards: number
   tasks: number
 }
 
 export async function getDashboardMetrics(): Promise<DashboardMetrics> {
   // Get counts from Firestore collections
-  const [usersSnapshot, workspacesSnapshot, projectsSnapshot, tasksSnapshot, documentsSnapshot, wireframesSnapshot] =
+  const [usersSnapshot, workspacesSnapshot, projectsSnapshot, tasksSnapshot, documentsSnapshot, WhiteboardsSnapshot] =
     await Promise.all([
       getDocs(collection(db, "users")),
       getDocs(collection(db, "workspaces")),
       getDocs(collection(db, "projects")),
       getDocs(collection(db, "tasks")),
       getDocs(collection(db, "documents")),
-      getDocs(collection(db, "wireframes")),
+      getDocs(collection(db, "Whiteboards")),
     ])
 
   const totalUsers = usersSnapshot.size
@@ -52,7 +52,7 @@ export async function getDashboardMetrics(): Promise<DashboardMetrics> {
   const totalProjects = projectsSnapshot.size
   const tasksCreated = tasksSnapshot.size
   const documentsCount = documentsSnapshot.size
-  const wireframesCount = wireframesSnapshot.size
+  const WhiteboardsCount = WhiteboardsSnapshot.size
   // Calculate monthly revenue from subscriptions
   const subscriptionsQuery = query(
     collection(db, "subscriptions"),
@@ -97,7 +97,7 @@ export async function getDashboardMetrics(): Promise<DashboardMetrics> {
     totalProjects,
     tasksCreated,
     documentsCount,
-    wireframesCount,
+    WhiteboardsCount,
     monthlyRevenue,
     churnRate: Math.round(churnRate * 10) / 10,
   }
@@ -154,7 +154,7 @@ export async function getSubscriptionData(): Promise<SubscriptionData[]> {
   const subscriptions = await prisma.subscription.groupBy({
     by: ["plan"],
     where: {
-      status: "active",
+      status: "ACTIVE",
     },
     _count: {
       id: true,
@@ -215,7 +215,7 @@ export async function getContentCreationData(): Promise<ContentCreationData[]> {
   const sixMonthsAgo = new Date()
   sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6)
 
-  const [documentsData, wireframesData, tasksData] = await Promise.all([
+  const [documentsData, WhiteboardsData, tasksData] = await Promise.all([
     prisma.$queryRaw<Array<{ month: string; count: bigint }>>`
       SELECT 
         TO_CHAR(DATE_TRUNC('month', "createdAt"), 'Mon') as month,
@@ -229,7 +229,7 @@ export async function getContentCreationData(): Promise<ContentCreationData[]> {
       SELECT 
         TO_CHAR(DATE_TRUNC('month', "createdAt"), 'Mon') as month,
         COUNT(*) as count
-      FROM "Wireframe"
+      FROM "Whiteboard"
       WHERE "createdAt" >= ${sixMonthsAgo}
       GROUP BY DATE_TRUNC('month', "createdAt")
       ORDER BY DATE_TRUNC('month', "createdAt")
@@ -249,7 +249,7 @@ export async function getContentCreationData(): Promise<ContentCreationData[]> {
   return months.map((month) => ({
     month,
     documents: Number(documentsData.find((d) => d.month === month)?.count || 0),
-    wireframes: Number(wireframesData.find((w) => w.month === month)?.count || 0),
+    Whiteboards: Number(WhiteboardsData.find((w) => w.month === month)?.count || 0),
     tasks: Number(tasksData.find((t) => t.month === month)?.count || 0),
   }))
 }

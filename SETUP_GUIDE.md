@@ -105,7 +105,7 @@ Update these variables for production:
 - **Database**: PostgreSQL with Prisma ORM
 - **API**: GraphQL with Apollo Server
 - **UI**: Modern design with Tailwind CSS and shadcn/ui
-- **Project Management**: Tasks, projects, workspaces, documents, wireframes
+- **Project Management**: Tasks, projects, workspaces, documents, whiteboards
 - **Real-time**: Activity feeds and notifications
 - **Billing**: Stripe integration (optional)
 

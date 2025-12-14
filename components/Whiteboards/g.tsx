@@ -15,9 +15,9 @@ import {
 } from "src/components/ui/atoms";
 import { ArrowBackIcon, useDisclosure, useToast } from "@chakra-ui/icons"; // Added
 import { Spinner, Box } from "@chakra-ui/react";
-import { useWireframeCommands } from "src/store/app/wireframes/hooks/wireframeCommands";
-import { useWireframeByIdQuery } from "src/hooks/wireframes/useWireframesQuery";
-import { useSelectedWireframe } from "src/store/app/wireframes/hooks/useWireframe";
+import { useWhiteboardCommands } from "src/store/app/Whiteboards/hooks/WhiteboardCommands";
+import { useWhiteboardByIdQuery } from "src/hooks/Whiteboards/useWhiteboardsQuery";
+import { useSelectedWhiteboard } from "src/store/app/Whiteboards/hooks/useWhiteboard";
 import { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import {
   AppState as ExcalidrawAppState,
@@ -55,28 +55,28 @@ function debounce<T extends (...args: any[]) => any>(
 }
 
 // --- Type definitions ---
-interface WireframeAppState
+interface WhiteboardAppState
   extends Partial<Omit<ExcalidrawAppState, "collaborators">> {
   collaborators?: Map<SocketId, Readonly<Collaborator>> | object;
 }
-interface WireframeContent {
+interface WhiteboardContent {
   elements?: ReadonlyArray<ExcalidrawElement>;
-  appState?: WireframeAppState;
+  appState?: WhiteboardAppState;
 }
-interface SelectedWireframe {
+interface SelectedWhiteboard {
   id: string;
   name: string;
-  content?: WireframeContent | null;
+  content?: WhiteboardContent | null;
 }
-interface WireframeEditorPageProps {
-  wireframeId: string | null;
+interface WhiteboardEditorPageProps {
+  WhiteboardId: string | null;
   onBack: () => void;
   //useGraphQLPrompts: any; // No longer used
   teammateId: string | null; // Added teammateId prop
 }
 
-const WireframeEditorPage: React.FC<WireframeEditorPageProps> = memo(
-  ({ wireframeId, onBack, teammateId }) => { // Removed useGraphQLPrompts and added teammateId prop
+const WhiteboardEditorPage: React.FC<WhiteboardEditorPageProps> = memo(
+  ({ WhiteboardId, onBack, teammateId }) => { // Removed useGraphQLPrompts and added teammateId prop
     // --- State for Excalidraw API ---
     const [excalidrawAPI, setExcalidrawAPI] = useState<ExcalidrawAPI | null>(null);
     // --- State for Modal ---
@@ -90,9 +90,9 @@ const WireframeEditorPage: React.FC<WireframeEditorPageProps> = memo(
     const toast = useToast();
 
     // --- Existing Hooks ---
-    const selectedWireframe = useSelectedWireframe() as SelectedWireframe | null;
-    const { updateWireframe } = useWireframeCommands();
-    const { loading, error } = useWireframeByIdQuery(wireframeId);
+    const selectedWhiteboard = useSelectedWhiteboard() as SelectedWhiteboard | null;
+    const { updateWhiteboard } = useWhiteboardCommands();
+    const { loading, error } = useWhiteboardByIdQuery(WhiteboardId);
     const [hasMounted, setHasMounted] = useState(false);
     const { createPrompt } = usePromptCommands(); // Get the createPrompt function
 
@@ -135,14 +135,14 @@ const WireframeEditorPage: React.FC<WireframeEditorPageProps> = memo(
         appState: { collaborators: new Map() },
       };
 
-      if (!selectedWireframe || !selectedWireframe.content) {
+      if (!selectedWhiteboard || !selectedWhiteboard.content) {
         console.log(
-          "WireframeEditorPage: No initial content found, using default. [PROMPT]"
+          "WhiteboardEditorPage: No initial content found, using default. [PROMPT]"
         );
         return defaultData;
       }
 
-      const content = selectedWireframe.content;
+      const content = selectedWhiteboard.content;
       const initialAppState = content.appState ?? {};
       const { collaborators: initialCollaborators, ...restInitialAppState } =
         initialAppState;
@@ -156,26 +156,26 @@ const WireframeEditorPage: React.FC<WireframeEditorPageProps> = memo(
         !(initialCollaborators instanceof Map)
       ) {
         console.warn(
-          "WireframeEditorPage: Initial appState.collaborators was an object. Initializing as empty Map for Excalidraw. [PROMPT]"
+          "WhiteboardEditorPage: Initial appState.collaborators was an object. Initializing as empty Map for Excalidraw. [PROMPT]"
         );
         preparedAppState.collaborators = new Map();
       } else if (initialCollaborators instanceof Map) {
         preparedAppState.collaborators = initialCollaborators;
       } else {
         console.log(
-          "WireframeEditorPage: Initializing collaborators as empty Map for Excalidraw. [PROMPT]"
+          "WhiteboardEditorPage: Initializing collaborators as empty Map for Excalidraw. [PROMPT]"
         );
         preparedAppState.collaborators = new Map();
       }
 
       console.log(
-        "WireframeEditorPage: Preparing initial data for Excalidraw component. [PROMPT]"
+        "WhiteboardEditorPage: Preparing initial data for Excalidraw component. [PROMPT]"
       );
       return {
         elements: content.elements ?? [],
         appState: preparedAppState,
       };
-    }, [selectedWireframe]);
+    }, [selectedWhiteboard]);
 
     const handleFormSubmit = async (data: any) => {
       console.log("handleFormSubmit called [PROMPT]");
@@ -214,8 +214,8 @@ const WireframeEditorPage: React.FC<WireframeEditorPageProps> = memo(
     // --- Define onChange Handler from Excalidraw ---
     const handleExcalidrawChange = useCallback(
       (elements: ReadonlyArray<ExcalidrawElement>, appState: ExcalidrawAppState) => {
-        if (!wireframeId || !selectedWireframe) {
-          console.warn("Cannot save: wireframeId or selectedWireframe missing. [PROMPT]");
+        if (!WhiteboardId || !selectedWhiteboard) {
+          console.warn("Cannot save: WhiteboardId or selectedWhiteboard missing. [PROMPT]");
           return;
         }
 
@@ -228,26 +228,26 @@ const WireframeEditorPage: React.FC<WireframeEditorPageProps> = memo(
 
         if (appStateForSaving.collaborators instanceof Map) {
           console.log(
-            "WireframeEditorPage: Converting collaborators Map to Array before saving. [PROMPT]"
+            "WhiteboardEditorPage: Converting collaborators Map to Array before saving. [PROMPT]"
           );
           appStateForSaving.collaborators = Array.from(appState.collaborators.values());
         } else {
           console.warn(
-            "WireframeEditorPage: collaborators received from Excalidraw was not a Map. Saving as empty array. [PROMPT]"
+            "WhiteboardEditorPage: collaborators received from Excalidraw was not a Map. Saving as empty array. [PROMPT]"
           );
           appStateForSaving.collaborators = [];
         }
 
-        const currentId = wireframeId;
-        const currentName = selectedWireframe.name || "Untitled Wireframe";
+        const currentId = WhiteboardId;
+        const currentName = selectedWhiteboard.name || "Untitled Whiteboard";
         const currentContent = {
           elements: filteredElements, // Use the filtered elements
           appState: appStateForSaving,
         };
 
-        updateWireframe(currentId, currentName, currentContent);
+        updateWhiteboard(currentId, currentName, currentContent);
       },
-      [wireframeId, updateWireframe, selectedWireframe]
+      [WhiteboardId, updateWhiteboard, selectedWhiteboard]
     );
 
     // --- Debounce the Handler ---
@@ -262,7 +262,7 @@ const WireframeEditorPage: React.FC<WireframeEditorPageProps> = memo(
     }, [onBack]);
 
     // --- Loading State ---
-          if (loading || !selectedWireframe) {
+          if (loading || !selectedWhiteboard) {
             return (
                 <Flex justify="center" align="center" h="full" flex={1}>
                     <Spinner size="xl" />
@@ -279,7 +279,7 @@ const WireframeEditorPage: React.FC<WireframeEditorPageProps> = memo(
       return (
         <Flex direction="column" justify="center" align="center" h="full" flex={1} p={4}>
           <Text color="red.500" mb={4}>
-            Error loading wireframe: {error.message}
+            Error loading Whiteboard: {error.message}
           </Text>
           {/* Keep original button here or use IconButton like in main render */}
           <Button onClick={editorOnBack}>Back</Button>
@@ -287,11 +287,11 @@ const WireframeEditorPage: React.FC<WireframeEditorPageProps> = memo(
       );
     }
 
-    // --- Wireframe Not Found State ---
-    if (!selectedWireframe) {
+    // --- Whiteboard Not Found State ---
+    if (!selectedWhiteboard) {
       return (
         <Flex direction="column" justify="center" align="center" h="full" flex={1} p={4}>
-          <Text mb={4}>Wireframe not found or is unavailable.</Text>
+          <Text mb={4}>Whiteboard not found or is unavailable.</Text>
           {/* Keep original button here or use IconButton like in main render */}
           <Button onClick={editorOnBack}>Back</Button>
         </Flex>
@@ -313,16 +313,16 @@ const WireframeEditorPage: React.FC<WireframeEditorPageProps> = memo(
             size="lg" // Optional size adjustment
           />
 
-          {/* 2. Wireframe Name */}
+          {/* 2. Whiteboard Name */}
           <Heading
             size="lg"
             noOfLines={1}
-            title={selectedWireframe.name}
+            title={selectedWhiteboard.name}
             textAlign="center" // Optional alignment
             flexGrow={1} // Allows it to take available space
             mx={2} // Margin on sides
           >
-            {selectedWireframe.name}
+            {selectedWhiteboard.name}
           </Heading>
 
           {/* 3. Generate Code Button */}
@@ -378,5 +378,5 @@ const WireframeEditorPage: React.FC<WireframeEditorPageProps> = memo(
   }
 );
 
-WireframeEditorPage.displayName = "WireframeEditorPage";
-export default WireframeEditorPage;
+WhiteboardEditorPage.displayName = "WhiteboardEditorPage";
+export default WhiteboardEditorPage;

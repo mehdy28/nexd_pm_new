@@ -29,7 +29,7 @@ interface KPICardsProps {
     totalProjects: Kpi
     tasksCreated: Kpi
     documents: Kpi
-    wireframes: Kpi
+    Whiteboards: Kpi
     monthlyRevenue: Kpi
     churnRate: Kpi
   }
@@ -41,7 +41,7 @@ const iconMap: { [key: string]: Icon } = {
   totalProjects: FolderIcon,
   tasksCreated: CheckSquareIcon,
   documents: FileTextIcon,
-  wireframes: PenToolIcon,
+  Whiteboards: PenToolIcon,
   monthlyRevenue: DollarSignIcon,
   churnRate: UserXIcon,
 }
@@ -52,7 +52,7 @@ const titleMap: { [key: string]: string } = {
   totalProjects: "Total Projects",
   tasksCreated: "Tasks Created",
   documents: "Documents",
-  wireframes: "Wireframes",
+  Whiteboards: "Whiteboards",
   monthlyRevenue: "Monthly Revenue",
   churnRate: "Churn Rate",
 }

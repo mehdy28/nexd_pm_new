@@ -2,20 +2,20 @@
 
 import { gql } from "@apollo/client";
 
-export const GENERATE_PROMPT_FROM_WIREFRAME_MUTATION = gql`
-  mutation GeneratePromptFromWireframe($input: GeneratePromptFromWireframeInput!) {
-    generatePromptFromWireframe(input: $input)
+export const GENERATE_PROMPT_FROM_WHITEBOARD_MUTATION = gql`
+  mutation GeneratePromptFromWhiteboard($input: GeneratePromptFromWhiteboardInput!) {
+    generatePromptFromWhiteboard(input: $input)
   }
 `;
 
-export const CREATE_PROMPT_FROM_WIREFRAME_MUTATION = gql`
-  mutation CreatePromptFromWireframe($input: CreatePromptFromWireframeInput!) {
-    createPromptFromWireframe(input: $input) {
+export const CREATE_PROMPT_FROM_WHITEBOARD_MUTATION = gql`
+  mutation CreatePromptFromWhiteboard($input: CreatePromptFromWhiteboardInput!) {
+    createPromptFromWhiteboard(input: $input) {
       id
       title
       description
       model
-      wireframeId
+      WhiteboardId
       activeVersion {
         id
         context
