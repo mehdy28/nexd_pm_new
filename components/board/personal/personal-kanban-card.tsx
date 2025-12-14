@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import type { Card } from "./kanban-types"
+import type { Card } from "../kanban-types"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
@@ -71,22 +71,7 @@ export function KanbanCard({
       </div>
 
       <div className="flex items-center gap-3 text-xs">
-        {assignee ? (
-            <Avatar className="h-6 w-6 border-2 border-background shadow-sm">
-                <AvatarImage src={assignee.avatar || undefined} />
-                <AvatarFallback 
-                    className="text-[10px] font-medium text-white"
-                    style={{ backgroundColor: (assignee as any)?.avatarColor }}
-                >
-                    {assigneeInitials}
-                </AvatarFallback>
-            </Avatar>
-        ) : (
-            <Avatar className="h-6 w-6 border-2 border-background shadow-sm bg-gray-100">
-                <AvatarImage src={undefined} />
-                <AvatarFallback className="text-[10px] font-medium text-gray-700">?</AvatarFallback>
-            </Avatar>
-        )}
+
         <span className="text-muted-foreground font-medium flex-1">{card.endDate || "No due date"}</span>
         {/* <Button
           size="sm"

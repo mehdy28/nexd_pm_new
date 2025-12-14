@@ -84,7 +84,7 @@ export function useAuth() {
       // console.log("[Auth] fetchMe -> GraphQL me data:", data?.me); 
       return data?.me ?? null;
     } catch (err) {
-      console.error("[Auth] fetchMe error:", err);
+     // console.error("[Auth] fetchMe error:", err);
       setCurrentUser(null);
       await signOut(auth); 
       return null;
@@ -169,8 +169,8 @@ export function useAuth() {
         }
 
       } catch (err: any) {
-        setError(err.message);
-        console.error("[Auth] register -> error:", err);
+       // setError(err.message);
+       // console.error("[Auth] register -> error:", err);
         await signOut(auth);
       } finally {
         setLoading(false);
@@ -209,8 +209,8 @@ export function useAuth() {
           // console.log("[Auth] login -> set currentUser, redirecting to:", destination); 
           router.push(destination);
         } else {
-          console.error("[Auth] login -> Failed to fetch user data after successful Firebase login.");
-          setError("Failed to retrieve user profile. Please try again.");
+         // console.error("[Auth] login -> Failed to fetch user data after successful Firebase login.");
+          //setError("Failed to retrieve user profile. Please try again.");
           await signOut(auth);
         }
       } catch (err: any) {
@@ -276,7 +276,7 @@ export function useAuth() {
 
           } else {
             // Firebase user exists but GraphQL 'me' query failed. Force logout.
-            console.error("[Auth] onAuthStateChanged -> Firebase user present but GraphQL 'me' data is null. Forcing logout.");
+            //console.error("[Auth] onAuthStateChanged -> Firebase user present but GraphQL 'me' data is null. Forcing logout.");
             await signOut(auth);
             setCurrentUser(null);
             client.resetStore();

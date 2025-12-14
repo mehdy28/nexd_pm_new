@@ -1,6 +1,15 @@
 import { prisma } from "@/lib/prisma"
 import { TaskStatus, Priority, ActivityType } from "@prisma/client"
+import { v2 as cloudinary } from "cloudinary"
 import { GraphQLError } from "graphql"
+
+// Configure Cloudinary with environment variables
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+  secure: true,
+})
 
 function log(prefix: string, message: string, data?: any) {
   const timestamp = new Date().toISOString()
@@ -43,6 +52,15 @@ interface UpdatePersonalTaskInput {
   parentId?: string | null
   isCompleted?: boolean
   personalSectionId?: string | null
+}
+
+interface ConfirmAttachmentInput {
+  publicId: string
+  url: string
+  fileName: string
+  fileType: string
+  fileSize: number
+  taskId: string
 }
 
 interface CreatePersonalGanttTaskInput {
@@ -239,20 +257,20 @@ export const personalTaskResolver = {
           projectId: null, // It must be a personal task (no project).
         },
         include: {
-          assignee: { select: { id: true, firstName: true, lastName: true, avatar: true ,avatarColor:true} },
-          creator: { select: { id: true, firstName: true, lastName: true, avatar: true ,avatarColor:true} },
+          assignee: { select: { id: true, firstName: true, lastName: true, avatar: true, avatarColor: true } },
+          creator: { select: { id: true, firstName: true, lastName: true, avatar: true, avatarColor: true } },
           sprint: { select: { id: true, name: true } },
           section: { select: { id: true, name: true } },
           comments: {
-            include: { author: { select: { id: true, firstName: true, lastName: true, avatar: true ,avatarColor:true } } },
+            include: { author: { select: { id: true, firstName: true, lastName: true, avatar: true, avatarColor: true } } },
             orderBy: { createdAt: "asc" },
           },
           attachments: {
-            include: { uploader: { select: { id: true, firstName: true, lastName: true, avatar: true ,avatarColor:true} } },
+            include: { uploader: { select: { id: true, firstName: true, lastName: true, avatar: true, avatarColor: true } } },
             orderBy: { createdAt: "asc" },
           },
           activities: {
-            include: { user: { select: { id: true, firstName: true, lastName: true, avatar: true ,avatarColor:true} } },
+            include: { user: { select: { id: true, firstName: true, lastName: true, avatar: true, avatarColor: true } } },
             orderBy: { createdAt: "desc" },
           },
         },
@@ -312,139 +330,108 @@ export const personalTaskResolver = {
       args: { input: UpdatePersonalTaskInput },
       context: GraphQLContext
     ) => {
-      log("[updatePersonalTask Resolver]", `Mutation called for task ID: ${args.input.id}`, { input: args.input })
-
       if (!context.user?.id)
         throw new GraphQLError("Authentication required.", { extensions: { code: "UNAUTHENTICATED" } })
       const userId = context.user.id
-      const { input } = args
+      const { id: taskId, ...updates } = args.input
 
-      log("[updatePersonalTask Resolver]", `Checking authorization for user ${userId} and task ${input.id}`)
-      await checkTaskAuthorization(userId, input.id)
-      log("[updatePersonalTask Resolver]", `Authorization successful.`)
+      await checkTaskAuthorization(userId, taskId)
 
-      log("[updatePersonalTask Resolver]", `Fetching existing task data for ID: ${input.id}`)
       const existingTask = await prisma.task.findUnique({
-        where: { id: input.id },
+        where: { id: taskId },
+        select: {
+          title: true,
+          description: true,
+          status: true,
+          priority: true,
+          dueDate: true,
+          points: true,
+          completed: true,
+          personalSectionId: true,
+          personalSection: { select: { name: true } },
+        },
       })
+
       if (!existingTask) {
         throw new GraphQLError("Task not found.", { extensions: { code: "NOT_FOUND" } })
       }
-      log("[updatePersonalTask Resolver]", `Found existing task data.`, {
-        title: existingTask.title,
-        status: existingTask.status,
-        assigneeId: existingTask.assigneeId,
-      })
 
-      const updatePayload = {
-        ...input,
-        dueDate: input.dueDate ? new Date(input.dueDate) : input.dueDate === null ? null : undefined,
-        startDate: input.startDate ? new Date(input.startDate) : input.startDate === null ? null : undefined,
-        endDate: input.endDate ? new Date(input.endDate) : input.endDate === null ? null : undefined,
-        completed: input.isCompleted !== undefined ? input.isCompleted : input.status === "DONE",
+      const activitiesToCreate: { type: ActivityType; data: any; userId: string; taskId: string }[] = []
+      const commonActivityData = { userId, taskId }
+
+      if (updates.title !== undefined && updates.title !== existingTask.title) {
+        activitiesToCreate.push({
+          type: "TASK_UPDATED",
+          data: { change: "title", old: existingTask.title, new: updates.title },
+          ...commonActivityData,
+        })
       }
-      log("[updatePersonalTask Resolver]", `Constructed Prisma update payload.`, { updatePayload })
-
-      log("[updatePersonalTask Resolver]", `Calling prisma.task.update with included assignee...`)
-      const updatedTask = await prisma.task.update({
-        where: { id: input.id },
-        data: updatePayload,
-        // ADJUSTMENT 1: Include the assignee data in the response from Prisma.
-        include: {
-          assignee: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-              avatar: true,
-            },
+      if (updates.description !== undefined && updates.description !== existingTask.description) {
+        activitiesToCreate.push({ type: "DESCRIPTION_UPDATED", data: {}, ...commonActivityData })
+      }
+      if (updates.status !== undefined && updates.status !== existingTask.status) {
+        activitiesToCreate.push({
+          type: "STATUS_UPDATED",
+          data: { old: existingTask.status, new: updates.status },
+          ...commonActivityData,
+        })
+      }
+      if (updates.priority !== undefined && updates.priority !== existingTask.priority) {
+        activitiesToCreate.push({
+          type: "PRIORITY_UPDATED",
+          data: { old: existingTask.priority, new: updates.priority },
+          ...commonActivityData,
+        })
+      }
+      if (updates.dueDate !== undefined && toISODateString(updates.dueDate ? new Date(updates.dueDate) : null) !== toISODateString(existingTask.dueDate)) {
+        activitiesToCreate.push({
+          type: "DUE_DATE_UPDATED",
+          data: {
+            old: toISODateString(existingTask.dueDate),
+            new: toISODateString(updates.dueDate ? new Date(updates.dueDate) : null),
           },
-        },
-      })
-      log("[updatePersonalTask Resolver]", `Prisma update successful. Task data returned from DB:`, { updatedTask })
-
-      const activitiesToCreate: any[] = []
-
-      if (input.title !== undefined && input.title !== existingTask.title) {
+          ...commonActivityData,
+        })
+      }
+      if (updates.points !== undefined && (updates.points ?? null) !== (existingTask.points ?? null)) {
         activitiesToCreate.push({
-          type: ActivityType.TASK_UPDATED,
-          userId,
-          taskId: updatedTask.id,
-          data: { field: "title", oldValue: existingTask.title, newValue: input.title },
+          type: "POINTS_UPDATED",
+          data: { old: existingTask.points ?? null, new: updates.points ?? null },
+          ...commonActivityData,
         })
       }
-
-      if (input.description !== undefined && input.description !== existingTask.description) {
+      const newCompletedState = updates.isCompleted !== undefined ? updates.isCompleted : updates.status === "DONE"
+      if (newCompletedState && !existingTask.completed) {
+        activitiesToCreate.push({ type: "TASK_COMPLETED", data: { title: existingTask.title }, ...commonActivityData })
+      }
+      if (updates.personalSectionId !== undefined && updates.personalSectionId !== existingTask.personalSectionId) {
+        const newSection = updates.personalSectionId ? await prisma.personalSection.findUnique({ where: { id: updates.personalSectionId } }) : null
         activitiesToCreate.push({
-          type: ActivityType.DESCRIPTION_UPDATED,
-          userId,
-          taskId: updatedTask.id,
-          data: { oldValue: existingTask.description, newValue: input.description },
+          type: "TASK_UPDATED",
+          data: { change: "section", old: existingTask.personalSection?.name ?? null, new: newSection?.name ?? null },
+          ...commonActivityData,
         })
       }
+      
+      const [, updatedTask] = await prisma.$transaction([
+        prisma.activity.createMany({ data: activitiesToCreate }),
+        prisma.task.update({
+          where: { id: taskId },
+          data: {
+            title: updates.title,
+            description: updates.description,
+            status: updates.status,
+            priority: updates.priority,
+            dueDate: updates.dueDate ? new Date(updates.dueDate) : updates.dueDate === null ? null : undefined,
+            startDate: updates.startDate ? new Date(updates.startDate) : updates.startDate === null ? null : undefined,
+            endDate: updates.endDate ? new Date(updates.endDate) : updates.endDate === null ? null : undefined,
+            points: updates.points,
+            personalSectionId: updates.personalSectionId,
+            completed: newCompletedState,
+          },
+        }),
+      ]);
 
-      if (input.status !== undefined && input.status !== existingTask.status) {
-        activitiesToCreate.push({
-          type: ActivityType.STATUS_UPDATED,
-          userId,
-          taskId: updatedTask.id,
-          data: { oldValue: existingTask.status, newValue: input.status },
-        })
-      }
-
-      if (input.priority !== undefined && input.priority !== existingTask.priority) {
-        activitiesToCreate.push({
-          type: ActivityType.PRIORITY_UPDATED,
-          userId,
-          taskId: updatedTask.id,
-          data: { oldValue: existingTask.priority, newValue: input.priority },
-        })
-      }
-
-      if (input.dueDate !== undefined) {
-        const newDueDate = input.dueDate ? new Date(input.dueDate) : null
-        if ((newDueDate?.getTime() || null) !== (existingTask.dueDate?.getTime() || null)) {
-          activitiesToCreate.push({
-            type: ActivityType.DUE_DATE_UPDATED,
-            userId,
-            taskId: updatedTask.id,
-            data: {
-              oldValue: existingTask.dueDate?.toISOString() || null,
-              newValue: newDueDate?.toISOString() || null,
-            },
-          })
-        }
-      }
-
-      if (input.points !== undefined && input.points !== existingTask.points) {
-        activitiesToCreate.push({
-          type: ActivityType.POINTS_UPDATED,
-          userId,
-          taskId: updatedTask.id,
-          data: { oldValue: existingTask.points, newValue: input.points },
-        })
-      }
-
-      if (updatedTask.completed && !existingTask.completed) {
-        activitiesToCreate.push({
-          type: ActivityType.TASK_COMPLETED,
-          userId,
-          taskId: updatedTask.id,
-          data: { title: updatedTask.title },
-        })
-      }
-
-      log("[updatePersonalTask Resolver]", `Found ${activitiesToCreate.length} activities to create.`)
-      if (activitiesToCreate.length > 0) {
-        log("[updatePersonalTask Resolver]", `Calling prisma.activity.createMany...`)
-        await prisma.activity.createMany({
-          data: activitiesToCreate,
-        })
-        log("[updatePersonalTask Resolver]", `Activity creation successful.`)
-      }
-
-      // ADJUSTMENT 2: Return the complete task object directly.
-      log("[updatePersonalTask Resolver]", `Returning final task object to GraphQL client.`, { updatedTask })
       return updatedTask
     },
 
@@ -566,6 +553,8 @@ export const personalTaskResolver = {
         displayOrder: input.displayOrder ?? null, // <-- ECHO THE displayOrder BACK
       }
     },
+
+    
   },
 }
 

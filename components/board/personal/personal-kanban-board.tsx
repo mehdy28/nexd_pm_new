@@ -4,7 +4,7 @@
 import { useMemo, useRef, useState, useCallback, useEffect } from "react"
 import type { Card, Column } from "../kanban-types"
 import { KanbanSortableColumn } from "../kanban-sortable-column"
-import { KanbanSortableCard } from "../kanban-sortable-card"
+import { KanbanSortableCard } from "./personal-kanban-sortable-card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -328,48 +328,41 @@ export function PersonalKanbanBoard({
         </div>
 
         <DragOverlay>
-          {overlay?.kind === "card" ? (
-            <div
-              className="card pointer-events-none shadow-[var(--shadow-lg)]"
-              style={{
-                width: overlay.width ? `${overlay.width}px` : undefined,
-                height: overlay.height ? `${overlay.height}px` : undefined,
-              }}
+          {overlay?.kind === "card" && overlay.card ? (
+            <KanbanSortableCard
+              card={overlay.card}
+              columnId={findColumnIdByCardId(overlay.card.id) || ""}
+              onOpen={() => {}}
+              onStartInline={() => {}}
+              onFinishInline={() => {}}
+              onDeleteCard={() => {}}
+              isMutating={false}
+            />
+          ) : overlay?.kind === "column" && overlay.column ? (
+            <KanbanSortableColumn
+              column={overlay.column}
+              onAddCard={() => {}}
+              onTitleChange={() => {}}
+              onDeleteColumn={() => {}}
+              isMutating={false}
+              onStartTitleEdit={() => {}}
+              onStopTitleEdit={() => {}}
             >
-              <div className="flex items-start">
-                <span
-                  className={
-                    overlay.card.priority === "HIGH"
-                      ? "badge-high"
-                      : overlay.card.priority === "MEDIUM"
-                      ? "badge-medium"
-                      : "badge-low"
-                  }
-                >
-                  {overlay.card.priority || "LOW"}
-                </span>
-                <div className="ml-auto text-xs text-slate-500">
-                  {overlay.card.points ? `${overlay.card.points} SP` : ""}
-                </div>
-              </div>
-              <div className="mt-2 text-sm font-semibold">{overlay.card.title}</div>
-              {overlay.card.description ? (
-                <div className="mt-1 line-clamp-2 text-xs text-slate-500">{overlay.card.description}</div>
-              ) : null}
-            </div>
-          ) : overlay?.kind === "column" ? (
-            <div
-              className="column pointer-events-none"
-              style={{
-                width: overlay.width ? `${overlay.width}px` : undefined,
-                height: overlay.height ? `${overlay.height}px` : undefined,
-              }}
-            >
-              <div className="column-header">
-                <div className="text-sm font-semibold">{overlay.column.title}</div>
-              </div>
-              <div className="column-body"></div>
-            </div>
+              <SortableContext items={overlay.column.cards.map(c => c.id)} strategy={verticalListSortingStrategy}>
+                {overlay.column.cards.map(card => (
+                  <KanbanSortableCard
+                    key={card.id}
+                    columnId={overlay.column.id}
+                    card={card}
+                    onOpen={() => {}}
+                    onStartInline={() => {}}
+                    onFinishInline={() => {}}
+                    onDeleteCard={() => {}}
+                    isMutating={false}
+                  />
+                ))}
+              </SortableContext>
+            </KanbanSortableColumn>
           ) : null}
         </DragOverlay>
       </DndContext>

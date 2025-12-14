@@ -1,5 +1,3 @@
-//graphql/resolvers/taskResolver.ts
-import { prisma } from "@/lib/prisma"
 import { TaskStatus, Priority, ActivityType } from "@prisma/client"
 import { v2 as cloudinary } from "cloudinary"
 import { GraphQLError } from "graphql"
@@ -95,7 +93,6 @@ interface UpdateGanttTaskInput {
 
 // Helper function to check if a user is a member of a project
 
-
 const toISODateString = (date: Date | null | undefined): string | null => {
   return date ? date.toISOString().split("T")[0] : null
 }
@@ -120,20 +117,20 @@ export const taskResolver = {
           // },
         },
         include: {
-          assignee: { select: { id: true, firstName: true, lastName: true, avatar: true ,avatarColor:true } },
-          creator: { select: { id: true, firstName: true, lastName: true, avatar: true ,avatarColor:true  } },
+          assignee: { select: { id: true, firstName: true, lastName: true, avatar: true, avatarColor: true } },
+          creator: { select: { id: true, firstName: true, lastName: true, avatar: true, avatarColor: true } },
           sprint: { select: { id: true, name: true } },
           section: { select: { id: true, name: true } },
           comments: {
-            include: { author: { select: { id: true, firstName: true, lastName: true, avatar: true ,avatarColor:true } } },
+            include: { author: { select: { id: true, firstName: true, lastName: true, avatar: true, avatarColor: true } } },
             orderBy: { createdAt: "asc" },
           },
           attachments: {
-            include: { uploader: { select: { id: true, firstName: true, lastName: true, avatar: true ,avatarColor:true } } },
+            include: { uploader: { select: { id: true, firstName: true, lastName: true, avatar: true, avatarColor: true } } },
             orderBy: { createdAt: "asc" },
           },
           activities: {
-            include: { user: { select: { id: true, firstName: true, lastName: true, avatar: true ,avatarColor:true } } },
+            include: { user: { select: { id: true, firstName: true, lastName: true, avatar: true, avatarColor: true } } },
             orderBy: { createdAt: "desc" },
           },
         },
@@ -154,7 +151,6 @@ export const taskResolver = {
       const userId = context.user.id
       const { projectId, ...taskData } = input
 
-
       const createdAt = new Date()
       const startDate = taskData.startDate ? new Date(taskData.startDate) : createdAt
       let endDate
@@ -174,7 +170,7 @@ export const taskResolver = {
           startDate: startDate,
           endDate: endDate,
         },
-        include: { assignee: { select: { id: true, firstName: true, lastName: true, avatar: true ,avatarColor:true } } },
+        include: { assignee: { select: { id: true, firstName: true, lastName: true, avatar: true, avatarColor: true } } },
       })
 
       await prisma.activity.create({
@@ -197,47 +193,84 @@ export const taskResolver = {
     },
 
     updateProjectTask: async (_parent: unknown, args: { input: UpdateProjectTaskInput }, context: GraphQLContext) => {
-      log("[updateProjectTask Mutation]", "called with input:", args.input)
+      const LOG_PREFIX = "[updateProjectTask Mutation]"
+      log(LOG_PREFIX, "Execution started. Received input:", args.input)
 
-      if (!context.user?.id) throw new Error("Authentication required.")
+      if (!context.user?.id) {
+        log(LOG_PREFIX, "Authentication failed. User not found in context.")
+        throw new Error("Authentication required.")
+      }
       const userId = context.user.id
+      log(LOG_PREFIX, `Authenticated user ID: ${userId}`)
+
       const { id: taskId, ...updates } = args.input
 
+      log(LOG_PREFIX, `Fetching existing task with ID: ${taskId}`)
       const existingTask = await prisma.task.findUnique({
         where: { id: taskId },
-        include: { assignee: true, sprint: true, section: true },
+        select: {
+          title: true,
+          priority: true,
+          status: true,
+          points: true,
+          dueDate: true,
+          startDate: true,
+          endDate: true,
+          description: true,
+          assigneeId: true,
+          sprintId: true,
+          sectionId: true,
+          projectId: true,
+          assignee: { select: { firstName: true, lastName: true } },
+          sprint: { select: { name: true } },
+          section: { select: { name: true } },
+        },
       })
 
+      if (!existingTask) {
+        log(LOG_PREFIX, `Error: Task with ID ${taskId} not found.`)
+        throw new GraphQLError("Task not found", { extensions: { code: "NOT_FOUND" } })
+      }
+      log(LOG_PREFIX, "Successfully fetched existing task state:", existingTask)
 
       const activitiesToCreate: { type: ActivityType; data: any; userId: string; taskId: string; projectId: string }[] =
         []
       const commonActivityData = { userId, taskId, projectId: existingTask.projectId }
 
-      if (updates.title && updates.title !== existingTask.title) {
+      log(LOG_PREFIX, "Starting comparison of fields to generate activities...")
+
+      if (updates.title !== undefined && updates.title !== existingTask.title) {
+        log(LOG_PREFIX, `Change detected in 'title'. Old: "${existingTask.title}", New: "${updates.title}"`)
         activitiesToCreate.push({
           type: "TASK_UPDATED",
           data: { change: "title", old: existingTask.title, new: updates.title },
           ...commonActivityData,
         })
       }
-      if (updates.priority && updates.priority !== existingTask.priority) {
+      if (updates.priority !== undefined && updates.priority !== existingTask.priority) {
+        log(
+          LOG_PREFIX,
+          `Change detected in 'priority'. Old: "${existingTask.priority}", New: "${updates.priority}"`
+        )
         activitiesToCreate.push({
           type: "PRIORITY_UPDATED",
           data: { old: existingTask.priority, new: updates.priority },
           ...commonActivityData,
         })
       }
-      if (updates.status && updates.status !== existingTask.status) {
+      if (updates.status !== undefined && updates.status !== existingTask.status) {
+        log(LOG_PREFIX, `Change detected in 'status'. Old: "${existingTask.status}", New: "${updates.status}"`)
         activitiesToCreate.push({
           type: "STATUS_UPDATED",
           data: { old: existingTask.status, new: updates.status },
           ...commonActivityData,
         })
       }
-      if (updates.points !== undefined && updates.points !== existingTask.points) {
+      if (updates.points !== undefined && (updates.points ?? null) !== (existingTask.points ?? null)) {
+        log(LOG_PREFIX, `Change detected in 'points'. Old: ${existingTask.points ?? null}, New: ${updates.points ?? null}`)
         activitiesToCreate.push({
           type: "POINTS_UPDATED",
-          data: { old: existingTask.points, new: updates.points },
+          data: { old: existingTask.points ?? null, new: updates.points ?? null },
           ...commonActivityData,
         })
       }
@@ -245,12 +278,12 @@ export const taskResolver = {
         updates.dueDate !== undefined &&
         toISODateString(updates.dueDate ? new Date(updates.dueDate) : null) !== toISODateString(existingTask.dueDate)
       ) {
+        const oldDate = toISODateString(existingTask.dueDate)
+        const newDate = toISODateString(updates.dueDate ? new Date(updates.dueDate) : null)
+        log(LOG_PREFIX, `Change detected in 'dueDate'. Old: ${oldDate}, New: ${newDate}`)
         activitiesToCreate.push({
           type: "DUE_DATE_UPDATED",
-          data: {
-            old: toISODateString(existingTask.dueDate),
-            new: toISODateString(updates.dueDate ? new Date(updates.dueDate) : null),
-          },
+          data: { old: oldDate, new: newDate },
           ...commonActivityData,
         })
       }
@@ -259,13 +292,12 @@ export const taskResolver = {
         toISODateString(updates.startDate ? new Date(updates.startDate) : null) !==
           toISODateString(existingTask.startDate)
       ) {
+        const oldDate = toISODateString(existingTask.startDate)
+        const newDate = toISODateString(updates.startDate ? new Date(updates.startDate) : null)
+        log(LOG_PREFIX, `Change detected in 'startDate'. Old: ${oldDate}, New: ${newDate}`)
         activitiesToCreate.push({
           type: "TASK_UPDATED",
-          data: {
-            change: "start date",
-            old: toISODateString(existingTask.startDate),
-            new: toISODateString(updates.startDate ? new Date(updates.startDate) : null),
-          },
+          data: { change: "start date", old: oldDate, new: newDate },
           ...commonActivityData,
         })
       }
@@ -273,51 +305,75 @@ export const taskResolver = {
         updates.endDate !== undefined &&
         toISODateString(updates.endDate ? new Date(updates.endDate) : null) !== toISODateString(existingTask.endDate)
       ) {
+        const oldDate = toISODateString(existingTask.endDate)
+        const newDate = toISODateString(updates.endDate ? new Date(updates.endDate) : null)
+        log(LOG_PREFIX, `Change detected in 'endDate'. Old: ${oldDate}, New: ${newDate}`)
         activitiesToCreate.push({
           type: "TASK_UPDATED",
-          data: {
-            change: "end date",
-            old: toISODateString(existingTask.endDate),
-            new: toISODateString(updates.endDate ? new Date(updates.endDate) : null),
-          },
+          data: { change: "end date", old: oldDate, new: newDate },
           ...commonActivityData,
         })
       }
       if (updates.description !== undefined && updates.description !== existingTask.description) {
-        activitiesToCreate.push({
-          type: "DESCRIPTION_UPDATED",
-          data: { change: "description" },
-          ...commonActivityData,
-        })
+        log(LOG_PREFIX, "Change detected in 'description'.")
+        activitiesToCreate.push({ type: "DESCRIPTION_UPDATED", data: {}, ...commonActivityData })
       }
       if (updates.assigneeId !== undefined && updates.assigneeId !== existingTask.assigneeId) {
+        log(
+          LOG_PREFIX,
+          `Change detected in 'assigneeId'. Old: "${existingTask.assigneeId}", New: "${updates.assigneeId}"`
+        )
         const newAssignee = updates.assigneeId ? await prisma.user.findUnique({ where: { id: updates.assigneeId } }) : null
         activitiesToCreate.push({
           type: "TASK_ASSIGNED",
           data: {
-            old: existingTask.assignee ? `${existingTask.assignee.firstName} ${existingTask.assignee.lastName}` : "Unassigned",
-            new: newAssignee ? `${newAssignee.firstName} ${newAssignee.lastName}` : "Unassigned",
+            old: existingTask.assignee ? `${existingTask.assignee.firstName} ${existingTask.assignee.lastName}` : null,
+            new: newAssignee ? `${newAssignee.firstName} ${newAssignee.lastName}` : null,
           },
           ...commonActivityData,
         })
       }
       if (updates.sprintId !== undefined && updates.sprintId !== existingTask.sprintId) {
+        log(LOG_PREFIX, `Change detected in 'sprintId'. Old: "${existingTask.sprintId}", New: "${updates.sprintId}"`)
         const newSprint = updates.sprintId ? await prisma.sprint.findUnique({ where: { id: updates.sprintId } }) : null
         activitiesToCreate.push({
           type: "TASK_UPDATED",
-          data: { change: "sprint", old: existingTask.sprint?.name || "None", new: newSprint?.name || "None" },
+          data: { change: "sprint", old: existingTask.sprint?.name ?? null, new: newSprint?.name ?? null },
           ...commonActivityData,
         })
       }
       if (updates.sectionId !== undefined && updates.sectionId !== existingTask.sectionId) {
+        log(
+          LOG_PREFIX,
+          `Change detected in 'sectionId'. Old: "${existingTask.sectionId}", New: "${updates.sectionId}"`
+        )
         const newSection = updates.sectionId ? await prisma.section.findUnique({ where: { id: updates.sectionId } }) : null
         activitiesToCreate.push({
           type: "TASK_UPDATED",
-          data: { change: "section", old: existingTask.section?.name || "None", new: newSection?.name || "None" },
+          data: { change: "section", old: existingTask.section?.name ?? null, new: newSection?.name ?? null },
           ...commonActivityData,
         })
       }
 
+      log(LOG_PREFIX, "Comparison finished. Final activities to be created:", activitiesToCreate)
+
+      if (activitiesToCreate.length === 0 && Object.keys(updates).every(k => k === 'id')) {
+        log(LOG_PREFIX, "No changes detected. Skipping database transaction and returning existing data.")
+        // If there are no activities and no actual data updates, we can short-circuit.
+        // This is a failsafe, as the frontend shouldn't call the mutation without changes.
+        const taskForReturn = await prisma.task.findUnique({
+          where: { id: taskId },
+          include: { assignee: { select: { id: true, firstName: true, lastName: true, avatar: true, avatarColor: true } } },
+        })
+        return {
+          ...taskForReturn,
+          dueDate: toISODateString(taskForReturn.dueDate),
+          startDate: toISODateString(taskForReturn.startDate),
+          endDate: toISODateString(taskForReturn.endDate),
+        }
+      }
+
+      log(LOG_PREFIX, "Starting database transaction to create activities and update the task.")
       const [, updatedTask] = await prisma.$transaction([
         prisma.activity.createMany({ data: activitiesToCreate }),
         prisma.task.update({
@@ -336,17 +392,19 @@ export const taskResolver = {
             sprintId: updates.sprintId,
             completed: updates.isCompleted !== undefined ? updates.isCompleted : updates.status === "DONE",
           },
-          include: { assignee: { select: { id: true, firstName: true, lastName: true, avatar: true ,avatarColor:true } } },
+          include: { assignee: { select: { id: true, firstName: true, lastName: true, avatar: true, avatarColor: true } } },
         }),
       ])
+      log(LOG_PREFIX, "Transaction successful. Updated task data:", updatedTask)
 
-      log("[updateProjectTask Mutation]", "Task updated and activities logged successfully:", { id: updatedTask.id })
-      return {
+      const finalResponse = {
         ...updatedTask,
         dueDate: toISODateString(updatedTask.dueDate),
         startDate: toISODateString(updatedTask.startDate),
         endDate: toISODateString(updatedTask.endDate),
       }
+      log(LOG_PREFIX, "Execution finished. Returning final response:", finalResponse)
+      return finalResponse
     },
 
     deleteProjectTask: async (_parent: unknown, args: { id: string }, context: GraphQLContext) => {
@@ -355,7 +413,6 @@ export const taskResolver = {
       const userId = context.user.id
 
       const task = await prisma.task.findUnique({ where: { id: args.id } })
-
 
       const deletedTask = await prisma.task.delete({ where: { id: args.id } })
 
@@ -407,7 +464,7 @@ export const taskResolver = {
       const [newComment] = await prisma.$transaction([
         prisma.comment.create({
           data: { content, taskId, authorId },
-          include: { author: { select: { id: true, firstName: true, lastName: true, avatar: true ,avatarColor:true } } },
+          include: { author: { select: { id: true, firstName: true, lastName: true, avatar: true, avatarColor: true } } },
         }),
         prisma.activity.create({
           data: {
@@ -480,7 +537,7 @@ export const taskResolver = {
             taskId,
             uploaderId,
           },
-          include: { uploader: { select: { id: true, firstName: true, lastName: true, avatar: true ,avatarColor:true } } },
+          include: { uploader: { select: { id: true, firstName: true, lastName: true, avatar: true, avatarColor: true } } },
         }),
         prisma.activity.create({
           data: { type: "ATTACHMENT_ADDED", data: { fileName }, userId: uploaderId, taskId, projectId: task.projectId },
@@ -505,13 +562,12 @@ export const taskResolver = {
         throw new Error("Attachment not found.")
       }
 
-
       // Determine resource_type from the URL which is the most reliable indicator of how Cloudinary stored it
-      let resourceType = 'image';
-      if (attachment.url.includes('/raw/')) {
-        resourceType = 'raw';
-      } else if (attachment.url.includes('/video/')) {
-        resourceType = 'video';
+      let resourceType = "image"
+      if (attachment.url.includes("/raw/")) {
+        resourceType = "raw"
+      } else if (attachment.url.includes("/video/")) {
+        resourceType = "video"
       }
 
       await cloudinary.uploader.destroy(attachment.publicId, { resource_type: resourceType })
@@ -544,7 +600,7 @@ export const taskResolver = {
           projectId: input.projectId,
         },
         orderBy: {
-          order: 'asc',
+          order: "asc",
         },
         select: {
           id: true,
@@ -616,7 +672,7 @@ export const taskResolver = {
         },
         include: {
           assignee: {
-            select: { id: true, firstName: true, lastName: true, avatar: true ,avatarColor:true },
+            select: { id: true, firstName: true, lastName: true, avatar: true, avatarColor: true },
           },
         },
       })
@@ -662,7 +718,7 @@ export const taskResolver = {
       if (!parent.assigneeId) return null
       return context.prisma.user.findUnique({
         where: { id: parent.assigneeId },
-        select: { id: true, firstName: true, lastName: true, avatar: true ,avatarColor:true },
+        select: { id: true, firstName: true, lastName: true, avatar: true, avatarColor: true },
       })
     },
   },

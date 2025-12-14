@@ -583,7 +583,7 @@ export function TaskDetailSheet({
 // Helper component to parse and render activity logs
 function ParsedActivityLogItem({ activity }: { activity: ActivityUI }) {
     let action = "performed an action";
-    let details: string | undefined = undefined;
+    let details: React.ReactNode | undefined = undefined;
     let icon = <ActivityIcon className="h-4 w-4 text-gray-500" />;
     let accentColor = "bg-gray-50";
 
@@ -606,39 +606,39 @@ function ParsedActivityLogItem({ activity }: { activity: ActivityUI }) {
                 icon = <Pencil className="h-4 w-4 text-blue-500" />;
                 accentColor = "bg-blue-50";
                 break;
-            case 'ASSIGNEE_CHANGED':
+            case 'TASK_ASSIGNED':
                 action = "changed the assignee";
-                details = `${data.oldValue || 'Unassigned'} → ${data.newValue || 'Unassigned'}`;
+                details = <><b className="font-semibold not-italic text-gray-700">{data.old || 'Unassigned'}</b> → <b className="font-semibold not-italic text-gray-700">{data.new || 'Unassigned'}</b></>;
                 icon = <UserRoundIcon className="h-4 w-4 text-emerald-500" />;
                 accentColor = "bg-emerald-50";
                 break;
             case 'PRIORITY_UPDATED':
                 action = "changed the priority";
-                details = `${data.oldValue} → ${data.newValue}`;
+                details = <><b className="font-semibold not-italic text-gray-700">{data.old}</b> → <b className="font-semibold not-italic text-gray-700">{data.new}</b></>;
                 icon = <TagIcon className="h-4 w-4 text-orange-500" />;
                 accentColor = "bg-orange-50";
                 break;
             case 'POINTS_UPDATED':
                 action = "updated story points";
-                details = `${data.oldValue ?? 'No'} points → ${data.newValue ?? 'No'} points`;
+                details = <><b className="font-semibold not-italic text-gray-700">{data.old ?? 'No'} points</b> → <b className="font-semibold not-italic text-gray-700">{data.new ?? 'No'} points</b></>;
                 icon = <ListOrdered className="h-4 w-4 text-purple-500" />;
                 accentColor = "bg-purple-50";
                 break;
-            case 'STATUS_CHANGED':
+            case 'STATUS_UPDATED':
                  action = "changed the status";
-                 details = `${data.oldValue} → ${data.newValue}`;
+                 details = <><b className="font-semibold not-italic text-gray-700">{data.old}</b> → <b className="font-semibold not-italic text-gray-700">{data.new}</b></>;
                  icon = <CheckCircle2 className="h-4 w-4 text-green-600" />;
                  accentColor = "bg-green-50";
                  break;
             case 'DUE_DATE_UPDATED':
                 action = "updated the due date";
-                details = `${formatDateForDisplay(data.oldValue)} → ${formatDateForDisplay(data.newValue)}`;
+                details = <><b className="font-semibold not-italic text-gray-700">{formatDateForDisplay(data.old)}</b> → <b className="font-semibold not-italic text-gray-700">{formatDateForDisplay(data.new)}</b></>;
                 icon = <CalendarIcon className="h-4 w-4 text-red-500" />;
                 accentColor = "bg-red-50";
                 break;
             case 'TASK_UPDATED':
-                action = `updated the ${data.field}`;
-                details = `from "${data.oldValue}" to "${data.newValue}"`;
+                action = `updated the ${data.change}`;
+                details = <>from "<b className="font-semibold not-italic text-gray-700">{data.old}</b>" to "<b className="font-semibold not-italic text-gray-700">{data.new}</b>"</>;
                 icon = <Pencil className="h-4 w-4 text-blue-500" />;
                 accentColor = "bg-blue-50";
                 break;
@@ -647,6 +647,18 @@ function ParsedActivityLogItem({ activity }: { activity: ActivityUI }) {
                  details = `"${data.content}"`;
                  icon = <MessageSquareIcon className="h-4 w-4 text-gray-500" />;
                  accentColor = "bg-gray-50";
+                 break;
+            case 'ATTACHMENT_ADDED':
+                 action = "added an attachment";
+                 details = `File: ${data.fileName}`;
+                 icon = <Paperclip className="h-4 w-4 text-indigo-500" />;
+                 accentColor = "bg-indigo-50";
+                 break;
+            case 'ATTACHMENT_REMOVED':
+                 action = "removed an attachment";
+                 details = `File: ${data.fileName}`;
+                 icon = <Trash2 className="h-4 w-4 text-red-500" />;
+                 accentColor = "bg-red-50";
                  break;
             default:
                 action = `performed an action: ${activity.type}`;
@@ -681,7 +693,7 @@ interface ActivityLogItemProps {
     avatarColor?: string; // Added avatarColor
   };
   action: string;
-  details?: string;
+  details?: React.ReactNode;
   time: string;
   icon: React.ReactNode;
   accentColor: string;
@@ -702,10 +714,10 @@ function ActivityLogItem({ user, action, details, time, icon, accentColor }: Act
             {userInitials}
         </AvatarFallback>
       </Avatar>
-      <div className="flex-1">
+      <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
           {icon}
-          <p className="font-semibold text-gray-800">{userName} <span className="text-sm text-muted-foreground font-normal">{action}</span></p>
+          <p className="font-semibold text-gray-800 break-words">{userName} <span className="text-sm text-muted-foreground font-normal">{action}</span></p>
         </div>
         {details && <p className="text-xs text-gray-600 italic mt-1 break-words">{details}</p>}
         <span className="text-xs text-muted-foreground block mt-1">{time}</span>

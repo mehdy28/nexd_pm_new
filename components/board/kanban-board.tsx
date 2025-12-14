@@ -1,6 +1,7 @@
+// components/board/kanban-boardV2.tsx
 "use client"
 
-import { useEffect, useMemo, useRef, useState, useCallback } from "react"
+import { useMemo, useRef, useState, useCallback, useEffect } from "react"
 import type { Card, Column } from "./kanban-types"
 import { KanbanSortableColumn } from "./kanban-sortable-column"
 import { KanbanSortableCard } from "./kanban-sortable-card"
@@ -24,6 +25,10 @@ import {
   arrayMove,
 } from "@dnd-kit/sortable"
 import { ChevronDown, Loader2 } from "lucide-react"
+import { useTaskDetails } from "@/hooks/personal/useTaskDetails"
+import { TaskDetailSheet } from "@/components/modals/task-detail-sheet"
+import { TaskUI } from "@/hooks/personal/useMyTasksAndSections"
+import type { TaskStatus } from "@prisma/client"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -31,11 +36,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { useTaskDetails } from "@/hooks/useTaskDetails"
-import { TaskUI } from "@/hooks/useProjectTasksAndSections"
-import { TaskDetailSheet } from "../modals/task-detail-sheet"
 import { UserAvatarPartial } from "@/types/useProjectTasksAndSections"
-
 
 type OverlayState =
   | {
@@ -52,29 +53,45 @@ type OverlayState =
     }
   | null
 
+// This type represents the shape of the task object used by the generic TaskDetailSheet.
+// It helps resolve the conflict between the hook's TaskUI and the sheet's expected props.
+type SheetTaskUI = {
+  id: string
+  title: string
+  description: string | null
+  priority: "LOW" | "MEDIUM" | "HIGH"
+  startDate: string | null
+  endDate: string | null
+  points: number | null
+  sectionId: string
+  assignee?: any | null
+  status?: TaskStatus
+  completed?: boolean
+}
+
 interface KanbanBoardProps {
   projectId?: string
-  initialColumns: Column[]
   sprintOptions: { id: string; name: string }[]
   currentSprintId?: string
   onSprintChange: (sprintId: string | undefined) => void
+  initialColumns: Column[]
   onColumnsChange: (newColumns: Column[]) => void
   onCreateColumn: (title: string) => void
   onUpdateColumn: (columnId: string, title: string) => void
   onDeleteColumn: (columnId: string) => void
-  onCreateCard: (columnId: string, title: string, description?: string, assigneeId?: string | null) => void
+  onCreateCard: (columnId: string, title: string) => void
   onUpdateCard: (columnId: string, cardId: string, updates: Partial<TaskUI & { sectionId?: string }>) => void
-  onDeleteCard: (cardId: string) => void
-  availableAssignees: UserAvatarPartial[]
+  onDeleteCard: (columnId: string, cardId: string) => void
   isMutating: boolean
+  isCreatingColumn: boolean
+  availableAssignees: UserAvatarPartial[]
 }
 
 export function KanbanBoard({
-  projectId,
-  initialColumns,
   sprintOptions,
   currentSprintId,
   onSprintChange,
+  initialColumns,
   onColumnsChange,
   onCreateColumn,
   onUpdateColumn,
@@ -82,19 +99,19 @@ export function KanbanBoard({
   onCreateCard,
   onUpdateCard,
   onDeleteCard,
-  availableAssignees,
   isMutating,
+  isCreatingColumn,
+  availableAssignees,
 }: KanbanBoardProps) {
   const [columns, setColumns] = useState<Column[]>(initialColumns)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [selected, setSelected] = useState<{ columnId: string; cardId: string } | null>(null)
   const [overlay, setOverlay] = useState<OverlayState>(null)
-  const [editingCardLocal, setEditingCardLocal] = useState<Card | null>(null)
 
   const rowRef = useRef<HTMLDivElement | null>(null)
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
 
-  const { taskDetails, isMutating: isTaskDetailsMutating } = useTaskDetails(selected?.cardId || null)
+  const { isMutating: isTaskDetailsMutating } = useTaskDetails(selected?.cardId || null)
 
   const openDrawer = useCallback((columnId: string, cardId: string) => {
     setSelected({ columnId, cardId })
@@ -110,37 +127,45 @@ export function KanbanBoard({
     setColumns(initialColumns)
   }, [initialColumns])
 
-  useEffect(() => {
-    if (taskDetails) {
-      setEditingCardLocal({
-        id: taskDetails.id,
-        title: taskDetails.title,
-        description: taskDetails.description,
-        priority: taskDetails.priority,
-        points: taskDetails.points,
-        due: taskDetails.dueDate,
-        assignee: taskDetails.assignee,
-        editing: false,
-        completed: taskDetails.status === "DONE",
-      })
-    } else {
-      setEditingCardLocal(null)
-    }
-  }, [taskDetails])
-
   const handleUpdateTask = useCallback(
-    async (sectionId: string, taskId: string, updates: Partial<TaskUI>) => {
+    async (sectionId: string, taskId: string, updates: Partial<SheetTaskUI>) => {
+      // Create an update object that is compatible with the `Card` type.
+      const cardCompatibleUpdates: Partial<Card> = { ...updates }
+
+      // Coerce `description` from `string | null` to `string | undefined`.
+      if ("description" in updates) {
+        cardCompatibleUpdates.description = updates.description === null ? undefined : updates.description
+      }
+
+      // Coerce `points` from `number | null` to `number`.
+      if ("points" in updates) {
+        cardCompatibleUpdates.points = updates.points ?? 0
+      }
+
+      // Optimistically update the local state for an instant UI change on the card.
+      setColumns(prev =>
+        prev.map(column =>
+          column.id === sectionId
+            ? {
+                ...column,
+                cards: column.cards.map(card => (card.id === taskId ? { ...card, ...cardCompatibleUpdates } : card)),
+              }
+            : column
+        )
+      )
+
+      // Then, trigger the actual mutation in the background.
       await onUpdateCard(sectionId, taskId, updates)
     },
     [onUpdateCard]
   )
 
   const handleDeleteRequest = useCallback(
-    (sectionId: string, task: TaskUI) => {
-      onDeleteCard(task.id)
-      closeDrawer()
+    (sectionId: string, task: { id: string }) => {
+      onDeleteCard(sectionId, task.id)
+      setDrawerOpen(false)
     },
-    [onDeleteCard, closeDrawer]
+    [onDeleteCard]
   )
 
   function findColumnIdByCardId(cardId: string) {
@@ -173,17 +198,19 @@ export function KanbanBoard({
     if (!overId || activeId === overId) return
 
     if (activeType === "column") {
-      setColumns(currentColumns => {
-        const fromIndex = currentColumns.findIndex(c => c.id === activeId)
-        const toIndex = currentColumns.findIndex(c => c.id === overId)
-        if (fromIndex === -1 || toIndex === -1) return currentColumns
+      // *** FIX STARTS HERE ***
+      const fromIndex = columns.findIndex(c => c.id === activeId)
+      const toIndex = columns.findIndex(c => c.id === overId)
 
-        const reorderedColumns = arrayMove(currentColumns, fromIndex, toIndex)
-        // Notify the parent of the change
+      if (fromIndex !== -1 && toIndex !== -1 && fromIndex !== toIndex) {
+        const reorderedColumns = arrayMove(columns, fromIndex, toIndex)
+        // First, update the local state for a smooth UI transition
+        setColumns(reorderedColumns)
+        // THEN, call the function prop to trigger the mutation (the side effect)
         onColumnsChange(reorderedColumns)
-        return reorderedColumns
-      })
+      }
       return
+      // *** FIX ENDS HERE ***
     }
 
     if (activeType === "card") {
@@ -201,7 +228,9 @@ export function KanbanBoard({
       if (!toColumnId) return
 
       const fromIndex = indexOfCard(fromColumnId, activeId)
-      const toIndex = overIsColumn ? columns.find(c => c.id === toColumnId)!.cards.length : indexOfCard(toColumnId, overId)
+      const toIndex = overIsColumn
+        ? columns.find(c => c.id === toColumnId)!.cards.length
+        : indexOfCard(toColumnId, overId)
 
       if (fromColumnId === toColumnId && fromIndex === toIndex) return
 
@@ -212,48 +241,51 @@ export function KanbanBoard({
         const toCol = next.find(c => c.id === toColumnId)!
         const [moved] = fromCol.cards.splice(fromIndex, 1)
 
-        toCol.cards.splice(toIndex, 0, moved)
+        // FIX: If moving to a new column, add the card to the TOP.
+        if (fromColumnId !== toColumnId) {
+          toCol.cards.unshift(moved)
+        } else {
+          // If staying in the same column, respect the precise drop index.
+          toCol.cards.splice(toIndex, 0, moved)
+        }
+
         return next
       })
 
       // If card moved to a new column, notify the parent to trigger mutation
       if (fromColumnId !== toColumnId) {
-        onUpdateCard(toColumnId, activeId, { sectionId: toColumnId })
+        onUpdateCard(fromColumnId, activeId, { sectionId: toColumnId })
       }
+      // NOTE: A mutation for reordering within the same column would be needed here.
     }
   }
-
   const currentSprintName = useMemo(() => {
     return sprintOptions.find(s => s.id === currentSprintId)?.name || "All Sprints"
   }, [currentSprintId, sprintOptions])
 
-  const combinedIsMutating = isMutating || isTaskDetailsMutating
+  const isBoardMutating = isMutating || isTaskDetailsMutating
 
   const sheetTaskProp = useMemo(() => {
     if (!selected) return null
     return { sectionId: selected.columnId, taskId: selected.cardId }
   }, [selected])
 
-  const initialTaskForSheet = useMemo(() => {
-    if (!editingCardLocal || !selected) return null
-    return {
-      ...editingCardLocal,
-      id: editingCardLocal.id,
-      sectionId: selected.columnId,
-      status: editingCardLocal.completed ? "DONE" : "TODO",
-    }
-  }, [editingCardLocal, selected])
-
   return (
     <div className="page-scroller">
       <div className="flex items-center  pr-6 pl-6 pt-3 gap-3">
-        <Button onClick={() => onCreateColumn("New Column")} className="bg-[#4ab5ae] text-white hover:bg-[#419d97] h-9 rounded-md" disabled={combinedIsMutating}>
-          {combinedIsMutating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-          + Add column
+        <Button
+          onClick={() => onCreateColumn("New Column")}
+          className="bg-[#4ab5ae] text-white hover:bg-[#419d97] h-9 rounded-md"
+          // Disable if the board is mutating OR a column is being created.
+          disabled={isBoardMutating || isCreatingColumn}
+        >
+          {/* Only show spinner when a column is being created. */}
+          {isCreatingColumn ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}+ Add column
         </Button>
+
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" className="h-9 rounded-md gap-2 bg-transparent" disabled={combinedIsMutating}>
+            <Button variant="outline" className="h-9 rounded-md gap-2 bg-transparent">
               {currentSprintName}
               <ChevronDown className="h-4 w-4 text-muted-foreground" />
             </Button>
@@ -262,7 +294,7 @@ export function KanbanBoard({
             <DropdownMenuLabel>Sprints</DropdownMenuLabel>
             {sprintOptions.length > 0 ? (
               sprintOptions.map(sprint => (
-                <DropdownMenuItem key={sprint.id} onClick={() => onSprintChange(sprint.id)} disabled={combinedIsMutating}>
+                <DropdownMenuItem key={sprint.id} onClick={() => onSprintChange(sprint.id)}>
                   {sprint.name}
                 </DropdownMenuItem>
               ))
@@ -272,7 +304,7 @@ export function KanbanBoard({
           </DropdownMenuContent>
         </DropdownMenu>
         {/* <div className="ml-auto relative w-[260px]">
-          <Input className="h-9" placeholder="Search tasks..." disabled={combinedIsMutating} />
+          <Input className="h-9" placeholder="Search tasks..." disabled={isBoardMutating} />
         </div> */}
       </div>
 
@@ -327,7 +359,7 @@ export function KanbanBoard({
                           )
                         )
                       }}
-                      onDeleteCard={() => onDeleteCard(card.id)}
+                      onDeleteCard={() => onDeleteCard(column.id, card.id)}
                       isMutating={isMutating}
                     />
                   ))}
@@ -338,60 +370,52 @@ export function KanbanBoard({
         </div>
 
         <DragOverlay>
-          {overlay?.kind === "card" ? (
-            <div
-              className="card pointer-events-none shadow-[var(--shadow-lg)]"
-              style={{
-                width: overlay.width ? `${overlay.width}px` : undefined,
-                height: overlay.height ? `${overlay.height}px` : undefined,
-              }}
+          {overlay?.kind === "card" && overlay.card ? (
+            <KanbanSortableCard
+              card={overlay.card}
+              columnId={findColumnIdByCardId(overlay.card.id) || ""}
+              onOpen={() => {}}
+              onStartInline={() => {}}
+              onFinishInline={() => {}}
+              onDeleteCard={() => {}}
+              isMutating={false}
+            />
+          ) : overlay?.kind === "column" && overlay.column ? (
+            <KanbanSortableColumn
+              column={overlay.column}
+              onAddCard={() => {}}
+              onTitleChange={() => {}}
+              onDeleteColumn={() => {}}
+              isMutating={false}
+              onStartTitleEdit={() => {}}
+              onStopTitleEdit={() => {}}
             >
-              <div className="flex items-start">
-                <span
-                  className={
-                    overlay.card.priority === "HIGH"
-                      ? "badge-high"
-                      : overlay.card.priority === "MEDIUM"
-                      ? "badge-medium"
-                      : "badge-low"
-                  }
-                >
-                  {overlay.card.priority || "LOW"}
-                </span>
-                <div className="ml-auto text-xs text-slate-500">
-                  {overlay.card.points ? `${overlay.card.points} SP` : ""}
-                </div>
-              </div>
-              <div className="mt-2 text-sm font-semibold">{overlay.card.title}</div>
-              {overlay.card.description ? (
-                <div className="mt-1 line-clamp-2 text-xs text-slate-500">{overlay.card.description}</div>
-              ) : null}
-            </div>
-          ) : overlay?.kind === "column" ? (
-            <div
-              className="column pointer-events-none"
-              style={{
-                width: overlay.width ? `${overlay.width}px` : undefined,
-                height: overlay.height ? `${overlay.height}px` : undefined,
-              }}
-            >
-              <div className="column-header">
-                <div className="text-sm font-semibold">{overlay.column.title}</div>
-              </div>
-              <div className="column-body"></div>
-            </div>
+              <SortableContext items={overlay.column.cards.map(c => c.id)} strategy={verticalListSortingStrategy}>
+                {overlay.column.cards.map(card => (
+                  <KanbanSortableCard
+                    key={card.id}
+                    columnId={overlay.column.id}
+                    card={card}
+                    onOpen={() => {}}
+                    onStartInline={() => {}}
+                    onFinishInline={() => {}}
+                    onDeleteCard={() => {}}
+                    isMutating={false}
+                  />
+                ))}
+              </SortableContext>
+            </KanbanSortableColumn>
           ) : null}
         </DragOverlay>
       </DndContext>
 
       <TaskDetailSheet
         sheetTask={sheetTaskProp}
-        initialTaskData={initialTaskForSheet}
         onClose={closeDrawer}
         onUpdateTask={handleUpdateTask}
         onRequestDelete={handleDeleteRequest}
         availableAssignees={availableAssignees}
-        isTaskMutating={combinedIsMutating}
+        isTaskMutating={isBoardMutating}
       />
     </div>
   )
