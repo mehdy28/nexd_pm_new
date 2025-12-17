@@ -1,0 +1,307 @@
+"use client"
+
+import type React from "react"
+import { memo, useEffect, useCallback, useRef, useState } from "react"
+import dynamic from "next/dynamic"
+import type { ExcalidrawAPI } from "./excalidraw"
+import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types"
+import { getCommonBounds } from "@excalidraw/excalidraw";
+import type { AppState as ExcalidrawAppState } from "@excalidraw/excalidraw/types"
+import "@excalidraw/excalidraw/index.css";
+import { WelcomeScreen as OriginalWelcomeScreen } from '@excalidraw/excalidraw';
+
+type DynamicWelcomeScreenType = React.ComponentType<{ children?: React.ReactNode }> & {
+    Center: typeof OriginalWelcomeScreen.Center;
+    Hints: typeof OriginalWelcomeScreen.Hints;
+};
+
+const DynamicExcalidraw = dynamic(
+    () => import("@excalidraw/excalidraw").then((mod) => mod.Excalidraw),
+    { ssr: false }
+);
+
+// --- Custom Library Components ---
+
+const LIBRARIES = [
+    { name: "Basic UX", path: "/libraries/basic-ux-wireframing-elements.excalidrawlib" },
+    { name: "Data Viz", path: "/libraries/data-viz.excalidrawlib" },
+    { name: "Decision Flow", path: "/libraries/decision-flow-control.excalidrawlib" },
+    { name: "Lo-fi Wireframing", path: "/libraries/lo-fi-wireframing-kit.excalidrawlib" },
+    { name: "System Design", path: "/libraries/systems-design-components.excalidrawlib" },
+    { name: "System Design Template", path: "/libraries/system-design-template.excalidrawlib" },
+    { name: "UML/ER", path: "/libraries/UML-ER-library.excalidrawlib" },
+    { name: "Universal UI Kit", path: "/libraries/universal-ui-kit.excalidrawlib" },
+];
+
+interface LibraryItem {
+    id: string;
+    status: string;
+    elements: readonly ExcalidrawElement[];
+    created: number;
+    name?: string;
+}
+
+const CustomLibraryModal = ({ api, onClose }: { api: ExcalidrawAPI, onClose: () => void }) => {
+    const [activeLib, setActiveLib] = useState(LIBRARIES[0]);
+    const [libraryItems, setLibraryItems] = useState<LibraryItem[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const modalRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const fetchLibrary = async () => {
+            setIsLoading(true);
+            try {
+                const response = await fetch(activeLib.path);
+                if (!response.ok) throw new Error("Failed to fetch library");
+                const data = await response.json();
+                setLibraryItems(data.libraryItems || []);
+            } catch (error) {
+                console.error("Error loading library:", error);
+                setLibraryItems([]);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        fetchLibrary();
+    }, [activeLib]);
+
+    const handleAddItemToCanvas = (elements: readonly ExcalidrawElement[]) => {
+        if (!api) return;
+
+        const appState = api.getAppState();
+        const { width, height, zoom } = appState;
+
+        const viewPortCenterX = (width / 2 - appState.scrollX) / zoom.value;
+        const viewPortCenterY = (height / 2 - appState.scrollY) / zoom.value;
+
+        const [minX, minY, maxX, maxY] = getCommonBounds(elements);
+        const bboxWidth = maxX - minX;
+        const bboxHeight = maxY - minY;
+
+        const bboxCenterX = minX + bboxWidth / 2;
+        const bboxCenterY = minY + bboxHeight / 2;
+
+        const dx = viewPortCenterX - bboxCenterX;
+        const dy = viewPortCenterY - bboxCenterY;
+
+        const newElements = elements.map(el => ({
+            ...el,
+            x: el.x + dx,
+            y: el.y + dy,
+        }));
+
+        api.addElements(newElements);
+        onClose();
+    };
+
+    // Close modal if clicked outside
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (modalRef.current && !modalRef.current.contains(event.target as Node)) {
+                onClose();
+            }
+        };
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, [onClose]);
+
+    return (
+        <div style={{
+            position: 'fixed', top: 0, left: 0, width: '100%', height: '100%',
+            backgroundColor: 'rgba(0, 0, 0, 0.4)', display: 'flex',
+            alignItems: 'center', justifyContent: 'center', zIndex: 100
+        }}>
+            <div ref={modalRef} style={{
+                width: '80%', height: '70%', maxWidth: '1200px',
+                backgroundColor: 'white', borderRadius: '8px',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.15)', display: 'flex',
+                fontFamily: `-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif`
+            }}>
+                {/* Sidebar */}
+                <div style={{ width: '240px', borderRight: '1px solid #e0e0e0', padding: '16px', overflowY: 'auto' }}>
+                    <h3 style={{ marginTop: 0, marginBottom: '16px', color: '#333' }}>Libraries</h3>
+                    {LIBRARIES.map(lib => (
+                        <button key={lib.path} onClick={() => setActiveLib(lib)} style={{
+                            display: 'block', width: '100%', padding: '10px',
+                            border: 'none', borderRadius: '6px', textAlign: 'left',
+                            marginBottom: '8px', cursor: 'pointer',
+                            backgroundColor: activeLib.path === lib.path ? '#e6f7ff' : 'transparent',
+                            color: activeLib.path === lib.path ? '#007bff' : '#333',
+                            fontWeight: activeLib.path === lib.path ? '600' : 'normal'
+                        }}>
+                            {lib.name}
+                        </button>
+                    ))}
+                </div>
+                {/* Content */}
+                <div style={{ flex: 1, padding: '16px', overflowY: 'auto' }}>
+                    <h2 style={{marginTop: 0}}>{activeLib.name}</h2>
+                    {isLoading ? (
+                        <div>Loading...</div>
+                    ) : (
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '16px' }}>
+                            {libraryItems.length > 0 ? libraryItems.map((item, index) => (
+                                <div key={item.id} onClick={() => handleAddItemToCanvas(item.elements)} style={{
+                                    border: '1px solid #ccc', borderRadius: '6px',
+                                    padding: '12px', cursor: 'pointer',
+                                    textAlign: 'center', backgroundColor: '#f9f9f9',
+                                    transition: 'box-shadow 0.2s, transform 0.2s',
+                                }}
+                                onMouseEnter={(e) => {
+                                    e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)';
+                                    e.currentTarget.style.transform = 'translateY(-2px)';
+                                }}
+                                onMouseLeave={(e) => {
+                                    e.currentTarget.style.boxShadow = 'none';
+                                    e.currentTarget.style.transform = 'none';
+                                }}
+                                >
+                                    {`Item ${index + 1}`}
+                                </div>
+                            )) : <div>No items found in this library.</div>}
+                        </div>
+                    )}
+                </div>
+                 <button onClick={onClose} style={{ position: 'absolute', top: '16px', right: '16px', background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#888' }}>&times;</button>
+            </div>
+        </div>
+    );
+};
+
+// --- End Custom Library Components ---
+
+interface ExcalidrawWrapperProps {
+    initialData?: {
+        elements?: ReadonlyArray<ExcalidrawElement>;
+        appState?: Partial<ExcalidrawAppState>;
+    } | null;
+    onChange?: (
+        elements: ReadonlyArray<ExcalidrawElement>,
+        appState: ExcalidrawAppState
+    ) => void;
+    onPointerDown?: (event: any) => void;
+    setApi: (api: ExcalidrawAPI | null) => void;
+    api: ExcalidrawAPI | null;
+    style?: React.CSSProperties;
+}
+
+const ExcalidrawWrapper: React.FC<ExcalidrawWrapperProps> = memo(({
+    initialData,
+    onChange,
+    onPointerDown,
+    setApi,
+    api,
+    style
+}) => {
+    const [dynamicWelcomeScreenReady, setDynamicWelcomeScreenReady] = useState(false);
+    const initialDataRef = useRef(initialData);
+    const [DynamicWelcomeScreenComponent, setDynamicWelcomeScreenComponent] = useState<DynamicWelcomeScreenType | null>(null);
+    const [isLibraryOpen, setIsLibraryOpen] = useState(false);
+
+    useEffect(() => {
+        let isMounted = true;
+        const loadWelcomeScreen = async () => {
+            try {
+                const { WelcomeScreen } = await import('@excalidraw/excalidraw');
+                if (!isMounted) return;
+                const DynamicComponent = WelcomeScreen as any;
+                DynamicComponent.Center = WelcomeScreen.Center;
+                DynamicComponent.Hints = WelcomeScreen.Hints;
+                setDynamicWelcomeScreenComponent(() => DynamicComponent);
+                setDynamicWelcomeScreenReady(true);
+            } catch (e) {
+                console.error("Failed to import WelcomeScreen:", e);
+            }
+        };
+        loadWelcomeScreen();
+        return () => { isMounted = false; };
+    }, []);
+
+    const handleSetApi = useCallback((apiInstance: ExcalidrawAPI | null) => {
+        setApi(apiInstance);
+    }, [setApi]);
+
+    const handleOnChange = useCallback((elements: ReadonlyArray<ExcalidrawElement>, appState: ExcalidrawAppState) => {
+        if (onChange) {
+            onChange(elements, appState);
+        }
+    }, [onChange]);
+
+    const renderTopRightUI = () => {
+        return (
+            <button
+                onClick={() => setIsLibraryOpen(true)}
+                style={{
+                    backgroundColor: "#F1F3F5",
+                    border: "1px solid #E9ECEF",
+                    padding: "8px 12px",
+                    borderRadius: "6px",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    fontFamily: `-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif`,
+                    fontSize: '14px',
+                    color: '#495057'
+                }}
+            >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M4 22h14a2 2 0 0 0 2-2V7.5L14.5 2H6a2 2 0 0 0-2 2v4"/><path d="M14 2v6h6"/><path d="M2 15h10"/><path d="M5 12v6"/><path d="M8 12v6"/>
+                </svg>
+                Library
+            </button>
+        );
+    };
+
+    return (
+        <div style={{ ...style, display: "flex", flexDirection: "column" }}>
+            <style>{`
+              .excalidraw .help-icon,
+              .excalidraw .main-menu-trigger,
+              .excalidraw .excalidraw-bottom-bar {
+                display: none;
+              }
+            `}</style>
+            <div style={{ flexGrow: 1, position: "relative" }}>
+                <DynamicExcalidraw
+                    excalidrawAPI={handleSetApi}
+                    initialData={initialDataRef.current}
+                    onChange={handleOnChange}
+                    onPointerDown={onPointerDown}
+                    UIOptions={{
+                        canvasActions: {
+                            loadScene: false,
+                            saveToActiveFile: false,
+                            toggleTheme: false,
+                            saveAsImage: false,
+                            clearCanvas: false,
+                            export: false,
+                            library: false,
+                        }
+                    }}
+                    renderTopRightUI={renderTopRightUI}
+                >
+                    {dynamicWelcomeScreenReady && DynamicWelcomeScreenComponent ? (
+                        <DynamicWelcomeScreenComponent>
+                            <DynamicWelcomeScreenComponent.Center>
+                                 <DynamicWelcomeScreenComponent.Center.Heading>
+                                    Start by creating something new or open an existing file.
+                                </DynamicWelcomeScreenComponent.Center.Heading>
+                            </DynamicWelcomeScreenComponent.Center>
+                        </DynamicWelcomeScreenComponent>
+                    ) : (
+                        <div>Loading...</div>
+                    )}
+                </DynamicExcalidraw>
+                 {isLibraryOpen && api && (
+                    <CustomLibraryModal api={api} onClose={() => setIsLibraryOpen(false)} />
+                )}
+            </div>
+        </div>
+    );
+});
+
+ExcalidrawWrapper.displayName = 'ExcalidrawWrapper';
+
+export default ExcalidrawWrapper;
+export type { ExcalidrawElement, ExcalidrawAppState };

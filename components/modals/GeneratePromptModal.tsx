@@ -132,14 +132,14 @@ export const GeneratePromptModal: React.FC<GeneratePromptModalProps> = ({
         className="bg-white rounded-lg shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col saas-card"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="p-6 border-b">
+        <div className="p-3 pl-6 pr-6 border-b">
           <h2 className="text-xl font-bold text-gray-800">Generate Prompt from Whiteboard</h2>
-          <p className="text-sm text-gray-500">Use AI to generate a detailed prompt based on your Whiteboard image.</p>
+          {/* <p className="text-sm text-gray-500">Use AI to generate a detailed prompt based on your Whiteboard image.</p> */}
         </div>
 
-        <div className="flex-1 p-6 overflow-y-auto grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div className="flex-1 p-3 overflow-hidden grid grid-cols-1 md:grid-cols-2 gap-8">
           {/* Left Column: Whiteboard Preview & Inputs */}
-          <div className="flex flex-col space-y-6">
+          <div className="flex flex-col space-y-6 overflow-y-auto pr-4">
             <div>
               <label className="block text-sm font-medium text-gray-600 mb-2">Whiteboard Preview</label>
               {WhiteboardImageBase64 ? (
@@ -211,7 +211,7 @@ export const GeneratePromptModal: React.FC<GeneratePromptModalProps> = ({
                    <textarea
                      readOnly
                      value={generatedContent}
-                     className="w-full h-full bg-transparent border-none focus:ring-0 resize-none text-sm text-gray-700 p-0"
+                     className="w-full h-full bg-transparent border-none focus:ring-0 resize-none text-sm text-gray-700 p-2"
                    />
                 )}
                 
