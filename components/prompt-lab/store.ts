@@ -158,7 +158,6 @@ const usePromptLabStore = create<PromptLabState>()(
           category: '',
           tags: [],
           isPublic: false,
-          model: 'gpt-4o',
           content: [],
           context: '',
           createdAt: now,

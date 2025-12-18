@@ -562,38 +562,39 @@ model Subscription {
 }
 
 model Prompt {
-  id          String     @id @default(cuid())
-  title       String
-  description String?
-  category    String?
-  tags        String[]
-  isPublic    Boolean    @default(false)
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
-  model       String?    @default("gpt-4o")
-  projectId   String?
-  userId      String?
-  WhiteboardId String?
-  Whiteboard   Whiteboard? @relation(fields: [WhiteboardId], references: [id], onDelete: SetNull)
-  project     Project?   @relation("ProjectPrompts", fields: [projectId], references: [id], onDelete: Cascade)
-  user        User?      @relation("UserPersonalPrompts", fields: [userId], references: [id], onDelete: Cascade)
-  comments    Comment[]
-  activities  Activity[]
-  versions    Version[]
+  id             String        @id @default(cuid())
+  title          String
+  description    String?
+  category       String?
+  tags           String[]
+  isPublic       Boolean       @default(false)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  modelProfileId String?
+  projectId      String?
+  userId         String?
+  WhiteboardId   String?
+  Whiteboard     Whiteboard?   @relation(fields: [WhiteboardId], references: [id], onDelete: SetNull)
+  project        Project?      @relation("ProjectPrompts", fields: [projectId], references: [id], onDelete: Cascade)
+  user           User?         @relation("UserPersonalPrompts", fields: [userId], references: [id], onDelete: Cascade)
+  modelProfile   ModelProfile? @relation(fields: [modelProfileId], references: [id], onDelete: SetNull)
+  comments       Comment[]
+  activities     Activity[]
+  versions       Version[]
 
   @@map("prompts")
 }
 
 model Version {
-  id                String         @id @default(cuid())
+  id                String           @id @default(cuid())
   context           String
-  createdAt         DateTime       @default(now())
+  createdAt         DateTime         @default(now())
   notes             String?
   description       String?
   aiEnhancedContent String?
-  isActive          Boolean        @default(true)
+  isActive          Boolean          @default(true)
   promptId          String
-  prompt            Prompt         @relation(fields: [promptId], references: [id], onDelete: Cascade)
+  prompt            Prompt           @relation(fields: [promptId], references: [id], onDelete: Cascade)
   content           ContentBlock[]
   variables         PromptVariable[]
 
@@ -615,7 +616,7 @@ model PromptVariable {
 }
 
 model ContentBlock {
-  id          String   @id @default(cuid())
+  id          String  @id @default(cuid())
   type        String
   value       String?
   varId       String?
@@ -623,10 +624,28 @@ model ContentBlock {
   name        String?
   order       Int
   versionId   String
-  version     Version  @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  version     Version @relation(fields: [versionId], references: [id], onDelete: Cascade)
 
   @@map("content_blocks")
 }
+
+model ModelProfile {
+  id                      String  @id @default(cuid())
+  name                    String // e.g., "OpenAI GPT-4o"
+  provider                String? // e.g., "OpenAI", "Meta"
+  enhancementInstructions String   @db.Text
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+  prompts                 Prompt[]
+
+  @@map("model_profiles")
+}
+
+
+
+
+
+
 
 
 model TaskDependency {

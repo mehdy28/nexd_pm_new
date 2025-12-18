@@ -13,7 +13,7 @@ export const GET_PROJECT_PROMPTS_QUERY = gql`
         updatedAt
         isPublic
         projectId
-        model
+        modelProfileId
       }
       totalCount
     }
@@ -31,7 +31,7 @@ export const GET_PROMPT_DETAILS_QUERY = gql`
       isPublic
       createdAt
       updatedAt
-      model
+      modelProfileId
       projectId
       user {
         id

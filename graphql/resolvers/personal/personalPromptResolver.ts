@@ -54,7 +54,7 @@ const personalPromptResolvers = {
             isPublic: true,
             createdAt: true,
             updatedAt: true,
-            model: true,
+            modelProfileId: true,
             projectId: true,
           },
         }),

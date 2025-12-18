@@ -270,7 +270,6 @@ const promptResolvers = {
       return version as unknown as Version;
     },
 
-
   },
 
   Mutation: {
@@ -285,12 +284,12 @@ const promptResolvers = {
         category?: string;
         tags?: string[];
         isPublic?: boolean;
-        model?: string;
+        modelProfileId?: string;
         variables?: PromptVariable[];
       }},
       context: GraphQLContext
     ): Promise<Prompt> => {
-      const { projectId, content, variables, context: promptContext, ...scalarData } = input;
+      const { projectId, content, variables, context: promptContext, modelProfileId, ...scalarData } = input;
       const userId = context.user?.id;
 
       const createData: any = {
@@ -318,6 +317,23 @@ const promptResolvers = {
         },
       };
 
+      let finalModelProfileId = modelProfileId;
+      if (!finalModelProfileId) {
+        const genericModel = await prisma.modelProfile.findFirst({
+            where: { name: 'Generic Model' },
+            select: { id: true }
+        });
+        if (genericModel) {
+            finalModelProfileId = genericModel.id;
+        }
+      }
+
+      if (finalModelProfileId) {
+          createData.modelProfile = {
+              connect: { id: finalModelProfileId }
+          };
+      }
+
       if (projectId) {
         createData.project = { connect: { id: projectId } };
       } else if (userId) {
@@ -339,7 +355,7 @@ const promptResolvers = {
         category?: string;
         tags?: string[];
         isPublic?: boolean;
-        model?: string;
+        modelProfileId?: string;
       }},
       context: GraphQLContext
     ): Promise<Prompt> => {

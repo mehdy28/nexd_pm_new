@@ -1,11 +1,10 @@
-//lib/prompts/prompt-templates.ts
 import { PromptVariable, Block } from "@/components/prompt-lab/store"
 
 export type PromptTemplate = {
   name: string
   category: "Business" | "Marketing" | "Productivity" | "Development" | "Data Science"
   description: string
-  model: string
+  modelProfileId: string
   content: Block[] // Content now alternates between text and variable placeholder blocks
   context: string
   variables: Omit<PromptVariable, "id">[] // Separate variable definitions maintained
@@ -19,7 +18,7 @@ export const templates: PromptTemplate[] = [
     category: "Productivity",
     description:
       "Establish clear, measurable objectives for the next period, focusing on professional growth or personal development, independent of any current project mandate.",
-    model: "gpt-4o-mini",
+    modelProfileId: "gpt-4o-mini",
     content: [
       {
         type: "text",
@@ -70,7 +69,7 @@ export const templates: PromptTemplate[] = [
     category: "Business",
     description:
       "Use a structured decision framework to evaluate a non-project related choice (e.g., career move, tool adoption, learning path).",
-    model: "gpt-4o",
+    modelProfileId: "gpt-4o",
     content: [
       {
         type: "text",
@@ -126,7 +125,7 @@ export const templates: PromptTemplate[] = [
     category: "Productivity",
     description:
       "Analyze a typical work week to pinpoint non-essential tasks or major distractions, and suggest concrete strategies for blocking and focused work.",
-    model: "gpt-4o",
+    modelProfileId: "gpt-4o",
     content: [
       {
         type: "text",
@@ -177,7 +176,7 @@ export const templates: PromptTemplate[] = [
     category: "Development",
     description:
       "Generate a step-by-step roadmap for acquiring a new, non-project specific professional skill, including resources and milestones.",
-    model: "gpt-4o",
+    modelProfileId: "gpt-4o",
     content: [
       {
         type: "text",
@@ -233,7 +232,7 @@ export const templates: PromptTemplate[] = [
     category: "Business",
     description:
       "Prepare talking points and a structured outline for a sensitive or challenging non-project related discussion (e.g., asking for a raise, giving negative feedback, discussing boundaries).",
-    model: "gpt-4o",
+    modelProfileId: "gpt-4o",
     content: [
       {
         type: "text",
@@ -303,7 +302,7 @@ export const templates: PromptTemplate[] = [
     category: "Productivity",
     description:
       "Apply the 5 Whys technique to identify the non-technical, human-error, or process-related root cause of a recurring professional setback or failure.",
-    model: "gpt-4o-mini",
+    modelProfileId: "gpt-4o-mini",
     content: [
       {
         type: "text",
@@ -340,7 +339,7 @@ export const templates: PromptTemplate[] = [
     category: "Productivity",
     description:
       "Take vague or critical professional feedback and transform it into three clear, positive, and measurable development goals.",
-    model: "gpt-4o-mini",
+    modelProfileId: "gpt-4o-mini",
     content: [
       {
         type: "text",
@@ -391,7 +390,7 @@ export const templates: PromptTemplate[] = [
     category: "Marketing",
     description:
       "Generate topics and titles for personal professional content (blog, presentation, talk) based on expertise, aiming to establish user authority.",
-    model: "gpt-4o",
+    modelProfileId: "gpt-4o",
     content: [
       {
         type: "text",
@@ -447,7 +446,7 @@ export const templates: PromptTemplate[] = [
     category: "Development",
     description:
       "Condense dense technical or theoretical documentation into a high-level summary suitable for non-technical leadership or non-specialists.",
-    model: "gpt-4o-mini",
+    modelProfileId: "gpt-4o-mini",
     content: [
       {
         type: "text",
@@ -498,7 +497,7 @@ export const templates: PromptTemplate[] = [
     category: "Productivity",
     description:
       "Use brainstorming techniques (like SCAMPER) to break through a general professional or creative block by forcing alternative perspectives.",
-    model: "gpt-4o",
+    modelProfileId: "gpt-4o",
     content: [
       {
         type: "text",
@@ -527,3 +526,4 @@ export const templates: PromptTemplate[] = [
 ]
 
 export const promptTemplateCategories = [...new Set(templates.map(t => t.category))].sort()
+

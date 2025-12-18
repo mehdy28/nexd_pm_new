@@ -213,7 +213,7 @@ const DocumentComments = ({
             <Button
               type="submit"
               size="icon"
-              className="h-8 w-8 flex-shrink-0 rounded-full bg-[#a0d9d6] hover:bg-[#8bcac6]"
+              className="h-8 w-8 flex-shrink-0 rounded-full bg-[#4ab5ae] hover:bg-[#419d97]"
               disabled={addingComment || !newComment.trim()}
             >
               {addingComment ? (

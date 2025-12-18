@@ -1,8 +1,3 @@
-Here is the new file that creates, updates, and deletes `ModelProfile` entities, following the design pattern of your customer support components.
-
-I have structured this into a single file with multiple component definitions for clarity, just like your provided example.
-
-```tsx
 // components/admin/model-profiles-manager.tsx
 
 "use client"
@@ -104,7 +99,7 @@ export function ModelProfilesManager() {
                   placeholder="Search profiles..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-8"
+                  className="pl-8 bg-white border"
                 />
               </div>
             </CardHeader>
@@ -242,14 +237,17 @@ function ModelProfileEditor({ profileId, onSave, onCancel, onDelete }: ModelProf
   // --- Handlers ---
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    const variables = { id, name, provider, enhancementInstructions: instructions }
 
     try {
       if (isCreatingNew) {
-        await createProfile({ variables })
+        await createProfile({
+          variables: { name, provider, enhancementInstructions: instructions },
+        })
         toast.success("Model profile created successfully.")
       } else {
-        await updateProfile({ variables: { id, name, provider, enhancementInstructions: instructions } })
+        await updateProfile({
+          variables: { id, name, provider, enhancementInstructions: instructions },
+        })
         toast.success("Model profile updated successfully.")
       }
       onSave()
@@ -259,13 +257,13 @@ function ModelProfileEditor({ profileId, onSave, onCancel, onDelete }: ModelProf
   }
 
   const handleDelete = async () => {
-    if (!profileId || isCreatingNew) return;
+    if (!profileId || isCreatingNew) return
     try {
-        await deleteProfile({ variables: { id: profileId } });
-        toast.success("Model profile deleted successfully.");
-        onDelete();
+      await deleteProfile({ variables: { id: profileId } })
+      toast.success("Model profile deleted successfully.")
+      onDelete()
     } catch (err: any) {
-        toast.error(err.message || "Failed to delete profile.");
+      toast.error(err.message || "Failed to delete profile.")
     }
   }
 
@@ -286,28 +284,30 @@ function ModelProfileEditor({ profileId, onSave, onCancel, onDelete }: ModelProf
 
   if (queryLoading) {
     return (
-        <Card className="h-full">
-            <CardHeader><Skeleton className="h-6 w-1/2" /></CardHeader>
-            <CardContent className="space-y-4">
-                <Skeleton className="h-10 w-full" />
-                <Skeleton className="h-10 w-full" />
-                <Skeleton className="h-10 w-full" />
-                <Skeleton className="h-48 w-full" />
-            </CardContent>
-        </Card>
+      <Card className="h-full">
+        <CardHeader>
+          <Skeleton className="h-6 w-1/2" />
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-48 w-full" />
+        </CardContent>
+      </Card>
     )
   }
-  
+
   if (queryError) {
-     return (
-        <Card className="h-full flex items-center justify-center">
-          <div className="text-center text-red-500">
-            <AlertTriangle className="w-12 h-12 mx-auto mb-4" />
-            <h3 className="text-lg font-medium mb-2">Could not load profile</h3>
-            <p className="text-sm">{queryError.message}</p>
-          </div>
-        </Card>
-    );
+    return (
+      <Card className="h-full flex items-center justify-center">
+        <div className="text-center text-red-500">
+          <AlertTriangle className="w-12 h-12 mx-auto mb-4" />
+          <h3 className="text-lg font-medium mb-2">Could not load profile</h3>
+          <p className="text-sm">{queryError.message}</p>
+        </div>
+      </Card>
+    )
   }
 
   return (
@@ -323,20 +323,6 @@ function ModelProfileEditor({ profileId, onSave, onCancel, onDelete }: ModelProf
         </CardHeader>
         <CardContent className="flex-1 space-y-4 overflow-y-auto p-6">
           <div className="grid gap-2">
-            <Label htmlFor="profile-id">Profile ID</Label>
-            <Input
-              id="profile-id"
-              placeholder="e.g., 'gpt-4o', 'llama3.1-70b'"
-              value={id}
-              onChange={(e) => setId(e.target.value)}
-              disabled={!isCreatingNew || isLoading}
-              required
-            />
-             <p className="text-xs text-muted-foreground">
-              A unique identifier for the model. Cannot be changed after creation.
-            </p>
-          </div>
-          <div className="grid gap-2">
             <Label htmlFor="profile-name">Display Name</Label>
             <Input
               id="profile-name"
@@ -345,6 +331,7 @@ function ModelProfileEditor({ profileId, onSave, onCancel, onDelete }: ModelProf
               onChange={(e) => setName(e.target.value)}
               disabled={isLoading}
               required
+              className="bg-white border"
             />
           </div>
           <div className="grid gap-2">
@@ -355,6 +342,7 @@ function ModelProfileEditor({ profileId, onSave, onCancel, onDelete }: ModelProf
               value={provider}
               onChange={(e) => setProvider(e.target.value)}
               disabled={isLoading}
+              className="bg-white border"
             />
           </div>
           <div className="grid gap-2">
@@ -364,11 +352,11 @@ function ModelProfileEditor({ profileId, onSave, onCancel, onDelete }: ModelProf
               placeholder="System-level instructions for how the model should behave..."
               value={instructions}
               onChange={(e) => setInstructions(e.target.value)}
-              className="min-h-[200px]"
+              className="min-h-[200px] bg-white border"
               disabled={isLoading}
               required
             />
-             <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-muted-foreground">
               These instructions are applied to enhance prompts using this model.
             </p>
           </div>
@@ -376,29 +364,36 @@ function ModelProfileEditor({ profileId, onSave, onCancel, onDelete }: ModelProf
         <CardFooter className="flex justify-between border-t pt-6">
           <div>
             {!isCreatingNew && (
-                <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                        <Button type="button" variant="destructive" disabled={isLoading}>
-                             {deleteLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
-                             Delete
-                        </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                        <AlertDialogHeader>
-                            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                                This action cannot be undone. This will permanently delete the model profile
-                                and may affect prompts that rely on it.
-                            </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction onClick={handleDelete} className="bg-destructive hover:bg-destructive/90">
-                                Delete
-                            </AlertDialogAction>
-                        </AlertDialogFooter>
-                    </AlertDialogContent>
-                </AlertDialog>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button type="button" variant="destructive" disabled={isLoading}>
+                    {deleteLoading ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="mr-2 h-4 w-4" />
+                    )}
+                    Delete
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This action cannot be undone. This will permanently delete the model profile
+                      and may affect prompts that rely on it.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={handleDelete}
+                      className="bg-destructive hover:bg-destructive/90"
+                    >
+                      Delete
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             )}
           </div>
           <div className="flex gap-2">
@@ -407,7 +402,11 @@ function ModelProfileEditor({ profileId, onSave, onCancel, onDelete }: ModelProf
               Cancel
             </Button>
             <Button type="submit" disabled={isLoading}>
-              {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+              {isLoading ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Save className="mr-2 h-4 w-4" />
+              )}
               {isCreatingNew ? "Create Profile" : "Save Changes"}
             </Button>
           </div>
@@ -416,25 +415,3 @@ function ModelProfileEditor({ profileId, onSave, onCancel, onDelete }: ModelProf
     </form>
   )
 }
-
-```
-**How to Use This File:**
-
-1.  **Save the Code:** Save the code above as a new file at `components/admin/model-profiles-manager.tsx`.
-2.  **Create the Page Route:** Create a new file at `app/(admin)/model-profiles/page.tsx` with the following content:
-
-    ```tsx
-    // app/(admin)/model-profiles/page.tsx
-    "use client"
-    
-    import { ModelProfilesManager } from "@/components/admin/model-profiles-manager";
-    
-    export default function ModelProfilesAdminPage() {
-      return <ModelProfilesManager />;
-    }
-    ```
-
-3.  **Dependencies:** Ensure you have installed the necessary `shadcn/ui` components that are being imported (`Card`, `Input`, `Button`, `Label`, `ScrollArea`, `Skeleton`, `AlertDialog`, `Textarea`, `sonner` for toasts).
-4.  **Hook Location:** This code assumes your Apollo Client hooks for `ModelProfile` are located at ` "@/hooks/useModelProfiles"`. Make sure the path is correct.
-
-Now, when you navigate to `/model-profiles` within your admin section, you will see the fully functional CRUD interface for managing your AI Model Profiles, matching the design and interaction patterns of your existing admin pages.

@@ -30,6 +30,9 @@ import { memberManagementResolvers } from "./memberManagementResolver";
 
 import promptResolversAi from "./promptResolverAi";
 
+// Model Profile Resolvers
+import modelProfileResolvers from "./modelProfilesResolver";
+
 // Admin management resolvers
 import { adminSupportResolvers } from "./adminSupportResolvers";
 import { adminResolvers } from "./admi";
@@ -68,6 +71,10 @@ export const resolvers = {
     // Admin
     ...adminSupportResolvers.Query,
     ...adminResolvers.Query,
+
+    
+    // Model Profiles
+    ...modelProfileResolvers.Query,
   },
   Mutation: {
     // General & Workspace
@@ -109,8 +116,14 @@ export const resolvers = {
 
 
     // Admin Support
-    ...adminSupportResolvers.Mutation
+    ...adminSupportResolvers.Mutation,
+
+
+    // Model Profiles
+    ...modelProfileResolvers.Mutation,
     
+
+
   },
   Subscription: {
     // Real-time Messaging & Tickets

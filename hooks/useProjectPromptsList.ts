@@ -25,7 +25,7 @@ type PromptCreationData = Partial<{
   category: string
   tags: string[]
   isPublic: boolean
-  model: string
+  modelProfileId: string
   variables: Partial<PromptVariable>[]
   projectId?: string
 }>
@@ -101,7 +101,7 @@ export function useProjectPromptsList(
       isPublic: p.isPublic,
       createdAt: p.createdAt,
       updatedAt: p.updatedAt,
-      model: p.model || "gpt-4o",
+      modelProfileId: p.modelProfileId,
       projectId: p.projectId,
       activeVersion: undefined,
       versions: [],
@@ -214,7 +214,6 @@ export function useProjectPromptsList(
           category: "",
           tags: [],
           isPublic: false,
-          model: "gpt-4o",
           projectId: projectId,
           variables: [],
         }
@@ -241,7 +240,7 @@ export function useProjectPromptsList(
             isPublic: data.createPrompt.isPublic,
             createdAt: data.createPrompt.createdAt,
             updatedAt: data.createPrompt.updatedAt,
-            model: data.createPrompt.model,
+            modelProfileId: data.createPrompt.modelProfileId,
             projectId: data.createPrompt.projectId,
             activeVersion: data.createPrompt.activeVersion ? {
                 ...data.createPrompt.activeVersion,

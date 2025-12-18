@@ -512,7 +512,7 @@ type Prompt {
   isPublic: Boolean!
   createdAt: DateTime!
   updatedAt: DateTime!
-  model: String
+  modelProfileId: String
   projectId: ID
   project: Project
   user: User
@@ -522,6 +522,13 @@ type Prompt {
   activities: [Activity!]
   versions: [Version!]
   activeVersion: Version
+}
+
+type ModelProfile {
+  id: ID!
+  name: String!
+  provider: String
+  enhancementInstructions: String!
 }
 
 type TaskDependency {
@@ -739,6 +746,7 @@ type TaskLookupItem {
   status: TaskStatus!
   priority: Priority!
   dueDate: DateTime
+  endDate: DateTime
   assignee: UserLookupPartial
   sprint: SprintNameId
 }
@@ -793,7 +801,7 @@ type PromptListItem {
   updatedAt: DateTime!
   isPublic: Boolean!
   projectId: ID
-  model: String
+  modelProfileId: String
 }
 
 type DeleteManyPayload {
@@ -1286,7 +1294,7 @@ input CreatePromptInput {
   category: String
   tags: [String!]
   isPublic: Boolean
-  model: String
+  modelProfileId: String
   variables: [CreatePromptVariableInput!]
   versions: [CreateVersionInput!]
 }
@@ -1300,7 +1308,7 @@ input CreatePromptFromWhiteboardInput {
   category: String
   tags: [String!]
   isPublic: Boolean
-  model: String
+  modelProfileId: String
   variables: [CreatePromptVariableInput!]
   versions: [CreateVersionInput!]
 }
@@ -1313,7 +1321,7 @@ input UpdatePromptInput {
   category: String
   tags: [String!]
   isPublic: Boolean
-  model: String
+  modelProfileId: String
 }
 input CreateVersionInput {
   id: ID
@@ -1355,6 +1363,18 @@ input ConfirmAttachmentInput {
 input GeneratePromptFromWhiteboardInput {
   imageBase64: String!
   context: String!
+}
+
+input CreateModelProfileInput {
+  name: String!
+  provider: String
+  enhancementInstructions: String!
+}
+
+input UpdateModelProfileInput {
+  name: String
+  provider: String
+  enhancementInstructions: String
 }
 
 # ----------------------------------
@@ -1412,6 +1432,7 @@ input UpdatePromptAiEnhancedContentInput {
   promptId: ID!
   versionId: ID!
   content: String!
+  modelProfileId: String!
 }
 
 
@@ -1473,6 +1494,10 @@ type Query {
   getProjectTasksLookup(projectId: ID!, sprintId: ID): [TaskLookupItem!]!
   getProjectDocumentsLookup(projectId: ID!): [DocumentListItem!]!
   getProjectDashboardData(projectId: ID!, sprintId: ID): ProjectDashboardData
+  
+  # Model Profiles
+  modelProfiles: [ModelProfile!]!
+  modelProfile(id: ID!): ModelProfile
 
   # User/Personal
   getMyGanttData: PersonalGanttDataResponse
@@ -1638,7 +1663,15 @@ type Mutation {
   # Ai Prompt
   generatePromptFromWhiteboard(input: GeneratePromptFromWhiteboardInput!): String!
 
-# Admin Support
+  # Model Profiles
+  createModelProfile(data: CreateModelProfileInput!): ModelProfile!
+  createManyModelProfiles(data: [CreateModelProfileInput!]!): DeleteManyPayload!
+  updateModelProfile(id: ID!, data: UpdateModelProfileInput!): ModelProfile!
+  updateManyModelProfiles(ids: [ID!]!, data: UpdateModelProfileInput!): DeleteManyPayload!
+  deleteModelProfile(id: ID!): ModelProfile!
+  deleteManyModelProfiles(ids: [ID!]!): DeleteManyPayload!
+
+  # Admin Support
   adminSendTicketMessage(ticketId: ID!, content: String!): TicketMessage!
   adminUpdateTicketStatus(ticketId: ID!, status: TicketStatus!): TicketStatusPayload!
   adminUpdateTicketPriority(ticketId: ID!, priority: Priority!): TicketPriorityPayload!

@@ -14,7 +14,7 @@ export const CREATE_PROMPT_FROM_WHITEBOARD_MUTATION = gql`
       id
       title
       description
-      model
+      modelProfileId
       WhiteboardId
       activeVersion {
         id

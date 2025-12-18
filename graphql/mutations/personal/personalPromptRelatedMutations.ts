@@ -13,8 +13,8 @@ export const CREATE_PROMPT_MUTATION = gql`
       isPublic
       createdAt
       updatedAt
-      model
       projectId
+      modelProfileId
       versions {
         id
         createdAt
@@ -56,7 +56,6 @@ export const UPDATE_PROMPT_MUTATION = gql`
       tags
       isPublic
       updatedAt
-      model
     }
   }
 `

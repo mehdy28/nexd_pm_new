@@ -86,7 +86,7 @@ export function usePersonalPrompts(): UsePersonalPromptsHook {
           isPublic: p.isPublic,
           createdAt: p.createdAt,
           updatedAt: p.updatedAt,
-          model: p.model || "gpt-4o",
+          modelProfileId: p.modelProfileId || "gpt-4o",
           content: [],
           context: "",
           projectId: p.projectId,
@@ -197,7 +197,7 @@ export function usePersonalPrompts(): UsePersonalPromptsHook {
           isPublic: data.getPromptDetails.isPublic,
           createdAt: data.getPromptDetails.createdAt,
           updatedAt: data.getPromptDetails.updatedAt,
-          model: data.getPromptDetails.model,
+          modelProfileId: data.getPromptDetails.modelProfileId,
           projectId: data.getPromptDetails.projectId,
           variables: data.getPromptDetails.variables.map((v: PromptVariable) => ({
             ...v,
@@ -239,7 +239,7 @@ export function usePersonalPrompts(): UsePersonalPromptsHook {
           isPublic: data.createPrompt.isPublic,
           createdAt: data.createPrompt.createdAt,
           updatedAt: data.createPrompt.updatedAt,
-          model: data.createPrompt.model,
+          modelProfileId: data.createPrompt.modelProfileId,
           projectId: data.createPrompt.projectId,
           variables: data.createPrompt.variables.map((v: PromptVariable) => ({
             ...v,
@@ -279,7 +279,7 @@ export function usePersonalPrompts(): UsePersonalPromptsHook {
                     description: data.updatePrompt.description,
                     tags: data.updatePrompt.tags,
                     isPublic: data.updatePrompt.isPublic,
-                    model: data.updatePrompt.model,
+                    modelProfileId: data.updatePrompt.modelProfileId,
                     updatedAt: data.updatePrompt.updatedAt,
                   }
                 : p
@@ -380,7 +380,6 @@ export function usePersonalPrompts(): UsePersonalPromptsHook {
         category: "",
         tags: [],
         isPublic: false,
-        model: "gpt-4o",
         projectId: null,
         variables: [],
       }

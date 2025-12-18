@@ -103,7 +103,6 @@ export const GeneratePromptModal: React.FC<GeneratePromptModalProps> = ({
       title,
       description,
       WhiteboardId: WhiteboardId,
-      model: 'gemini-pro-vision',
       versions: [versionInput], // Wrap the version in an array
     };
 

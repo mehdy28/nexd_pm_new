@@ -17,8 +17,9 @@ import { toast } from 'sonner';
 import { useDebounce } from 'use-debounce';
 import { LoadingPlaceholder, ErrorPlaceholder } from "@/components/placeholders/status-placeholders";
 import { useUpdatePromptAiEnhancedContent } from "@/hooks/usePromptsAi";
-import { useLazyQuery } from "@apollo/client";
+import { useLazyQuery, gql } from "@apollo/client";
 import { RESOLVE_PROMPT_VARIABLE_QUERY } from "@/graphql/queries/projectPromptVariablesQuerries";
+import { useGetModelProfiles } from "@/hooks/useModelProfiles";
 
 // --- HELPER: Deep Compare ---
 function deepCompareBlocks(arr1: Block[], arr2: Block[]): boolean {
@@ -104,6 +105,7 @@ export function PromptLab({
 }: PromptLabProps) {
 
     const { updatePrompt: enhancePrompt } = useUpdatePromptAiEnhancedContent();
+    const { models: availableModels, loading: modelsLoading, error: modelsError } = useGetModelProfiles();
 
     // --- STATE CACHE: This Ref survives Tab Switches ---
     // We store the user's latest local edits here (Content Blocks).
@@ -503,6 +505,7 @@ export function PromptLab({
 
     }, [currentPrompt.id, selectedVersionId, updatePromptVersion]);
 
+
     const handleUpdatePrompt = useCallback((patch: Partial<Prompt>) => {
         console.log('📡 [PromptLab] handleUpdatePrompt:', patch);
         updatePromptDetails(currentPrompt.id, patch);
@@ -582,6 +585,7 @@ export function PromptLab({
                         promptId: currentPrompt.id,
                         versionId: selectedVersionId,
                         content: renderedPreviewString,
+                        modelProfileId: currentPrompt.modelProfileId,
                     },
                 },
             });
@@ -602,7 +606,7 @@ export function PromptLab({
                 setIsEnhancing(false);
             }
         }
-    }, [currentPrompt.id, selectedVersionId, renderedPreviewString, enhancePrompt, enhancementPhases]);
+    }, [currentPrompt.id, currentPrompt.modelProfileId, selectedVersionId, renderedPreviewString, enhancePrompt, enhancementPhases]);
 
     if (isLoadingDetails && !currentPrompt) {
         return <LoadingPlaceholder message="Loading prompt details..." />
@@ -772,6 +776,9 @@ export function PromptLab({
                                                         notesToDisplay={notesToDisplay}
                                                         isEditingEnabled={!isLoadingDetails && !isEditorContentLoading}
                                                         versionId={selectedVersionId}
+                                                        availableModels={availableModels}
+                                                        modelsLoading={modelsLoading}
+                                                        modelsError={modelsError}
                                                     />
                                                 </TabsContent>
 
@@ -938,6 +945,24 @@ function VariableItem({ variable, onRemove }: { variable: PromptVariable; onRemo
 // =================================================================================================
 // EDITOR PANEL COMPONENT
 // =================================================================================================
+interface EditorPanelProps {
+    prompt: Prompt;
+    onUpdateVersion: (patch: Partial<Version>) => void;
+    onUpdatePrompt: (patch: Partial<Prompt>) => void;
+    onSnapshot: (notes?: string) => void;
+    pendingNotes: string;
+    setPendingNotes: (notes: string) => void;
+    isSnapshotting: boolean;
+    contentToDisplay: Block[];
+    contextToDisplay: string;
+    notesToDisplay: string;
+    isEditingEnabled: boolean;
+    versionId: string | null;
+    availableModels: { id: string; name: string; }[];
+    modelsLoading: boolean;
+    modelsError: any;
+}
+
 function EditorPanel({
     prompt,
     onUpdateVersion,
@@ -951,26 +976,20 @@ function EditorPanel({
     notesToDisplay,
     isEditingEnabled,
     versionId,
-}: {
-    prompt: Prompt
-    onUpdateVersion: (patch: Partial<Version>) => void
-    onUpdatePrompt: (patch: Partial<Prompt>) => void
-    onSnapshot: (notes?: string) => void
-    pendingNotes: string;
-    setPendingNotes: (notes: string) => void;
-    isSnapshotting: boolean;
-    contentToDisplay: Block[];
-    contextToDisplay: string;
-    notesToDisplay: string;
-    isEditingEnabled: boolean;
-    versionId: string | null;
-}) {
+    availableModels,
+    modelsLoading,
+    modelsError,
+}: EditorPanelProps) {
     const [blocks, setBlocks] = useState<Block[]>([]);
     const [localNotes, setLocalNotes] = useState('');
     const [localContext, setLocalContext] = useState('');
     const [localModel, setLocalModel] = useState('');
     const isSwitchingVersions = useRef(true);
     const hasInitialized = useRef(false);
+
+    useEffect(() => {
+        setLocalModel(prompt.modelProfileId ?? '');
+    }, [prompt.modelProfileId]);
 
     // --- LOGGING: Initial Block Load ---
     useEffect(() => {
@@ -990,7 +1009,6 @@ function EditorPanel({
             setLocalNotes(notesToDisplay);
             setLocalContext(contextToDisplay);
             setBlocks((contentToDisplay || []).map(b => ({ ...b })));
-            setLocalModel(prompt.model);
 
             const timer = setTimeout(() => {
                 isSwitchingVersions.current = false;
@@ -1001,7 +1019,7 @@ function EditorPanel({
             // Debug log to confirm we are blocking the stale prop
             // console.log('🛡️ [EditorPanel] Ignoring prop update (already initialized)');
         }
-    }, [isEditingEnabled, contentToDisplay, contextToDisplay, notesToDisplay, prompt.model, versionId]);
+    }, [isEditingEnabled, contentToDisplay, contextToDisplay, notesToDisplay, versionId]);
 
     // --- LOGGING: Block State Changes ---
     useEffect(() => {
@@ -1040,8 +1058,8 @@ function EditorPanel({
 
     useEffect(() => {
         if (isSwitchingVersions.current || !isEditingEnabled) return;
-        if (debouncedLocalModel !== prompt.model) {
-            onUpdatePrompt({ model: debouncedLocalModel });
+        if (debouncedLocalModel !== (prompt.modelProfileId ?? '')) {
+            onUpdatePrompt({ modelProfileId: debouncedLocalModel });
         }
     }, [debouncedLocalModel, isEditingEnabled, onUpdatePrompt]);
 
@@ -1148,13 +1166,21 @@ function EditorPanel({
                         value={localModel}
                         onChange={(e) => { setLocalModel(e.target.value); }}
                         title="Target model"
-                        disabled={!isEditingEnabled}
+                        disabled={!isEditingEnabled || modelsLoading || !!modelsError}
                     >
-                        <option value="gpt-4o">OpenAI GPT-4o</option>
-                        <option value="gpt-4o-mini">OpenAI GPT-4o-mini</option>
-                        <option value="grok-3">xAI Grok-3</option>
-                        <option value="llama3.1-70b">Llama 3.1 70B</option>
-                        <option value="mixtral-8x7b">Mixtral 8x7B</option>
+                        {modelsLoading && <option value="">Loading models...</option>}
+                        {modelsError && <option value="">Error loading models</option>}
+                        {!modelsLoading && !modelsError && (
+                            availableModels.length > 0 ? (
+                                availableModels.map(model => (
+                                    <option key={model.id} value={model.id}>
+                                        {model.name}
+                                    </option>
+                                ))
+                            ) : (
+                                <option value="">No models available</option>
+                            )
+                        )}
                     </select>
                 </div>
             </div>

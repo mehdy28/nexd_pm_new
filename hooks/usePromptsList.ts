@@ -168,7 +168,6 @@ export function usePromptsList(projectId: string | undefined, selectedId: string
           category: '',
           tags: [],
           isPublic: false,
-          model: 'gpt-4o',
           projectId: projectId,
           variables: [],
         };

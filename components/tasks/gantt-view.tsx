@@ -50,11 +50,14 @@ const GanttView: React.FC<GanttViewProps> = ({ projectId }) => {
   }, [defaultSelectedSprintId, selectedSprintId])
 
   useEffect(() => {
-    if (ganttTasks && !isMutating) {
-      // Directly set the tasks; the Gantt library will calculate parent dates.
+    // Only update the local gantt tasks from the hook's data if a
+    // query is not actively loading. This prevents clearing the displayed
+    // tasks when refetching data (e.g., changing sprints), which stops the flicker.
+    // We also check !isMutating to avoid overwriting optimistic UI updates.
+    if (ganttTasks && !ganttDataLoading && !isMutating) {
       setOptimisticGanttTasks(ganttTasks)
     }
-  }, [ganttTasks, isMutating])
+  }, [ganttTasks, ganttDataLoading, isMutating])
 
   const dynamicColumnWidth = useMemo(() => {
     switch (viewMode) {

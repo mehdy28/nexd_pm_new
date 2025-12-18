@@ -108,7 +108,7 @@ export function ProjectPromptLabContainer({ projectId }: ProjectPromptLabContain
           content: template.content.map(b => ({ ...b, id: generateClientKey("block-") })),
           context: template.context,
           description: template.description,
-          model: template.model,
+          modelProfileId: template.modelProfileId,
           variables: template.variables.map(v => ({ ...v, id: generateClientKey("var-") })),
           tags: [template.category],
           isPublic: false,

@@ -1,4 +1,3 @@
-// graphql/mutations/promptRelatedMutations.ts
 import { gql } from 'graphql-tag'; // Or your equivalent for GQL mutations
 
 // --- Prompt Mutations ---
@@ -14,7 +13,7 @@ mutation CreatePrompt($input: CreatePromptInput!) {
     isPublic
     createdAt
     updatedAt
-    model
+    modelProfileId
     projectId
     versions {
       id
@@ -57,7 +56,7 @@ mutation UpdatePrompt($input: UpdatePromptInput!) {
     tags
     isPublic
     updatedAt
-    model
+    modelProfileId
   }
 }
 `;
@@ -107,7 +106,7 @@ export const SET_ACTIVE_PROMPT_VERSION_MUTATION = gql`
       isPublic
       createdAt
       updatedAt
-      model
+      modelProfileId
       projectId
       user {
         id

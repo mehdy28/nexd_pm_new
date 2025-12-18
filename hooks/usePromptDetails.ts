@@ -1,4 +1,3 @@
-// hooks/usePromptDetails.ts
 'use client';
 
 import { useState, useCallback } from "react";
@@ -171,6 +170,8 @@ export function usePromptDetails(selectedPromptId: string | null, projectId: str
         if (!selectedPromptId) throw new Error("No prompt selected to snapshot.");
         return snapshotPromptMutation({ variables: { input: { promptId: selectedPromptId, notes: notes || `Version saved at ${new Date().toLocaleString()}` } } });
     }, [selectedPromptId, snapshotPromptMutation]);
+
+
 
     const setActivePromptVersion = useCallback((versionId: string) => {
         if (!selectedPromptId) throw new Error("No prompt selected.");

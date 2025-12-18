@@ -116,6 +116,7 @@ export function ListView({ projectId }: ListViewProps) {
   const [newTaskOpen, setNewTaskOpen] = useState<Record<string, boolean>>({})
   const [newTask, setNewTask] = useState<Record<string, NewTaskForm>>({})
   const [isSectionMutating, setIsSectionMutating] = useState(false)
+  const [isCreatingSection, setIsCreatingSection] = useState(false)
 
   const [deleteSectionModalOpen, setDeleteSectionModalOpen] = useState(false)
   const [sectionToDelete, setSectionToDelete] = useState<SectionUI | null>(null)
@@ -168,13 +169,13 @@ export function ListView({ projectId }: ListViewProps) {
   )
 
   const addSection = useCallback(async () => {
-    setIsSectionMutating(true)
+    setIsCreatingSection(true)
     try {
       await createSection("New Section")
     } catch (err) {
       console.error("[addSection] Failed to add section:", err)
     } finally {
-      setIsSectionMutating(false)
+      setIsCreatingSection(false)
     }
   }, [createSection])
 
@@ -424,8 +425,8 @@ export function ListView({ projectId }: ListViewProps) {
   return (
     <div className="p-6 pt-3">
       <div className="flex items-center gap-3">
-        <Button onClick={addSection} disabled={isSectionMutating} className="bg-[#4ab5ae] text-white h-9 rounded-md">
-          {isSectionMutating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}+ Add section
+        <Button onClick={addSection} disabled={isCreatingSection} className="bg-[#4ab5ae] text-white h-9 rounded-md">
+          {isCreatingSection ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}+ Add section
         </Button>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
