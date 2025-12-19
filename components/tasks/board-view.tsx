@@ -1,4 +1,3 @@
-//components/tasks/board-view.tsx
 "use client"
 
 import { KanbanBoard } from "@/components/board/kanban-boardV2"
@@ -14,6 +13,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Loader2 } from "lucide-react"
+import { CustomToast, ToastType } from "@/components/ui/custom-toast"
 
 interface BoardViewProps {
   projectId?: string
@@ -35,14 +35,8 @@ const mapCompletedToPrismaStatus = (completed: boolean): PrismaTaskStatus => {
 }
 
 const mapSectionsToColumns = (sections: SectionUI[]): Column[] => {
-  console.groupCollapsed("[BoardView] Mapping sections to columns")
-  console.log("Input (sections from hook):", sections)
-  if (!sections) {
-    console.log("Sections are null/undefined, returning empty array.")
-    console.groupEnd()
-    return []
-  }
-  const columns = sections.map(section => ({
+  if (!sections) return []
+  return sections.map(section => ({
     id: section.id,
     title: section.title,
     editing: section.editing || false,
@@ -52,21 +46,22 @@ const mapSectionsToColumns = (sections: SectionUI[]): Column[] => {
       description: task.description ?? undefined,
       priority: task.priority,
       endDate: task.endDate,
-      startDate: undefined, // Project tasks in this view don't have a start date
+      startDate: undefined,
       points: task.points ?? 0,
       assignee: task.assignee,
       completed: task.completed,
       editing: false,
     })),
   }))
-  console.log("Output (columns for KanbanBoard):", columns)
-  console.groupEnd()
-  return columns
 }
 
 export function BoardView({ projectId }: BoardViewProps) {
-  console.log(`[BoardView] Component Render/Re-render. Project ID: ${projectId}`)
   const [currentSprintId, setCurrentSprintId] = useState<string | undefined>(undefined)
+  const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null)
+
+  const showToast = (message: string, type: ToastType) => {
+    setToast({ message, type })
+  }
 
   const {
     sprintFilterOptions,
@@ -84,32 +79,13 @@ export function BoardView({ projectId }: BoardViewProps) {
     defaultSelectedSprintId: fetchedDefaultSprintId,
   } = useProjectTasksAndSections(projectId || "", currentSprintId)
 
-  console.groupCollapsed("[BoardView] Data from useProjectTasksAndSections hook")
-  console.log("Loading State:", loading)
-  console.log("Error State:", error)
-  console.log("Fetched Sections:", fetchedSections)
-  console.log("Sprint Filter Options:", sprintFilterOptions)
-  console.log("Project Members:", projectMembers)
-  console.log("Fetched Default Sprint ID:", fetchedDefaultSprintId)
-  console.log("Is Reordering:", isReordering)
-  console.log("Is Creating Section:", isCreatingSection)
-  console.groupEnd()
-
   useEffect(() => {
-    console.groupCollapsed("[BoardView] Default Sprint ID Effect")
-    console.log("Current Sprint ID (before effect):", currentSprintId)
-    console.log("Fetched Default Sprint ID:", fetchedDefaultSprintId)
     if (currentSprintId === undefined && fetchedDefaultSprintId) {
-      console.log("Setting currentSprintId to the fetched default:", fetchedDefaultSprintId)
       setCurrentSprintId(fetchedDefaultSprintId)
-    } else {
-      console.log("Condition not met, no change to currentSprintId.")
     }
-    console.groupEnd()
   }, [fetchedDefaultSprintId, currentSprintId])
 
   const { createTask, updateTask, deleteTask } = useProjectTaskMutations(projectId || "", currentSprintId)
-  console.log(`[BoardView] Initialized useProjectTaskMutations for Project: ${projectId}, Sprint: ${currentSprintId}`)
 
   const [mutatingCardId, setMutatingCardId] = useState<string | null>(null)
   const [deleteSectionModalOpen, setDeleteSectionModalOpen] = useState(false)
@@ -124,29 +100,23 @@ export function BoardView({ projectId }: BoardViewProps) {
   }, [fetchedSections])
 
   const availableAssignees: UserAvatarPartial[] = useMemo(() => {
-    console.groupCollapsed("[BoardView] Memoizing available assignees")
-    console.log("Input (projectMembers):", projectMembers)
-    const assignees = projectMembers.map(member => ({
+    return projectMembers.map(member => ({
       id: member.user.id,
       firstName: member.user.firstName,
       lastName: member.user.lastName,
       avatar: member.user.avatar,
-      // Source of color: Extracting it from the projectMembers hook data
       avatarColor: (member.user as any).avatarColor, 
     }))
-    console.log("Output (availableAssignees):", assignees)
-    console.groupEnd()
-    return assignees
   }, [projectMembers])
 
   const handleCreateColumn = useCallback(
     async (title: string) => {
-      console.log(`[BoardView] handleCreateColumn called with title: '${title}'`)
       if (!projectId) return
       try {
         await createSection(title)
+        showToast("Section created", "success")
       } catch (err) {
-        console.error("Failed to create section:", err)
+        showToast("Failed to create section", "error")
       }
     },
     [projectId, createSection]
@@ -154,11 +124,11 @@ export function BoardView({ projectId }: BoardViewProps) {
 
   const handleUpdateColumn = useCallback(
     async (columnId: string, title: string) => {
-      console.log(`[BoardView] handleUpdateColumn called for ID: ${columnId}, new title: '${title}'`)
       try {
         await updateSection(columnId, title)
+        showToast("Section renamed", "success")
       } catch (err) {
-        console.error("Failed to update section:", err)
+        showToast("Failed to rename section", "error")
       }
     },
     [updateSection]
@@ -180,9 +150,7 @@ export function BoardView({ projectId }: BoardViewProps) {
   )
 
   const handleConfirmDeleteSection = useCallback(async () => {
-    if (!sectionToDelete) {
-      return
-    }
+    if (!sectionToDelete) return
     setIsSectionMutating(true)
     try {
       const hasTasks = sectionToDelete.tasks.length > 0
@@ -194,13 +162,13 @@ export function BoardView({ projectId }: BoardViewProps) {
           return
         }
       }
-      const deleteOptions = {
+      await deleteSection(sectionToDelete.id, {
         deleteTasks: hasTasks ? deleteTasksConfirmed : true,
         reassignToSectionId: reassignId,
-      }
-      await deleteSection(sectionToDelete.id, deleteOptions)
+      })
+      showToast("Section deleted", "success")
     } catch (err) {
-      console.error("Failed to delete section:", err)
+      showToast("Failed to delete section", "error")
     } finally {
       setIsSectionMutating(false)
       setDeleteSectionModalOpen(false)
@@ -210,14 +178,6 @@ export function BoardView({ projectId }: BoardViewProps) {
 
   const handleCreateCard = useCallback(
     async (columnId: string, title: string, description?: string, assigneeId?: string | null) => {
-      console.groupCollapsed("[BoardView] handleCreateCard called")
-      console.log("Column ID:", columnId)
-      console.log("Title:", title)
-      console.log("Description:", description)
-      console.log("Assignee ID:", assigneeId)
-      console.log("Current Sprint ID for new task:", currentSprintId)
-      console.groupEnd()
-
       if (!projectId) return
       try {
         await createTask(columnId, {
@@ -228,8 +188,9 @@ export function BoardView({ projectId }: BoardViewProps) {
           status: "TODO",
           sprintId: currentSprintId,
         })
+        showToast("Task created", "success")
       } catch (err) {
-        console.error("Failed to create task:", err)
+        showToast("Failed to create task", "error")
       }
     },
     [projectId, createTask, currentSprintId]
@@ -237,13 +198,7 @@ export function BoardView({ projectId }: BoardViewProps) {
 
   const handleUpdateCard = useCallback(
     async (columnId: string, cardId: string, updates: Partial<TaskUI & { sectionId?: string }>) => {
-      console.groupCollapsed("[BoardView] handleUpdateCard called")
-      console.log("Original Column ID:", columnId)
-      console.log("Card ID:", cardId)
-      console.log("Received Updates object:", updates)
-
-      const mutationInput: any = {} // Don't add ID here, updateTask hook does that
-
+      const mutationInput: any = {}
       if (updates.title !== undefined) mutationInput.title = updates.title
       if (updates.description !== undefined) mutationInput.description = updates.description
       if (updates.priority !== undefined) mutationInput.priority = mapPriorityToPrisma(updates.priority)
@@ -253,14 +208,12 @@ export function BoardView({ projectId }: BoardViewProps) {
       if (updates.completed !== undefined) mutationInput.status = mapCompletedToPrismaStatus(updates.completed)
       if (updates.sectionId) mutationInput.sectionId = updates.sectionId
 
-      console.log("Constructed Mutation Input:", mutationInput)
-      console.groupEnd()
-
       setMutatingCardId(cardId)
       try {
         await updateTask(cardId, columnId, mutationInput)
+        showToast("Task updated", "success")
       } catch (err) {
-        console.error("Failed to update task:", err)
+        showToast("Failed to update task", "error")
       } finally {
         setMutatingCardId(null)
       }
@@ -270,12 +223,12 @@ export function BoardView({ projectId }: BoardViewProps) {
 
   const handleDeleteCard = useCallback(
     async (columnId: string, cardId: string) => {
-      console.log(`[BoardView] handleDeleteCard called for Card ID: ${cardId} in Column ID: ${columnId}`)
       setMutatingCardId(cardId)
       try {
         await deleteTask(cardId, columnId)
+        showToast("Task deleted", "success")
       } catch (err) {
-        console.error("Failed to delete task:", err)
+        showToast("Failed to delete task", "error")
       } finally {
         setMutatingCardId(null)
       }
@@ -285,26 +238,20 @@ export function BoardView({ projectId }: BoardViewProps) {
 
   const handleColumnsOrderChange = useCallback(
     async (newColumns: Column[]) => {
-      console.groupCollapsed("[BoardView] handleColumnsOrderChange called")
-      console.log("Received new columns order from board:", newColumns)
       const sectionsWithNewOrder = newColumns.map((col, index) => ({
         id: col.id,
         order: index,
       }))
-      console.log("Data prepared for reorderSections mutation:", sectionsWithNewOrder)
-      console.groupEnd()
-
       try {
         await reorderSections(sectionsWithNewOrder)
       } catch (err) {
-        console.error("Column reorder mutation failed:", err)
+        showToast("Failed to reorder sections", "error")
       }
     },
     [reorderSections]
   )
 
   const handleSprintChange = useCallback((sprintId: string | undefined) => {
-    console.log(`[BoardView] handleSprintChange called. New sprint ID: ${sprintId}`)
     setCurrentSprintId(sprintId)
   }, [])
 
@@ -318,30 +265,23 @@ export function BoardView({ projectId }: BoardViewProps) {
   )
 
   if (loading && !fetchedSections?.length) {
-    console.log("[BoardView] Render: Showing LoadingPlaceholder")
     return <LoadingPlaceholder message="Loading project board..." />
   }
 
   if (error) {
-    console.log("[BoardView] Render: Showing ErrorPlaceholder", error)
     return <ErrorPlaceholder error={error} onRetry={refetchProjectTasksAndSections} />
   }
 
-  const isBoardMutating = isReordering
-
-  console.log("[BoardView] Render: Rendering KanbanBoard with props:", {
-    projectId,
-    initialColumns,
-    sprintFilterOptions,
-    currentSprintId,
-    availableAssignees,
-    isBoardMutating,
-    isCreatingSection,
-    mutatingCardId,
-  })
-
   return (
     <>
+      {toast && (
+        <CustomToast 
+          message={toast.message} 
+          type={toast.type} 
+          onClose={() => setToast(null)} 
+        />
+      )}
+
       <KanbanBoard
         projectId={projectId}
         initialColumns={initialColumns}
@@ -356,9 +296,8 @@ export function BoardView({ projectId }: BoardViewProps) {
         onUpdateCard={handleUpdateCard}
         onDeleteCard={handleDeleteCard}
         availableAssignees={availableAssignees}
-        isMutating={isBoardMutating}
+        isMutating={isReordering}
         isCreatingColumn={isCreatingSection}
-        // mutatingCardId={mutatingCardId}
       />
 
       {sectionToDelete && deleteSectionModalOpen && (

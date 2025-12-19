@@ -1,8 +1,7 @@
-// hooks/useSetupFlow.ts
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { useMutation } from "@apollo/client"; // Corrected: Still using @apollo/client's useMutation
-import { SETUP_WORKSPACE_MUTATION } from "@/graphql/mutations/setupWorkspace"; // Adjust path as per your project
+import { useMutation } from "@apollo/client";
+import { SETUP_WORKSPACE_MUTATION } from "@/graphql/mutations/setupWorkspace";
 
 interface StepData {
   workspaceName: string;
@@ -34,12 +33,7 @@ export const workFieldsOptions = [
   "Data Analysis", "Process Improvement", "Change Management", "Business Development", "Market Research",
 ];
 
-
-// --- IMPORTANT ---
-// The useSetupFlow hook now ACCEPTS userId as an argument.
-// It is the responsibility of the component using this hook (app/setup/page.tsx)
-// to provide the userId from the context it receives.
-export function useSetupFlow(userId: string | null | undefined) { // userId is now an argument
+export function useSetupFlow(userId: string | null | undefined, refreshUser?: () => Promise<any>) {
   const router = useRouter();
 
   const [currentStep, setCurrentStep] = useState(1);
@@ -55,29 +49,17 @@ export function useSetupFlow(userId: string | null | undefined) { // userId is n
   });
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  // Using @apollo/client's useMutation
   const [setupWorkspaceMutation, { loading: mutationLoading, error: mutationError, data: mutationData }] = useMutation(SETUP_WORKSPACE_MUTATION);
 
   useEffect(() => {
     if (mutationData?.setupWorkspace?.id) {
-      console.log("[useSetupFlow] Workspace setup successfully:", mutationData.setupWorkspace);
       setSubmitError(null);
-      // No direct Apollo cache manipulation or ME_QUERY refetch within the hook itself,
-      // as per your command "NOTHING MORE".
-      // Any cache updates or ME_QUERY refetches should be handled by the consuming component
-      // or a higher-level context if needed after this mutation completes.
-
-      // Redirect to the new workspace's dashboard using the slug
-      
-      //router.push(`/workspace/${mutationData.setupWorkspace.slug}`);
-
-      router.push(`/workspace`);
+      // Logic handled inside handleSubmitSetup for sequential execution
     }
     if (mutationError) {
       setSubmitError(mutationError.message);
-      console.error("[useSetupFlow] Setup mutation failed:", mutationError);
     }
-  }, [mutationData, mutationError, router]);
+  }, [mutationData, mutationError]);
 
   const nextStep = () => {
     if (!isStepValid()) return;
@@ -117,22 +99,16 @@ export function useSetupFlow(userId: string | null | undefined) { // userId is n
   }, [currentStep, data]);
 
   const handleSubmitSetup = async () => {
-    // Corrected: Check userId argument passed to the hook
     if (!userId) {
       setSubmitError("User ID is not available. Please ensure you are logged in.");
       return;
     }
-    if (!isStepValid() && currentStep !== 6) {
-      setSubmitError("Please complete all required fields.");
-      return;
-    }
-
-    setSubmitError(null); // Clear previous errors
+    setSubmitError(null);
 
     try {
       await setupWorkspaceMutation({
         variables: {
-          userId: userId, // Use the userId passed as an argument
+          userId: userId,
           workspaceName: data.workspaceName,
           workspaceDescription: data.workspaceDescription,
           projectName: data.projectName,
@@ -142,9 +118,16 @@ export function useSetupFlow(userId: string | null | undefined) { // userId is n
           workFields: data.workFields,
         },
       });
+
+      // Update cookies immediately after mutation success
+      if (refreshUser) {
+        await refreshUser();
+      }
+
+      router.push("/workspace");
+      router.refresh();
     } catch (error: any) {
-      // Error already handled by mutationError and useEffect
-      // setSubmitError will be set by useEffect
+      console.error("[useSetupFlow] Setup failed:", error);
     }
   };
 

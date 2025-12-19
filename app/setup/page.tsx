@@ -1,4 +1,3 @@
-// app/setup/page.tsx
 "use client";
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
@@ -10,9 +9,8 @@ import { Badge } from "@/components/ui/badge";
 import { CheckCircle, Building, Rocket, Users, Globe, Settings, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useSetupFlow, industries, teamSizes, workFieldsOptions } from "@/hooks/useSetupFlow";
-import { useAuthContext } from "@/lib/AuthContextProvider"; // Corrected: Import useAuthContext here
+import { useAuth } from "@/hooks/useAuth";
 
-// Steps data (as you provided it, not part of the hook logic)
 const stepsData = [
   {
     id: 1,
@@ -52,7 +50,6 @@ const stepsData = [
   },
 ];
 
-
 const cardVariants = {
   initial: { y: "100%", opacity: 0 },
   animate: { y: "0%", opacity: 1, transition: { duration: 0.3, ease: "easeInOut" } },
@@ -60,10 +57,8 @@ const cardVariants = {
 };
 
 export default function SetupFlow() {
-  const { currentUser, loading: authLoading } = useAuthContext(); // Get currentUser from context
+  const { currentUser, loading: authLoading, fetchMe } = useAuth();
 
-  // Pass currentUser.id to the useSetupFlow hook
-  // The hook itself does not know about the context, only receives the ID.
   const {
     currentStep,
     completedSteps,
@@ -75,13 +70,11 @@ export default function SetupFlow() {
     handleSubmitSetup,
     isSubmitting,
     submitError,
-    // steps, industries, teamSizes, workFieldsOptions are still exported from hook file
-  } = useSetupFlow(currentUser?.id); // Pass the user ID here
+  } = useSetupFlow(currentUser?.id, fetchMe);
 
   const currentStepData = stepsData[currentStep - 1];
   const IconComponent = currentStepData.icon;
 
-  // Render a loading state if authentication context is still loading
   if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100">
@@ -91,9 +84,7 @@ export default function SetupFlow() {
     );
   }
 
-  // If user is not logged in after authLoading, redirect or show error
   if (!currentUser?.id) {
-    // Optionally redirect to login or show an error
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 text-red-600">
         User not authenticated. Please log in to complete setup.
@@ -319,7 +310,6 @@ export default function SetupFlow() {
                     {currentStep < 6 && (
                       <Button
                         onClick={nextStep}
-                        disabled={!isStepValid()}
                         className="w-full bg-teal-500 hover:bg-teal-600 text-lg py-6 mt-8"
                       >
                         Continue
@@ -329,8 +319,8 @@ export default function SetupFlow() {
                     {currentStep === 6 && (
                       <Button
                         onClick={handleSubmitSetup}
-                        disabled={isSubmitting}
                         className="bg-teal-500 hover:bg-teal-600 text-lg py-6 px-8 w-full"
+                        disabled={isSubmitting}
                       >
                         {isSubmitting ? (
                           <>

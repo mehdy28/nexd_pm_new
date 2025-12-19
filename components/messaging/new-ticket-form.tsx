@@ -1,4 +1,3 @@
-// components/messaging/new-ticket-form.tsx
 "use client";
 
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -66,7 +65,7 @@ export function NewTicketForm({ onBack, onSubmit }: NewTicketFormProps) {
               <Textarea placeholder="Describe your issue or request in detail..." value={message} onChange={(e) => setMessage(e.target.value)} required className="flex-1 bg-transparent border-0 resize-none focus-visible:ring-0 focus-visible:ring-offset-0 p-0" />
             </div>
           </div>
-          <Button type="submit" className="w-full bg-[hsl(174,70%,54%)] hover:bg-[hsl(174,70%,44%)]">
+          <Button type="submit" className="w-full bg-[hsl(174,75%,40%)] hover:bg-[hsl(174,75%,35%)] text-white">
             <Send className="w-4 h-4 mr-2" /> Submit Ticket
           </Button>
         </form>

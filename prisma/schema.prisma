@@ -154,16 +154,18 @@ enum InvitationStatus {
 // ---------------- Core Models ----------------
 
 model User {
-  id          String   @id @default(cuid())
-  email       String   @unique
-  firstName   String?
-  lastName    String?
-  avatar      String?
-  avatarColor String? 
-  firebaseUid String?  @unique
-  role        UserRole @default(MEMBER)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id                String   @id @default(cuid())
+  email             String   @unique
+  firstName         String?
+  lastName          String?
+  avatar            String?
+  avatarColor       String? 
+  firebaseUid       String?  @unique
+  role              UserRole @default(MEMBER)
+  emailVerified     Boolean  @default(false)
+  verificationToken String?  @unique
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   workspaceMembers     WorkspaceMember[]
   ownedWorkspaces      Workspace[]             @relation("WorkspaceOwner")

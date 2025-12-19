@@ -1,16 +1,15 @@
 interface TemplateParams {
-    inviterName: string;
-    workspaceName: string;
-    invitationLink: string;
+    firstName: string;
+    confirmationLink: string;
   }
   
-  export const workspaceInvitationTemplate = ({ inviterName, workspaceName, invitationLink }: TemplateParams): string => `
+  export const emailConfirmationTemplate = ({ firstName, confirmationLink }: TemplateParams): string => `
   <!DOCTYPE html>
   <html lang="en">
   <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>You're invited to join ${workspaceName}</title>
+    <title>Confirm your email</title>
     <style>
       body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #333; background-color: #f4f4f4; margin: 0; padding: 0; }
       .container { max-width: 600px; margin: 20px auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px; background-color: #ffffff; }
@@ -26,22 +25,21 @@ interface TemplateParams {
   <body>
     <div class="container">
       <div class="header">
-        <h1>You're Invited!</h1>
+        <h1>Welcome to Nexd.PM!</h1>
       </div>
       <div class="content">
-        <p>Hello,</p>
-        <p><strong>${inviterName}</strong> has invited you to collaborate in the <strong>${workspaceName}</strong> workspace on Nexd.PM.</p>
-        <p>Click the button below to accept your invitation. If you don't have an account, you'll be redirected to create one first.</p>
+        <p>Hello ${firstName},</p>
+        <p>Thank you for signing up. Please confirm your email address to activate your account and start managing your projects.</p>
         <div class="button-container">
-          <a href="${invitationLink}" class="button">Accept Invitation & Join Workspace</a>
+          <a href="${confirmationLink}" class="button">Confirm Email Address</a>
         </div>
         <p>If you're having trouble with the button, you can copy and paste this link into your browser:</p>
-        <p><a href="${invitationLink}" style="color: #4ab5ae;">${invitationLink}</a></p>
-        <p>This invitation will expire in 7 days.</p>
+        <p><a href="${confirmationLink}" style="color: #4ab5ae;">${confirmationLink}</a></p>
+        <p>This link will expire in 24 hours.</p>
         <p>Thanks,<br>The Nexd.PM Team</p>
       </div>
       <div class="footer">
-        <p>If you did not expect this invitation, you can safely ignore this email.</p>
+        <p>If you did not create an account, you can safely ignore this email.</p>
       </div>
     </div>
   </body>

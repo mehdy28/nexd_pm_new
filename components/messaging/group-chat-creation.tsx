@@ -1,4 +1,3 @@
-//components/messaging/group-chat-creation.tsx
 "use client";
 
 import { useState } from "react";
@@ -85,7 +84,7 @@ export function GroupChatCreation({ workspaceId, members, onBack, onChatCreated,
                             const isSelected = selectedMembers.includes(member.user.id);
                             const fullName = `${member.user.firstName || ''} ${member.user.lastName || ''}`.trim();
                             return (
-                                <div key={member.id} className={cn("p-2 rounded-md cursor-pointer flex items-center justify-between transition-colors", isSelected ? "bg-[hsl(174,70%,54%)]/20" : "hover:bg-gray-50")} onClick={() => toggleMember(member.user.id)}>
+                                <div key={member.id} className={cn("p-2 rounded-md cursor-pointer flex items-center justify-between transition-colors", isSelected ? "bg-[hsl(174,75%,40%)]/20" : "hover:bg-gray-100")} onClick={() => toggleMember(member.user.id)}>
                                     <div className="flex items-center space-x-3">
                                         <Avatar className="h-8 w-8">
                                           <AvatarImage src={member.user.avatar || undefined} alt={fullName} />
@@ -96,14 +95,14 @@ export function GroupChatCreation({ workspaceId, members, onBack, onChatCreated,
                                             <p className="text-xs text-muted-foreground capitalize">{member.role.toLowerCase()}</p>
                                         </div>
                                     </div>
-                                    {isSelected ? <Check className="w-4 h-4 text-[hsl(174,70%,54%)]" /> : <Plus className="w-4 h-4 text-muted-foreground" />}
+                                    {isSelected ? <Check className="w-4 h-4 text-[hsl(174,75%,40%)]" /> : <Plus className="w-4 h-4 text-muted-foreground" />}
                                 </div>
                             );
                         })}
                     </div>
                 </div>
             </div>
-            <Button type="submit" disabled={!groupName.trim() || selectedMembers.length === 0} className="w-full flex-shrink-0 text-white bg-[hsl(174,70%,54%)] hover:bg-[hsl(174,70%,44%)]">
+            <Button type="submit" disabled={!groupName.trim() || selectedMembers.length === 0} className="w-full flex-shrink-0 text-white bg-[hsl(174,75%,40%)] hover:bg-[hsl(174,75%,35%)]">
                 <Send className="w-4 h-4 mr-2" /> Create Group Chat
             </Button>
         </form>

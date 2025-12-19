@@ -79,7 +79,7 @@ export function DirectChatCreation({ workspaceId, members, communicationList, on
                 filteredUsers.map(member => {
                     const fullName = `${member.user.firstName || ''} ${member.user.lastName || ''}`.trim();
                     return (
-                    <div key={member.id} className="p-3 rounded-lg cursor-pointer hover:bg-gray-50 flex items-center justify-between" onClick={() => handleUserSelect(member)}>
+                    <div key={member.id} className="p-3 rounded-lg cursor-pointer hover:bg-gray-100 flex items-center justify-between" onClick={() => handleUserSelect(member)}>
                         <div className="flex items-center space-x-3">
                             <Avatar className="h-10 w-10">
                                 <AvatarImage src={member.user.avatar || undefined} alt={fullName} />
@@ -91,7 +91,7 @@ export function DirectChatCreation({ workspaceId, members, communicationList, on
                             </div>
                         </div>
                         <Button variant="ghost" size="sm">
-                            <MessageSquare className="w-4 h-4 mr-2 text-[hsl(174,70%,54%)]" /> Chat
+                            <MessageSquare className="w-4 h-4 mr-2 text-[hsl(174,75%,40%)]" /> Chat
                         </Button>
                     </div>
                 )})

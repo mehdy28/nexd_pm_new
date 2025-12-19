@@ -1,4 +1,3 @@
-// app/(core)/account/page.tsx
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
@@ -12,20 +11,22 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Switch } from "@/components/ui/switch";
-import { User, Bell, CreditCard, Loader2, Check } from "lucide-react";
+import { User, Bell, CreditCard, Loader2, Check, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { AVATAR_COLORS } from "@/lib/avatar-colors";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
+import { useRouter } from "next/navigation";
 
 export default function AccountPage() {
-  const { 
-    user, 
-    workspace, 
-    notificationSettings, 
-    isOwner, 
-    loading, 
-    error, 
+  const router = useRouter();
+  const {
+    user,
+    workspace,
+    notificationSettings,
+    isOwner,
+    loading,
+    error,
     refetch,
     updateProfile,
     updateProfileLoading,
@@ -33,12 +34,10 @@ export default function AccountPage() {
     updateNotificationsLoading
   } = useAccountPage();
 
-  // Local state for profile form
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [avatarColor, setAvatarColor] = useState("#6366f1");
-  
-  // Local state for notification settings
+
   const [notifState, setNotifState] = useState({
     atMention: true,
     taskAssigned: true,
@@ -46,12 +45,11 @@ export default function AccountPage() {
     productNews: true
   });
 
-  // Sync data when loaded
   useEffect(() => {
     if (user) {
       setFirstName(user.firstName || "");
       setLastName(user.lastName || "");
-      setAvatarColor(user.avatarColor  );
+      setAvatarColor(user.avatarColor || "#6366f1");
     }
     if (notificationSettings) {
       setNotifState({
@@ -63,7 +61,6 @@ export default function AccountPage() {
     }
   }, [user, notificationSettings]);
 
-  // Define tabs dynamically based on ownership
   const tabs = useMemo(() => {
     const t = [
       { key: "profile", label: "Profile", icon: <User className="h-4 w-4" /> },
@@ -75,7 +72,6 @@ export default function AccountPage() {
     return t;
   }, [isOwner]);
 
-  // Initialize Topbar
   useTopbarSetup({
     title: "Account & Settings",
     tabs: tabs,
@@ -108,8 +104,8 @@ export default function AccountPage() {
 
   const handleUpdateNotifications = async (key: string, value: boolean) => {
     const newState = { ...notifState, [key]: value };
-    setNotifState(newState); // Optimistic update
-    
+    setNotifState(newState);
+
     try {
       await updateNotifications({
         variables: {
@@ -117,13 +113,12 @@ export default function AccountPage() {
         }
       });
     } catch (err) {
-      setNotifState(notifState); // Revert
+      setNotifState(notifState);
       toast.error("Failed to update notification settings");
     }
   };
 
   const handleColorSelect = async (color: string) => {
-    // Optimistic update: update UI immediately
     const prevColor = avatarColor;
     setAvatarColor(color);
 
@@ -132,12 +127,11 @@ export default function AccountPage() {
     try {
       await updateProfile({
         variables: {
-           avatarColor: color
+          avatarColor: color
         }
       });
       toast.success("Avatar color updated");
     } catch (err) {
-      // Revert if failed
       setAvatarColor(prevColor);
       toast.error("Failed to update avatar color");
     }
@@ -154,84 +148,103 @@ export default function AccountPage() {
             </CardHeader>
             <CardContent className="space-y-8">
               <div className="flex flex-col md:flex-row gap-8 items-start">
-                {/* Avatar Preview Section */}
                 <div className="flex flex-col items-center gap-4 min-w-[150px]">
-                   <Avatar className="h-32 w-32 border-4 border-white shadow-lg bg-muted">
-                      <AvatarImage src={user?.avatar || undefined} />
-                      <AvatarFallback 
-                        className="text-white text-4xl font-bold transition-colors duration-300"
-                        style={{ backgroundColor: avatarColor }}
-                      >
-                        {user?.firstName?.[0]}{user?.lastName?.[0]}
-                      </AvatarFallback>
-                   </Avatar>
-                   <p className="text-sm text-muted-foreground text-center">
-                     Your avatar color is visible to everyone in your workspace.
-                   </p>
+                  <Avatar className="h-32 w-32 border-4 border-white shadow-lg bg-muted">
+                    <AvatarImage src={user?.avatar || undefined} />
+                    <AvatarFallback
+                      className="text-white text-4xl font-bold transition-colors duration-300"
+                      style={{ backgroundColor: avatarColor }}
+                    >
+                      {user?.firstName?.[0]}{user?.lastName?.[0]}
+                    </AvatarFallback>
+                  </Avatar>
+                  <p className="text-sm text-muted-foreground text-center">
+                    Your avatar color is visible to everyone in your workspace.
+                  </p>
                 </div>
 
-                {/* Form Section */}
                 <div className="flex-1 space-y-6 w-full">
-                   <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                         <Label htmlFor="firstName">First Name</Label>
-                         <Input 
-                            id="firstName" 
-                            value={firstName} 
-                            onChange={(e) => setFirstName(e.target.value)} 
-                         />
-                      </div>
-                      <div className="space-y-2">
-                         <Label htmlFor="lastName">Last Name</Label>
-                         <Input 
-                            id="lastName" 
-                            value={lastName} 
-                            onChange={(e) => setLastName(e.target.value)} 
-                         />
-                      </div>
-                   </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="firstName">First Name</Label>
+                      <Input
+                        id="firstName"
+                        value={firstName}
+                        onChange={(e) => setFirstName(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="lastName">Last Name</Label>
+                      <Input
+                        id="lastName"
+                        value={lastName}
+                        onChange={(e) => setLastName(e.target.value)}
+                      />
+                    </div>
+                  </div>
 
-                   {/* Color Picker Section */}
-                   <div className="space-y-3 pt-2">
-                      <Label>Avatar Color</Label>
-                      <div className="flex flex-wrap gap-3">
-                        {AVATAR_COLORS.map((color) => {
-                          const isSelected = avatarColor === color;
-                          return (
-                            <button
-                              key={color}
-                              onClick={() => handleColorSelect(color)}
-                              disabled={updateProfileLoading}
-                              className={cn(
-                                "h-10 w-10 rounded-full flex items-center justify-center transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-background focus:ring-ring",
-                                isSelected 
-                                  ? "ring-2 ring-offset-2 ring-offset-background ring-black dark:ring-white scale-110 shadow-sm" 
-                                  : "hover:scale-110 hover:shadow-sm border border-transparent"
-                              )}
-                              style={{ backgroundColor: color }}
-                              aria-label={`Select color ${color}`}
-                            >
-                              {isSelected && (
-                                <Check className="h-5 w-5 text-white drop-shadow-md" strokeWidth={3} />
-                              )}
-                            </button>
-                          );
-                        })}
+                  <div className="space-y-3 pt-2">
+                    <Label>Avatar Color</Label>
+                    <div className="flex flex-wrap gap-3">
+                      {AVATAR_COLORS.map((color) => {
+                        const isSelected = avatarColor === color;
+                        return (
+                          <button
+                            key={color}
+                            onClick={() => handleColorSelect(color)}
+                            disabled={updateProfileLoading}
+                            className={cn(
+                              "h-10 w-10 rounded-full flex items-center justify-center transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-background focus:ring-ring",
+                              isSelected
+                                ? "ring-2 ring-offset-2 ring-offset-background ring-black dark:ring-white scale-110 shadow-sm"
+                                : "hover:scale-110 hover:shadow-sm border border-transparent"
+                            )}
+                            style={{ backgroundColor: color }}
+                            aria-label={`Select color ${color}`}
+                          >
+                            {isSelected && (
+                              <Check className="h-5 w-5 text-white drop-shadow-md" strokeWidth={3} />
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="email">Email Address</Label>
+                    <Input id="email" value={user?.email || ""} disabled className="bg-muted" />
+                    <p className="text-xs text-muted-foreground">Email address managed via authentication provider.</p>
+                  </div>
+
+                  <div className="pt-4">
+                    <Button onClick={handleUpdateProfile} disabled={updateProfileLoading}>
+                      {updateProfileLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      Save Changes
+                    </Button>
+                  </div>
+
+                  <Separator className="my-6" />
+
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2">
+                      <ShieldCheck className="h-5 w-5 text-teal-600" />
+                      <h3 className="text-lg font-medium">Security</h3>
+                    </div>
+                    <div className="p-4 border rounded-lg bg-slate-50 flex items-center justify-between">
+                      <div className="space-y-1">
+                        <p className="text-sm font-medium">Password</p>
+                        <p className="text-xs text-muted-foreground">Update your password to keep your account secure.</p>
                       </div>
-                   </div>
-
-                   <div className="space-y-2">
-                      <Label htmlFor="email">Email Address</Label>
-                      <Input id="email" value={user?.email || ""} disabled className="bg-muted" />
-                      <p className="text-xs text-muted-foreground">Email address managed via authentication provider.</p>
-                   </div>
-
-                   <div className="pt-4">
-                      <Button onClick={handleUpdateProfile} disabled={updateProfileLoading}>
-                        {updateProfileLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        Save Changes
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => router.push("/forgot-password")}
+                      >
+                        Change Password
                       </Button>
-                   </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </CardContent>
@@ -249,59 +262,59 @@ export default function AccountPage() {
               <CardDescription>Choose what you want to be notified about.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-               <div className="space-y-4">
-                  <div className="flex items-center justify-between space-x-2">
-                     <Label htmlFor="atMention" className="flex flex-col space-y-1">
-                        <span>@Mentions</span>
-                        <span className="font-normal text-sm text-muted-foreground">Notify me when I am mentioned in a comment or task.</span>
-                     </Label>
-                     <Switch 
-                        id="atMention" 
-                        checked={notifState.atMention}
-                        onCheckedChange={(checked) => handleUpdateNotifications("atMention", checked)}
-                        disabled={updateNotificationsLoading}
-                     />
-                  </div>
-                  <Separator />
-                  <div className="flex items-center justify-between space-x-2">
-                     <Label htmlFor="taskAssigned" className="flex flex-col space-y-1">
-                        <span>Task Assignments</span>
-                        <span className="font-normal text-sm text-muted-foreground">Notify me when a new task is assigned to me.</span>
-                     </Label>
-                     <Switch 
-                        id="taskAssigned" 
-                        checked={notifState.taskAssigned}
-                        onCheckedChange={(checked) => handleUpdateNotifications("taskAssigned", checked)}
-                        disabled={updateNotificationsLoading}
-                     />
-                  </div>
-                  <Separator />
-                  <div className="flex items-center justify-between space-x-2">
-                     <Label htmlFor="projectUpdates" className="flex flex-col space-y-1">
-                        <span>Project Updates</span>
-                        <span className="font-normal text-sm text-muted-foreground">Notify me about major updates in my projects.</span>
-                     </Label>
-                     <Switch 
-                        id="projectUpdates" 
-                        checked={notifState.projectUpdates}
-                        onCheckedChange={(checked) => handleUpdateNotifications("projectUpdates", checked)}
-                        disabled={updateNotificationsLoading}
-                     />
-                  </div>
-                  <Separator />
-                  <div className="flex items-center justify-between space-x-2">
-                     <Label htmlFor="productNews" className="flex flex-col space-y-1">
-                        <span>Product News</span>
-                        <span className="font-normal text-sm text-muted-foreground">Receive updates about new features and improvements.</span>
-                     </Label>
-                     <Switch 
-                        id="productNews" 
-                        checked={notifState.productNews}
-                        onCheckedChange={(checked) => handleUpdateNotifications("productNews", checked)}
-                        disabled={updateNotificationsLoading}
-                     />
-                  </div>
-               </div>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between space-x-2">
+                  <Label htmlFor="atMention" className="flex flex-col space-y-1">
+                    <span>@Mentions</span>
+                    <span className="font-normal text-sm text-muted-foreground">Notify me when I am mentioned in a comment or task.</span>
+                  </Label>
+                  <Switch
+                    id="atMention"
+                    checked={notifState.atMention}
+                    onCheckedChange={(checked) => handleUpdateNotifications("atMention", checked)}
+                    disabled={updateNotificationsLoading}
+                  />
+                </div>
+                <Separator />
+                <div className="flex items-center justify-between space-x-2">
+                  <Label htmlFor="taskAssigned" className="flex flex-col space-y-1">
+                    <span>Task Assignments</span>
+                    <span className="font-normal text-sm text-muted-foreground">Notify me when a new task is assigned to me.</span>
+                  </Label>
+                  <Switch
+                    id="taskAssigned"
+                    checked={notifState.taskAssigned}
+                    onCheckedChange={(checked) => handleUpdateNotifications("taskAssigned", checked)}
+                    disabled={updateNotificationsLoading}
+                  />
+                </div>
+                <Separator />
+                <div className="flex items-center justify-between space-x-2">
+                  <Label htmlFor="projectUpdates" className="flex flex-col space-y-1">
+                    <span>Project Updates</span>
+                    <span className="font-normal text-sm text-muted-foreground">Notify me about major updates in my projects.</span>
+                  </Label>
+                  <Switch
+                    id="projectUpdates"
+                    checked={notifState.projectUpdates}
+                    onCheckedChange={(checked) => handleUpdateNotifications("projectUpdates", checked)}
+                    disabled={updateNotificationsLoading}
+                  />
+                </div>
+                <Separator />
+                <div className="flex items-center justify-between space-x-2">
+                  <Label htmlFor="productNews" className="flex flex-col space-y-1">
+                    <span>Product News</span>
+                    <span className="font-normal text-sm text-muted-foreground">Receive updates about new features and improvements.</span>
+                  </Label>
+                  <Switch
+                    id="productNews"
+                    checked={notifState.productNews}
+                    onCheckedChange={(checked) => handleUpdateNotifications("productNews", checked)}
+                    disabled={updateNotificationsLoading}
+                  />
+                </div>
+              </div>
             </CardContent>
           </Card>
         </div>

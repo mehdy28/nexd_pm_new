@@ -26,7 +26,6 @@ import {
   MessageSquare,
   Send,
   MoreVertical,
-  // Upload removed
 } from "lucide-react"
 import {
   AlertDialog,
@@ -50,10 +49,11 @@ import { LoadingPlaceholder, ErrorPlaceholder } from "@/components/placeholders/
 import { templates, Template } from "@/lib/documents/document-templates"
 import { DocumentTemplatesModal } from "../modals/DocumentTemplatesModal" 
 import { Editor } from "./DynamicEditor"
-import { useAuth } from "@/hooks/useAuth" // Assuming useAuth is available for comment authorship checks
+import { useAuth } from "@/hooks/useAuth"
 import { useDocumentComments } from "@/hooks/useDocumentComments"
-import { PdfViewer } from "./pdf-viewer" // Retained for DocumentEditorView
+import { PdfViewer } from "./pdf-viewer"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { CustomToast, ToastType } from "@/components/ui/custom-toast"
 
 // --- UTILITIES ---
 
@@ -75,13 +75,12 @@ const getInitials = (firstName?: string | null, lastName?: string | null) => {
   return `${first}${last}`.toUpperCase()
 }
 
-// --- TYPE ASSUMPTIONS (MOCK/INFERENCE) ---
 interface CommentAuthor {
   id: string
   firstName: string | null
   lastName: string | null
   avatar?: string | null
-  avatarColor?: string | null // Added avatarColor
+  avatarColor?: string | null
 }
 interface DocumentComment {
   id: string
@@ -96,19 +95,20 @@ interface ProjectDocument {
     createdAt: number | string;
     content: any;
     comments?: DocumentComment[];
-    type: "doc" | "pdf"; // Keep type for editor view logic
-    dataUrl?: string; // Keep dataUrl for PDF viewing
+    type: "doc" | "pdf";
+    dataUrl?: string;
 }
-
 
 // --- COMPONENTS ---
 
 const DocumentComments = ({
   documentId,
   comments,
+  onShowToast,
 }: {
   documentId: string
   comments: DocumentComment[]
+  onShowToast: (message: string, type: ToastType) => void
 }) => {
   const { currentUser } = useAuth()
   const commentsEndRef = useRef<HTMLDivElement>(null)
@@ -118,6 +118,23 @@ const DocumentComments = ({
   useEffect(() => {
     commentsEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [comments])
+
+  const onAddComment = async (e: any) => {
+    try {
+      await handleAddComment(e)
+    } catch (err) {
+      onShowToast("Failed to add comment", "error")
+    }
+  }
+
+  const onDeleteComment = async (id: string) => {
+    try {
+      await deleteComment({ variables: { id } })
+      onShowToast("Comment deleted", "success")
+    } catch (err) {
+      onShowToast("Failed to delete comment", "error")
+    }
+  }
 
   return (
     <div className="flex h-full flex-col border-l bg-slate-50">
@@ -167,7 +184,7 @@ const DocumentComments = ({
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem
                             className="text-red-600 focus:bg-red-50 focus:text-red-700"
-                            onClick={() => deleteComment({ variables: { id: comment.id } })}
+                            onClick={() => onDeleteComment(comment.id)}
                           >
                             <Trash2 className="mr-2 h-4 w-4" /> Delete
                           </DropdownMenuItem>
@@ -190,12 +207,7 @@ const DocumentComments = ({
         )}
       </div>
       <div className="border-t bg-white p-3">
-        <form
-          onSubmit={e => {
-            e.preventDefault()
-            handleAddComment(e)
-          }}
-        >
+        <form onSubmit={onAddComment}>
           <div className="flex items-center gap-2 rounded-xl border border-slate-300 bg-white p-1 pr-2 focus-within:ring-2 focus-within:ring-[#4ab5ae]">
             <Textarea
               value={newComment}
@@ -206,7 +218,7 @@ const DocumentComments = ({
               onKeyDown={e => {
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault()
-                  handleAddComment(e)
+                  onAddComment(e)
                 }
               }}
             />
@@ -233,10 +245,12 @@ const DocumentListView = ({
   projectId,
   onEdit,
   onCreate,
+  onShowToast,
 }: {
   projectId: string
   onEdit: (id: string) => void
   onCreate: (id: string) => void
+  onShowToast: (message: string, type: ToastType) => void
 }) => {
   const {
     documents: pageItems,
@@ -251,11 +265,10 @@ const DocumentListView = ({
     setSearch,
     refetchDocumentsList,
     createProjectDocument,
-    // createPdfFromDataUrl removed
     updateProjectDocument,
     deleteProjectDocument,
     deleteManyProjectDocuments,
-  } = useProjectDocuments(projectId) // Using Project Documents hook
+  } = useProjectDocuments(projectId)
 
   const [selected, setSelected] = useState<Record<string, boolean>>({})
   const [deleteTarget, setDeleteTarget] = useState<string | string[] | null>(null)
@@ -263,11 +276,8 @@ const DocumentListView = ({
   const [editingTitle, setEditingTitle] = useState("")
   const [isTemplatesModalOpen, setIsTemplatesModalOpen] = useState(false)
   const [isCreatingTemplate, setIsCreatingTemplate] = useState(false)
-  // fileInputRef removed
-
 
   useEffect(() => {
-    // Reset selection on page/filter change
     setSelected({})
   }, [page, pageSize, search, pageItems])
 
@@ -299,37 +309,35 @@ const DocumentListView = ({
     try {
       const newDoc = await createProjectDocument("Untitled Document")
       if (newDoc) {
+        onShowToast("Document created", "success")
         onCreate(newDoc.id)
       }
     } catch (err) {
-      console.error("Failed to create new document:", err)
+      onShowToast("Failed to create document", "error")
     }
-  }, [createProjectDocument, onCreate])
+  }, [createProjectDocument, onCreate, onShowToast])
 
   const handleSelectTemplate = useCallback(
     async (template: Template) => {
       setIsCreatingTemplate(true)
       try {
         const response = await fetch(template.path)
-        if (!response.ok) {
-          throw new Error(`Failed to fetch template: ${response.statusText}`)
-        }
+        if (!response.ok) throw new Error(`Failed to fetch template`)
         const templateData = await response.json()
         const newDoc = await createProjectDocument(template.name, templateData)
         if (newDoc) {
+          onShowToast(`Created from ${template.name}`, "success")
           setIsTemplatesModalOpen(false)
           onCreate(newDoc.id)
         }
       } catch (err) {
-        console.error("Failed to create document from template:", err)
+        onShowToast("Failed to apply template", "error")
       } finally {
         setIsCreatingTemplate(false)
       }
     },
-    [createProjectDocument, onCreate],
+    [createProjectDocument, onCreate, onShowToast],
   )
-
-  // PDF upload handlers removed
 
   const handleStartRename = useCallback((id: string, currentTitle: string) => {
     setRenamingDocumentId(id)
@@ -343,13 +351,14 @@ const DocumentListView = ({
     if (originalDoc && newTitle && newTitle !== originalDoc.title) {
       try {
         await updateProjectDocument(renamingDocumentId, { title: newTitle })
+        onShowToast("Document renamed", "success")
       } catch (err) {
-        console.error("Failed to rename document:", err)
+        onShowToast("Failed to rename document", "error")
       }
     }
     setRenamingDocumentId(null)
     setEditingTitle("")
-  }, [renamingDocumentId, editingTitle, updateProjectDocument, pageItems])
+  }, [renamingDocumentId, editingTitle, updateProjectDocument, pageItems, onShowToast])
 
   const handleRenameInputKeyDown = useCallback(
     (e: KeyboardEvent<HTMLInputElement>) => {
@@ -366,20 +375,19 @@ const DocumentListView = ({
     if (!deleteTarget) return
     try {
       const idsToDelete = Array.isArray(deleteTarget) ? deleteTarget : [deleteTarget]
-      
       if (idsToDelete.length > 1) {
         await deleteManyProjectDocuments(idsToDelete)
       } else {
         await deleteProjectDocument(idsToDelete[0])
       }
-      
+      onShowToast("Document deleted", "success")
       setSelected({})
     } catch (err) {
-      console.error("Failed to delete document(s):", err)
+      onShowToast("Failed to delete", "error")
     } finally {
       setDeleteTarget(null)
     }
-  }, [deleteTarget, deleteProjectDocument, deleteManyProjectDocuments])
+  }, [deleteTarget, deleteProjectDocument, deleteManyProjectDocuments, onShowToast])
 
   const handleBulkDelete = useCallback(() => {
     const idsToDelete = Object.keys(selected).filter(id => selected[id])
@@ -399,10 +407,8 @@ const DocumentListView = ({
       ? `You are about to permanently delete ${deleteTarget.length} documents. This action cannot be undone.`
       : "You are about to permanently delete this document. This action cannot be undone."
 
-  // Determine selection state for the header checkbox
   const isAllSelected = pageItems.length > 0 && selectedCount === pageItems.length
   const isIndeterminate = selectedCount > 0 && selectedCount < pageItems.length
-
 
   return (
     <>
@@ -475,7 +481,6 @@ const DocumentListView = ({
                       Delete ({selectedCount})
                     </Button>
                   )}
-                  {/* PDF Upload buttons removed */}
                   <Button
                     className="h-9 btn-primary bg-[#4ab5ae] text-white hover:bg-[#419d97]"
                     onClick={handleCreateNew}
@@ -536,7 +541,6 @@ const DocumentListView = ({
                                 className="flex items-center gap-2 cursor-pointer hover:underline"
                                 title="Open document"
                               >
-                                {/* Reverting to single FileText icon as in PersonalDocuments list */}
                                 <FileText className="h-4 w-4 text-slate-500 flex-shrink-0" />
                                 {doc.title}
                               </span>
@@ -655,11 +659,13 @@ const DocumentEditorView = ({
   onBack,
   onUpdate,
   loading,
+  onShowToast,
 }: {
   document: ProjectDocument
   onBack: () => void
   onUpdate: (updates: Partial<ProjectDocument>) => void
   loading: boolean
+  onShowToast: (message: string, type: ToastType) => void
 }) => {
   const isPdf = document.type === "pdf"
 
@@ -692,7 +698,11 @@ const DocumentEditorView = ({
           )}
         </div>
         <div className="w-[350px] flex-shrink-0">
-          <DocumentComments documentId={document.id} comments={document.comments || []} />
+          <DocumentComments 
+            documentId={document.id} 
+            comments={document.comments || []} 
+            onShowToast={onShowToast}
+          />
         </div>
       </div>
     </div>
@@ -701,6 +711,11 @@ const DocumentEditorView = ({
 
 export function DocumentsView({ projectId }: { projectId: string }) {
   const [editingDocumentId, setEditingDocumentId] = useState<string | null>(null)
+  const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null)
+
+  const showToast = useCallback((message: string, type: ToastType) => {
+    setToast({ message, type })
+  }, [])
   
   const {
     documents,
@@ -726,25 +741,43 @@ export function DocumentsView({ projectId }: { projectId: string }) {
     setEditingDocumentId(newId)
   }, [])
 
-
-  if (editingDocumentId && selectedDocument) {
-    const documentForEditor =
-      selectedDocument.id === editingDocumentId ? selectedDocument : documents.find(d => d.id === editingDocumentId)
-    
-    if (documentForEditor) {
-      // Logic for determining if content is loading based on type 'doc'
-      const isLoadingContent = documentForEditor.type === 'doc' && (!selectedDocument.content || selectedDocument.id !== editingDocumentId);
-
-      return (
-        <DocumentEditorView
-          document={documentForEditor as ProjectDocument}
-          onBack={handleBack}
-          onUpdate={updates => updateProjectDocument(editingDocumentId, updates)}
-          loading={isLoadingContent}
+  return (
+    <div className="h-full relative">
+      {toast && (
+        <CustomToast 
+          message={toast.message} 
+          type={toast.type} 
+          onClose={() => setToast(null)} 
         />
-      )
-    }
-  }
+      )}
 
-  return <DocumentListView projectId={projectId} onEdit={setEditingDocumentId} onCreate={handleCreate} />
+      {editingDocumentId && selectedDocument ? (() => {
+        const documentForEditor = selectedDocument.id === editingDocumentId 
+          ? selectedDocument 
+          : documents.find(d => d.id === editingDocumentId)
+        
+        if (!documentForEditor) return null
+
+        const isLoadingContent = documentForEditor.type === 'doc' && 
+          (!selectedDocument.content || selectedDocument.id !== editingDocumentId)
+
+        return (
+          <DocumentEditorView
+            document={documentForEditor as ProjectDocument}
+            onBack={handleBack}
+            onUpdate={updates => updateProjectDocument(editingDocumentId, updates)}
+            loading={isLoadingContent}
+            onShowToast={showToast}
+          />
+        )
+      })() : (
+        <DocumentListView 
+          projectId={projectId} 
+          onEdit={setEditingDocumentId} 
+          onCreate={handleCreate} 
+          onShowToast={showToast}
+        />
+      )}
+    </div>
+  )
 }

@@ -1,3 +1,4 @@
+//graphql/queries/me.ts
 import { gql } from "@apollo/client";
 
 export const ME_QUERY = gql`
@@ -10,6 +11,7 @@ export const ME_QUERY = gql`
       avatar
       avatarColor
       role
+      emailVerified
       ownedWorkspaces {
         id
         name

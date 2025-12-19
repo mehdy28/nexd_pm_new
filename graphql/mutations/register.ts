@@ -19,7 +19,26 @@ export const CREATE_USER = gql`
       email
       firstName
       lastName
+      avatar
+      avatarColor
       role
     }
+  }
+`;
+
+export const VERIFY_EMAIL = gql`
+  mutation VerifyEmail($token: String!) {
+    verifyEmail(token: $token) {
+      id
+      email
+      emailVerified
+    }
+  }
+`;
+
+
+export const RESEND_VERIFICATION_EMAIL = gql`
+  mutation ResendVerificationEmail($email: String!) {
+    resendVerificationEmail(email: $email)
   }
 `;

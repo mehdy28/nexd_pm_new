@@ -1,16 +1,15 @@
 interface TemplateParams {
-    inviterName: string;
-    workspaceName: string;
-    invitationLink: string;
+    firstName: string;
+    resetLink: string;
   }
   
-  export const workspaceInvitationTemplate = ({ inviterName, workspaceName, invitationLink }: TemplateParams): string => `
+  export const passwordResetTemplate = ({ firstName, resetLink }: TemplateParams): string => `
   <!DOCTYPE html>
   <html lang="en">
   <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>You're invited to join ${workspaceName}</title>
+    <title>Reset your password</title>
     <style>
       body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #333; background-color: #f4f4f4; margin: 0; padding: 0; }
       .container { max-width: 600px; margin: 20px auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px; background-color: #ffffff; }
@@ -19,29 +18,28 @@ interface TemplateParams {
       .content { text-align: left; }
       .content p { margin-bottom: 1em; color: #555; }
       .button-container { text-align: center; }
-      .button { display: inline-block; padding: 12px 24px; margin: 20px 0; background-color: #4ab5ae; color: #ffffff !important; text-decoration: none; border-radius: 5px; font-weight: bold; }
+      .button { display: inline-block; padding: 12px 24px; margin: 20px 0; background-color: #14b8a6; color: #ffffff !important; text-decoration: none; border-radius: 5px; font-weight: bold; }
       .footer { text-align: center; margin-top: 20px; font-size: 0.8em; color: #888; }
     </style>
   </head>
   <body>
     <div class="container">
       <div class="header">
-        <h1>You're Invited!</h1>
+        <h1>Reset Your Password</h1>
       </div>
       <div class="content">
-        <p>Hello,</p>
-        <p><strong>${inviterName}</strong> has invited you to collaborate in the <strong>${workspaceName}</strong> workspace on Nexd.PM.</p>
-        <p>Click the button below to accept your invitation. If you don't have an account, you'll be redirected to create one first.</p>
+        <p>Hello ${firstName},</p>
+        <p>We received a request to reset your password for your Nexd.PM account. Click the button below to set a new password:</p>
         <div class="button-container">
-          <a href="${invitationLink}" class="button">Accept Invitation & Join Workspace</a>
+          <a href="${resetLink}" class="button">Reset Password</a>
         </div>
-        <p>If you're having trouble with the button, you can copy and paste this link into your browser:</p>
-        <p><a href="${invitationLink}" style="color: #4ab5ae;">${invitationLink}</a></p>
-        <p>This invitation will expire in 7 days.</p>
+        <p>If you're having trouble with the button, copy and paste this link into your browser:</p>
+        <p><a href="${resetLink}" style="color: #14b8a6;">${resetLink}</a></p>
+        <p>This link will expire in 1 hour.</p>
         <p>Thanks,<br>The Nexd.PM Team</p>
       </div>
       <div class="footer">
-        <p>If you did not expect this invitation, you can safely ignore this email.</p>
+        <p>If you did not request this, you can safely ignore this email.</p>
       </div>
     </div>
   </body>

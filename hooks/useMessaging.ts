@@ -375,8 +375,8 @@ export const useMessaging = ({ workspaceId }: UseMessagingParams) => {
     communicationList: data?.getCommunicationList || [],
     workspaceMembers: data?.getWorkspaceMembers || [],
     listLoading: loading,
-    listError: error,
-    refetchList: refetch,
+    error, // Exposing the error object from useQuery
+    refetch, // Exposing the refetch function from useQuery
     selectedItem,
     setSelectedItem: handleSelectItem,
     activeItemDetails,

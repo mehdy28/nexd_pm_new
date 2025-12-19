@@ -41,7 +41,7 @@ export default function LoginPage() {
   return (
     <div className="flex min-h-screen">
       <div className="hidden lg:flex flex-col justify-center items-center w-1/2 bg-slate-800 p-8">
-        <Image src="/nexd-logo-horizontal.png" alt="NEXD.PM" width={250} height={80} className="object-contain" />
+        <Image src="/logo1.png" alt="NEXD.PM" width={350} height={180} className="object-contain" />
         <h2 className="mt-6 text-xl font-medium text-white text-center">Your all-in-one project management solution.</h2>
       </div>
 
@@ -74,7 +74,7 @@ export default function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                disabled={isLoading}
+                //disabled={isLoading}
               />
             </div>
 
@@ -88,7 +88,7 @@ export default function LoginPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
-                  disabled={isLoading}
+                  //disabled={isLoading}
                 />
                 <Button
                   type="button"
@@ -96,14 +96,16 @@ export default function LoginPage() {
                   size="sm"
                   className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
                   onClick={() => setShowPassword(!showPassword)}
-                  disabled={isLoading}
+                  //disabled={isLoading}
                 >
                   {showPassword ? <EyeOff className="h-4 w-4 text-slate-400" /> : <Eye className="h-4 w-4 text-slate-400" />}
                 </Button>
               </div>
             </div>
 
-            <Button type="submit" className="w-full" disabled={isLoading}>
+            <Button type="submit" className="w-full" 
+            //disabled={isLoading}
+            >
               {isLoading ? "Signing in..." : "Sign in"}
             </Button>
           </form>

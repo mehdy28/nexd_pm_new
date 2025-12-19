@@ -75,8 +75,8 @@ export default function AdminRegisterPage() {
     <div className="flex min-h-screen">
       {/* Left side: Background with Logo */}
       <div className="hidden lg:flex flex-col justify-center items-center w-1/2 bg-slate-800 p-8">
-        <Image src="/nexd-logo-horizontal.png" alt="NEXD.PM" width={250} height={80} className="object-contain" />
-        <h2 className="mt-6 text-xl font-medium text-white text-center">ADMIN SIGNUP: Your all-in-one project management solution.</h2>
+        <Image src="/logo1.png" alt="NEXD.PM" width={350} height={180} className="object-contain" />
+        <h2 className="mt-6 text-xl font-medium text-white text-center">Your all-in-one project management solution.</h2>
       </div>
 
       {/* Right side: Register Form */}
@@ -99,7 +99,7 @@ export default function AdminRegisterPage() {
                   value={formData.firstName}
                   onChange={(e) => handleInputChange("firstName", e.target.value)}
                   required
-                  disabled={loading}
+                  //disabled={loading}
                 />
               </div>
               <div className="space-y-2">
@@ -110,7 +110,7 @@ export default function AdminRegisterPage() {
                   value={formData.lastName}
                   onChange={(e) => handleInputChange("lastName", e.target.value)}
                   required
-                  disabled={loading}
+                  //disabled={loading}
                 />
               </div>
             </div>
@@ -124,7 +124,7 @@ export default function AdminRegisterPage() {
                 value={formData.email}
                 onChange={(e) => handleInputChange("email", e.target.value)}
                 required
-                disabled={loading}
+                //disabled={loading}
               />
             </div>
 
@@ -138,7 +138,7 @@ export default function AdminRegisterPage() {
                   value={formData.password}
                   onChange={(e) => handleInputChange("password", e.target.value)}
                   required
-                  disabled={loading}
+                  //disabled={loading}
                 />
                 <Button
                   type="button"
@@ -146,7 +146,7 @@ export default function AdminRegisterPage() {
                   size="sm"
                   className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
                   onClick={() => setShowPassword(!showPassword)}
-                  disabled={loading}
+                  //disabled={loading}
                 >
                   {showPassword ? <EyeOff className="h-4 w-4 text-slate-400" /> : <Eye className="h-4 w-4 text-slate-400" />}
                 </Button>
@@ -163,7 +163,7 @@ export default function AdminRegisterPage() {
                   value={formData.confirmPassword}
                   onChange={(e) => handleInputChange("confirmPassword", e.target.value)}
                   required
-                  disabled={loading}
+                  //disabled={loading}
                 />
                 <Button
                   type="button"
@@ -171,7 +171,7 @@ export default function AdminRegisterPage() {
                   size="sm"
                   className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
                   onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  disabled={loading}
+                  //disabled={loading}
                 >
                   {showConfirmPassword ? <EyeOff className="h-4 w-4 text-slate-400" /> : <Eye className="h-4 w-4 text-slate-400" />}
                 </Button>
@@ -187,7 +187,7 @@ export default function AdminRegisterPage() {
                   onChange={(e) => handleInputChange("agreeToTerms", e.target.checked)}
                   className="sr-only"
                   required
-                  disabled={loading}
+                  //disabled={loading}
                 />
                 <div
                   className={`h-4 w-4 rounded border-2 flex items-center justify-center cursor-pointer ${
@@ -210,7 +210,9 @@ export default function AdminRegisterPage() {
               </Label>
             </div>
 
-            <Button type="submit" className="w-full bg-primary hover:bg-primary/80 text-white" disabled={loading}>
+            <Button type="submit" className="w-full bg-primary hover:bg-primary/80 text-white" 
+            //disabled={loading}
+            >
               {loading ? "Creating Admin account..." : "Create Admin account"}
             </Button>
           </form>

@@ -1,4 +1,3 @@
-// components/messaging/communication-window.tsx
 "use client";
 
 import { useState, useRef, useEffect, useMemo } from "react";
@@ -8,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Separator } from "@/components/ui/separator";
 import { Send, User as UserIcon, Users, LifeBuoy, MoreVertical, X, LogOut, Trash2, UserPlus, ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CommunicationItem, ConversationDetails, TicketDetails, TypingUser, WorkspaceMember } from "@/hooks/useMessaging";
@@ -17,20 +15,20 @@ import { formatDistanceToNow } from 'date-fns';
 const getInitials = (name: string) => name.split(" ").map((n) => n[0]).join("").toUpperCase();
 
 const priorityBadgeColors: Record<string, string> = {
-  LOW: 'border-green-500/50 bg-green-50 text-green-700',
-  MEDIUM: 'border-yellow-500/50 bg-yellow-50 text-yellow-700',
-  HIGH: 'border-red-500/50 bg-red-50 text-red-700',
+  LOW: 'border-green-500/50 bg-green-100 text-green-800',
+  MEDIUM: 'border-yellow-500/50 bg-yellow-100 text-yellow-800',
+  HIGH: 'border-red-500/50 bg-red-100 text-red-800',
 };
  
 // Define header background styles based on type
 const getHeaderStyle = (item: CommunicationItem) => {
     if (item.type === 'ticket') {
-        if (item.priority === 'HIGH') return 'bg-red-50/80 border-b-red-100';
-        if (item.priority === 'MEDIUM') return 'bg-yellow-50/80 border-b-yellow-100';
-        return 'bg-green-50/80 border-b-green-100';
+        if (item.priority === 'HIGH') return 'bg-red-100/80 border-b-red-200';
+        if (item.priority === 'MEDIUM') return 'bg-yellow-100/80 border-b-yellow-200';
+        return 'bg-green-100/80 border-b-green-200';
     }
-    if (item.conversationType === 'GROUP') return 'bg-purple-50/80 border-b-purple-100';
-    return 'bg-blue-50/80 border-b-blue-100';
+    if (item.conversationType === 'GROUP') return 'bg-purple-100/80 border-b-purple-200';
+    return 'bg-blue-100/80 border-b-blue-200';
 };
 
 
@@ -328,7 +326,7 @@ export function CommunicationWindow({
       </div>
 
       <CardContent className="flex-1 flex flex-col p-0 min-h-0 bg-white">
-        <div className="flex-1 p-4 overflow-y-auto bg-gray-50/50">
+        <div className="flex-1 p-4 overflow-y-auto bg-gray-100">
           <div className="space-y-4">
             {details.messages.map((message) => {
               const isSelf = message.sender.id === currentUserId;
@@ -358,7 +356,7 @@ export function CommunicationWindow({
                   <div
                     className={cn(
                       "p-3 rounded-xl text-sm inline-block max-w-full text-left whitespace-pre-wrap break-words shadow-sm",
-                      isSelf ? "bg-[hsl(174,70%,54%)] text-white rounded-tr-sm" : "bg-white border text-gray-800 rounded-tl-sm"
+                      isSelf ? "bg-[hsl(174,75%,40%)] text-white rounded-tr-sm" : "bg-white border text-gray-800 rounded-tl-sm"
                     )}
                   >
                     {message.content}
@@ -379,10 +377,9 @@ export function CommunicationWindow({
             <div ref={messagesEndRef} />
           </div>
         </div>
-        <Separator />
-        <div className="p-4 flex-shrink-0 bg-white">
+        <div className="p-4 flex-shrink-0 bg-gray-100 border-t">
             {isParticipant ? (
-                <div className="flex items-end space-x-2 border rounded-md p-2 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring has-[:focus-visible]:ring-offset-2 bg-gray-50">
+                <div className="flex items-end space-x-2 border rounded-md p-2 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring has-[:focus-visible]:ring-offset-2 bg-white">
                     <Textarea
                         ref={textareaRef}
                         placeholder={isTicket ? "Reply to support..." : "Send a message..."}
@@ -392,7 +389,7 @@ export function CommunicationWindow({
                         rows={1}
                         className="flex-1 bg-transparent border-0 resize-none focus-visible:ring-0 focus-visible:ring-offset-0 p-0 max-h-32"
                     />
-                    <Button onClick={handleSendMessage} disabled={isSending || !newMessage.trim()} className="bg-[hsl(174,70%,54%)] hover:bg-[hsl(174,70%,44%)] h-8 w-8 p-0 rounded-full">
+                    <Button onClick={handleSendMessage} disabled={isSending || !newMessage.trim()} className="bg-[hsl(174,75%,40%)] hover:bg-[hsl(174,75%,35%)] h-8 w-8 p-0 rounded-full text-white">
                         <Send className="h-4 w-4" />
                     </Button>
                 </div>

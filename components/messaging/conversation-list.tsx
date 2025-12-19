@@ -19,29 +19,29 @@ const getItemStyles = (item: CommunicationItem, isSelected: boolean) => {
     switch (item.priority) {
       case 'HIGH':
         return isSelected 
-          ? "bg-red-50 border-red-200" 
-          : "bg-white hover:bg-red-50/50 border-transparent hover:border-red-100";
+          ? "bg-red-100 border-red-300" 
+          : "bg-white hover:bg-red-100/80 border-transparent hover:border-red-200";
       case 'MEDIUM':
         return isSelected 
-          ? "bg-yellow-50 border-yellow-200" 
-          : "bg-white hover:bg-yellow-50/50 border-transparent hover:border-yellow-100";
+          ? "bg-yellow-100 border-yellow-300" 
+          : "bg-white hover:bg-yellow-100/80 border-transparent hover:border-yellow-200";
       case 'LOW':
       default:
         return isSelected 
-          ? "bg-green-50 border-green-200" 
-          : "bg-white hover:bg-green-50/50 border-transparent hover:border-green-100";
+          ? "bg-green-100 border-green-300" 
+          : "bg-white hover:bg-green-100/80 border-transparent hover:border-green-200";
     }
   } else {
     // Conversation
     if (item.conversationType === 'GROUP') {
         return isSelected 
-          ? "bg-purple-50 border-purple-200" 
-          : "bg-white hover:bg-purple-50/50 border-transparent hover:border-purple-100";
+          ? "bg-purple-100 border-purple-300" 
+          : "bg-white hover:bg-purple-100/80 border-transparent hover:border-purple-200";
     } else {
         // Direct
         return isSelected 
-          ? "bg-blue-50 border-blue-200" 
-          : "bg-white hover:bg-blue-50/50 border-transparent hover:border-blue-100";
+          ? "bg-blue-100 border-blue-300" 
+          : "bg-white hover:bg-blue-100/80 border-transparent hover:border-blue-200";
     }
   }
 };

@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useMessaging, CommunicationItem } from "@/hooks/useMessaging";
 import { useUser } from "@/hooks/useUser";
-
+import { LoadingPlaceholder, ErrorPlaceholder } from "@/components/placeholders/status-placeholders";
 
 type ViewState = 'list' | 'new_ticket' | 'new_group_chat' | 'new_direct_chat';
 
@@ -29,6 +29,8 @@ export function UserCommunication({ workspaceId }: UserCommunicationProps) {
     communicationList,
     workspaceMembers,
     listLoading,
+    error,
+    refetch,
     selectedItem,
     setSelectedItem,
     activeItemDetails,
@@ -44,6 +46,10 @@ export function UserCommunication({ workspaceId }: UserCommunicationProps) {
     typingUsers,
     notifyTyping,
   } = useMessaging({ workspaceId });
+
+  // Applied loading and error handling for the entire component
+  if (listLoading) return <LoadingPlaceholder message="Loading your messages & tickets..." />
+  if (error) return <ErrorPlaceholder error={error} onRetry={refetch} />
 
   const handleCreateNewTicket = () => {
     setCurrentView('new_ticket');
@@ -135,9 +141,9 @@ export function UserCommunication({ workspaceId }: UserCommunicationProps) {
     }
 
     return (
-      <Card className="h-full flex items-center justify-center bg-gray-50/50">
+      <Card className="h-full flex items-center justify-center bg-gray-100">
         <div className="text-center text-muted-foreground">
-          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gray-100 flex items-center justify-center">
+          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gray-200 flex items-center justify-center">
             <MessageSquare className="w-8 h-8" />
           </div>
           <h3 className="text-lg font-medium mb-2">
@@ -169,13 +175,13 @@ export function UserCommunication({ workspaceId }: UserCommunicationProps) {
                           />
                       </div>
                       <div className="grid grid-cols-3 gap-2">
-                          <Button onClick={handleCreateNewDirectChat} variant="secondary" size="sm" className="text-xs">
+                          <Button onClick={handleCreateNewDirectChat} size="sm" className="bg-[hsl(174,75%,40%)] text-white text-xs hover:bg-[hsl(174,75%,40%)] hover:text-white">
                               <User className="w-3 h-3 mr-1" /> Direct
                           </Button>
-                          <Button onClick={handleCreateNewGroupChat} variant="secondary" size="sm" className="text-xs">
+                          <Button onClick={handleCreateNewGroupChat} size="sm" className="bg-[hsl(174,75%,40%)] text-white text-xs hover:bg-[hsl(174,75%,40%)] hover:text-white">
                               <Users className="w-3 h-3 mr-1" /> Group
                           </Button>
-                          <Button onClick={handleCreateNewTicket} variant="outline" size="sm" className="text-[hsl(174,70%,54%)] border-[hsl(174,70%,54%)] hover:bg-[hsl(174,70%,54%)] hover:text-white text-xs">
+                          <Button onClick={handleCreateNewTicket} size="sm" className="bg-[hsl(174,75%,40%)] text-white text-xs border-transparent hover:bg-[hsl(174,75%,40%)] hover:text-white">
                               <LifeBuoy className="w-3 h-3 mr-1" /> Ticket
                           </Button>
                       </div>

@@ -181,6 +181,7 @@ type User {
   avatarColor: String
   firebaseUid: String
   role: UserRole!
+  emailVerified: Boolean!
   createdAt: DateTime!
   updatedAt: DateTime!
   fullName: String
@@ -1540,6 +1541,9 @@ type Query {
 type Mutation {
   # User & Workspace Setup
   createUser(email: String!, firstName: String, lastName: String, role: UserRole, invitationToken: String): User!
+  verifyEmail(token: String!): User!
+  resendVerificationEmail(email: String!): Boolean! 
+  requestPasswordReset(email: String!): Boolean!
   setupWorkspace(
     userId: ID!
     workspaceName: String!

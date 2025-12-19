@@ -37,6 +37,7 @@ import { useProjectTaskMutations } from "@/hooks/useProjectTaskMutationsNew"
 import { UserAvatarPartial } from "@/types/useProjectTasksAndSections"
 import { TaskDetailSheet } from "../modals/task-detail-sheet"
 import { LoadingPlaceholder, ErrorPlaceholder } from "@/components/placeholders/status-placeholders"
+import { CustomToast, ToastType } from "@/components/ui/custom-toast"
 
 type NewTaskForm = {
   title: string
@@ -76,6 +77,11 @@ interface ListViewProps {
 
 export function ListView({ projectId }: ListViewProps) {
   const [internalSelectedSprintId, setInternalSelectedSprintId] = useState<string | undefined>(undefined)
+  const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null)
+
+  const showToast = (message: string, type: ToastType) => {
+    setToast({ message, type })
+  }
 
   const {
     sections,
@@ -109,7 +115,6 @@ export function ListView({ projectId }: ListViewProps) {
     updateLoading,
   } = useProjectTaskMutations(projectId, internalSelectedSprintId)
 
-  // Section editing logic moved to ProjectSectionHeader component
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
   const [selected, setSelected] = useState<Record<string, boolean>>({})
   const [sheetTask, setSheetTask] = useState<{ sectionId: string; taskId: string } | null>(null)
@@ -152,14 +157,14 @@ export function ListView({ projectId }: ListViewProps) {
 
   const renameSection = useCallback(
     async (id: string, title: string) => {
-      // Editing state managed locally in ProjectSectionHeader now
       if (!title.trim()) return
       
       setIsSectionMutating(true)
       try {
         await renameSectionMutation(id, title)
-
+        showToast("Section renamed successfully", "success")
       } catch (err) {
+        showToast("Error renaming section", "error")
         console.error(`[renameSection] Failed to rename section "${id}":`, err)
       } finally {
         setIsSectionMutating(false)
@@ -172,7 +177,9 @@ export function ListView({ projectId }: ListViewProps) {
     setIsCreatingSection(true)
     try {
       await createSection("New Section")
+      showToast("Section created", "success")
     } catch (err) {
+      showToast("Error creating section", "error")
       console.error("[addSection] Failed to add section:", err)
     } finally {
       setIsCreatingSection(false)
@@ -186,7 +193,9 @@ export function ListView({ projectId }: ListViewProps) {
 
       try {
         await toggleTaskCompletedMutation(taskId, sectionId, taskToUpdate.status)
+        showToast("Task status updated", "success")
       } catch (err) {
+        showToast("Error toggling task completion", "error")
         console.error(`[toggleTaskCompleted] Failed to toggle task "${taskId}" completion:`, err)
       }
     },
@@ -210,7 +219,9 @@ export function ListView({ projectId }: ListViewProps) {
       if (Object.keys(mutationInput).length > 0) {
         try {
           await updateTaskMutation(taskId, sectionId, mutationInput)
+          showToast("Task updated", "success")
         } catch (err) {
+          showToast("Error updating task", "error")
           console.error(`[updateTask] Failed to update task "${taskId}":`, err)
         }
       }
@@ -233,7 +244,9 @@ export function ListView({ projectId }: ListViewProps) {
 
     try {
       await deleteTaskMutation(task.id, sectionId)
+      showToast("Task deleted", "success")
     } catch (err) {
+      showToast("Error deleting task", "error")
       console.error(`[handleConfirmTaskDelete] Failed to delete task "${task.id}":`, err)
     } finally {
       setDeleteTaskModalOpen(false)
@@ -286,7 +299,9 @@ export function ListView({ projectId }: ListViewProps) {
     setSelected({})
     try {
       await deleteManyTasks(tasksToDelete)
+      showToast(`${tasksToDelete.length} tasks deleted`, "success")
     } catch (err) {
+      showToast("Error deleting tasks", "error")
       console.error("[bulkDeleteSelected] Failed to bulk delete tasks:", err)
     }
   }, [selected, deleteManyTasks, sectionTaskMap])
@@ -336,7 +351,9 @@ export function ListView({ projectId }: ListViewProps) {
           delete newState[sectionId]
           return newState
         })
+        showToast("Task created successfully", "success")
       } catch (err) {
+        showToast("Error creating task", "error")
         console.error(`[saveNewTask] Failed to create task in section "${sectionId}":`, err)
       }
     },
@@ -387,7 +404,9 @@ export function ListView({ projectId }: ListViewProps) {
         deleteTasks: hasTasks ? deleteTasksConfirmed : true,
         reassignToSectionId: reassignId,
       })
+      showToast("Section deleted", "success")
     } catch (err) {
+      showToast("Error deleting section", "error")
       console.error(`[handleConfirmDeleteSection] Failed to delete section "${sectionToDelete.id}":`, err)
     } finally {
       setIsSectionMutating(false)
@@ -423,7 +442,15 @@ export function ListView({ projectId }: ListViewProps) {
   if (error) return <ErrorPlaceholder error={error} onRetry={refetchProjectTasksAndSections} />
 
   return (
-    <div className="p-6 pt-3">
+    <div className="p-6 pt-3 relative">
+      {toast && (
+        <CustomToast 
+          message={toast.message} 
+          type={toast.type} 
+          onClose={() => setToast(null)} 
+        />
+      )}
+
       <div className="flex items-center gap-3">
         <Button onClick={addSection} disabled={isCreatingSection} className="bg-[#4ab5ae] text-white h-9 rounded-md">
           {isCreatingSection ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}+ Add section
@@ -518,7 +545,6 @@ export function ListView({ projectId }: ListViewProps) {
                               }))
                             }
                             placeholder="Task title"
-                            // disabled={isTaskMutating}
                           />
                         </div>
                         <div className="space-y-2">
@@ -534,7 +560,6 @@ export function ListView({ projectId }: ListViewProps) {
                                 },
                               }))
                             }
-                            //disabled={isTaskMutating}
                           >
                             <SelectTrigger>
                                 <SelectValue placeholder="Assignee">
@@ -606,7 +631,6 @@ export function ListView({ projectId }: ListViewProps) {
                                 [section.id]: { ...(p[section.id] as NewTaskForm), endDate: e.target.value },
                               }))
                             }
-                            //disabled={isTaskMutating}
                           />
                         </div>
                         <div className="space-y-2">
@@ -619,7 +643,6 @@ export function ListView({ projectId }: ListViewProps) {
                                 [section.id]: { ...(p[section.id] as NewTaskForm), priority: v },
                               }))
                             }
-                            // disabled={isTaskMutating}
                           >
                             <SelectTrigger>
                               <SelectValue placeholder="Priority" />
@@ -655,7 +678,6 @@ export function ListView({ projectId }: ListViewProps) {
                                 }))
                               }
                               min={0}
-                              // disabled={isTaskMutating}
                             />
                             <Button
                               aria-label="Create task"
@@ -872,7 +894,6 @@ function ProjectSectionHeader({
   const [isEditing, setIsEditing] = useState(false)
   const [localTitle, setLocalTitle] = useState(section.title)
 
-  // Sync local title with props if props change from outside
   useEffect(() => {
     setLocalTitle(section.title)
   }, [section.title])
@@ -882,7 +903,7 @@ function ProjectSectionHeader({
     if (localTitle.trim() && localTitle !== section.title) {
       onRename(localTitle.trim())
     } else {
-      setLocalTitle(section.title) // Revert if empty or unchanged
+      setLocalTitle(section.title)
     }
   }
 
@@ -892,7 +913,7 @@ function ProjectSectionHeader({
     }
     if (e.key === "Escape") {
       setIsEditing(false)
-      setLocalTitle(section.title) // Revert
+      setLocalTitle(section.title)
     }
   }
 
@@ -939,7 +960,6 @@ function ProjectSectionHeader({
             size="sm"
             className="bg-[#4ab5ae] text-white hover:bg-[#419d97]"
             onClick={onOpenNewTask}
-            // disabled={isTaskMutating}
           >
             + Add task
           </Button>
@@ -980,7 +1000,6 @@ function TaskRow({ task, selected, onSelect, onToggleCompleted, onUpdate, onOpen
   const assigneeInitials = `${assignee?.firstName?.[0] || ""}${assignee?.lastName?.[0] || ""}`.trim() || "?"
   const assigneeName = `${assignee?.firstName || ""} ${assignee?.lastName || ""}`.trim() || "Unassigned"
 
-  // Local state for immediate UI updates and buffering inputs
   const [localTitle, setLocalTitle] = useState(task.title)
   useEffect(() => setLocalTitle(task.title), [task.title])
 
@@ -991,7 +1010,6 @@ function TaskRow({ task, selected, onSelect, onToggleCompleted, onUpdate, onOpen
   useEffect(() => setLocalPoints(task.points), [task.points])
 
   const handleBlur = (field: keyof TaskUI, value: any) => {
-    // Only update if value actually changed
     if (value !== task[field]) {
       onUpdate({ [field]: value })
     }
@@ -1103,8 +1121,8 @@ function TaskRow({ task, selected, onSelect, onToggleCompleted, onUpdate, onOpen
         <Select 
           value={localPriority} 
           onValueChange={(v: PriorityUI) => {
-            setLocalPriority(v) // Update UI immediately
-            onUpdate({ priority: v }) // Trigger API
+            setLocalPriority(v)
+            onUpdate({ priority: v })
           }}
         >
           <SelectTrigger className="h-8">

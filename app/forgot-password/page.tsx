@@ -6,37 +6,28 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Mail } from "lucide-react";
-import { useRouter } from "next/navigation"; // Import useRouter
 import Link from "next/link";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function PasswordRecoveryPage() {
   const [email, setEmail] = useState("");
   const [recoverySent, setRecoverySent] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-
-  const router = useRouter(); // Initialize the router
+  const { resetPassword, loading, error: authError } = useAuth();
+  const [localError, setLocalError] = useState("");
 
   const handleRecoverySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError("");
-    setLoading(true);
-
-    // Simulate an API call for password recovery
-    setTimeout(() => {
-      setLoading(false);
-      if (email.includes("@")) {
-        setRecoverySent(true);
-      } else {
-        setError("Invalid email address.");
-      }
-    }, 1500); // Simulate API call delay
-
+    setLocalError("");
+    
+    try {
+      await resetPassword(email);
+      setRecoverySent(true);
+    } catch (err: any) {
+      setLocalError(err.message || "An error occurred while trying to reset your password.");
+    }
   };
 
-  // const handleReturnToLogin = () => {
-  //   router.push("/login"); // Replace "/login" with your actual login route
-  // };
+  const displayError = localError || authError;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center">
@@ -49,12 +40,9 @@ export default function PasswordRecoveryPage() {
           {recoverySent ? (
             <div className="text-center">
               <p className="text-slate-600">
-                We've sent a password reset link to <span className="font-medium">{email}</span>.
-                Please check your inbox and follow the instructions to reset your password.
+                If an account exists for <span className="font-medium">{email}</span>, you will receive a reset link shortly.
+                Please check your inbox.
               </p>
-              {/*<Button onClick={handleReturnToLogin} className="mt-4 bg-teal-500 hover:bg-teal-600 text-lg py-3 w-full">
-                Return to Login
-              </Button>*/}
               <p className="mt-4">
                 <Link href="/login" className="text-teal-500 hover:text-teal-600">
                   Return to Login
@@ -72,12 +60,14 @@ export default function PasswordRecoveryPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
-                  disabled={loading}
+                  //disabled={loading}
                 />
               </div>
-              {error && <p className="text-red-500 text-sm">{error}</p>}
-              <Button type="submit" className="w-full bg-teal-500 hover:bg-teal-600 text-lg py-3" disabled={loading}>
-                {loading ? "Sending..." : "Reset Password"}
+              {displayError && <p className="text-red-500 text-sm">{displayError}</p>}
+              <Button type="submit" className="w-full bg-teal-500 hover:bg-teal-600 text-lg py-3" 
+              //disabled={loading}
+              >
+                {loading ? "Sending..." : "Send Reset Link"}
               </Button>
               <p className="mt-2 text-center">
                 <Link href="/login" className="text-teal-500 hover:text-teal-600">
