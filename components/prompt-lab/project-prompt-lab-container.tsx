@@ -8,6 +8,7 @@ import { useProjectPromptsList } from "@/hooks/useProjectPromptsList"
 import { usePromptDetails } from "@/hooks/usePromptDetails"
 import { PromptTemplate } from "@/lib/prompts/prompt-templates"
 import { generateClientKey } from "@/lib/utils"
+import { CustomToast, ToastType } from "@/components/ui/custom-toast"
 
 interface ProjectPromptLabContainerProps {
   projectId: string
@@ -23,6 +24,11 @@ export function ProjectPromptLabContainer({ projectId }: ProjectPromptLabContain
   const [selectedPromptId, setSelectedPromptId] = useState<string | null>(null)
   const [isCreatingTemplate, setIsCreatingTemplate] = useState(false)
   const [isPostCreationLoading, setIsPostCreationLoading] = useState(false)
+  const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null)
+
+  const showToast = useCallback((message: string, type: ToastType) => {
+    setToast({ message, type })
+  }, [])
 
   const {
     prompts,
@@ -85,15 +91,17 @@ export function ProjectPromptLabContainer({ projectId }: ProjectPromptLabContain
       const newPrompt = await createPromptInList({ projectId }) 
       if (newPrompt) {
         console.log("[ProjectPromptLabContainer] [Trace: HandleCreate] New prompt created:", newPrompt.id)
+        showToast("Prompt created successfully", "success")
         selectPrompt(newPrompt.id)
       } else {
         setIsPostCreationLoading(false)
       }
     } catch (err) {
       console.error("[ProjectPromptLabContainer] [Error: Create] Failed to create new prompt:", err)
+      showToast("Failed to create prompt", "error")
       setIsPostCreationLoading(false)
     }
-  }, [createPromptInList, selectPrompt, projectId])
+  }, [createPromptInList, selectPrompt, projectId, showToast])
 
   const handleCreateFromTemplate = useCallback(
     async (template: PromptTemplate) => {
@@ -121,6 +129,7 @@ export function ProjectPromptLabContainer({ projectId }: ProjectPromptLabContain
             "[ProjectPromptLabContainer] [Trace: HandleCreateTemplate] New prompt created from template:",
             newPrompt.id,
           )
+          showToast(`Created from ${template.name}`, "success")
           selectPrompt(newPrompt.id)
         } else {
           setIsPostCreationLoading(false)
@@ -130,12 +139,13 @@ export function ProjectPromptLabContainer({ projectId }: ProjectPromptLabContain
           "[ProjectPromptLabContainer] [Error: CreateTemplate] Failed to create prompt from template:",
           err,
         )
+        showToast("Failed to apply template", "error")
         setIsPostCreationLoading(false)
       } finally {
         setIsCreatingTemplate(false)
       }
     },
-    [createPromptInList, selectPrompt, projectId],
+    [createPromptInList, selectPrompt, projectId, showToast],
   )
 
   const handleDeletePrompt = useCallback(
@@ -144,15 +154,20 @@ export function ProjectPromptLabContainer({ projectId }: ProjectPromptLabContain
         "[ProjectPromptLabContainer] [Trace: HandleDelete] handleDeletePrompt: Initiating deletion for ID:",
         id,
       )
-      await deletePromptFromList(id)
-      console.log("[ProjectPromptLabContainer] [Trace: HandleDelete] Deletion promise resolved.")
+      try {
+        await deletePromptFromList(id)
+        showToast("Prompt deleted", "success")
+        console.log("[ProjectPromptLabContainer] [Trace: HandleDelete] Deletion promise resolved.")
 
-      if (selectedPromptId === id) {
-        console.log("[ProjectPromptLabContainer] [Trace: HandleDelete] Deselecting deleted prompt.")
-        selectPrompt(null)
+        if (selectedPromptId === id) {
+          console.log("[ProjectPromptLabContainer] [Trace: HandleDelete] Deselecting deleted prompt.")
+          selectPrompt(null)
+        }
+      } catch (err) {
+        showToast("Failed to delete prompt", "error")
       }
     },
-    [deletePromptFromList, selectedPromptId, selectPrompt],
+    [deletePromptFromList, selectedPromptId, selectPrompt, showToast],
   )
 
   const handleDeleteManyPrompts = useCallback(
@@ -161,14 +176,19 @@ export function ProjectPromptLabContainer({ projectId }: ProjectPromptLabContain
         "[ProjectPromptLabContainer] [Trace: HandleDeleteMany] handleDeleteManyPrompts: Initiating deletion for IDs:",
         ids,
       )
-      await deleteManyPromptsFromList(ids)
-      console.log("[ProjectPromptLabContainer] [Trace: HandleDeleteMany] Bulk deletion promise resolved.")
+      try {
+        await deleteManyPromptsFromList(ids)
+        showToast(`${ids.length} prompts deleted`, "success")
+        console.log("[ProjectPromptLabContainer] [Trace: HandleDeleteMany] Bulk deletion promise resolved.")
 
-      if (selectedPromptId && ids.includes(selectedPromptId)) {
-        selectPrompt(null)
+        if (selectedPromptId && ids.includes(selectedPromptId)) {
+          selectPrompt(null)
+        }
+      } catch (err) {
+        showToast("Failed to delete prompts", "error")
       }
     },
-    [deleteManyPromptsFromList, selectedPromptId, selectPrompt]
+    [deleteManyPromptsFromList, selectedPromptId, selectPrompt, showToast]
   )
 
   const handleBack = () => {
@@ -197,47 +217,57 @@ export function ProjectPromptLabContainer({ projectId }: ProjectPromptLabContain
     return <ErrorPlaceholder error={new Error(error)} onRetry={handleRetry} />
   }
 
-  if (selectedPromptId && selectedPromptDetails) {
-    return (
-      <PromptLab
-        prompt={selectedPromptDetails}
-        onBack={handleBack}
-        projectId={projectId}
-        isLoading={loadingDetails}
-        error={detailsError}
-        refetch={refetchPromptDetails}
-        updatePromptDetails={updatePromptDetails}
-        updatePromptVersion={updatePromptVersion}
-        snapshotPrompt={snapshotPrompt}
-        setActivePromptVersion={setActivePromptVersion}
-        updateVersionDescription={updateVersionDescription}
-        fetchVersionContent={fetchVersionContent}
-        loadingVersionContent={loadingVersionContent}
-        versionContentError={versionContentError}
-        currentLoadedVersionContent={currentLoadedVersionContent}
-      />
-    )
-  }
-
   return (
-    <ProjectPromptList
-      prompts={prompts}
-      onSelectPrompt={selectPrompt}
-      onCreatePrompt={handleCreateNewPrompt}
-      onDeletePrompt={handleDeletePrompt}
-      onDeleteManyPrompts={handleDeleteManyPrompts}
-      onSelectTemplate={handleCreateFromTemplate}
-      isCreatingFromTemplate={isCreatingTemplate}
-      isLoading={loadingList}
-      isError={!!listError}
-      q={q}
-      setQ={setQ}
-      page={page}
-      setPage={setPage}
-      pageSize={pageSize}
-      setPageSize={setPageSize}
-      totalPages={totalPages}
-      totalPromptsCount={totalPromptsCount}
-    />
+    <div className="h-full relative">
+      {toast && (
+        <CustomToast 
+          message={toast.message} 
+          type={toast.type} 
+          onClose={() => setToast(null)} 
+        />
+      )}
+
+      {selectedPromptId && selectedPromptDetails ? (
+        <PromptLab
+          prompt={selectedPromptDetails}
+          onBack={handleBack}
+          projectId={projectId}
+          isLoading={loadingDetails}
+          error={detailsError}
+          refetch={refetchPromptDetails}
+          updatePromptDetails={updatePromptDetails}
+          updatePromptVersion={updatePromptVersion}
+          snapshotPrompt={snapshotPrompt}
+          setActivePromptVersion={setActivePromptVersion}
+          updateVersionDescription={updateVersionDescription}
+          fetchVersionContent={fetchVersionContent}
+          loadingVersionContent={loadingVersionContent}
+          versionContentError={versionContentError}
+          currentLoadedVersionContent={currentLoadedVersionContent}
+          onShowToast={showToast}
+        />
+      ) : (
+        <ProjectPromptList
+          prompts={prompts}
+          onSelectPrompt={selectPrompt}
+          onCreatePrompt={handleCreateNewPrompt}
+          onDeletePrompt={handleDeletePrompt}
+          onDeleteManyPrompts={handleDeleteManyPrompts}
+          onSelectTemplate={handleCreateFromTemplate}
+          isCreatingFromTemplate={isCreatingTemplate}
+          isLoading={loadingList}
+          isError={!!listError}
+          q={q}
+          setQ={setQ}
+          page={page}
+          setPage={setPage}
+          pageSize={pageSize}
+          setPageSize={setPageSize}
+          totalPages={totalPages}
+          totalPromptsCount={totalPromptsCount}
+          onShowToast={showToast}
+        />
+      )}
+    </div>
   )
 }

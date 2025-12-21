@@ -23,7 +23,7 @@ const TopbarContext = createContext<TopbarContextType | null>(null)
 
 export function TopbarProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<TopbarState>({
-    title: "NEXD.PM",
+    title: "",
     tabs: [],
     activeKey: "",
     showShare: true,

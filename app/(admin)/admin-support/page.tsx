@@ -1,4 +1,4 @@
- "use client";
+"use client";
 import React from 'react';
 import { CustomerSupport } from '@/components/admin/customer-support';      
 const CustomerSupportPage: React.FC = () => {

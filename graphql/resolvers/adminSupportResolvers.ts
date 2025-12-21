@@ -1,4 +1,5 @@
 import { GraphQLError } from 'graphql';
+import { withFilter } from 'graphql-subscriptions';
 import { prisma } from '@/lib/prisma';
 import { pubsub, Topics } from '@/graphql/pubsub';
 
@@ -26,6 +27,39 @@ const checkAdmin = (context: GraphQLContext) => {
   return context.user.id;
 };
 
+// Helper to fetch the data structure needed for list item subscriptions
+const getAdminTicketListItemPayload = async (ticketId: string) => {
+    const ticket = await prisma.ticket.findUnique({
+      where: { id: ticketId },
+      include: {
+        creator: {
+          select: { id: true, firstName: true, lastName: true, avatar: true, avatarColor: true },
+        },
+        workspace: {
+          select: { id: true, name: true, plan: true },
+        },
+        _count: {
+          select: {
+            messages: {
+              where: {
+                NOT: { sender: { role: 'ADMIN' } },
+                isReadByAdmin: false,
+              },
+            },
+          },
+        },
+      },
+    });
+  
+    if (!ticket) return null;
+  
+    return {
+      ...ticket,
+      unreadCount: ticket._count.messages,
+    };
+};
+
+
 export const adminSupportResolvers = {
   // --- QUERIES ---
   Query: {
@@ -47,9 +81,8 @@ export const adminSupportResolvers = {
               select: {
                 messages: {
                   where: {
-                    sender: {
-                      role: { not: 'ADMIN' }
-                    }
+                    NOT: { sender: { role: 'ADMIN' } },
+                    isReadByAdmin: false
                   }
                 }
               }
@@ -58,7 +91,6 @@ export const adminSupportResolvers = {
           orderBy: { updatedAt: 'desc' },
         });
         
-        // Map the result to match the GraphQL type, including the unread count
         const result = tickets.map(ticket => ({
             ...ticket,
             unreadCount: ticket._count.messages
@@ -102,7 +134,6 @@ export const adminSupportResolvers = {
           throw new GraphQLError('Ticket not found.');
         }
 
-        // Shape the data to match the GraphQL type
         const result = {
           ...ticket,
           workspace: {
@@ -133,37 +164,29 @@ export const adminSupportResolvers = {
         log(source, 'Fired', { ticketId });
 
         const ticket = await prisma.ticket.findUnique({ where: { id: ticketId } });
-        if (!ticket) {
-          throw new GraphQLError('Ticket not found.');
-        }
+        if (!ticket) throw new GraphQLError('Ticket not found.');
 
         const [newMessage] = await prisma.$transaction([
           prisma.ticketMessage.create({
-            data: {
-              ticketId,
-              content,
-              senderId: adminId,
-            },
-            include: {
-              sender: { select: { id: true, firstName: true, lastName: true, avatar: true, avatarColor: true, role: true } },
-            },
+            data: { ticketId, content, senderId: adminId },
+            include: { sender: { select: { id: true, firstName: true, lastName: true, avatar: true, avatarColor: true, role: true } } },
           }),
-          prisma.ticket.update({
-            where: { id: ticketId },
-            data: { updatedAt: new Date() },
-          }),
+          prisma.ticket.update({ where: { id: ticketId }, data: { updatedAt: new Date() } }),
         ]);
 
         const messageWithSupportFlag = { ...newMessage, isSupport: true };
 
-        // Publish to subscription for the original ticket creator
-        const payloadToPublish = {
+        await pubsub.publish(Topics.TICKET_MESSAGE_ADDED, {
             ticketAuthorizer: { ticketCreatorId: ticket.creatorId },
             ticketMessageAdded: messageWithSupportFlag,
-        };
-        await pubsub.publish(Topics.TICKET_MESSAGE_ADDED, payloadToPublish);
+        });
 
-        log(source, 'Successfully sent message and published event');
+        const updatedTicketPayload = await getAdminTicketListItemPayload(ticketId);
+        if (updatedTicketPayload) {
+            await pubsub.publish(Topics.ADMIN_TICKET_UPDATED, { adminTicketUpdated: updatedTicketPayload });
+        }
+
+        log(source, 'Successfully sent message and published events');
         return messageWithSupportFlag;
       } catch (error: any) {
         log(source, 'ERROR', { error: error.message });
@@ -179,11 +202,16 @@ export const adminSupportResolvers = {
 
         const updatedTicket = await prisma.ticket.update({
           where: { id: ticketId },
-          data: { status },
+          data: { status, updatedAt: new Date() },
           select: { id: true, status: true },
         });
 
-        log(source, 'Successfully updated ticket status');
+        const updatedTicketPayload = await getAdminTicketListItemPayload(ticketId);
+        if (updatedTicketPayload) {
+            await pubsub.publish(Topics.ADMIN_TICKET_UPDATED, { adminTicketUpdated: updatedTicketPayload });
+        }
+
+        log(source, 'Successfully updated ticket status and published event');
         return updatedTicket;
       } catch (error: any) {
         log(source, 'ERROR', { error: error.message });
@@ -199,16 +227,74 @@ export const adminSupportResolvers = {
   
           const updatedTicket = await prisma.ticket.update({
             where: { id: ticketId },
-            data: { priority },
+            data: { priority, updatedAt: new Date() },
             select: { id: true, priority: true },
           });
+
+          const updatedTicketPayload = await getAdminTicketListItemPayload(ticketId);
+          if (updatedTicketPayload) {
+              await pubsub.publish(Topics.ADMIN_TICKET_UPDATED, { adminTicketUpdated: updatedTicketPayload });
+          }
   
-          log(source, 'Successfully updated ticket priority');
+          log(source, 'Successfully updated ticket priority and published event');
           return updatedTicket;
         } catch (error: any) {
           log(source, 'ERROR', { error: error.message });
           throw new GraphQLError(error.message || 'Failed to update ticket priority.');
         }
     },
+
+    adminMarkTicketAsRead: async (_: any, { ticketId }: { ticketId: string }, context: GraphQLContext) => {
+        const source = 'Mutation: adminMarkTicketAsRead';
+        try {
+          checkAdmin(context);
+          log(source, 'Fired', { ticketId });
+          
+          await prisma.ticketMessage.updateMany({
+            where: {
+                ticketId: ticketId,
+                NOT: { sender: { role: 'ADMIN' } },
+                isReadByAdmin: false,
+            },
+            data: {
+                isReadByAdmin: true,
+            },
+          });
+
+          const updatedTicketPayload = await getAdminTicketListItemPayload(ticketId);
+          if (updatedTicketPayload) {
+              await pubsub.publish(Topics.ADMIN_TICKET_UPDATED, { adminTicketUpdated: updatedTicketPayload });
+          }
+
+          log(source, 'Successfully marked ticket messages as read');
+          return { id: ticketId, unreadCount: 0 };
+
+        } catch (error: any) {
+          log(source, 'ERROR', { error: error.message });
+          throw new GraphQLError(error.message || 'Failed to mark ticket as read.');
+        }
+    },
   },
+
+  // --- SUBSCRIPTIONS ---
+  Subscription: {
+    adminTicketAdded: {
+      subscribe: withFilter(
+        () => pubsub.asyncIterableIterator([Topics.ADMIN_TICKET_ADDED]),
+        (payload, variables, context) => {
+          // No filter needed, all admins get all new tickets
+          return true;
+        }
+      ),
+    },
+    adminTicketUpdated: {
+        subscribe: withFilter(
+          () => pubsub.asyncIterableIterator([Topics.ADMIN_TICKET_UPDATED]),
+          (payload, variables, context) => {
+            // No filter needed, all admins get all ticket updates
+            return true;
+          }
+        ),
+    },
+  }
 };

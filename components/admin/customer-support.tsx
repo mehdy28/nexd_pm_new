@@ -1,5 +1,3 @@
-// components/admin/customer-support.tsx
-
 "use client"
 
 import { useState } from "react"

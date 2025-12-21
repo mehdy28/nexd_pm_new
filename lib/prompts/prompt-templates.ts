@@ -63,62 +63,6 @@ export const templates: PromptTemplate[] = [
       },
     ],
   },
-  // 2. Decision Making Framework
-  {
-    name: "Apply Pro/Con Analysis (Decision Matrix)",
-    category: "Business",
-    description:
-      "Use a structured decision framework to evaluate a non-project related choice (e.g., career move, tool adoption, learning path).",
-    modelProfileId: "gpt-4o",
-    content: [
-      {
-        type: "text",
-        id: "t1",
-        value: "Analyze the following decision scenario using a weighted Pro/Con Matrix. The two primary options are Option A and Option B. The most important criteria for evaluation, in order of importance, are:\n\n",
-      },
-      {
-        type: "variable",
-        id: "p1",
-        placeholder: "{{CRITERIA}}",
-        name: "CRITERIA",
-        value: "{{CRITERIA}}",
-      },
-      {
-        type: "text",
-        id: "t2",
-        value: "\n\nDecision Scenario and Options:\n\n",
-      },
-      {
-        type: "variable",
-        id: "p2",
-        placeholder: "{{SCENARIO}}",
-        name: "SCENARIO",
-        value: "{{SCENARIO}}",
-      },
-      {
-        type: "text",
-        id: "t3",
-        value: "\n\nBased on a qualitative assessment against the criteria, which option is tentatively recommended?",
-      },
-    ],
-    context: "Generate the analysis in a table format showing the criteria, weights, pros/cons for each option, and a final recommendation based on the combined qualitative score.",
-    variables: [
-      {
-        name: "Criteria",
-        placeholder: "{{CRITERIA}}",
-        type: "RICH_TEXT",
-        description: "The key factors for evaluation (e.g., long-term growth, cost, time investment, job satisfaction).",
-        defaultValue: "Job Satisfaction, Salary Potential, Skill Acquisition Relevance.",
-      },
-      {
-        name: "Scenario",
-        placeholder: "{{SCENARIO}}",
-        type: "RICH_TEXT",
-        description: "Describe the decision (e.g., Should I move from Development to Product Management? Option A: Dev, Option B: PM).",
-        defaultValue: "I am considering two new job offers. Option A is a smaller startup with high risk/high reward. Option B is a stable, established corporation.",
-      },
-    ],
-  },
   // 3. Time Management and Blocking Analysis
   {
     name: "Identify Time Sinks and Efficiency Gains",
@@ -523,7 +467,56 @@ export const templates: PromptTemplate[] = [
       },
     ],
   },
+  // 11. Unit Test Generation
+  {
+    name: "Generate Unit Tests for a Function",
+    category: "Development",
+    description: "Create a comprehensive suite of unit tests for a given code snippet, covering various edge cases and happy paths.",
+    modelProfileId: "gpt-4o-mini",
+    content: [
+      {
+        type: "text",
+        id: "t1",
+        value: "Generate a comprehensive suite of unit tests for the following function written in",
+      },
+      {
+        type: "variable",
+        id: "p1",
+        placeholder: "{{LANGUAGE}}",
+        name: "LANGUAGE",
+        value: "{{LANGUAGE}}",
+      },
+      {
+        type: "text",
+        id: "t2",
+        value: ". The tests should cover happy paths, edge cases, and error handling. The function is:\n\n",
+      },
+      {
+        type: "variable",
+        id: "p2",
+        placeholder: "{{CODE_SNIPPET}}",
+        name: "CODE_SNIPPET",
+        value: "{{CODE_SNIPPET}}",
+      },
+    ],
+    context: "Use the standard testing framework for the specified language (e.g., Jest for JavaScript, Pytest for Python). Ensure tests are well-documented and easy to understand. Provide a mix of positive and negative test cases.",
+    variables: [
+      {
+        name: "Language",
+        placeholder: "{{LANGUAGE}}",
+        type: "STRING",
+        description: "The programming language of the code snippet (e.g., JavaScript, Python, Go).",
+        defaultValue: "Python",
+      },
+      {
+        name: "Code Snippet",
+        placeholder: "{{CODE_SNIPPET}}",
+        type: "RICH_TEXT",
+        description: "Paste the function code you want to test.",
+        defaultValue: "def add(a, b):\n    return a + b",
+      },
+    ],
+  },
 ]
 
 export const promptTemplateCategories = [...new Set(templates.map(t => t.category))].sort()
-

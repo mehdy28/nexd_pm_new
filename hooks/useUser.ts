@@ -1,4 +1,4 @@
-// hooks/useUser.ts
+//hooks/useUser.ts
 import { useAuth } from "./useAuth";
 
 /**
@@ -8,7 +8,7 @@ import { useAuth } from "./useAuth";
  * @returns An object containing the current user, loading state, and an authentication flag.
  */
 export function useUser() {
-  const { currentUser, loading } = useAuth();
+  const { currentUser, loading, fetchMe } = useAuth();
 
   return {
     /** The authenticated user object, or null if not logged in. */
@@ -17,5 +17,7 @@ export function useUser() {
     isLoading: loading,
     /** A derived boolean indicating if the user is authenticated. */
     isAuthenticated: !loading && !!currentUser,
+    /** Function to manually refetch the user's session data. */
+    refetchUser: fetchMe,
   };
 }

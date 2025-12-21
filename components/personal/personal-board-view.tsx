@@ -1,10 +1,9 @@
-//components/personal/personal-board-view.tsx
 "use client"
 
 import { PersonalKanbanBoard } from "@/components/board/personal/personal-kanban-board"
 import { useMyTasksAndSections, SectionUI, TaskUI, PriorityUI } from "@/hooks/personal/useMyTasksAndSections"
 import { usePersonalTaskmutations } from "@/hooks/personal/usePersonalTaskMutations"
-import { useMemo, useCallback, useState, useRef, useEffect } from "react" // Import useState
+import { useMemo, useCallback, useState, useRef, useEffect } from "react"
 import { Column } from "@/components/board/kanban-types"
 import { LoadingPlaceholder, ErrorPlaceholder } from "@/components/placeholders/status-placeholders"
 import { Priority as PrismaPriority, TaskStatus as PrismaTaskStatus } from "@prisma/client"
@@ -13,6 +12,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Loader2 } from "lucide-react"
+import { CustomToast, ToastType } from "@/components/ui/custom-toast"
 
 const mapPriorityToPrisma = (priority: PriorityUI): PrismaPriority => {
   switch (priority) {
@@ -61,12 +61,12 @@ export function PersonalBoardView() {
     deleteSection,
     reorderSections,
     isReordering,
-    isCreatingSection, // *** CHANGE HERE: Get the new loading state. ***
+    isCreatingSection,
   } = useMyTasksAndSections()
 
   const { createTask, updateTask, deleteTask } = usePersonalTaskmutations()
 
-  // FIX: State to track the specific card being mutated for a granular loading UI
+  const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null)
   const [mutatingCardId, setMutatingCardId] = useState<string | null>(null)
   const [deleteSectionModalOpen, setDeleteSectionModalOpen] = useState(false)
   const [sectionToDelete, setSectionToDelete] = useState<SectionUI | null>(null)
@@ -74,6 +74,10 @@ export function PersonalBoardView() {
   const [reassignToSectionOption, setReassignToSectionOption] = useState<string | null>(null)
   const [isSectionMutating, setIsSectionMutating] = useState(false)
   const customModalRef = useRef<HTMLDivElement>(null)
+
+  const showToast = useCallback((message: string, type: ToastType) => {
+    setToast({ message, type })
+  }, [])
 
   const initialColumns = useMemo(() => {
     return mapSectionsToColumns(personalSections)
@@ -83,22 +87,24 @@ export function PersonalBoardView() {
     async (title: string) => {
       try {
         await createSection(title)
+        showToast("Section created", "success")
       } catch (err) {
-        console.error("Failed to create personal section:", err)
+        showToast("Failed to create section", "error")
       }
     },
-    [createSection]
+    [createSection, showToast]
   )
 
   const handleUpdateColumn = useCallback(
     async (columnId: string, title: string) => {
       try {
         await updateSection(columnId, title)
+        showToast("Section updated", "success")
       } catch (err) {
-        console.error("Failed to update personal section:", err)
+        showToast("Failed to update section", "error")
       }
     },
-    [updateSection]
+    [updateSection, showToast]
   )
 
   const handleOpenDeleteSectionModal = useCallback(
@@ -136,14 +142,15 @@ export function PersonalBoardView() {
         reassignToSectionId: reassignId,
       }
       await deleteSection(sectionToDelete.id, deleteOptions)
+      showToast("Section deleted", "success")
     } catch (err) {
-      console.error("Failed to delete section:", err)
+      showToast("Failed to delete section", "error")
     } finally {
       setIsSectionMutating(false)
       setDeleteSectionModalOpen(false)
       setSectionToDelete(null)
     }
-  }, [sectionToDelete, deleteTasksConfirmed, reassignToSectionOption, deleteSection])
+  }, [sectionToDelete, deleteTasksConfirmed, reassignToSectionOption, deleteSection, showToast])
 
   const handleCreateCard = useCallback(
     async (columnId: string, title: string, description?: string) => {
@@ -154,11 +161,12 @@ export function PersonalBoardView() {
           priority: "MEDIUM" as any,
           status: "TODO",
         })
+        showToast("Task created", "success")
       } catch (err) {
-        console.error("Failed to create personal task:", err)
+        showToast("Failed to create task", "error")
       }
     },
-    [createTask]
+    [createTask, showToast]
   )
 
   const handleUpdateCard = useCallback(
@@ -174,32 +182,32 @@ export function PersonalBoardView() {
       if (updates.completed !== undefined) mutationInput.status = mapCompletedToPrismaStatus(updates.completed)
       if (updates.personalSectionId) mutationInput.personalSectionId = updates.personalSectionId
 
-      // FIX: Set the specific card as mutating and clear it when done
       setMutatingCardId(cardId)
       try {
         await updateTask(cardId, columnId, mutationInput)
+        showToast("Task updated", "success")
       } catch (err) {
-        console.error("Failed to update personal task:", err)
+        showToast("Failed to update task", "error")
       } finally {
         setMutatingCardId(null)
       }
     },
-    [updateTask]
+    [updateTask, showToast]
   )
 
   const handleDeleteCard = useCallback(
     async (columnId: string, cardId: string) => {
-      // FIX: Set the specific card as mutating and clear it when done
       setMutatingCardId(cardId)
       try {
         await deleteTask(cardId, columnId)
+        showToast("Task deleted", "success")
       } catch (err) {
-        console.error("Failed to delete personal task:", err)
+        showToast("Failed to delete task", "error")
       } finally {
         setMutatingCardId(null)
       }
     },
-    [deleteTask]
+    [deleteTask, showToast]
   )
 
   const handleColumnsOrderChange = useCallback(
@@ -212,10 +220,10 @@ export function PersonalBoardView() {
       try {
         await reorderSections(sectionsWithNewOrder)
       } catch (err) {
-        console.error("Column reorder mutation failed:", err)
+        showToast("Failed to reorder sections", "error")
       }
     },
-    [reorderSections]
+    [reorderSections, showToast]
   )
 
   useEffect(() => {
@@ -235,11 +243,18 @@ export function PersonalBoardView() {
     return <ErrorPlaceholder error={error} onRetry={refetchMyTasksAndSections} />
   }
 
-  // FIX: The board itself is only mutating during reordering operations now.
   const isBoardMutating = isReordering
 
   return (
-    <>
+    <div className="h-full relative">
+      {toast && (
+        <CustomToast 
+          message={toast.message} 
+          type={toast.type} 
+          onClose={() => setToast(null)} 
+        />
+      )}
+
       <PersonalKanbanBoard
         initialColumns={initialColumns}
         onColumnsChange={handleColumnsOrderChange}
@@ -250,9 +265,7 @@ export function PersonalBoardView() {
         onUpdateCard={handleUpdateCard}
         onDeleteCard={handleDeleteCard}
         isMutating={isBoardMutating}
-        isCreatingColumn={isCreatingSection} // *** CHANGE HERE: Pass the new prop down. ***
-        // You would also need to pass mutatingCardId down and handle it in child components
-        // for per-card loading indicators. This change stops the global button from loading.
+        isCreatingColumn={isCreatingSection}
       />
 
       {sectionToDelete && deleteSectionModalOpen && (
@@ -358,6 +371,6 @@ export function PersonalBoardView() {
           </div>
         </div>
       )}
-    </>
+    </div>
   )
 }

@@ -128,6 +128,7 @@ export const resolvers = {
   Subscription: {
     // Real-time Messaging & Tickets
     ...messagingResolvers.Subscription,
+    ...adminSupportResolvers.Subscription,
   },
   // Field Resolvers for nested or computed fields
   Task: taskResolver.Task,

@@ -904,6 +904,7 @@ type TicketMessage {
   createdAt: DateTime!
   sender: UserLookupPartial!
   isSupport: Boolean! # To distinguish user vs admin/support replies
+  ticketId: ID!
 }
 
 type CommunicationListItem {
@@ -1005,6 +1006,11 @@ type TicketPriorityPayload {
   priority: Priority!
 }
 
+type AdminMarkAsReadPayload {
+  id: ID!
+  unreadCount: Int!
+}
+
 
 # ----------------------------------
 # NEW ADMIN DASHBOARD TYPES
@@ -1064,7 +1070,6 @@ type AdminDashboardData {
   topWorkspaces: [AdminTopWorkspace!]!
   recentActivities: [AuditLog!]!
 }
-
 
 # ----------------------------------
 # Inputs
@@ -1456,6 +1461,44 @@ input UpdateWorkspaceInput {
   teamSize: String
   workFields: [String!]
 }
+
+
+
+
+
+type AdminChartData {
+  userGrowth: [AdminMultiLineTimeChartPoint!]!
+  contentCreation: [AdminMultiLineTimeChartPoint!]!
+}
+
+
+type AdminPageData {
+  kpis: AdminKpiMetrics!
+  mrrGrowth: [AdminTimeChartPoint!]!
+  churnRate: [AdminTimeChartPoint!]!
+  subscriptionDistribution: [AdminDistributionChartPoint!]!
+  revenueByPlan: [AdminDistributionChartPoint!]!
+  featureAdoption: [AdminDistributionChartPoint!]!
+  topWorkspaces: [AdminTopWorkspace!]!
+  recentActivities: [AuditLog!]!
+}
+
+
+
+input AdminDashboardInput {
+  preset: String # e.g., "7d", "30d", "90d", "1y", "all"
+  range: DateRangeInput
+  granularity: String! # "daily", "monthly", "quarterly"
+}
+
+input DateRangeInput {
+  from: String!
+  to: String!
+}
+
+
+
+
 # ----------------------------------
 # NEW ACCOUNT INPUTS
 # ----------------------------------
@@ -1532,7 +1575,9 @@ type Query {
   adminGetTicketDetails(id: ID!): AdminTicketDetails
 
   # Admin Dashboard
-  adminGetDashboardData(timeframe: String): AdminDashboardData!
+  adminGetDashboardPageData: AdminPageData!
+  adminGetDashboardChartData(input: AdminDashboardInput!): AdminChartData!
+
 }
 
 # ----------------------------------
@@ -1644,6 +1689,7 @@ type Mutation {
   createGroupConversation(input: CreateGroupConversationInput!): Conversation!
   sendMessage(input: SendMessageInput!): Message!
   markConversationAsRead(conversationId: ID!): Boolean!
+  markTicketAsRead(ticketId: ID!): Boolean!
   createTicket(input: CreateTicketInput!): Ticket!
   sendTicketMessage(input: SendTicketMessageInput!): TicketMessage!
   updateTicketStatus(ticketId: ID!, status: TicketStatus!): Ticket!
@@ -1679,6 +1725,7 @@ type Mutation {
   adminSendTicketMessage(ticketId: ID!, content: String!): TicketMessage!
   adminUpdateTicketStatus(ticketId: ID!, status: TicketStatus!): TicketStatusPayload!
   adminUpdateTicketPriority(ticketId: ID!, priority: Priority!): TicketPriorityPayload!
+  adminMarkTicketAsRead(ticketId: ID!): AdminMarkAsReadPayload!
 
 }
 
@@ -1687,11 +1734,15 @@ type Mutation {
 # ----------------------------------
 type Subscription {
   messageAdded(conversationId: ID, workspaceId: ID): Message
-  ticketMessageAdded(ticketId: ID!): TicketMessage
+  ticketMessageAdded(workspaceId: ID!): TicketMessage
   typingUser(conversationId: ID!): TypingUser
   communicationItemUpdated(workspaceId: ID!): CommunicationListItem
   communicationItemAdded(workspaceId: ID!): CommunicationListItem
   participantRemoved: ParticipantRemovedPayload
+
+  # Admin Support Subscriptions
+  adminTicketAdded: AdminTicketListItem
+  adminTicketUpdated: AdminTicketListItem
 }
 
 # ----------------------------------

@@ -159,7 +159,7 @@ model User {
   firstName         String?
   lastName          String?
   avatar            String?
-  avatarColor       String? 
+  avatarColor       String?
   firebaseUid       String?  @unique
   role              UserRole @default(MEMBER)
   emailVerified     Boolean  @default(false)
@@ -174,7 +174,7 @@ model User {
   createdTasks         Task[]                  @relation("TaskCreator")
   personalTasks        Task[]                  @relation("UserPersonalTasks")
   personalDocuments    Document[]              @relation("UserPersonalDocuments")
-  personalWhiteboards   Whiteboard[]             @relation("UserPersonalWhiteboards")
+  personalWhiteboards  Whiteboard[]            @relation("UserPersonalWhiteboards")
   personalPrompts      Prompt[]                @relation("UserPersonalPrompts")
   personalSections     PersonalSection[]
   activities           Activity[]
@@ -188,10 +188,8 @@ model User {
   sentMessages             Message[]
   createdTickets           Ticket[]
   sentTicketMessages       TicketMessage[]
-  
-  // Added: Relation to track created conversations (for group admin permissions)
-  createdConversations     Conversation[] @relation("ConversationCreator")
-  // ---------------------------------
+  createdConversations     Conversation[]          @relation("ConversationCreator")
+  ticketReadStatuses       TicketReadStatus[]      // ADDED THIS RELATION
 
   // ---- INVITATION RELATIONS ----
   sentWorkspaceInvitations WorkspaceInvitation[] @relation("Inviter")
@@ -632,7 +630,7 @@ model ContentBlock {
 }
 
 model ModelProfile {
-  id                      String  @id @default(cuid())
+  id                      String   @id @default(cuid())
   name                    String // e.g., "OpenAI GPT-4o"
   provider                String? // e.g., "OpenAI", "Meta"
   enhancementInstructions String   @db.Text
@@ -642,13 +640,6 @@ model ModelProfile {
 
   @@map("model_profiles")
 }
-
-
-
-
-
-
-
 
 model TaskDependency {
   id              String         @id @default(cuid())
@@ -729,6 +720,7 @@ model Ticket {
   workspace Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   creator   User            @relation(fields: [creatorId], references: [id], onDelete: Cascade)
   messages  TicketMessage[]
+  readStatus  TicketReadStatus[] // ADDED THIS RELATION
 
   @@map("tickets")
 }
@@ -740,11 +732,25 @@ model TicketMessage {
   content   String
   isSupport Boolean  @default(false)
   createdAt DateTime @default(now())
+  isReadByAdmin Boolean @default(false)
 
   ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
   sender User   @relation(fields: [senderId], references: [id], onDelete: Cascade)
 
   @@map("ticket_messages")
+}
+
+// ADDED THIS ENTIRE MODEL
+model TicketReadStatus {
+  id         String   @id @default(cuid())
+  lastReadAt DateTime
+  ticketId   String
+  ticket     Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([ticketId, userId])
+  @@map("ticket_read_statuses")
 }
 
 // ---------------------------------

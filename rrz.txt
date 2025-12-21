@@ -1,440 +1,266 @@
-Here is the new file that creates, updates, and deletes `ModelProfile` entities, following the design pattern of your customer support components.
+"use client";
+import React, { useState, useEffect, useMemo } from "react";
+import { useCreatePrompt, useGeneratePromptContent } from "@/hooks/usePromptsAi";
+import { Loader2, Sparkles } from "lucide-react";
+import { ToastType } from "@/components/ui/custom-toast";
 
-I have structured this into a single file with multiple component definitions for clarity, just like your provided example.
+interface GeneratePromptModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  WhiteboardImageBase64: string | null;
+  WhiteboardId?: string | null;
+  onShowToast: (message: string, type: ToastType) => void;
+}
 
-```tsx
-// components/admin/model-profiles-manager.tsx
+const AnimatedDots = () => {
+    const [dots, setDots] = useState('');
+    useEffect(() => {
+        const interval = setInterval(() => {
+            setDots(d => (d.length >= 3 ? '' : d + '.'));
+        }, 300);
+        return () => clearInterval(interval);
+    }, []);
+    return <span className="ml-1 w-4 inline-block text-left">{dots}</span>;
+};
 
-"use client"
+export const GeneratePromptModal: React.FC<GeneratePromptModalProps> = ({
+  isOpen,
+  onClose,
+  WhiteboardImageBase64,
+  WhiteboardId,
+  onShowToast,
+}) => {
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [generatedContent, setGeneratedContent] = useState<string | null>(null);
+  
+  const { 
+    generate, 
+    loading: isGenerating, 
+    error: generateError 
+  } = useGeneratePromptContent();
 
-import React, { useState, useEffect, useRef } from "react"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
-import { Button } from "@/components/ui/button"
-import { Label } from "@/components/ui/label"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { Skeleton } from "@/components/ui/skeleton"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog"
-import {
-  Search,
-  PlusCircle,
-  Cpu,
-  Save,
-  Trash2,
-  XCircle,
-  Loader2,
-  AlertTriangle,
-} from "lucide-react"
-import {
-  useGetModelProfiles,
-  useGetModelProfile,
-  useCreateModelProfile,
-  useUpdateModelProfile,
-  useDeleteModelProfile,
-} from "@/hooks/useModelProfiles" // This is the hook file created in the previous step
-import { toast } from "sonner"
-import { cn } from "@/lib/utils"
+  const { 
+    createPrompt, 
+    loading: isCreating, 
+    error: createError 
+  } = useCreatePrompt();
+  
+  const generationPhases = useMemo(() => ['Thinking', 'Analyzing Whiteboard', 'Generating Content'], []);
+  const [currentPhaseIndex, setCurrentPhaseIndex] = useState<number>(-1);
 
-// ------------------------------------------------------------------
-// 1. Main Container Component (Orchestrator)
-// ------------------------------------------------------------------
-export function ModelProfilesManager() {
-  const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null)
-  const [searchQuery, setSearchQuery] = useState("")
-  const { models, loading, error, refetch } = useGetModelProfiles()
+  useEffect(() => {
+      let interval: NodeJS.Timeout | undefined;
+      if (isGenerating) {
+          setGeneratedContent(null);
+          setCurrentPhaseIndex(0);
+          interval = setInterval(() => {
+              setCurrentPhaseIndex(prevIndex => {
+                  if (prevIndex < generationPhases.length) {
+                      return prevIndex + 1;
+                  }
+                  clearInterval(interval!);
+                  return prevIndex;
+              });
+          }, 1500);
+      } else {
+          setCurrentPhaseIndex(-1);
+      }
+      return () => {
+          if (interval) clearInterval(interval);
+      };
+  }, [isGenerating, generationPhases.length]);
 
-  const handleSelectProfile = (id: string | null) => {
-    setSelectedProfileId(id)
-  }
+  const handleGenerate = async () => {
+    if (!WhiteboardImageBase64) return;
 
-  const handleSave = () => {
-    setSelectedProfileId(null) // Deselect after saving
-    refetch() // Refetch the list to show the new/updated item
-  }
+    try {
+      const result = await generate({
+        variables: {
+          input: {
+            imageBase64: WhiteboardImageBase64,
+            context: description,
+          },
+        },
+      });
+      if (result.data?.generatePromptFromWhiteboard) {
+        setGeneratedContent(result.data.generatePromptFromWhiteboard);
+        onShowToast("Content generated successfully", "success");
+      }
+    } catch (err) {
+      console.error("Failed to generate content:", err);
+      onShowToast("Failed to generate content", "error");
+    }
+  };
 
-  const filteredProfiles = models.filter(
-    (profile) =>
-      profile.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      profile.provider?.toLowerCase().includes(searchQuery.toLowerCase())
-  )
+  const handleCreatePrompt = async () => {
+    if (!generatedContent || !title || !WhiteboardId) return;
+
+    const versionInput = {
+      context: description, 
+      content: [{ type: "text", value: generatedContent, order: 0 }],
+      variables: [], 
+    };
+
+    const input = {
+      title,
+      description,
+      WhiteboardId: WhiteboardId,
+      versions: [versionInput], 
+    };
+
+    try {
+      await createPrompt({ variables: { input } });
+      onShowToast("Prompt created successfully", "success");
+      handleClose();
+    } catch (e) {
+      console.error("Failed to create prompt:", e);
+      onShowToast("Failed to create prompt", "error");
+    }
+  };
+
+  const handleClose = () => {
+    setTitle("");
+    setDescription("");
+    setGeneratedContent(null);
+    onClose();
+  };
+
+  if (!isOpen) return null;
+
+  const combinedError = generateError || createError;
 
   return (
-    <div className="h-full flex flex-col p-6">
-      <div className="flex-shrink-0 pb-6">
-        <h1 className="text-3xl font-bold text-gray-900">AI Model Profiles</h1>
-        <p className="text-gray-600">Configure and manage AI model settings and instructions</p>
-      </div>
-
-      <div className="grid gap-6 lg:grid-cols-4 flex-1">
-        {/* Left Panel: Profile List */}
-        <div className="lg:col-span-1 flex flex-col h-[80vh]">
-          <Card className="flex flex-col h-full">
-            <CardHeader className="flex-shrink-0">
-              <div className="flex justify-between items-center">
-                <div>
-                  <CardTitle>Model Profiles</CardTitle>
-                  <CardDescription>Available AI models</CardDescription>
-                </div>
-                <Button size="sm" onClick={() => handleSelectProfile("new")}>
-                  <PlusCircle className="mr-2 h-4 w-4" />
-                  New
-                </Button>
-              </div>
-              <div className="relative mt-4">
-                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search profiles..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-8"
-                />
-              </div>
-            </CardHeader>
-            <CardContent className="p-0 flex-1 overflow-y-auto">
-              <ModelProfileList
-                profiles={filteredProfiles}
-                isLoading={loading}
-                selectedProfileId={selectedProfileId}
-                onSelectProfile={(id) => handleSelectProfile(id)}
-              />
-            </CardContent>
-          </Card>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm" onClick={handleClose}>
+      <div 
+        className="bg-white rounded-lg shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col saas-card"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="p-3 pl-6 pr-6 border-b">
+          <h2 className="text-xl font-bold text-gray-800">Generate Prompt from Whiteboard</h2>
         </div>
 
-        {/* Right Panel: Profile Editor */}
-        <div className="lg:col-span-3 h-[80vh]">
-          <ModelProfileEditor
-            key={selectedProfileId} // Re-mounts the component on selection change
-            profileId={selectedProfileId}
-            onSave={handleSave}
-            onCancel={() => handleSelectProfile(null)}
-            onDelete={handleSave} // Same as save, deselects and refetches
-          />
+        <div className="flex-1 p-3 overflow-hidden grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div className="flex flex-col space-y-6 overflow-y-auto pr-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-600 mb-2">Whiteboard Preview</label>
+              {WhiteboardImageBase64 ? (
+                <img src={WhiteboardImageBase64} alt="Whiteboard Preview" className="rounded-md border border-gray-200 shadow-sm w-full object-contain max-h-48" />
+              ) : (
+                <div className="rounded-md border border-dashed border-gray-300 bg-gray-50 h-48 flex items-center justify-center">
+                  <p className="text-sm text-gray-500">No Whiteboard image provided.</p>
+                </div>
+              )}
+            </div>
+            <div>
+              <label htmlFor="title" className="block text-sm font-medium text-gray-600 mb-1">Prompt Title</label>
+              <input
+                type="text"
+                id="title"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-teal-500 focus:border-teal-500"
+                placeholder="e.g., User Dashboard UI Prompt"
+                disabled={isGenerating}
+              />
+            </div>
+            <div>
+              <label htmlFor="description" className="block text-sm font-medium text-gray-600 mb-1">Context / Description</label>
+              <textarea
+                id="description"
+                rows={5}
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-teal-500 focus:border-teal-500"
+                placeholder="Provide context for the AI, e.g., 'This is the main dashboard for a project management tool.'"
+                disabled={isGenerating}
+              />
+            </div>
+          </div>
+
+          <div className="flex flex-col">
+            <label className="block text-sm font-medium text-gray-600 mb-1">AI Output</label>
+            <div className="flex-1 mt-1 p-4 border border-gray-200 rounded-md bg-gray-50/50 flex flex-col justify-between min-h-[300px]">
+              
+              <div className="flex-1">
+                {isGenerating && (
+                  <div className="flex flex-col justify-center items-center h-full text-sm">
+                      {generationPhases.map((phase, index) => {
+                          if (index > currentPhaseIndex) return null;
+
+                          const isCompleted = index < currentPhaseIndex;
+                          const isActive = index === currentPhaseIndex && index < generationPhases.length;
+
+                          return (
+                              <div key={phase} className="flex items-center mb-3 last:mb-0 transition-all duration-300 w-full">
+                                  <div className="w-6 flex-shrink-0 flex items-center justify-center">
+                                  {isCompleted ? (
+                                      <span className="text-emerald-500 font-bold">✓</span>
+                                  ) : isActive ? (
+                                      <Loader2 className="h-4 w-4 animate-spin text-gray-500" />
+                                  ) : <div className="h-4 w-4"></div> }
+                                  </div>
+                                  <span className={`font-medium ml-2 ${isCompleted ? 'text-gray-400 line-through' : 'text-gray-700'}`}>{phase}</span>
+                                  {isActive && <AnimatedDots />}
+                              </div>
+                          );
+                      })}
+                  </div>
+                )}
+                
+                {generatedContent && !isGenerating && (
+                   <textarea
+                     readOnly
+                     value={generatedContent}
+                     className="w-full h-full bg-transparent border-none focus:ring-0 resize-none text-sm text-gray-700 p-2"
+                   />
+                )}
+                
+                {!isGenerating && !generatedContent && (
+                  <div className="flex flex-col justify-center items-center h-full text-center">
+                    <div className="p-3 bg-teal-100 rounded-full mb-3">
+                      <Sparkles className="h-6 w-6 text-teal-600" />
+                    </div>
+                    <p className="font-semibold text-gray-700">Ready to Generate</p>
+                    <p className="text-xs text-gray-500">Fill in the title and context, then click "Generate Content".</p>
+                  </div>
+                )}
+              </div>
+
+              {!isGenerating && !generatedContent && (
+                <button
+                  onClick={handleGenerate}
+                  disabled={!description || !title || !WhiteboardImageBase64}
+                  className="w-full mt-4 flex justify-center items-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-teal-500 hover:bg-teal-600 disabled:bg-gray-300 disabled:cursor-not-allowed focus:outline-none"
+                >
+                  <Sparkles className="h-4 w-4 mr-2" />
+                  Generate Content
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {combinedError && 
+          <div className="px-6 py-2 border-t">
+            <p className="text-red-600 text-sm">{combinedError.message}</p>
+          </div>
+        }
+
+        <div className="p-4 bg-gray-50 border-t flex justify-end space-x-3">
+          <button onClick={handleClose} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-100">
+            Cancel
+          </button>
+          <button
+            onClick={handleCreatePrompt}
+            disabled={!generatedContent || !title || isCreating || !WhiteboardId}
+            className="px-4 py-2 bg-teal-500 text-white rounded-lg hover:bg-teal-600 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center"
+          >
+            {isCreating ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : null}
+            Create Prompt
+          </button>
         </div>
       </div>
     </div>
-  )
-}
-
-// ------------------------------------------------------------------
-// 2. Profile List Component
-// ------------------------------------------------------------------
-interface ModelProfile {
-  id: string
-  name: string
-  provider?: string | null
-}
-
-interface ModelProfileListProps {
-  profiles: ModelProfile[]
-  isLoading: boolean
-  selectedProfileId: string | null
-  onSelectProfile: (id: string) => void
-}
-
-function ModelProfileList({
-  profiles,
-  isLoading,
-  selectedProfileId,
-  onSelectProfile,
-}: ModelProfileListProps) {
-  if (isLoading) {
-    return (
-      <div className="space-y-1 p-4">
-        {[...Array(5)].map((_, i) => (
-          <div key={i} className="flex items-start space-x-3 p-3">
-            <Skeleton className="h-10 w-10 rounded-md" />
-            <div className="flex-1 space-y-2">
-              <Skeleton className="h-4 w-3/4" />
-              <Skeleton className="h-3 w-1/2" />
-            </div>
-          </div>
-        ))}
-      </div>
-    )
-  }
-
-  return (
-    <ScrollArea className="h-full">
-      <div className="space-y-1 p-4">
-        {profiles.map((profile) => (
-          <div
-            key={profile.id}
-            className={cn(
-              "p-3 rounded-lg cursor-pointer transition-colors hover:bg-gray-50",
-              selectedProfileId === profile.id &&
-                "bg-[hsl(174,70%,54%)]/10 border border-[hsl(174,70%,54%)]/20"
-            )}
-            onClick={() => onSelectProfile(profile.id)}
-          >
-            <div className="flex items-start space-x-3">
-              <div className="h-10 w-10 flex-shrink-0 rounded-md bg-gray-100 flex items-center justify-center">
-                <Cpu className="w-5 h-5 text-muted-foreground" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <h4 className="text-sm font-medium truncate text-gray-900">{profile.name}</h4>
-                <p className="text-xs text-muted-foreground truncate">{profile.provider}</p>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-    </ScrollArea>
-  )
-}
-
-// ------------------------------------------------------------------
-// 3. Profile Editor Component (Create/Update Form)
-// ------------------------------------------------------------------
-interface ModelProfileEditorProps {
-  profileId: string | null
-  onSave: () => void
-  onCancel: () => void
-  onDelete: () => void
-}
-
-function ModelProfileEditor({ profileId, onSave, onCancel, onDelete }: ModelProfileEditorProps) {
-  const isCreatingNew = profileId === "new"
-  const fetchProfileId = isCreatingNew ? null : profileId
-
-  // --- Form State ---
-  const [id, setId] = useState("")
-  const [name, setName] = useState("")
-  const [provider, setProvider] = useState("")
-  const [instructions, setInstructions] = useState("")
-
-  // --- GraphQL Hooks ---
-  const { model, loading: queryLoading, error: queryError } = useGetModelProfile(fetchProfileId || "")
-  const [createProfile, { loading: createLoading }] = useCreateModelProfile()
-  const [updateProfile, { loading: updateLoading }] = useUpdateModelProfile()
-  const [deleteProfile, { loading: deleteLoading }] = useDeleteModelProfile()
-
-  const isLoading = createLoading || updateLoading || deleteLoading
-
-  // --- Effects ---
-  useEffect(() => {
-    if (model) {
-      setId(model.id)
-      setName(model.name)
-      setProvider(model.provider || "")
-      setInstructions(model.enhancementInstructions)
-    }
-  }, [model])
-
-  // --- Handlers ---
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    const variables = { id, name, provider, enhancementInstructions: instructions }
-
-    try {
-      if (isCreatingNew) {
-        await createProfile({ variables })
-        toast.success("Model profile created successfully.")
-      } else {
-        await updateProfile({ variables: { id, name, provider, enhancementInstructions: instructions } })
-        toast.success("Model profile updated successfully.")
-      }
-      onSave()
-    } catch (err: any) {
-      toast.error(err.message || "An error occurred.")
-    }
-  }
-
-  const handleDelete = async () => {
-    if (!profileId || isCreatingNew) return;
-    try {
-        await deleteProfile({ variables: { id: profileId } });
-        toast.success("Model profile deleted successfully.");
-        onDelete();
-    } catch (err: any) {
-        toast.error(err.message || "Failed to delete profile.");
-    }
-  }
-
-  // --- Render Logic ---
-  if (!profileId) {
-    return (
-      <Card className="h-full flex items-center justify-center">
-        <div className="text-center text-muted-foreground">
-          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gray-100 flex items-center justify-center">
-            <Cpu className="w-8 h-8" />
-          </div>
-          <h3 className="text-lg font-medium mb-2">Select a Profile</h3>
-          <p>Choose a profile from the list to edit, or create a new one.</p>
-        </div>
-      </Card>
-    )
-  }
-
-  if (queryLoading) {
-    return (
-        <Card className="h-full">
-            <CardHeader><Skeleton className="h-6 w-1/2" /></CardHeader>
-            <CardContent className="space-y-4">
-                <Skeleton className="h-10 w-full" />
-                <Skeleton className="h-10 w-full" />
-                <Skeleton className="h-10 w-full" />
-                <Skeleton className="h-48 w-full" />
-            </CardContent>
-        </Card>
-    )
-  }
-  
-  if (queryError) {
-     return (
-        <Card className="h-full flex items-center justify-center">
-          <div className="text-center text-red-500">
-            <AlertTriangle className="w-12 h-12 mx-auto mb-4" />
-            <h3 className="text-lg font-medium mb-2">Could not load profile</h3>
-            <p className="text-sm">{queryError.message}</p>
-          </div>
-        </Card>
-    );
-  }
-
-  return (
-    <form onSubmit={handleSubmit} className="h-full">
-      <Card className="h-full flex flex-col">
-        <CardHeader>
-          <CardTitle>{isCreatingNew ? "Create New Model Profile" : "Edit Model Profile"}</CardTitle>
-          <CardDescription>
-            {isCreatingNew
-              ? "Define a new AI model with its unique ID and instructions."
-              : `Editing profile for ${name}`}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex-1 space-y-4 overflow-y-auto p-6">
-          <div className="grid gap-2">
-            <Label htmlFor="profile-id">Profile ID</Label>
-            <Input
-              id="profile-id"
-              placeholder="e.g., 'gpt-4o', 'llama3.1-70b'"
-              value={id}
-              onChange={(e) => setId(e.target.value)}
-              disabled={!isCreatingNew || isLoading}
-              required
-            />
-             <p className="text-xs text-muted-foreground">
-              A unique identifier for the model. Cannot be changed after creation.
-            </p>
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="profile-name">Display Name</Label>
-            <Input
-              id="profile-name"
-              placeholder="e.g., 'OpenAI GPT-4o'"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              disabled={isLoading}
-              required
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="profile-provider">Provider</Label>
-            <Input
-              id="profile-provider"
-              placeholder="e.g., 'OpenAI', 'Meta', 'Google'"
-              value={provider}
-              onChange={(e) => setProvider(e.target.value)}
-              disabled={isLoading}
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="profile-instructions">Enhancement Instructions</Label>
-            <Textarea
-              id="profile-instructions"
-              placeholder="System-level instructions for how the model should behave..."
-              value={instructions}
-              onChange={(e) => setInstructions(e.target.value)}
-              className="min-h-[200px]"
-              disabled={isLoading}
-              required
-            />
-             <p className="text-xs text-muted-foreground">
-              These instructions are applied to enhance prompts using this model.
-            </p>
-          </div>
-        </CardContent>
-        <CardFooter className="flex justify-between border-t pt-6">
-          <div>
-            {!isCreatingNew && (
-                <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                        <Button type="button" variant="destructive" disabled={isLoading}>
-                             {deleteLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
-                             Delete
-                        </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                        <AlertDialogHeader>
-                            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                                This action cannot be undone. This will permanently delete the model profile
-                                and may affect prompts that rely on it.
-                            </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction onClick={handleDelete} className="bg-destructive hover:bg-destructive/90">
-                                Delete
-                            </AlertDialogAction>
-                        </AlertDialogFooter>
-                    </AlertDialogContent>
-                </AlertDialog>
-            )}
-          </div>
-          <div className="flex gap-2">
-            <Button type="button" variant="outline" onClick={onCancel} disabled={isLoading}>
-              <XCircle className="mr-2 h-4 w-4" />
-              Cancel
-            </Button>
-            <Button type="submit" disabled={isLoading}>
-              {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-              {isCreatingNew ? "Create Profile" : "Save Changes"}
-            </Button>
-          </div>
-        </CardFooter>
-      </Card>
-    </form>
-  )
-}
-
-```
-**How to Use This File:**
-
-1.  **Save the Code:** Save the code above as a new file at `components/admin/model-profiles-manager.tsx`.
-2.  **Create the Page Route:** Create a new file at `app/(admin)/model-profiles/page.tsx` with the following content:
-
-    ```tsx
-    // app/(admin)/model-profiles/page.tsx
-    "use client"
-    
-    import { ModelProfilesManager } from "@/components/admin/model-profiles-manager";
-    
-    export default function ModelProfilesAdminPage() {
-      return <ModelProfilesManager />;
-    }
-    ```
-
-3.  **Dependencies:** Ensure you have installed the necessary `shadcn/ui` components that are being imported (`Card`, `Input`, `Button`, `Label`, `ScrollArea`, `Skeleton`, `AlertDialog`, `Textarea`, `sonner` for toasts).
-4.  **Hook Location:** This code assumes your Apollo Client hooks for `ModelProfile` are located at ` "@/hooks/useModelProfiles"`. Make sure the path is correct.
-
-Now, when you navigate to `/model-profiles` within your admin section, you will see the fully functional CRUD interface for managing your AI Model Profiles, matching the design and interaction patterns of your existing admin pages.
+  );
+};

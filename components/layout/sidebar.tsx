@@ -64,17 +64,15 @@ export function Sidebar() {
     }
   }
 
-  const getUserInitial = () => {
-    return "U" // You can replace this with actual user initials from useAuth if needed
-  }
+
 
   return (
-    <aside className="fixed inset-y-0 left-0 w-20 bg-[#19222d] border-r border-gray-700 shadow-strong z-30 flex flex-col items-center py-6">
+    <aside className="fixed inset-y-0 left-0 w-20 bg-[#19222d] border-r border-gray-700 shadow-strong z-30 flex flex-col items-center justify-between py-6">
       <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-transparent shadow-medium hover:shadow-strong transition-all duration-200 hover:scale-105 overflow-hidden">
-        <Image src="/square_logo.png" alt="NEXD.PM" width={42} height={42} className="object-contain" />
+        <Image src="/square_logo.png" alt="NEXD.PM" width={62} height={62} className="object-contain" />
       </div>
 
-      <nav className="mt-8 flex flex-col gap-4">
+      <nav className="flex flex-col gap-4">
         <IconButton label="Workspace" href="/workspace" isActive={pathname === "/workspace"}>
           <LayoutGrid className={cn("h-5 w-5", pathname === "/workspace" ? "text-white" : "text-[#4ab5ae]")} />
         </IconButton>
@@ -87,18 +85,18 @@ export function Sidebar() {
           <MessageSquare className={cn("h-5 w-5", pathname === "/messaging" ? "text-white" : "text-[#4ab5ae]")} />
         </IconButton>
 
-        <IconButton label="Activity" href="/activity" isActive={pathname === "/activity"}>
+        {/* <IconButton label="Activity" href="/activity" isActive={pathname === "/activity"}>
           <Activity className={cn("h-5 w-5", pathname === "/activity" ? "text-white" : "text-[#4ab5ae]")} />
         </IconButton>
         <IconButton label="Dashboard" href="/dashboard" isActive={pathname === "/dashboard"}>
           <Gauge className={cn("h-5 w-5", pathname === "/dashboard" ? "text-white" : "text-[#4ab5ae]")} />
-        </IconButton>
-        <IconButton label="Billing" href="/billing" isActive={pathname === "/billing"}>
-          <CreditCard className={cn("h-5 w-5", pathname === "/billing" ? "text-white" : "text-[#4ab5ae]")} />
+        </IconButton> */}
+        <IconButton label="Account" href="/account" isActive={pathname === "/account"}>
+          <CreditCard className={cn("h-5 w-5", pathname === "/account" ? "text-white" : "text-[#4ab5ae]")} />
         </IconButton>
       </nav>
 
-      <div className="mt-auto flex flex-col items-center gap-4">
+      <div className="flex flex-col items-center gap-4">
         <IconButton label="Logout" onClick={handleLogout}>
           <LogOut className="h-5 w-5 text-[#4ab5ae]" />
         </IconButton>

@@ -1,4 +1,3 @@
-// components/admin/support-chat-window.tsx
 "use client"
 
 import React, { useState, useEffect, useRef } from "react"

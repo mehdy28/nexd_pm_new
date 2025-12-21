@@ -10,9 +10,8 @@ import { RevenueCharts } from "./revenue-charts"
 import { Skeleton } from "../ui/skeleton"
 import { EngagementCharts } from "./engagement-charts"
 
-
 export function AdminDashboard() {
-  const { data, loading, error } = useAdminDashboard("30d")
+  const { data, loading, error } = useAdminDashboard()
 
   if (loading) {
     return (
@@ -54,16 +53,14 @@ export function AdminDashboard() {
         <Tabs defaultValue="analytics" className="space-y-4">
           <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="analytics">Growth Analytics</TabsTrigger>
-            <TabsTrigger value="revenue">Revenue & Subscriptions</TabsTrigger>
+            {/* <TabsTrigger value="revenue">Revenue & Subscriptions</TabsTrigger>
             <TabsTrigger value="engagement">User Engagement</TabsTrigger>
-            <TabsTrigger value="activity">Recent Activity</TabsTrigger>
+            <TabsTrigger value="activity">Recent Activity</TabsTrigger> */}
           </TabsList>
 
           <TabsContent value="analytics" className="space-y-4">
-            <AnalyticsCharts
-              userGrowthData={data?.userGrowth}
-              contentCreationData={data?.contentCreation}
-            />
+            {/* AnalyticsCharts now fetches its own data */}
+            <AnalyticsCharts />
           </TabsContent>
 
           <TabsContent value="revenue" className="space-y-4">

@@ -1,4 +1,4 @@
-// components/account/billing-tab-content.tsx
+// components/account/account-tab-content.tsx
 "use client";
 
 import { useState } from "react";

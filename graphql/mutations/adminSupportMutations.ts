@@ -35,3 +35,20 @@ export const ADMIN_UPDATE_TICKET_PRIORITY = gql`
         }
     }
 `;
+
+
+
+
+
+
+
+
+
+export const ADMIN_MARK_TICKET_AS_READ = gql`
+  mutation AdminMarkTicketAsRead($ticketId: ID!) {
+    adminMarkTicketAsRead(ticketId: $ticketId) {
+      id
+      unreadCount
+    }
+  }
+`;

@@ -113,6 +113,7 @@ export const messagingResolvers = {
           include: {
             creator: { select: { id: true, firstName: true, lastName: true, avatar: true, avatarColor: true } },
             messages: { orderBy: { createdAt: 'desc' }, take: 1 },
+            readStatus: { where: { userId } } 
           },
           orderBy: { updatedAt: 'desc' },
         });
@@ -160,17 +161,42 @@ export const messagingResolvers = {
           })
         );
 
-        const ticketItems = tickets.map((t) => ({ 
-            id: t.id, 
-            type: 'ticket', 
-            title: t.subject, 
-            lastMessage: t.messages[0]?.content || 'Ticket created.', 
-            participantInfo: 'Support Team', 
-            updatedAt: t.updatedAt, 
-            unreadCount: 0, 
-            priority: t.priority,
-            participants: [t.creator] 
-        }));
+        const ticketItems = await Promise.all(
+          tickets.map(async (t) => {
+              const lastReadAt = t.readStatus[0]?.lastReadAt || new Date(0);
+              let unreadCount = 0;
+      
+              if (isSaasAdmin) {
+                  unreadCount = await prisma.ticketMessage.count({
+                      where: {
+                          ticketId: t.id,
+                          createdAt: { gt: lastReadAt },
+                          senderId: { not: userId } 
+                      }
+                  });
+              } else {
+                  unreadCount = await prisma.ticketMessage.count({
+                      where: {
+                          ticketId: t.id,
+                          createdAt: { gt: lastReadAt },
+                          sender: { role: 'ADMIN' }
+                      }
+                  });
+              }
+              
+              return {
+                  id: t.id,
+                  type: 'ticket',
+                  title: t.subject,
+                  lastMessage: t.messages[0]?.content || 'Ticket created.',
+                  participantInfo: 'Support Team',
+                  updatedAt: t.updatedAt,
+                  unreadCount: unreadCount,
+                  priority: t.priority,
+                  participants: [t.creator]
+              };
+          })
+        );
         
         const result = [...conversationItems, ...ticketItems].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
         log(source, 'Successfully fetched communication list', { itemCount: result.length });
@@ -254,7 +280,14 @@ export const messagingResolvers = {
         const isSaasAdmin = context.user?.role === 'ADMIN';
         if (ticket.creatorId !== userId && !isSaasAdmin) throw new GraphQLError('Access denied');
         log(source, 'Successfully fetched ticket');
-        return { ...ticket, messages: ticket.messages.map(msg => ({ ...msg, isSupport: msg.sender.role === 'ADMIN' })) };
+        return { 
+          ...ticket, 
+          messages: ticket.messages.map(msg => ({ 
+            ...msg, 
+            ticketId: ticket.id,
+            isSupport: msg.sender.role === 'ADMIN' 
+          })) 
+        };
       } catch (error: any) {
         log(source, 'ERROR', { error: error.message });
         throw new GraphQLError(error.message || 'An error occurred fetching the ticket.');
@@ -387,6 +420,14 @@ export const messagingResolvers = {
           include: { messages: true, creator: true }, 
         });
 
+        await prisma.ticketReadStatus.create({
+            data: {
+                ticketId: ticket.id,
+                userId: userId,
+                lastReadAt: new Date()
+            }
+        });
+
         const payload = await createCommunicationListItemPayload(ticket, 'ticket', userId);
         await pubsub.publish(Topics.COMMUNICATION_ITEM_ADDED, { communicationItemAdded: payload });
         
@@ -447,10 +488,14 @@ export const messagingResolvers = {
             prisma.ticket.update({ where: { id: input.ticketId }, data: { updatedAt: new Date() } }),
         ]);
 
-        const messageWithSupportFlag = { ...newTicketMessage, isSupport: newTicketMessage.sender.role === 'ADMIN' };
+        const messageWithSupportFlag = { 
+          ...newTicketMessage, 
+          ticketId: input.ticketId,
+          isSupport: newTicketMessage.sender.role === 'ADMIN' 
+        };
         
         const payloadToPublish = {
-            ticketAuthorizer: { ticketCreatorId: ticket.creatorId },
+            ticketAuthorizer: { ticketCreatorId: ticket.creatorId, workspaceId: ticket.workspaceId },
             ticketMessageAdded: messageWithSupportFlag,
         };
         await pubsub.publish(Topics.TICKET_MESSAGE_ADDED, payloadToPublish);
@@ -476,6 +521,29 @@ export const messagingResolvers = {
         log(source, 'ERROR', { error: error.message });
         throw new GraphQLError(error.message || 'An error occurred marking as read.');
       }
+    },
+
+    markTicketAsRead: async (_: any, { ticketId }: { ticketId: string }, context: GraphQLContext) => {
+        const source = 'Mutation: markTicketAsRead';
+        try {
+            const userId = context.user?.id;
+            if (!userId) throw new GraphQLError('Not authenticated');
+    
+            const ticket = await prisma.ticket.findUnique({ where: { id: ticketId } });
+            if (!ticket) throw new GraphQLError('Ticket not found.');
+            const isSaasAdmin = context.user?.role === 'ADMIN';
+            if (ticket.creatorId !== userId && !isSaasAdmin) throw new GraphQLError('Access denied');
+    
+            await prisma.ticketReadStatus.upsert({
+                where: { ticketId_userId: { ticketId, userId } },
+                update: { lastReadAt: new Date() },
+                create: { ticketId, userId, lastReadAt: new Date() },
+            });
+            return true;
+        } catch (error: any) {
+            log(source, 'ERROR', { error: error.message });
+            throw new GraphQLError('An error occurred marking ticket as read.');
+        }
     },
 
     addParticipants: async (_: any, { conversationId, participantIds }: { conversationId: string, participantIds: string[] }, context: GraphQLContext) => {
@@ -632,9 +700,13 @@ export const messagingResolvers = {
       subscribe: withFilter(
         () => pubsub.asyncIterableIterator([Topics.TICKET_MESSAGE_ADDED]),
         (payload, variables, context: GraphQLContext) => {
+            if (payload.ticketAuthorizer.workspaceId !== variables.workspaceId) {
+                return false;
+            }
+
             const userId = context.user?.id;
             if (!userId) return false;
-            if (payload.ticketMessageAdded.ticketId !== variables.ticketId) return false;
+
             const isCreator = payload.ticketAuthorizer.ticketCreatorId === userId;
             const isAdmin = context.user?.role === 'ADMIN';
             return isCreator || isAdmin;

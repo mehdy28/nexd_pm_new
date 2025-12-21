@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect, useState, useCallback, KeyboardEvent, useMemo, useRef } from "react"
-import { useQuery } from "@apollo/client"
 import { PersonalDocument, DocumentComment, CommentAuthor } from "@/hooks/personal/usePersonalDocuments"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -53,6 +52,7 @@ import { DocumentTemplatesModal } from "../modals/DocumentTemplatesModal"
 import { Editor } from "../documents/DynamicEditor"
 import { useAuth } from "@/hooks/useAuth"
 import { useDocumentComments } from "@/hooks/useDocumentComments"
+import { CustomToast, ToastType } from "@/components/ui/custom-toast"
 
 function timeAgo(dateInput: number | string) {
   const ts = typeof dateInput === "string" ? new Date(dateInput).getTime() : dateInput
@@ -66,26 +66,6 @@ function timeAgo(dateInput: number | string) {
   return `${d}d ago`
 }
 
-function extractTextFromBlockNote(content: any, maxLength = 100): string {
-  let text = ""
-  if (!content || !Array.isArray(content)) return ""
-
-  function traverse(nodes: any[]) {
-    for (const node of nodes) {
-      if (text.length >= maxLength) return
-      if (node.type === "text" && typeof node.text === "string") {
-        text += node.text + " "
-      }
-      if (Array.isArray(node.content)) {
-        traverse(node.content)
-      }
-    }
-  }
-
-  traverse(content)
-  return text.slice(0, maxLength).trim() + (text.length > maxLength ? "..." : "")
-}
-
 const getInitials = (firstName?: string | null, lastName?: string | null) => {
   const first = firstName ? firstName.charAt(0) : ""
   const last = lastName ? lastName.charAt(0) : ""
@@ -95,9 +75,11 @@ const getInitials = (firstName?: string | null, lastName?: string | null) => {
 const DocumentComments = ({
   documentId,
   comments,
+  onShowToast,
 }: {
   documentId: string
   comments: DocumentComment[]
+  onShowToast: (message: string, type: ToastType) => void
 }) => {
   const { currentUser } = useAuth()
   const commentsEndRef = useRef<HTMLDivElement>(null)
@@ -107,6 +89,23 @@ const DocumentComments = ({
   useEffect(() => {
     commentsEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [comments])
+
+  const onAddComment = async (e: any) => {
+    try {
+      await handleAddComment(e)
+    } catch (err) {
+      onShowToast("Failed to add comment", "error")
+    }
+  }
+
+  const onDeleteComment = async (id: string) => {
+    try {
+      await deleteComment({ variables: { id } })
+      onShowToast("Comment deleted", "success")
+    } catch (err) {
+      onShowToast("Failed to delete comment", "error")
+    }
+  }
 
   return (
     <div className="flex h-full flex-col border-l bg-slate-50">
@@ -150,7 +149,7 @@ const DocumentComments = ({
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem
                             className="text-red-600 focus:bg-red-50 focus:text-red-700"
-                            onClick={() => deleteComment({ variables: { id: comment.id } })}
+                            onClick={() => onDeleteComment(comment.id)}
                           >
                             <Trash2 className="mr-2 h-4 w-4" /> Delete
                           </DropdownMenuItem>
@@ -173,12 +172,7 @@ const DocumentComments = ({
         )}
       </div>
       <div className="border-t bg-white p-3">
-        <form
-          onSubmit={e => {
-            e.preventDefault()
-            handleAddComment(e)
-          }}
-        >
+        <form onSubmit={onAddComment}>
           <div className="flex items-center gap-2 rounded-xl border border-slate-300 bg-white p-1 pr-2 focus-within:ring-2 focus-within:ring-[#4ab5ae]">
             <Textarea
               value={newComment}
@@ -189,7 +183,7 @@ const DocumentComments = ({
               onKeyDown={e => {
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault()
-                  handleAddComment(e)
+                  onAddComment(e)
                 }
               }}
             />
@@ -215,9 +209,11 @@ const DocumentComments = ({
 const DocumentListView = ({
   onEdit,
   onCreate,
+  onShowToast,
 }: {
   onEdit: (id: string) => void
   onCreate: (id: string) => void
+  onShowToast: (message: string, type: ToastType) => void
 }) => {
   const {
     documents: pageItems,
@@ -261,12 +257,13 @@ const DocumentListView = ({
     try {
       const newDoc = await createPersonalDocument("Untitled Document")
       if (newDoc) {
+        onShowToast("Document created", "success")
         onCreate(newDoc.id)
       }
     } catch (err) {
-      console.error("Failed to create new document:", err)
+      onShowToast("Failed to create document", "error")
     }
-  }, [createPersonalDocument, onCreate])
+  }, [createPersonalDocument, onCreate, onShowToast])
 
   const handleSelectTemplate = useCallback(
     async (template: Template) => {
@@ -279,16 +276,17 @@ const DocumentListView = ({
         const templateData = await response.json()
         const newDoc = await createPersonalDocument(template.name, templateData)
         if (newDoc) {
+          onShowToast(`Created from ${template.name}`, "success")
           setIsTemplatesModalOpen(false)
           onCreate(newDoc.id)
         }
       } catch (err) {
-        console.error("Failed to create document from template:", err)
+        onShowToast("Failed to apply template", "error")
       } finally {
         setIsCreatingTemplate(false)
       }
     },
-    [createPersonalDocument, onCreate],
+    [createPersonalDocument, onCreate, onShowToast],
   )
 
   const handleStartRename = useCallback((id: string, currentTitle: string) => {
@@ -303,13 +301,14 @@ const DocumentListView = ({
     if (originalDoc && newTitle && newTitle !== originalDoc.title) {
       try {
         await updatePersonalDocument(renamingDocumentId, { title: newTitle })
+        onShowToast("Document renamed", "success")
       } catch (err) {
-        console.error("Failed to rename document:", err)
+        onShowToast("Failed to rename document", "error")
       }
     }
     setRenamingDocumentId(null)
     setEditingTitle("")
-  }, [renamingDocumentId, editingTitle, updatePersonalDocument, pageItems])
+  }, [renamingDocumentId, editingTitle, updatePersonalDocument, pageItems, onShowToast])
 
   const handleRenameInputKeyDown = useCallback(
     (e: KeyboardEvent<HTMLInputElement>) => {
@@ -332,14 +331,14 @@ const DocumentListView = ({
       } else {
         await deletePersonalDocument(idsToDelete[0])
       }
-      
+      onShowToast("Document deleted", "success")
       setSelected({})
     } catch (err) {
-      console.error("Failed to delete document(s):", err)
+      onShowToast("Failed to delete", "error")
     } finally {
       setDeleteTarget(null)
     }
-  }, [deleteTarget, deletePersonalDocument, deleteManyPersonalDocuments])
+  }, [deleteTarget, deletePersonalDocument, deleteManyPersonalDocuments, onShowToast])
 
   const handleBulkDelete = useCallback(() => {
     const idsToDelete = Object.keys(selected).filter(id => selected[id])
@@ -604,11 +603,13 @@ const DocumentEditorView = ({
   onBack,
   onUpdate,
   loading,
+  onShowToast,
 }: {
   document: PersonalDocument
   onBack: () => void
   onUpdate: (updates: Partial<PersonalDocument>) => void
   loading: boolean
+  onShowToast: (message: string, type: ToastType) => void
 }) => {
   return (
     <div className="flex h-full w-full flex-col overflow-hidden p-2">
@@ -637,7 +638,11 @@ const DocumentEditorView = ({
           )}
         </div>
         <div className="w-[350px] flex-shrink-0">
-          <DocumentComments documentId={document.id} comments={document.comments || []} />
+          <DocumentComments 
+            documentId={document.id} 
+            comments={document.comments || []} 
+            onShowToast={onShowToast}
+          />
         </div>
       </div>
     </div>
@@ -646,6 +651,12 @@ const DocumentEditorView = ({
 
 export function PersonalDocumentsView() {
   const [editingDocumentId, setEditingDocumentId] = useState<string | null>(null)
+  const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null)
+
+  const showToast = useCallback((message: string, type: ToastType) => {
+    setToast({ message, type })
+  }, [])
+
   const {
     documents,
     selectedDocument,
@@ -666,20 +677,38 @@ export function PersonalDocumentsView() {
     setEditingDocumentId(null)
   }, [])
 
-  if (editingDocumentId && selectedDocument) {
-    const documentForEditor =
-      selectedDocument.id === editingDocumentId ? selectedDocument : documents.find(d => d.id === editingDocumentId)
-    if (documentForEditor) {
-      return (
-        <DocumentEditorView
-          document={documentForEditor}
-          onBack={handleBack}
-          onUpdate={updates => updatePersonalDocument(editingDocumentId, updates)}
-          loading={!selectedDocument.content}
+  return (
+    <div className="h-full relative">
+      {toast && (
+        <CustomToast 
+          message={toast.message} 
+          type={toast.type} 
+          onClose={() => setToast(null)} 
         />
-      )
-    }
-  }
+      )}
 
-  return <DocumentListView onEdit={setEditingDocumentId} onCreate={setEditingDocumentId} />
+      {editingDocumentId && selectedDocument ? (() => {
+        const documentForEditor =
+          selectedDocument.id === editingDocumentId ? selectedDocument : documents.find(d => d.id === editingDocumentId)
+        
+        if (!documentForEditor) return null
+
+        return (
+          <DocumentEditorView
+            document={documentForEditor}
+            onBack={handleBack}
+            onUpdate={updates => updatePersonalDocument(editingDocumentId, updates)}
+            loading={!selectedDocument.content}
+            onShowToast={showToast}
+          />
+        )
+      })() : (
+        <DocumentListView 
+          onEdit={setEditingDocumentId} 
+          onCreate={setEditingDocumentId} 
+          onShowToast={showToast}
+        />
+      )}
+    </div>
+  )
 }

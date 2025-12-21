@@ -1,13 +1,21 @@
+//components/layout/topbar.tsx
 "use client"
 
 import { Search, Lock, Share2 } from "lucide-react"
+import Link from "next/link"
 import { useTopbar } from "./topbar-store"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { useAuth } from "@/hooks/useAuth"
 
 export function Topbar() {
-  const { title, tabs, activeKey, setActiveKey, showShare } = useTopbar()
+  const { title, tabs, activeKey, setActiveKey } = useTopbar()
+  const { currentUser } = useAuth();
+
+  const userInitials = currentUser ? `${currentUser.firstName?.[0] || ''}${currentUser.lastName?.[0] || ''}`.toUpperCase() : '';
+  const userName = currentUser ? `${currentUser.firstName} ${currentUser.lastName}` : '';
 
   return (
     <header className="fixed left-20 right-0 top-0 h-25 bg-background/80 glass-effect border-b border-border z-25">
@@ -16,7 +24,7 @@ export function Topbar() {
           <h1 className="text-xl font-semibold text-foreground">{title}</h1>
 
           <div className="flex shrink-0 items-center gap-3">
-            {showShare && (
+            {/* {showShare && (
               <Button
                 variant="outline"
                 className="h-9 gap-2 rounded-xl bg-card shadow-soft hover:shadow-medium transition-all duration-200"
@@ -33,7 +41,28 @@ export function Topbar() {
                 placeholder="Search..."
                 aria-label="Search"
               />
-            </div>
+            </div> */}
+            
+            {currentUser && (
+              <Link href="/account" passHref>
+                <Button
+                  variant="outline"
+                  className="h-9 gap-2 rounded-xl bg-card shadow-soft hover:bg-card hover:shadow-medium transition-all duration-200"
+                >
+                  <Avatar className="h-8 w-8">
+                    <AvatarImage src={currentUser.avatar} alt={userName} />
+                    <AvatarFallback 
+                      className="text-white text-sm font-semibold" 
+                      style={{ backgroundColor: currentUser.avatarColor }}
+                    >
+                      {userInitials}
+                    </AvatarFallback>
+                  </Avatar>
+                  <span className="font-medium text-foreground">{userName}</span>
+                </Button>
+              </Link>
+            )}
+
           </div>
         </div>
 
@@ -74,8 +103,3 @@ export function Topbar() {
     </header>
   )
 }
-
-
-
-
-

@@ -17,16 +17,14 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import WhiteboardEditorComponent from "@/components/Whiteboards/Whiteboard-editor"
-import { useProjectWhiteboards } from "@/hooks/useWhiteboards" // Assuming this hook handles project context
+import { useProjectWhiteboards } from "@/hooks/useWhiteboards" 
 import { LoadingPlaceholder, ErrorPlaceholder } from "@/components/placeholders/status-placeholders"
-// Template imports matching personal view
 import { templates, Template } from "@/lib/whiteBoard/whiteBoard-templates"
 import { WhiteboardTemplatesModal } from "../modals/WhiteboardTemplatesModal"
-// Excalidraw imports for preview generation
 import { exportToCanvas } from "@excalidraw/excalidraw"
 import { ExcalidrawElement } from "@excalidraw/excalidraw/element/types"
 import { AppState } from "@excalidraw/excalidraw/types"
-
+import { CustomToast, ToastType } from "@/components/ui/custom-toast"
 
 function timeAgo(ts: number) {
   const s = Math.floor((Date.now() - ts) / 1000)
@@ -39,7 +37,6 @@ function timeAgo(ts: number) {
   return `${d}d ago`
 }
 
-// Replicating WhiteboardPreview component from PersonalWhiteboardsView.tsx
 const WhiteboardPreview = ({
   data,
   title,
@@ -56,14 +53,12 @@ const WhiteboardPreview = ({
     const generatePreview = async () => {
       if (!isMounted || !containerRef.current) return
 
-      // Check if data is null or empty before attempting to draw
       if (!data || !data.elements || data.elements.length === 0) {
         setImageUrl("/placeholder.svg")
         return
       }
 
       try {
-        // Wait for container to render to get dimensions
         const { width, height } = containerRef.current.getBoundingClientRect()
         if (width === 0 || height === 0) {
           setTimeout(generatePreview, 100)
@@ -100,7 +95,6 @@ const WhiteboardPreview = ({
   return (
     <div ref={containerRef} className="flex h-full w-full items-center justify-center">
       {imageUrl ? (
-        // Use object-contain for Whiteboards to prevent clipping/distortion
         <img src={imageUrl} alt={`${title} preview`} className="max-h-full max-w-full object-contain" />
       ) : (
         <div className="grid h-full w-full place-items-center">
@@ -111,15 +105,16 @@ const WhiteboardPreview = ({
   )
 }
 
-
 const WhiteboardListView = ({
   projectId,
   onEdit,
   onCreate,
+  onShowToast,
 }: {
   projectId: string
   onEdit: (id: string) => void
   onCreate: (id: string) => void
+  onShowToast: (message: string, type: ToastType) => void
 }) => {
   const {
     Whiteboards: pageItems,
@@ -161,15 +156,15 @@ const WhiteboardListView = ({
 
   const handleCreateNew = useCallback(async () => {
     try {
-      // Assuming project Whiteboards use the same default data structure as personal ones
       const newWhiteboard = await createWhiteboard("Untitled Whiteboard", { elements: [], appState: {} })
       if (newWhiteboard) {
+        onShowToast("Whiteboard created", "success")
         onCreate(newWhiteboard.id)
       }
     } catch (err) {
-      console.error("Failed to create new Whiteboard:", err)
+      onShowToast("Failed to create Whiteboard", "error")
     }
-  }, [createWhiteboard, onCreate])
+  }, [createWhiteboard, onCreate, onShowToast])
 
   const handleSelectTemplate = useCallback(
     async (template: Template) => {
@@ -180,21 +175,20 @@ const WhiteboardListView = ({
           throw new Error(`Failed to fetch template: ${response.statusText}`)
         }
         const templateData = await response.json()
-        
-        // Ensure templateData structure is correct for the hook (e.g., { elements: [], appState: {} })
         const newWhiteboard = await createWhiteboard(template.name, templateData)
         
         if (newWhiteboard) {
+          onShowToast(`Created from ${template.name}`, "success")
           setIsTemplatesModalOpen(false)
           onCreate(newWhiteboard.id)
         }
       } catch (err) {
-        console.error("Failed to create Whiteboard from template:", err)
+        onShowToast("Failed to apply template", "error")
       } finally {
         setIsCreatingTemplate(false)
       }
     },
-    [createWhiteboard, onCreate],
+    [createWhiteboard, onCreate, onShowToast],
   )
 
   const handleStartRename = useCallback((id: string, currentTitle: string) => {
@@ -209,13 +203,14 @@ const WhiteboardListView = ({
     if (originalWhiteboard && newTitle && newTitle !== originalWhiteboard.title) {
       try {
         await updateWhiteboard(renamingWhiteboardId, { title: newTitle })
+        onShowToast("Whiteboard renamed", "success")
       } catch (err) {
-        console.error("Failed to rename Whiteboard:", err)
+        onShowToast("Failed to rename whiteboard", "error")
       }
     }
     setRenamingWhiteboardId(null)
     setEditingTitle("")
-  }, [renamingWhiteboardId, editingTitle, updateWhiteboard, pageItems])
+  }, [renamingWhiteboardId, editingTitle, updateWhiteboard, pageItems, onShowToast])
 
   const handleRenameInputKeyDown = useCallback(
     (e: KeyboardEvent<HTMLInputElement>) => {
@@ -238,14 +233,14 @@ const WhiteboardListView = ({
       } else {
         await deleteWhiteboard(idsToDelete[0])
       }
-
+      onShowToast("Whiteboard deleted", "success")
       setSelected({})
     } catch (err) {
-      console.error("Failed to delete Whiteboard(s):", err)
+      onShowToast("Failed to delete", "error")
     } finally {
       setDeleteTarget(null)
     }
-  }, [deleteTarget, deleteWhiteboard, deleteManyProjectWhiteboards])
+  }, [deleteTarget, deleteWhiteboard, deleteManyProjectWhiteboards, onShowToast])
 
   const handleBulkDelete = useCallback(() => {
     const idsToDelete = Object.keys(selected).filter(id => selected[id])
@@ -254,10 +249,8 @@ const WhiteboardListView = ({
 
   const handleExportSelected = useCallback(async () => {
     const idsToExport = Object.keys(selected).filter(id => selected[id])
-    // Assuming Whiteboards in pageItems have the 'data' field necessary for export
     const itemsToExport = pageItems.filter((w: any) => idsToExport.includes(w.id))
 
-    // Iterate sequentially to avoid browser blocking multiple simultaneous downloads
     for (const item of itemsToExport) {
       if (!item.data || !item.data.elements || item.data.elements.length === 0) continue
 
@@ -275,25 +268,23 @@ const WhiteboardListView = ({
         const url = canvas.toDataURL("image/png")
         const a = document.createElement("a")
         a.href = url
-        // Sanitize filename
         const safeTitle = item.title.replace(/[^a-z0-9]/gi, "_").toLowerCase()
         a.download = `${safeTitle}-${new Date().toISOString().slice(0, 10)}.png`
         document.body.appendChild(a)
         a.click()
         document.body.removeChild(a)
       } catch (err) {
-        console.error(`Failed to export Whiteboard: ${item.title}`, err)
+        onShowToast(`Failed to export: ${item.title}`, "error")
       }
     }
-  }, [selected, pageItems])
-
+    onShowToast("Export complete", "success")
+  }, [selected, pageItems, onShowToast])
 
   if (loading && pageItems.length === 0) {
     return <LoadingPlaceholder message="Loading project Whiteboards..." />
   }
 
   if (error) {
-    // Assuming error object structure is correct
     return <ErrorPlaceholder error={error as Error} onRetry={refetch} />
   }
 
@@ -302,12 +293,10 @@ const WhiteboardListView = ({
       ? `You are about to permanently delete ${deleteTarget.length} Whiteboards. This action cannot be undone.`
       : "You are about to permanently delete this Whiteboard. This action cannot be undone."
 
-
   return (
     <>
       <div className="p-2">
         <div className="saas-card p-6">
-          {/* TEMPLATES SECTION */}
           <section className="mb-6 border-b pb-6">
             <h2 className="mb-4 text-xl font-semibold text-slate-800">Start from a template</h2>
             <div className="relative">
@@ -356,8 +345,6 @@ const WhiteboardListView = ({
               )}
             </div>
           </section>
-          {/* END TEMPLATES SECTION */}
-
 
           <section>
             <div className="mb-4">
@@ -400,7 +387,7 @@ const WhiteboardListView = ({
               )}
               {pageItems.length > 0 ? (
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                  {pageItems.map((w: any) => ( // Cast to 'any' since we don't have the full ProjectWhiteboard type but rely on 'data'
+                  {pageItems.map((w: any) => (
                     <article key={w.id} className="group relative overflow-hidden rounded-lg border">
                       <div className="absolute left-2 top-2 z-10">
                         <Checkbox
@@ -539,24 +526,42 @@ const WhiteboardListView = ({
 
 export function WhiteboardsView({ projectId }: { projectId: string }) {
   const [editingWhiteboardId, setEditingWhiteboardId] = useState<string | null>(null)
-  const { refetch } = useProjectWhiteboards(projectId) // Use hook to get refetch function
+  const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null)
+  const { refetch } = useProjectWhiteboards(projectId)
+
+  const showToast = useCallback((message: string, type: ToastType) => {
+    setToast({ message, type })
+  }, [])
 
   const handleEditorBack = useCallback(() => {
     setEditingWhiteboardId(null)
-    refetch() // Refetch list after returning from editor
+    refetch()
   }, [refetch])
 
-
-
-  if (editingWhiteboardId) {
-    return <WhiteboardEditorComponent WhiteboardId={editingWhiteboardId} onBack={handleEditorBack} />
-  }
-
   return (
-    <WhiteboardListView 
-      projectId={projectId} 
-      onEdit={setEditingWhiteboardId} 
-      onCreate={setEditingWhiteboardId} 
-    />
+    <div className="h-full relative">
+      {toast && (
+        <CustomToast 
+          message={toast.message} 
+          type={toast.type} 
+          onClose={() => setToast(null)} 
+        />
+      )}
+
+      {editingWhiteboardId ? (
+        <WhiteboardEditorComponent 
+          WhiteboardId={editingWhiteboardId} 
+          onBack={handleEditorBack} 
+          onShowToast={showToast}
+        />
+      ) : (
+        <WhiteboardListView 
+          projectId={projectId} 
+          onEdit={setEditingWhiteboardId} 
+          onCreate={setEditingWhiteboardId}
+          onShowToast={showToast}
+        />
+      )}
+    </div>
   )
 }

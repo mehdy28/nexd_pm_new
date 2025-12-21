@@ -178,9 +178,11 @@ export function TaskDetailSheet({
   const [newComment, setNewComment] = useState("");
   const [deleteCommentModalOpen, setDeleteCommentModalOpen] = useState(false);
   const [commentToDelete, setCommentToDelete] = useState<CommentUI | null>(null);
+  const [deleteTaskModalOpen, setDeleteTaskModalOpen] = useState(false);
 
   const descriptionContentEditableRef = useRef<HTMLDivElement>(null);
   const customCommentModalRef = useRef<HTMLDivElement>(null);
+  const customTaskModalRef = useRef<HTMLDivElement>(null);
 
   const {
     taskDetails,
@@ -204,7 +206,6 @@ export function TaskDetailSheet({
   useEffect(() => {
     if (taskDetails) {
       setEditingTaskLocal(taskDetails);
-      // Removed setActiveTab("description") from here
     } else {
       setEditingTaskLocal(null);
     }
@@ -282,6 +283,18 @@ export function TaskDetailSheet({
     }
   }, [commentToDelete, deleteComment]);
 
+  const handleConfirmTaskDelete = useCallback(async () => {
+    if (!taskDetails) return;
+    try {
+      await onRequestDelete(taskDetails.sectionId, taskDetails);
+      onClose(); 
+    } catch (err) {
+      console.error("Failed to delete task:", err);
+    } finally {
+      setDeleteTaskModalOpen(false);
+    }
+  }, [taskDetails, onRequestDelete]);
+
   const handleFileUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files) return;
@@ -300,6 +313,10 @@ export function TaskDetailSheet({
   useEffect(() => {
     if (deleteCommentModalOpen && customCommentModalRef.current) customCommentModalRef.current.focus();
   }, [deleteCommentModalOpen]);
+
+  useEffect(() => {
+    if (deleteTaskModalOpen && customTaskModalRef.current) customTaskModalRef.current.focus();
+  }, [deleteTaskModalOpen]);
 
 
   return (
@@ -320,11 +337,9 @@ export function TaskDetailSheet({
             <SheetHeader className="p-6 pt-0 pb-0 border-b bg-white flex-shrink-0 sticky top-0 z-20">
               <SheetTitle className="sr-only">Edit Task</SheetTitle><SheetDescription className="sr-only">View and modify task details.</SheetDescription>
               <div className="flex justify-between items-center">
-              <Input value={editingTaskLocal.title} onChange={(e) => setEditingTaskLocal(prev => prev ? { ...prev, title: e.target.value } : null)} className={cn("text-2xl font-bold mt-2", jiraInputStyle, "text-gray-800")} 
-              //disabled={isTaskMutating}
-              />
+              <Input value={editingTaskLocal.title} onChange={(e) => setEditingTaskLocal(prev => prev ? { ...prev, title: e.target.value } : null)} className={cn("text-2xl font-bold mt-2", jiraInputStyle, "text-gray-800")} />
                 <div className="flex gap-2">
-                  <Button variant="ghost" size="icon" className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50" onClick={() => onRequestDelete(taskDetails.sectionId, taskDetails)} title="Delete task"><Trash2 className="h-4 w-4" /></Button>
+                  <Button variant="ghost" size="icon" className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50" onClick={() => setDeleteTaskModalOpen(true)} title="Delete task"><Trash2 className="h-4 w-4" /></Button>
                   <SheetClose asChild><Button variant="ghost" size="icon" className="h-8 w-8"><X className="h-4 w-4 text-gray-500" /><span className="sr-only">Close</span></Button></SheetClose>
                 </div>
               </div>
@@ -451,9 +466,7 @@ export function TaskDetailSheet({
                     <Label htmlFor="assignee-select" className="text-sm font-medium text-gray-700 flex items-center gap-2 mb-1">
                       <UserRoundIcon className="h-4 w-4 text-gray-500" /> Assignee
                     </Label>
-                    <Select value={editingTaskLocal.assignee?.id || "null"} onValueChange={(v) => setEditingTaskLocal(prev => prev ? { ...prev, assignee: availableAssignees.find(a => a.id === v) || null } : null)}
-                     //disabled={isTaskMutating}
-                     >
+                    <Select value={editingTaskLocal.assignee?.id || "null"} onValueChange={(v) => setEditingTaskLocal(prev => prev ? { ...prev, assignee: availableAssignees.find(a => a.id === v) || null } : null)}>
                       <SelectTrigger id="assignee-select" className={cn("w-full text-gray-700 hover:bg-gray-50 rounded-md py-2 px-3 transition-colors border", jiraSelectTriggerStyle)}>
                         <SelectValue placeholder="Unassigned">
                           <div className="flex items-center gap-2">
@@ -516,9 +529,7 @@ export function TaskDetailSheet({
                     <Label htmlFor="priority-select" className="text-sm font-medium text-gray-700 flex items-center gap-2 mb-1">
                       <TagIcon className="h-4 w-4 text-gray-500" /> Priority
                     </Label>
-                    <Select value={editingTaskLocal.priority} onValueChange={(v: PriorityUI) => setEditingTaskLocal(prev => prev ? { ...prev, priority: v } : null)} 
-                    //disabled={isTaskMutating}
-                    >
+                    <Select value={editingTaskLocal.priority} onValueChange={(v: PriorityUI) => setEditingTaskLocal(prev => prev ? { ...prev, priority: v } : null)}>
                       <SelectTrigger id="priority-select" className={cn("w-full text-gray-700 hover:bg-gray-50 rounded-md py-2 px-3 transition-colors border", jiraSelectTriggerStyle)}>
                         <SelectValue><div className="inline-flex items-center gap-2"><span className={cn("h-2 w-2 rounded-full", priorityDot[editingTaskLocal.priority])} /><span>{editingTaskLocal.priority}</span></div></SelectValue>
                       </SelectTrigger>
@@ -529,40 +540,73 @@ export function TaskDetailSheet({
                     <Label htmlFor="story-points-input" className="text-sm font-medium text-gray-700 flex items-center gap-2 mb-1">
                         <ListOrdered className="h-4 w-4 text-gray-500" /> Story Points
                     </Label>
-                    <Input id="story-points-input" type="number" value={editingTaskLocal.points ?? ""} onChange={(e) => setEditingTaskLocal(prev => prev ? { ...prev, points: Number.isNaN(Number.parseInt(e.target.value)) ? 0 : Number.parseInt(e.target.value) } : null)} className="w-full text-gray-700 border bg-gray-50 p-2 rounded-md hover:bg-gray-100 transition-colors" min={0} placeholder="Add points" 
-                    //disabled={isTaskMutating}
-                    />
+                    <Input id="story-points-input" type="number" value={editingTaskLocal.points ?? ""} onChange={(e) => setEditingTaskLocal(prev => prev ? { ...prev, points: Number.isNaN(Number.parseInt(e.target.value)) ? 0 : Number.parseInt(e.target.value) } : null)} className="w-full text-gray-700 border bg-gray-50 p-2 rounded-md hover:bg-gray-100 transition-colors" min={0} placeholder="Add points" />
                   </div>
                   <div>
                     <Label htmlFor="start-date-input" className="text-sm font-medium text-gray-700 flex items-center gap-2 mb-1">
                         <CalendarIcon className="h-4 w-4 text-gray-500" /> Start Date
                     </Label>
-                    <Input id="start-date-input" type="date" value={formatDateForInput(editingTaskLocal.startDate)} onChange={(e) => setEditingTaskLocal(prev => prev ? { ...prev, startDate: e.target.value } : null)} className="w-full text-gray-700 border bg-gray-50 p-2 rounded-md hover:bg-gray-100 transition-colors" placeholder="Set start date" 
-                    //disabled={isTaskMutating}
-                    />
+                    <Input id="start-date-input" type="date" value={formatDateForInput(editingTaskLocal.startDate)} onChange={(e) => setEditingTaskLocal(prev => prev ? { ...prev, startDate: e.target.value } : null)} className="w-full text-gray-700 border bg-gray-50 p-2 rounded-md hover:bg-gray-100 transition-colors" placeholder="Set start date" />
                   </div>
                   <div>
                     <Label htmlFor="end-date-input" className="text-sm font-medium text-gray-700 flex items-center gap-2 mb-1">
                         <ClockIcon className="h-4 w-4 text-gray-500" /> End Date
                     </Label>
-                    <Input id="end-date-input" type="date" value={formatDateForInput(editingTaskLocal.endDate)} onChange={(e) => setEditingTaskLocal(prev => prev ? { ...prev, endDate: e.target.value } : null)} className="w-full text-gray-700 border bg-gray-50 p-2 rounded-md hover:bg-gray-100 transition-colors" placeholder="Set end date" 
-                    //disabled={isTaskMutating}
-                    />
+                    <Input id="end-date-input" type="date" value={formatDateForInput(editingTaskLocal.endDate)} onChange={(e) => setEditingTaskLocal(prev => prev ? { ...prev, endDate: e.target.value } : null)} className="w-full text-gray-700 border bg-gray-50 p-2 rounded-md hover:bg-gray-100 transition-colors" placeholder="Set end date" />
                   </div>
                 </div>
                 <div className="mt-8 flex flex-col gap-2 flex-shrink-0">
-                  <Button className="bg-[#4ab5ae] text-white hover:bg-[#419d97]" onClick={handleSheetSave}
-                  disabled={isTaskMutating}
-                   >
+                  <Button className="bg-[#4ab5ae] text-white hover:bg-[#419d97]" onClick={handleSheetSave} disabled={isTaskMutating}>
                     {isTaskMutating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null} 
                    Save Changes</Button>
-                  <SheetClose asChild><Button variant="outline" 
-                  className="bg-red-500 hover:bg-red-600 text-white" 
-                  disabled={isTaskMutating}
-                  >Cancel</Button></SheetClose>
+                  <SheetClose asChild><Button variant="outline" className="bg-red-500 hover:bg-red-600 text-white" disabled={isTaskMutating}>Cancel</Button></SheetClose>
                 </div>
               </div>
             </div>
+
+            {deleteTaskModalOpen && (
+              <div
+                ref={customTaskModalRef}
+                role="alertdialog"
+                aria-labelledby="delete-task-title"
+                aria-describedby="delete-task-description"
+                tabIndex={-1}
+                className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50"
+                onClick={e => {
+                  if (e.target === e.currentTarget) setDeleteTaskModalOpen(false)
+                }}
+                onKeyDown={e => {
+                  if (e.key === "Escape") setDeleteTaskModalOpen(false)
+                }}
+              >
+                <div className="w-full max-w-sm rounded-lg border bg-white p-6 shadow-lg sm:rounded-xl">
+                  <div className="flex flex-col space-y-2 text-center sm:text-left">
+                    <h2 id="delete-task-title" className="text-lg font-semibold text-foreground">
+                      Delete Task "{taskDetails.title}"?
+                    </h2>
+                    <p id="delete-task-description" className="text-sm text-muted-foreground">
+                      Are you sure you want to delete this task? This action cannot be undone.
+                    </p>
+                  </div>
+                  <div className="mt-4 flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2">
+                    <Button
+                      variant="outline"
+                      className="mt-2 sm:mt-0"
+                      onClick={() => setDeleteTaskModalOpen(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      className="bg-red-600 hover:bg-red-700 text-white"
+                      onClick={handleConfirmTaskDelete}
+                      disabled={isTaskMutating}
+                    >
+                      {isTaskMutating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Delete Task"}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
           </>
         ) : (
           <>

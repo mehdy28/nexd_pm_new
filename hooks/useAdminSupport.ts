@@ -1,11 +1,13 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useQuery, useLazyQuery, useMutation, useSubscription } from '@apollo/client';
+import { useQuery, useLazyQuery, useMutation, useSubscription, gql } from '@apollo/client';
 import { 
     ADMIN_SEND_TICKET_MESSAGE, 
     ADMIN_UPDATE_TICKET_STATUS,
-    ADMIN_UPDATE_TICKET_PRIORITY
+    ADMIN_UPDATE_TICKET_PRIORITY , 
+    ADMIN_MARK_TICKET_AS_READ
 } from '@/graphql/mutations/adminSupportMutations';
-import { TICKET_MESSAGE_ADDED_SUBSCRIPTION } from '@/graphql/subscriptions/messagingSubscription';
+import { TICKET_MESSAGE_ADDED_SUBSCRIPTION ,  ADMIN_TICKET_UPDATED_SUBSCRIPTION ,
+   ADMIN_TICKET_ADDED_SUBSCRIPTION  } from '@/graphql/subscriptions/messagingSubscription';
 import { GET_ADMIN_SUPPORT_TICKETS, GET_ADMIN_TICKET_DETAILS } from '@/graphql/queries/adminSupportQueries';
 import { useUser } from './useUser';
 
@@ -80,6 +82,56 @@ export const useAdminSupport = () => {
   const [sendMessageMutation, { loading: sendingMessage }] = useMutation(ADMIN_SEND_TICKET_MESSAGE);
   const [updateStatusMutation] = useMutation(ADMIN_UPDATE_TICKET_STATUS);
   const [updatePriorityMutation] = useMutation(ADMIN_UPDATE_TICKET_PRIORITY);
+  const [markAsReadMutation] = useMutation(ADMIN_MARK_TICKET_AS_READ);
+
+  // Subscription for new tickets being created
+  useSubscription(ADMIN_TICKET_ADDED_SUBSCRIPTION, {
+      onData: ({ client, data }) => {
+          const newTicket = data.data?.adminTicketAdded as AdminTicketListItem;
+          if (!newTicket) return;
+
+          const query = GET_ADMIN_SUPPORT_TICKETS;
+          try {
+              const cachedData = client.readQuery<{ adminGetSupportTickets: AdminTicketListItem[] }>({ query });
+              if (cachedData?.adminGetSupportTickets) {
+                  if (cachedData.adminGetSupportTickets.some(t => t.id === newTicket.id)) return;
+                  
+                  const newList = [newTicket, ...cachedData.adminGetSupportTickets];
+                  client.writeQuery({ 
+                      query, 
+                      data: { adminGetSupportTickets: newList } 
+                  });
+              }
+          } catch (e) {
+              console.warn("Could not update admin ticket list cache with new ticket.", e);
+          }
+      }
+  });
+
+  // Subscription for updates to existing tickets (e.g., new message, status change)
+  useSubscription(ADMIN_TICKET_UPDATED_SUBSCRIPTION, {
+      onData: ({ client, data }) => {
+          const updatedTicket = data.data?.adminTicketUpdated as AdminTicketListItem;
+          if (!updatedTicket) return;
+
+          const query = GET_ADMIN_SUPPORT_TICKETS;
+          try {
+              const cachedData = client.readQuery<{ adminGetSupportTickets: AdminTicketListItem[] }>({ query });
+              if (cachedData?.adminGetSupportTickets) {
+                  const updatedList = cachedData.adminGetSupportTickets
+                      .map(ticket => ticket.id === updatedTicket.id ? updatedTicket : ticket)
+                      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+
+                  client.writeQuery({
+                      query,
+                      data: { adminGetSupportTickets: updatedList }
+                  });
+              }
+          } catch (e) {
+              console.warn("Could not update admin ticket list cache with updated ticket.", e);
+          }
+      }
+  });
 
 
   // Subscription for new messages on a specific ticket
@@ -114,10 +166,34 @@ export const useAdminSupport = () => {
     });
   };
 
-  // Callback to fetch details for a selected ticket
+  // Callback to fetch details for a selected ticket and mark as read
   const fetchTicketDetails = useCallback((ticketId: string) => {
+    const listQuery = GET_ADMIN_SUPPORT_TICKETS;
+    const client = getTicketDetails.client;
+    if (client) {
+        try {
+            const cachedList = client.readQuery<{ adminGetSupportTickets: AdminTicketListItem[] }>({ query: listQuery });
+            if (cachedList?.adminGetSupportTickets) {
+                const ticketInList = cachedList.adminGetSupportTickets.find(t => t.id === ticketId);
+                if (ticketInList && ticketInList.unreadCount > 0) {
+                    const updatedList = cachedList.adminGetSupportTickets.map(t => 
+                        t.id === ticketId ? { ...t, unreadCount: 0 } : t
+                    );
+                    client.writeQuery({
+                        query: listQuery,
+                        data: { adminGetSupportTickets: updatedList }
+                    });
+                    markAsReadMutation({ variables: { ticketId } });
+                }
+            }
+        } catch (e) {
+            console.error("Failed to optimistically update unread count.", e);
+        }
+    }
+
     getTicketDetails({ variables: { id: ticketId } });
-  }, [getTicketDetails]);
+  }, [getTicketDetails, markAsReadMutation]);
+
 
   // Callback for sending a message as an admin
   const sendMessage = useCallback(async (ticketId: string, content: string) => {

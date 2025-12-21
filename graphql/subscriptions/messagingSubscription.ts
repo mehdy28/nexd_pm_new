@@ -21,12 +21,13 @@ export const MESSAGE_ADDED_SUBSCRIPTION = gql`
 `;
 
 export const TICKET_MESSAGE_ADDED_SUBSCRIPTION = gql`
-  subscription TicketMessageAdded($ticketId: ID!) {
-    ticketMessageAdded(ticketId: $ticketId) {
+  subscription TicketMessageAdded($workspaceId: ID!) {
+    ticketMessageAdded(workspaceId: $workspaceId) {
       id
       content
       createdAt
       isSupport
+      ticketId
       sender {
         id
         firstName
@@ -76,6 +77,59 @@ export const PARTICIPANT_REMOVED_SUBSCRIPTION = gql`
     participantRemoved {
       conversationId
       userId
+    }
+  }
+`;
+
+
+
+
+export const ADMIN_TICKET_ADDED_SUBSCRIPTION = gql`
+  subscription OnAdminTicketAdded {
+    adminTicketAdded {
+      id
+      subject
+      status
+      priority
+      updatedAt
+      unreadCount
+      creator {
+        id
+        firstName
+        lastName
+        avatar
+        avatarColor
+      }
+      workspace {
+        id
+        name
+        plan
+      }
+    }
+  }
+`;
+
+export const ADMIN_TICKET_UPDATED_SUBSCRIPTION = gql`
+  subscription OnAdminTicketUpdated {
+    adminTicketUpdated {
+      id
+      subject
+      status
+      priority
+      updatedAt
+      unreadCount
+      creator {
+        id
+        firstName
+        lastName
+        avatar
+        avatarColor
+      }
+      workspace {
+        id
+        name
+        plan
+      }
     }
   }
 `;

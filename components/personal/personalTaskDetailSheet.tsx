@@ -170,9 +170,11 @@ export function TaskDetailSheet({
   const [newComment, setNewComment] = useState("");
   const [deleteCommentModalOpen, setDeleteCommentModalOpen] = useState(false);
   const [commentToDelete, setCommentToDelete] = useState<CommentUI | null>(null);
+  const [deleteTaskModalOpen, setDeleteTaskModalOpen] = useState(false);
 
   const descriptionContentEditableRef = useRef<HTMLDivElement>(null);
   const customCommentModalRef = useRef<HTMLDivElement>(null);
+  const customTaskModalRef = useRef<HTMLDivElement>(null);
 
   const {
     taskDetails,
@@ -274,6 +276,21 @@ export function TaskDetailSheet({
     }
   }, [commentToDelete, deleteComment]);
 
+  const handleConfirmTaskDelete = useCallback(async () => {
+    if (!taskDetails) return;
+    try {
+      await onRequestDelete(taskDetails.sectionId, taskDetails);
+      // After a successful deletion request, call onClose to close the sheet.
+      onClose(); 
+    } catch (err) {
+      console.error("Failed to delete task:", err);
+      // On error, the sheet remains open, but the modal will still close.
+    } finally {
+      // This ensures the confirmation modal always closes after an attempt.
+      setDeleteTaskModalOpen(false);
+    }
+  }, [taskDetails, onRequestDelete, onClose]); // Added onClose to dependencies
+
   const handleFileUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files) return;
@@ -292,6 +309,10 @@ export function TaskDetailSheet({
   useEffect(() => {
     if (deleteCommentModalOpen && customCommentModalRef.current) customCommentModalRef.current.focus();
   }, [deleteCommentModalOpen]);
+
+  useEffect(() => {
+    if (deleteTaskModalOpen && customTaskModalRef.current) customTaskModalRef.current.focus();
+  }, [deleteTaskModalOpen]);
 
 
   return (
@@ -316,7 +337,7 @@ export function TaskDetailSheet({
               //disabled={isTaskMutating}
               />
                 <div className="flex gap-2">
-                  <Button variant="ghost" size="icon" className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50" onClick={() => onRequestDelete(taskDetails.sectionId, taskDetails)} title="Delete task"><Trash2 className="h-4 w-4" /></Button>
+                  <Button variant="ghost" size="icon" className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50" onClick={() => setDeleteTaskModalOpen(true)} title="Delete task"><Trash2 className="h-4 w-4" /></Button>
                   <SheetClose asChild><Button variant="ghost" size="icon" className="h-8 w-8"><X className="h-4 w-4 text-gray-500" /><span className="sr-only">Close</span></Button></SheetClose>
                 </div>
               </div>
@@ -491,6 +512,50 @@ export function TaskDetailSheet({
                 </div>
               </div>
             </div>
+
+            {deleteTaskModalOpen && (
+              <div
+                ref={customTaskModalRef}
+                role="alertdialog"
+                aria-labelledby="delete-task-title"
+                aria-describedby="delete-task-description"
+                tabIndex={-1}
+                className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50"
+                onClick={e => {
+                  if (e.target === e.currentTarget) setDeleteTaskModalOpen(false)
+                }}
+                onKeyDown={e => {
+                  if (e.key === "Escape") setDeleteTaskModalOpen(false)
+                }}
+              >
+                <div className="w-full max-w-sm rounded-lg border bg-white p-6 shadow-lg sm:rounded-xl">
+                  <div className="flex flex-col space-y-2 text-center sm:text-left">
+                    <h2 id="delete-task-title" className="text-lg font-semibold text-foreground">
+                      Delete Task "{taskDetails.title}"?
+                    </h2>
+                    <p id="delete-task-description" className="text-sm text-muted-foreground">
+                      Are you sure you want to delete this task? This action cannot be undone.
+                    </p>
+                  </div>
+                  <div className="mt-4 flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2">
+                    <Button
+                      variant="outline"
+                      className="mt-2 sm:mt-0"
+                      onClick={() => setDeleteTaskModalOpen(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      className="bg-red-600 hover:bg-red-700 text-white"
+                      onClick={handleConfirmTaskDelete}
+                      disabled={isTaskMutating}
+                    >
+                      {isTaskMutating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Delete Task"}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
           </>
         ) : (
           <>

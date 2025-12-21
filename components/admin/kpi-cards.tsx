@@ -35,7 +35,7 @@ interface KPICardsProps {
   }
 }
 
-const iconMap: { [key: string]: Icon } = {
+const iconMap: { [key: string]: typeof Icon } = {
   totalUsers: UsersIcon,
   activeWorkspaces: BuildingIcon,
   totalProjects: FolderIcon,
@@ -60,15 +60,30 @@ const titleMap: { [key: string]: string } = {
 export function KPICards({ kpis }: KPICardsProps) {
   if (!kpis) return null
 
+  // Define a specific order for the KPIs
+  const kpiOrder = [
+    "totalUsers",
+    "activeWorkspaces",
+    "totalProjects",
+    "tasksCreated",
+    "documents",
+    "Whiteboards",
+    "monthlyRevenue",
+    "churnRate",
+  ];
+
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-      {Object.entries(kpis).map(([key, kpi]) => {
-        const Icon = iconMap[key]
+      {kpiOrder.map((key) => {
+        const kpi = kpis[key as keyof typeof kpis];
+        if (!kpi) return null; // Skip if a KPI is not present in the data
+
+        const Icon = iconMap[key];
         return (
           <Card key={key}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">{titleMap[key]}</CardTitle>
-              {Icon && <Icon className="h-4 w-4 text-muted-foreground" />}
+              {Icon && <Icon className="h-4 w-4 text-muted-foreground" iconNode={[]} />}
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{kpi.value}</div>
@@ -86,8 +101,8 @@ export function KPICards({ kpis }: KPICardsProps) {
               </p>
             </CardContent>
           </Card>
-        )
+        );
       })}
     </div>
-  )
+  );
 }

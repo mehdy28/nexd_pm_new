@@ -24,6 +24,7 @@ import { WhiteboardTemplatesModal } from "../modals/WhiteboardTemplatesModal"
 import { exportToCanvas } from "@excalidraw/excalidraw"
 import { ExcalidrawElement } from "@excalidraw/excalidraw/element/types"
 import { AppState } from "@excalidraw/excalidraw/types"
+import { CustomToast, ToastType } from "@/components/ui/custom-toast"
 
 const WhiteboardPreview = ({
   data,
@@ -96,9 +97,11 @@ const WhiteboardPreview = ({
 const WhiteboardListView = ({
   onEdit,
   onCreate,
+  onShowToast,
 }: {
   onEdit: (id: string) => void
   onCreate: (id: string) => void
+  onShowToast: (message: string, type: ToastType) => void
 }) => {
   const {
     Whiteboards: pageItems,
@@ -142,12 +145,13 @@ const WhiteboardListView = ({
     try {
       const newWhiteboard = await createWhiteboard("Untitled Whiteboard", { elements: [], appState: {} })
       if (newWhiteboard) {
+        onShowToast("Whiteboard created", "success")
         onCreate(newWhiteboard.id)
       }
     } catch (err) {
-      console.error("Failed to create new Whiteboard:", err)
+      onShowToast("Failed to create whiteboard", "error")
     }
-  }, [createWhiteboard, onCreate])
+  }, [createWhiteboard, onCreate, onShowToast])
 
   const handleSelectTemplate = useCallback(
     async (template: Template) => {
@@ -160,16 +164,17 @@ const WhiteboardListView = ({
         const templateData = await response.json()
         const newWhiteboard = await createWhiteboard(template.name, templateData)
         if (newWhiteboard) {
+          onShowToast(`Created from ${template.name}`, "success")
           setIsTemplatesModalOpen(false)
           onCreate(newWhiteboard.id)
         }
       } catch (err) {
-        console.error("Failed to create Whiteboard from template:", err)
+        onShowToast("Failed to apply template", "error")
       } finally {
         setIsCreatingTemplate(false)
       }
     },
-    [createWhiteboard, onCreate],
+    [createWhiteboard, onCreate, onShowToast],
   )
 
   const handleStartRename = useCallback((id: string, currentTitle: string) => {
@@ -184,13 +189,14 @@ const WhiteboardListView = ({
     if (originalWhiteboard && newTitle && newTitle !== originalWhiteboard.title) {
       try {
         await updateWhiteboard(renamingWhiteboardId, { title: newTitle })
+        onShowToast("Whiteboard renamed", "success")
       } catch (err) {
-        console.error("Failed to rename Whiteboard:", err)
+        onShowToast("Failed to rename whiteboard", "error")
       }
     }
     setRenamingWhiteboardId(null)
     setEditingTitle("")
-  }, [renamingWhiteboardId, editingTitle, updateWhiteboard, pageItems])
+  }, [renamingWhiteboardId, editingTitle, updateWhiteboard, pageItems, onShowToast])
 
   const handleRenameInputKeyDown = useCallback(
     (e: KeyboardEvent<HTMLInputElement>) => {
@@ -213,14 +219,14 @@ const WhiteboardListView = ({
       } else {
         await deleteWhiteboard(idsToDelete[0])
       }
-      
+      onShowToast("Whiteboard deleted", "success")
       setSelected({})
     } catch (err) {
-      console.error("Failed to delete Whiteboard(s):", err)
+      onShowToast("Failed to delete", "error")
     } finally {
       setDeleteTarget(null)
     }
-  }, [deleteTarget, deleteWhiteboard, deleteManyPersonalWhiteboards])
+  }, [deleteTarget, deleteWhiteboard, deleteManyPersonalWhiteboards, onShowToast])
 
   const handleBulkDelete = useCallback(() => {
     const idsToDelete = Object.keys(selected).filter(id => selected[id])
@@ -231,7 +237,6 @@ const WhiteboardListView = ({
     const idsToExport = Object.keys(selected).filter(id => selected[id])
     const itemsToExport = pageItems.filter(w => idsToExport.includes(w.id))
 
-    // Iterate sequentially to avoid browser blocking multiple simultaneous downloads
     for (const item of itemsToExport) {
       if (!item.data || !item.data.elements || item.data.elements.length === 0) continue
 
@@ -249,17 +254,17 @@ const WhiteboardListView = ({
         const url = canvas.toDataURL("image/png")
         const a = document.createElement("a")
         a.href = url
-        // Sanitize filename
         const safeTitle = item.title.replace(/[^a-z0-9]/gi, "_").toLowerCase()
         a.download = `${safeTitle}-${new Date().toISOString().slice(0, 10)}.png`
         document.body.appendChild(a)
         a.click()
         document.body.removeChild(a)
       } catch (err) {
-        console.error(`Failed to export Whiteboard: ${item.title}`, err)
+        onShowToast(`Failed to export: ${item.title}`, "error")
       }
     }
-  }, [selected, pageItems])
+    onShowToast("Export complete", "success")
+  }, [selected, pageItems, onShowToast])
 
   if (loading && pageItems.length === 0) {
     return <LoadingPlaceholder message="Loading your Whiteboards..." />
@@ -527,16 +532,41 @@ const WhiteboardListView = ({
 
 export function PersonalWhiteboardsView() {
   const [editingWhiteboardId, setEditingWhiteboardId] = useState<string | null>(null)
+  const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null)
+
+  const showToast = useCallback((message: string, type: ToastType) => {
+    setToast({ message, type })
+  }, [])
 
   const handleEditorBack = useCallback(() => {
     setEditingWhiteboardId(null)
   }, [])
 
-  if (editingWhiteboardId) {
-    return <WhiteboardEditorComponent WhiteboardId={editingWhiteboardId} onBack={handleEditorBack} />
-  }
+  return (
+    <div className="h-full relative">
+      {toast && (
+        <CustomToast 
+          message={toast.message} 
+          type={toast.type} 
+          onClose={() => setToast(null)} 
+        />
+      )}
 
-  return <WhiteboardListView onEdit={setEditingWhiteboardId} onCreate={setEditingWhiteboardId} />
+      {editingWhiteboardId ? (
+        <WhiteboardEditorComponent 
+          WhiteboardId={editingWhiteboardId} 
+          onBack={handleEditorBack} 
+          onShowToast={showToast}
+        />
+      ) : (
+        <WhiteboardListView 
+          onEdit={setEditingWhiteboardId} 
+          onCreate={setEditingWhiteboardId} 
+          onShowToast={showToast}
+        />
+      )}
+    </div>
+  )
 }
 
 function timeAgo(ts: number) {

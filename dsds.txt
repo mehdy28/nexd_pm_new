@@ -1,4 +1,4 @@
-npx prisma migrate dev --name 1DDDdddd205ddhhccdg5dddddddddddddddddddd5665gg
+npx prisma migrate dev --name 1DDDdddd2ggg05ddhhccdg5dddddddddddddddddddd5665gg
 npx prisma db push
 npx prisma migrate deploy
 npx prisma generate
@@ -7,4 +7,3 @@ npx prisma generate
 
 npx prisma migrate reset
 
-in here I am stoing the password using the firebase auth. I want u to add me a system where I click on a bbutton in the settings user section and it takes me to the page to update my password

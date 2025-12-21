@@ -8,6 +8,7 @@ import {
   CREATE_DIRECT_CONVERSATION, 
   USER_IS_TYPING, 
   MARK_CONVERSATION_AS_READ,
+  MARK_TICKET_AS_READ,
   LEAVE_CONVERSATION,
   REMOVE_PARTICIPANT,
   ADD_PARTICIPANTS
@@ -71,6 +72,7 @@ export interface Message {
 
 export interface TicketMessage extends Message {
   isSupport: boolean;
+  ticketId: string;
   __typename?: 'TicketMessage';
 }
 
@@ -124,6 +126,7 @@ export const useMessaging = ({ workspaceId }: UseMessagingParams) => {
   const [createGroupConversationMutation] = useMutation(CREATE_GROUP_CONVERSATION);
   const [userIsTypingMutation] = useMutation(USER_IS_TYPING);
   const [markAsReadMutation] = useMutation(MARK_CONVERSATION_AS_READ);
+  const [markAsReadTicketMutation] = useMutation(MARK_TICKET_AS_READ);
   const [leaveConversationMutation] = useMutation(LEAVE_CONVERSATION);
   const [removeParticipantMutation] = useMutation(REMOVE_PARTICIPANT);
   const [addParticipantsMutation] = useMutation(ADD_PARTICIPANTS);
@@ -239,23 +242,56 @@ export const useMessaging = ({ workspaceId }: UseMessagingParams) => {
   });
 
   useSubscription(TICKET_MESSAGE_ADDED_SUBSCRIPTION, {
-    variables: { ticketId: selectedItem?.id },
-    skip: !selectedItem || selectedItem.type !== 'ticket',
+    variables: { workspaceId },
+    skip: !workspaceId,
     onData: ({ client, data }) => {
-      const newMessage = data.data?.ticketMessageAdded;
-      if (!newMessage || !selectedItem) return;
+      const newMessage = data.data?.ticketMessageAdded as TicketMessage | undefined;
+      if (!newMessage) return;
       
-      const queryOptions = { query: GET_TICKET_DETAILS, variables: { id: selectedItem.id } };
+      const isForCurrentTicket = selectedItem?.id === newMessage.ticketId && selectedItem.type === 'ticket';
+
+      // Update the detailed view if the ticket is currently open
+      if (isForCurrentTicket) {
+        const queryOptions = { query: GET_TICKET_DETAILS, variables: { id: selectedItem.id } };
+        try {
+          const cachedData = client.readQuery<{ getTicket: TicketDetails }>(queryOptions);
+          if (cachedData?.getTicket) {
+            if (cachedData.getTicket.messages.some(m => m.id === newMessage.id)) return;
+            client.writeQuery({ 
+              ...queryOptions, 
+              data: { getTicket: { ...cachedData.getTicket, messages: [...cachedData.getTicket.messages, newMessage] } } 
+            });
+          }
+        } catch (e) {
+          console.warn("Cache update failed for ticketMessageAdded (Details)", e);
+        }
+      }
+
+      // Update the main communication list
+      const listQuery = GET_MESSAGING_DATA;
       try {
-        const cachedData = client.readQuery<{ getTicket: TicketDetails }>(queryOptions);
-        if (cachedData?.getTicket) {
-          client.writeQuery({ 
-            ...queryOptions, 
-            data: { getTicket: { ...cachedData.getTicket, messages: [...cachedData.getTicket.messages, newMessage] } } 
-          });
+        const cachedList = client.readQuery<{ getCommunicationList: CommunicationItem[] }>({ query: listQuery, variables: { workspaceId } });
+        if (cachedList?.getCommunicationList) {
+           const updatedList = cachedList.getCommunicationList.map(item => {
+              if (item.type === 'ticket' && item.id === newMessage.ticketId) {
+                 return {
+                    ...item,
+                    lastMessage: newMessage.content,
+                    updatedAt: newMessage.createdAt,
+                    unreadCount: !isForCurrentTicket ? item.unreadCount + 1 : 0
+                 };
+              }
+              return item;
+           }).sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+
+           client.writeQuery({
+              query: listQuery,
+              variables: { workspaceId },
+              data: { ...cachedList, getCommunicationList: updatedList }
+           });
         }
       } catch (e) {
-        console.warn("Cache update failed for ticketMessageAdded", e);
+        console.warn("Cache update failed for ticketMessageAdded (List)", e);
       }
     },
   });
@@ -316,8 +352,10 @@ export const useMessaging = ({ workspaceId }: UseMessagingParams) => {
     
     if (item.type === 'conversation') {
       markAsReadMutation({ variables: { conversationId: item.id } });
+    } else if (item.type === 'ticket') {
+      markAsReadTicketMutation({ variables: { ticketId: item.id }});
     }
-  }, [workspaceId, client, markAsReadMutation]);
+  }, [workspaceId, client, markAsReadMutation, markAsReadTicketMutation]);
 
   const handleSendMessage = useCallback(async (content: string) => {
     if (!selectedItem || content.trim() === '') return;

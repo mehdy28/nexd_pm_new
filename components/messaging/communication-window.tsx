@@ -330,7 +330,10 @@ export function CommunicationWindow({
           <div className="space-y-4">
             {details.messages.map((message) => {
               const isSelf = message.sender.id === currentUserId;
-              const senderName = `${message.sender.firstName || ''} ${message.sender.lastName || ''}`.trim();
+              let senderName = `${message.sender.firstName || ''} ${message.sender.lastName || ''}`.trim();
+              if (isTicket && !isSelf) {
+                senderName = "NEXD.PM support";
+              }
               const isSupportAgent = 'isSupport' in message && message.isSupport;
 
               return (

@@ -1,3 +1,4 @@
+//hooks/useAuth.ts
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useApolloClient } from "@apollo/client";
@@ -92,11 +93,13 @@ export function useAuth() {
         const hasWorkspace = (me.ownedWorkspaces?.length ?? 0) > 0 || (me.workspaceMembers?.length ?? 0) > 0;
         const enrichedUser = { ...me, hasWorkspace };
         setAuthCookies(token, enrichedUser);
+        setCurrentUser(enrichedUser); // Update state here
         return enrichedUser;
       }
       
       console.log("[useAuth][fetchMe] No profile returned from GraphQL.");
       setAuthCookies(token, null);
+      setCurrentUser(null); // Update state here
       return null;
     } catch (err) {
       console.error("[useAuth][fetchMe] Error fetching profile:", err);
@@ -315,8 +318,3 @@ export function useAdminRegistration() {
 
   return { registerAdmin, loading, error };
 }
-
-
-
-
-

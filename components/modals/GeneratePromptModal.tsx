@@ -1,14 +1,15 @@
-//components/modals/GeneratePromptModal.tsx
 "use client";
 import React, { useState, useEffect, useMemo } from "react";
 import { useCreatePrompt, useGeneratePromptContent } from "@/hooks/usePromptsAi";
 import { Loader2, Sparkles } from "lucide-react";
+import { ToastType } from "@/components/ui/custom-toast";
 
 interface GeneratePromptModalProps {
   isOpen: boolean;
   onClose: () => void;
   WhiteboardImageBase64: string | null;
   WhiteboardId?: string | null;
+  onShowToast: (message: string, type: ToastType) => void;
 }
 
 const AnimatedDots = () => {
@@ -27,6 +28,7 @@ export const GeneratePromptModal: React.FC<GeneratePromptModalProps> = ({
   onClose,
   WhiteboardImageBase64,
   WhiteboardId,
+  onShowToast,
 }) => {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -83,34 +85,37 @@ export const GeneratePromptModal: React.FC<GeneratePromptModalProps> = ({
       });
       if (result.data?.generatePromptFromWhiteboard) {
         setGeneratedContent(result.data.generatePromptFromWhiteboard);
+        onShowToast("Content generated successfully", "success");
       }
     } catch (err) {
       console.error("Failed to generate content:", err);
+      onShowToast("Failed to generate content", "error");
     }
   };
 
   const handleCreatePrompt = async () => {
     if (!generatedContent || !title || !WhiteboardId) return;
 
-    // Construct the version structure required by CreatePromptFromWhiteboardInput
     const versionInput = {
-      context: description, // Context for the version
+      context: description, 
       content: [{ type: "text", value: generatedContent, order: 0 }],
-      variables: [], // Currently empty, but correctly placed inside the version
+      variables: [], 
     };
 
     const input = {
       title,
       description,
       WhiteboardId: WhiteboardId,
-      versions: [versionInput], // Wrap the version in an array
+      versions: [versionInput], 
     };
 
     try {
       await createPrompt({ variables: { input } });
+      onShowToast("Prompt created successfully", "success");
       handleClose();
     } catch (e) {
       console.error("Failed to create prompt:", e);
+      onShowToast("Failed to create prompt", "error");
     }
   };
 
@@ -133,11 +138,9 @@ export const GeneratePromptModal: React.FC<GeneratePromptModalProps> = ({
       >
         <div className="p-3 pl-6 pr-6 border-b">
           <h2 className="text-xl font-bold text-gray-800">Generate Prompt from Whiteboard</h2>
-          {/* <p className="text-sm text-gray-500">Use AI to generate a detailed prompt based on your Whiteboard image.</p> */}
         </div>
 
         <div className="flex-1 p-3 overflow-hidden grid grid-cols-1 md:grid-cols-2 gap-8">
-          {/* Left Column: Whiteboard Preview & Inputs */}
           <div className="flex flex-col space-y-6 overflow-y-auto pr-4">
             <div>
               <label className="block text-sm font-medium text-gray-600 mb-2">Whiteboard Preview</label>
@@ -175,7 +178,6 @@ export const GeneratePromptModal: React.FC<GeneratePromptModalProps> = ({
             </div>
           </div>
 
-          {/* Right Column: AI Generation & Output */}
           <div className="flex flex-col">
             <label className="block text-sm font-medium text-gray-600 mb-1">AI Output</label>
             <div className="flex-1 mt-1 p-4 border border-gray-200 rounded-md bg-gray-50/50 flex flex-col justify-between min-h-[300px]">

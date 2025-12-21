@@ -52,6 +52,7 @@ export const SEND_TICKET_MESSAGE = gql`
       content
       createdAt
       isSupport
+      ticketId
       sender {
         id
         firstName
@@ -71,6 +72,12 @@ export const USER_IS_TYPING = gql`
 export const MARK_CONVERSATION_AS_READ = gql`
   mutation MarkConversationAsRead($conversationId: ID!) {
     markConversationAsRead(conversationId: $conversationId)
+  }
+`;
+
+export const MARK_TICKET_AS_READ = gql`
+  mutation MarkTicketAsRead($ticketId: ID!) {
+    markTicketAsRead(ticketId: $ticketId)
   }
 `;
 

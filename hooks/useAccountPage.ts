@@ -1,4 +1,4 @@
-// hooks/useAccountPage.ts
+//hooks/useAccountPage.ts
 import { useQuery, useMutation, gql } from "@apollo/client";
 import { useMemo } from "react";
 import { useUser } from "@/hooks/useUser";
@@ -7,7 +7,7 @@ import { GET_ACCOUNT_PAGE_DATA } from "@/graphql/queries/userQuerries";
 
 
 export const useAccountPage = () => {
-  const { user, isLoading: userLoading } = useUser();
+  const { user, isLoading: userLoading, refetchUser } = useUser();
   
   const { data, loading: dataLoading, error, refetch } = useQuery(GET_ACCOUNT_PAGE_DATA, {
     fetchPolicy: "network-only"
@@ -33,6 +33,7 @@ export const useAccountPage = () => {
     loading: userLoading || dataLoading,
     error,
     refetch,
+    refetchUser,
     // Mutations
     updateProfile,
     updateProfileLoading,

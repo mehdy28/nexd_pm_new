@@ -14,12 +14,12 @@ import "@/styles/theme.css";
 export function AppLayout({ children }: { children: ReactNode }) {
   const { currentUser, loading } = useAuthContext();
 
-  // We only show the UI if we have a user. 
-  // If the user shouldn't be here, the Middleware will trigger 
-  // a redirect before this component even mounts or finishes loading.
-  if (loading || !currentUser) {
-    return <LoadingOverlay />;
-  }
+  // // We only show the UI if we have a user. 
+  // // If the user shouldn't be here, the Middleware will trigger 
+  // // a redirect before this component even mounts or finishes loading.
+  // if (loading || !currentUser) {
+  //   return <LoadingOverlay />;
+  // }
 
   return (
     <TopbarProvider>

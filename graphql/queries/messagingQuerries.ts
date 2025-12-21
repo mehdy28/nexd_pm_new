@@ -103,6 +103,7 @@ export const GET_TICKET_DETAILS = gql`
         content
         createdAt
         isSupport
+        ticketId
         sender {
           id
           firstName

@@ -21,6 +21,7 @@ import {
 
 import { useWhiteboardDetails, useProjectWhiteboards } from "@/hooks/useWhiteboards";
 import { GeneratePromptModal } from "@/components/modals/GeneratePromptModal";
+import { ToastType } from "@/components/ui/custom-toast";
 
 // --- Type definitions ---
 interface WhiteboardAppState
@@ -34,6 +35,7 @@ interface WhiteboardContent {
 interface WhiteboardEditorPageProps {
   WhiteboardId: string;
   onBack: () => void;
+  onShowToast: (message: string, type: ToastType) => void;
 }
 
 // --- Debounce Utility Function with cancel and flush ---
@@ -95,7 +97,7 @@ function debounce<T extends (...args: any[]) => any>(
 }
 
 const WhiteboardEditorPage: React.FC<WhiteboardEditorPageProps> = memo(
-  ({ WhiteboardId, onBack }) => {
+  ({ WhiteboardId, onBack, onShowToast }) => {
     console.log(`LOG: [WhiteboardEditorPage] Rendering with WhiteboardId: ${WhiteboardId}`);
     const [excalidrawAPI, setExcalidrawAPI] = useState<ExcalidrawAPI | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -195,12 +197,12 @@ const WhiteboardEditorPage: React.FC<WhiteboardEditorPageProps> = memo(
         });
         console.log("LOG: [WhiteboardEditorPage] Whiteboard data saved successfully.");
         // After a successful save, disable further saves until the next user interaction.
-        // This prevents the re-render caused by the data update from immediately triggering another save.
         canSave.current = false;
       } catch (err) {
         console.error("LOG: [WhiteboardEditorPage] Error saving Whiteboard data:", err);
+        onShowToast("Failed to save whiteboard content", "error");
       }
-    }, [WhiteboardId, updateWhiteboard]);
+    }, [WhiteboardId, updateWhiteboard, onShowToast]);
 
     // --- Debounced version of saveWhiteboardData ---
     const debouncedSaveWhiteboardData = useMemo(
@@ -219,8 +221,9 @@ const WhiteboardEditorPage: React.FC<WhiteboardEditorPageProps> = memo(
         console.log(`LOG: [WhiteboardEditorPage] Whiteboard name updated to "${title}".`);
       } catch (err) {
         console.error("LOG: [WhiteboardEditorPage] Error updating Whiteboard name:", err);
+        onShowToast("Failed to update whiteboard name", "error");
       }
-    }, [updateWhiteboard]);
+    }, [updateWhiteboard, onShowToast]);
 
     // --- Debounced version of saveWhiteboardName ---
     const debouncedSaveWhiteboardName = useMemo(
@@ -302,6 +305,7 @@ const WhiteboardEditorPage: React.FC<WhiteboardEditorPageProps> = memo(
 
         if (!blob) {
           console.error("LOG: [WhiteboardEditorPage] exportToBlob returned null or undefined.");
+          onShowToast("Failed to prepare whiteboard image", "error");
           return;
         }
 
@@ -314,13 +318,15 @@ const WhiteboardEditorPage: React.FC<WhiteboardEditorPageProps> = memo(
         };
         reader.onerror = (error) => {
           console.error("LOG: [WhiteboardEditorPage] FileReader error:", error);
+          onShowToast("Error processing image data", "error");
         };
         reader.readAsDataURL(blob);
 
       } catch (error) {
         console.error("LOG: [WhiteboardEditorPage] Failed to export Whiteboard to blob:", error);
+        onShowToast("Error exporting whiteboard", "error");
       }
-    }, [excalidrawAPI]);
+    }, [excalidrawAPI, onShowToast]);
 
     const handleCloseModal = useCallback(() => {
       setIsModalOpen(false);
@@ -418,6 +424,7 @@ const WhiteboardEditorPage: React.FC<WhiteboardEditorPageProps> = memo(
             onClose={handleCloseModal}
             WhiteboardImageBase64={WhiteboardImageForModal}
             WhiteboardId={WhiteboardId}
+            onShowToast={onShowToast}
         />
       </div>
     );

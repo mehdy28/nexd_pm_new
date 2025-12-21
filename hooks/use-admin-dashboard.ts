@@ -1,10 +1,10 @@
 // hooks/use-admin-dashboard.ts
 import { gql, useQuery } from "@apollo/client"
-import { AdminDashboardData } from "@/types" // Assuming types are generated
+import { AdminPageData } from "@/types" // Assuming types are generated
 
-const GET_ADMIN_DASHBOARD_DATA = gql`
-  query AdminGetDashboardData($timeframe: String) {
-    adminGetDashboardData(timeframe: $timeframe) {
+const GET_ADMIN_DASHBOARD_PAGE_DATA = gql`
+  query AdminGetDashboardPageData {
+    adminGetDashboardPageData {
       kpis {
         totalUsers { value change trend }
         activeWorkspaces { value change trend }
@@ -15,8 +15,6 @@ const GET_ADMIN_DASHBOARD_DATA = gql`
         monthlyRevenue { value change trend }
         churnRate { value change trend }
       }
-      userGrowth { date users projects tasks }
-      contentCreation { date documents Whiteboards tasks }
       mrrGrowth { date value }
       churnRate { date value }
       subscriptionDistribution { name value }
@@ -27,29 +25,20 @@ const GET_ADMIN_DASHBOARD_DATA = gql`
         id
         action
         createdAt
-        user {
-          id
-          firstName
-          lastName
-          avatar
-          avatarColor
-        }
+        user { id firstName lastName avatar avatarColor }
         data
       }
     }
   }
 `
 
-export const useAdminDashboard = (timeframe: string = "30d") => {
-  const { data, loading, error, refetch } = useQuery<{ adminGetDashboardData: AdminDashboardData }>(
-    GET_ADMIN_DASHBOARD_DATA,
-    {
-      variables: { timeframe },
-    },
+export const useAdminDashboard = () => {
+  const { data, loading, error, refetch } = useQuery<{ adminGetDashboardPageData: AdminPageData }>(
+    GET_ADMIN_DASHBOARD_PAGE_DATA
   )
 
   return {
-    data: data?.adminGetDashboardData,
+    data: data?.adminGetDashboardPageData,
     loading,
     error,
     refetch,

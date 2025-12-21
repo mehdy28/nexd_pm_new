@@ -1,4 +1,3 @@
-//components/prompt-lab/prompt-lab.tsx
 'use client'
 
 import React, { useEffect, useMemo, useRef, useState, useCallback, useId } from "react"
@@ -20,6 +19,7 @@ import { useUpdatePromptAiEnhancedContent } from "@/hooks/usePromptsAi";
 import { useLazyQuery, gql } from "@apollo/client";
 import { RESOLVE_PROMPT_VARIABLE_QUERY } from "@/graphql/queries/projectPromptVariablesQuerries";
 import { useGetModelProfiles } from "@/hooks/useModelProfiles";
+import { ToastType } from "@/components/ui/custom-toast"
 
 // --- HELPER: Deep Compare ---
 function deepCompareBlocks(arr1: Block[], arr2: Block[]): boolean {
@@ -81,6 +81,7 @@ interface PromptLabProps {
     loadingVersionContent: boolean;
     versionContentError: string | null;
     currentLoadedVersionContent: { id: string; content: Block[]; context: string; variables: PromptVariable[]; aiEnhancedContent?: string | null } | null;
+    onShowToast: (message: string, type: ToastType) => void;
 }
 
 // =================================================================================================
@@ -102,6 +103,7 @@ export function PromptLab({
     loadingVersionContent,
     versionContentError,
     currentLoadedVersionContent,
+    onShowToast,
 }: PromptLabProps) {
 
     const { updatePrompt: enhancePrompt } = useUpdatePromptAiEnhancedContent();
@@ -452,7 +454,7 @@ export function PromptLab({
     // --- HANDLER: Update Version ---
     const handleUpdateVersion = useCallback((patch: Partial<Version>) => {
         if (!selectedVersionId) {
-            toast.error("No version selected to update.");
+            onShowToast("No version selected to update.", "error");
             return;
         }
 
@@ -503,7 +505,7 @@ export function PromptLab({
 
         updatePromptVersion(currentPrompt.id, selectedVersionId, versionPatch);
 
-    }, [currentPrompt.id, selectedVersionId, updatePromptVersion]);
+    }, [currentPrompt.id, selectedVersionId, updatePromptVersion, onShowToast]);
 
 
     const handleUpdatePrompt = useCallback((patch: Partial<Prompt>) => {
@@ -517,27 +519,27 @@ export function PromptLab({
         setIsSnapshotting(true);
         try {
             await snapshotPrompt(notes);
-            toast.success("New prompt version saved!");
+            onShowToast("New prompt version saved!", "success");
             setPendingNotes('');
         } catch (error) {
-            toast.error("Failed to save version", { description: (error as any).message || 'An unknown error occurred.' });
+            onShowToast((error as any).message || "Failed to save version", "error");
         } finally {
             setIsSnapshotting(false);
         }
-    }, [currentPrompt.id, snapshotPrompt]);
+    }, [currentPrompt.id, snapshotPrompt, onShowToast]);
 
     const handleSetActiveVersion = useCallback(async (versionId: string) => {
         console.log('🏁 [PromptLab] Setting Active Version:', versionId);
         setIsSettingActive(true);
         try {
             await setActivePromptVersion(versionId);
-            toast.success("Version set as active!");
+            onShowToast("Version set as active!", "success");
         } catch (error) {
-            toast.error("Failed to set active version", { description: (error as any).message || 'An unknown error occurred.' });
+            onShowToast((error as any).message || "Failed to set active version", "error");
         } finally {
             setIsSettingActive(false);
         }
-    }, [currentPrompt.id, setActivePromptVersion]);
+    }, [currentPrompt.id, setActivePromptVersion, onShowToast]);
 
     // --- HANDLER: Create Variable ---
     const handleCreateVariable = useCallback((newVariable: Omit<PromptVariable, 'id'>) => {
@@ -569,7 +571,7 @@ export function PromptLab({
 
     const handleEnhancePrompt = useCallback(async () => {
         if (!selectedVersionId) {
-            toast.error("Cannot enhance prompt", { description: "Please select a version to enhance." });
+            onShowToast("Please select a version to enhance.", "error");
             return;
         }
         setIsEnhancing(true);
@@ -591,12 +593,12 @@ export function PromptLab({
             });
             if (data?.updatePromptAiEnhancedContent) {
                 setEnhancedResult(data.updatePromptAiEnhancedContent);
-                toast.success("Prompt enhanced successfully!");
+                onShowToast("Prompt enhanced successfully!", "success");
             }
         } catch (error: any) {
             console.error("Error enhancing prompt:", error);
             setEnhancementError(error.message || "An unknown error occurred while enhancing the prompt.");
-            toast.error("Enhancement Failed", { description: error.message });
+            onShowToast("Enhancement Failed", "error");
         } finally {
             const elapsedTime = Date.now() - startTime;
             const remainingTime = minAnimationTime - elapsedTime;
@@ -606,7 +608,7 @@ export function PromptLab({
                 setIsEnhancing(false);
             }
         }
-    }, [currentPrompt.id, currentPrompt.modelProfileId, selectedVersionId, renderedPreviewString, enhancePrompt, enhancementPhases]);
+    }, [currentPrompt.id, currentPrompt.modelProfileId, selectedVersionId, renderedPreviewString, enhancePrompt, enhancementPhases, onShowToast]);
 
     if (isLoadingDetails && !currentPrompt) {
         return <LoadingPlaceholder message="Loading prompt details..." />
@@ -622,9 +624,9 @@ export function PromptLab({
         navigator.clipboard.writeText(text).then(() => {
             setCopiedStatus(type);
             setTimeout(() => setCopiedStatus(null), 2000);
-            toast.success("Copied to clipboard!");
+            onShowToast("Copied to clipboard!", "success");
         }).catch(() => {
-            toast.error("Failed to copy.");
+            onShowToast("Failed to copy.", "error");
         });
     }
 
