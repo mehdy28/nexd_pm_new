@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { useQuery, useLazyQuery, useMutation, useSubscription, useApolloClient, gql } from '@apollo/client';
+// hooks/useMessaging.ts
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useQuery, useLazyQuery, useMutation, useSubscription, useApolloClient } from '@apollo/client';
 import { 
   CREATE_TICKET, 
   CREATE_GROUP_CONVERSATION, 
@@ -22,8 +23,8 @@ import {
 } from '@/graphql/subscriptions/messagingSubscription';
 import { GET_MESSAGING_DATA, GET_CONVERSATION_DETAILS, GET_TICKET_DETAILS } from '@/graphql/queries/messagingQuerries';
 import { debounce } from 'lodash';
-import { useUser } from '@/hooks/useUser';
-
+import { useAuth } from "@/hooks/useAuth";
+import { ADMIN_UPDATE_TICKET_PRIORITY }  from '@/graphql/mutations/adminSupportMutations';
 // ---------------------------------------------------------------- //
 //                          TYPE DEFINITIONS                        //
 // ---------------------------------------------------------------- //
@@ -67,6 +68,7 @@ export interface Message {
   content: string;
   createdAt: string; // ISO Date String
   sender: UserAvatarPartial;
+  conversationId: string;
   __typename?: 'Message';
 }
 
@@ -105,7 +107,7 @@ interface UseMessagingParams {
 
 export const useMessaging = ({ workspaceId }: UseMessagingParams) => {
   const client = useApolloClient();
-  const { user: currentUser } = useUser();
+  const { currentUser } = useAuth();
   const [selectedItem, setSelectedItem] = useState<CommunicationItem | null>(null);
   const [typingUsers, setTypingUsers] = useState<TypingUser[]>([]);
   const typingTimeoutRef = useRef<Record<string, NodeJS.Timeout>>({});
@@ -130,6 +132,10 @@ export const useMessaging = ({ workspaceId }: UseMessagingParams) => {
   const [leaveConversationMutation] = useMutation(LEAVE_CONVERSATION);
   const [removeParticipantMutation] = useMutation(REMOVE_PARTICIPANT);
   const [addParticipantsMutation] = useMutation(ADD_PARTICIPANTS);
+  const [updatePriorityMutation] = useMutation(ADMIN_UPDATE_TICKET_PRIORITY);
+
+  const communicationList = useMemo(() => data?.getCommunicationList || [], [data]);
+  const workspaceMembers = useMemo(() => data?.getWorkspaceMembers || [], [data]);
 
   // Subscription for newly created tickets and conversations
   useSubscription(COMMUNICATION_ITEM_ADDED_SUBSCRIPTION, {
@@ -164,25 +170,10 @@ export const useMessaging = ({ workspaceId }: UseMessagingParams) => {
         const removedInfo = data.data?.participantRemoved;
         if (!removedInfo) return;
 
-        // If I am the one removed and I am looking at that chat
-        if (removedInfo.userId === currentUser?.id) {
-             if (selectedItem?.id === removedInfo.conversationId) {
-                // Refresh details immediately. The backend will return the conversation, 
-                // but since the user hasLeft=true, the 'isParticipant' check in UI will fail 
-                // and the input box will disappear.
-                getConversation({ 
-                    variables: { id: removedInfo.conversationId }, 
-                    fetchPolicy: 'network-only' 
-                });
-             }
-        } else {
-             // Someone else was removed. If I'm looking at that chat, refresh to update member list.
-             if (selectedItem?.id === removedInfo.conversationId) {
-                 getConversation({ 
-                    variables: { id: removedInfo.conversationId }, 
-                    fetchPolicy: 'network-only' 
-                });
-             }
+        if (removedInfo.userId === currentUser?.id && selectedItem?.id === removedInfo.conversationId) {
+            getConversation({ variables: { id: removedInfo.conversationId }, fetchPolicy: 'network-only' });
+        } else if (selectedItem?.id === removedInfo.conversationId) {
+            getConversation({ variables: { id: removedInfo.conversationId }, fetchPolicy: 'network-only' });
         }
     }
   });
@@ -191,28 +182,26 @@ export const useMessaging = ({ workspaceId }: UseMessagingParams) => {
   useSubscription(MESSAGE_ADDED_SUBSCRIPTION, {
     variables: { workspaceId },
     onData: ({ client, data }) => {
-      const newMessage = data.data?.messageAdded;
+      const newMessage = data.data?.messageAdded as Message;
       if (!newMessage) return;
       
       const isForCurrentChat = selectedItem?.id === newMessage.conversationId;
 
-      if (isForCurrentChat && selectedItem?.type === 'conversation') {
-        const queryOptions = { query: GET_CONVERSATION_DETAILS, variables: { id: selectedItem.id } };
-        try {
-          const cachedData = client.readQuery<{ getConversation: ConversationDetails }>(queryOptions);
-          if (cachedData?.getConversation) {
-            if (cachedData.getConversation.messages.some(m => m.id === newMessage.id)) return;
-
-            client.writeQuery({ 
-              ...queryOptions, 
-              data: { getConversation: { ...cachedData.getConversation, messages: [...cachedData.getConversation.messages, newMessage] } } 
-            });
-          }
-        } catch (e) {
-          console.warn("Cache update failed for messageAdded (Details)", e);
+      // Update the details cache for the conversation, even if not currently viewed.
+      const queryOptions = { query: GET_CONVERSATION_DETAILS, variables: { id: newMessage.conversationId } };
+      try {
+        const cachedData = client.readQuery<{ getConversation: ConversationDetails }>(queryOptions);
+        if (cachedData?.getConversation && !cachedData.getConversation.messages.some(m => m.id === newMessage.id)) {
+          client.writeQuery({ 
+            ...queryOptions, 
+            data: { getConversation: { ...cachedData.getConversation, messages: [...cachedData.getConversation.messages, newMessage] } } 
+          });
         }
-      } 
+      } catch (e) {
+        // This is expected if the conversation details haven't been cached yet.
+      }
       
+      // Update the list item
       const listQuery = GET_MESSAGING_DATA;
       try {
         const cachedList = client.readQuery<{ getCommunicationList: CommunicationItem[] }>({ query: listQuery, variables: { workspaceId } });
@@ -245,26 +234,23 @@ export const useMessaging = ({ workspaceId }: UseMessagingParams) => {
     variables: { workspaceId },
     skip: !workspaceId,
     onData: ({ client, data }) => {
-      const newMessage = data.data?.ticketMessageAdded as TicketMessage | undefined;
+      const newMessage = data.data?.ticketMessageAdded as TicketMessage;
       if (!newMessage) return;
       
       const isForCurrentTicket = selectedItem?.id === newMessage.ticketId && selectedItem.type === 'ticket';
 
-      // Update the detailed view if the ticket is currently open
-      if (isForCurrentTicket) {
-        const queryOptions = { query: GET_TICKET_DETAILS, variables: { id: selectedItem.id } };
-        try {
-          const cachedData = client.readQuery<{ getTicket: TicketDetails }>(queryOptions);
-          if (cachedData?.getTicket) {
-            if (cachedData.getTicket.messages.some(m => m.id === newMessage.id)) return;
-            client.writeQuery({ 
-              ...queryOptions, 
-              data: { getTicket: { ...cachedData.getTicket, messages: [...cachedData.getTicket.messages, newMessage] } } 
-            });
-          }
-        } catch (e) {
-          console.warn("Cache update failed for ticketMessageAdded (Details)", e);
+      // Update the detailed view cache, even if the ticket is not currently open
+      const queryOptions = { query: GET_TICKET_DETAILS, variables: { id: newMessage.ticketId } };
+      try {
+        const cachedData = client.readQuery<{ getTicket: TicketDetails }>(queryOptions);
+        if (cachedData?.getTicket && !cachedData.getTicket.messages.some(m => m.id === newMessage.id)) {
+          client.writeQuery({ 
+            ...queryOptions, 
+            data: { getTicket: { ...cachedData.getTicket, messages: [...cachedData.getTicket.messages, newMessage] } } 
+          });
         }
+      } catch (e) {
+        // This is expected if the ticket details haven't been cached yet.
       }
 
       // Update the main communication list
@@ -320,9 +306,9 @@ export const useMessaging = ({ workspaceId }: UseMessagingParams) => {
     if (!selectedItem) return;
     setTypingUsers([]);
     if (selectedItem.type === 'conversation') {
-      getConversation({ variables: { id: selectedItem.id } });
+      getConversation({ variables: { id: selectedItem.id }, fetchPolicy: 'cache-and-network' });
     } else if (selectedItem.type === 'ticket') {
-      getTicket({ variables: { id: selectedItem.id } });
+      getTicket({ variables: { id: selectedItem.id }, fetchPolicy: 'cache-and-network' });
     }
   }, [selectedItem, getConversation, getTicket]);
 
@@ -384,14 +370,11 @@ export const useMessaging = ({ workspaceId }: UseMessagingParams) => {
 
   const handleLeaveConversation = useCallback(async (conversationId: string) => {
       await leaveConversationMutation({ variables: { conversationId }});
-      // We do NOT remove the item from the list because the user can still see old messages
-      // We just refresh the conversation details to update permissions
       getConversation({ variables: { id: conversationId }, fetchPolicy: 'network-only' });
   }, [leaveConversationMutation, getConversation]);
 
   const handleRemoveParticipant = useCallback(async (conversationId: string, userId: string) => {
       await removeParticipantMutation({ variables: { conversationId, userId }});
-      // Refreshing happens via subscription now, but we can double check
       getConversation({ variables: { id: conversationId }, fetchPolicy: 'network-only' });
   }, [removeParticipantMutation, getConversation]);
 
@@ -400,6 +383,30 @@ export const useMessaging = ({ workspaceId }: UseMessagingParams) => {
       getConversation({ variables: { id: conversationId }, fetchPolicy: 'network-only' });
   }, [addParticipantsMutation, getConversation]);
 
+
+
+    // Callback for updating ticket priority
+    const updateTicketPriority = useCallback(async (ticketId: string, priority: 'LOW' | 'MEDIUM' | 'HIGH') => {
+      await updatePriorityMutation({ 
+        variables: { ticketId, priority },
+        update: (cache, { data }) => {
+          if (!data?.adminUpdateTicketPriority) return;
+          cache.modify({
+              id: cache.identify({ __typename: 'AdminTicketListItem', id: ticketId }),
+              fields: {
+                priority: () => data.adminUpdateTicketPriority.priority,
+              },
+          });
+          cache.modify({
+              id: cache.identify({ __typename: 'AdminTicketDetails', id: ticketId }),
+              fields: {
+                priority: () => data.adminUpdateTicketPriority.priority,
+              },
+          });
+        }
+      });
+    }, [updatePriorityMutation]);
+  
 
   // Determine correct active details based on selected type
   let activeItemDetails: ConversationDetails | TicketDetails | undefined | null = null;
@@ -410,11 +417,11 @@ export const useMessaging = ({ workspaceId }: UseMessagingParams) => {
   }
 
   return {
-    communicationList: data?.getCommunicationList || [],
-    workspaceMembers: data?.getWorkspaceMembers || [],
+    communicationList,
+    workspaceMembers,
     listLoading: loading,
-    error, // Exposing the error object from useQuery
-    refetch, // Exposing the refetch function from useQuery
+    error,
+    refetch,
     selectedItem,
     setSelectedItem: handleSelectItem,
     activeItemDetails,
@@ -429,5 +436,6 @@ export const useMessaging = ({ workspaceId }: UseMessagingParams) => {
     addParticipants: handleAddParticipants,
     typingUsers,
     notifyTyping,
+    updateTicketPriority,
   };
 };

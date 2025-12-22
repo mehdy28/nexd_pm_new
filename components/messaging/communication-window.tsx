@@ -11,13 +11,19 @@ import { Send, User as UserIcon, Users, LifeBuoy, MoreVertical, X, LogOut, Trash
 import { cn } from "@/lib/utils";
 import { CommunicationItem, ConversationDetails, TicketDetails, TypingUser, WorkspaceMember } from "@/hooks/useMessaging";
 import { formatDistanceToNow } from 'date-fns';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 const getInitials = (name: string) => name.split(" ").map((n) => n[0]).join("").toUpperCase();
 
 const priorityBadgeColors: Record<string, string> = {
-  LOW: 'border-green-500/50 bg-green-100 text-green-800',
-  MEDIUM: 'border-yellow-500/50 bg-yellow-100 text-yellow-800',
-  HIGH: 'border-red-500/50 bg-red-100 text-red-800',
+  LOW: 'border-green-500/50 bg-green-100 text-green-800 hover:bg-green-100',
+  MEDIUM: 'border-yellow-500/50 bg-yellow-100 text-yellow-800 hover:bg-yellow-100',
+  HIGH: 'border-red-500/50 bg-red-100 text-red-800 hover:bg-red-100',
 };
  
 // Define header background styles based on type
@@ -53,6 +59,7 @@ interface CommunicationWindowProps {
   onLeaveConversation?: (id: string) => void;
   onRemoveParticipant?: (conversationId: string, userId: string) => void;
   onAddParticipants?: (conversationId: string, participantIds: string[]) => void;
+  onUpdateTicketPriority?: (ticketId: string, priority: 'LOW' | 'MEDIUM' | 'HIGH') => void;
 }
 
 export function CommunicationWindow({ 
@@ -66,7 +73,8 @@ export function CommunicationWindow({
     onUserIsTyping,
     onLeaveConversation,
     onRemoveParticipant,
-    onAddParticipants
+    onAddParticipants,
+    onUpdateTicketPriority
 }: CommunicationWindowProps) {
   const [newMessage, setNewMessage] = useState("");
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -75,13 +83,25 @@ export function CommunicationWindow({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // Local state for optimistic UI updates
+  const [localItem, setLocalItem] = useState(communicationItem);
+  const [localDetails, setLocalDetails] = useState(details);
+
+  useEffect(() => {
+    setLocalItem(communicationItem);
+  }, [communicationItem]);
+
+  useEffect(() => {
+    setLocalDetails(details);
+  }, [details]);
+
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
   useEffect(() => {
     scrollToBottom();
-  }, [details.messages, typingUsers]);
+  }, [localDetails.messages, typingUsers]);
 
   useEffect(() => {
     if (textareaRef.current) {
@@ -102,6 +122,20 @@ export function CommunicationWindow({
     onUserIsTyping?.();
   };
 
+  const handlePriorityChange = (newPriority: 'LOW' | 'MEDIUM' | 'HIGH') => {
+    if (!onUpdateTicketPriority) return;
+
+    // 1. Call parent function to trigger the backend mutation
+    onUpdateTicketPriority(localItem.id, newPriority);
+
+    // 2. Optimistically update local state for immediate UI feedback
+    setLocalItem(prev => ({ ...prev, priority: newPriority } as CommunicationItem));
+    setLocalDetails(prev => ({
+        ...prev,
+        priority: newPriority,
+    }) as TicketDetails);
+  };
+
   const typingDisplay = useMemo(() => {
     if (typingUsers.length === 0) return null;
     if (typingUsers.length === 1) {
@@ -113,9 +147,9 @@ export function CommunicationWindow({
     return `${typingUsers.length} people are typing`;
   }, [typingUsers]);
 
-  const isTicket = communicationItem.type === "ticket";
-  const ticketDetails = isTicket ? (details as TicketDetails) : null;
-  const conversationDetails = !isTicket ? (details as ConversationDetails) : null;
+  const isTicket = localItem.type === "ticket";
+  const ticketDetails = isTicket ? (localDetails as TicketDetails) : null;
+  const conversationDetails = !isTicket ? (localDetails as ConversationDetails) : null;
   const isGroup = conversationDetails?.type === 'GROUP';
 
   // Check if kicked - Added optional chaining
@@ -143,7 +177,7 @@ export function CommunicationWindow({
        m.user.email.toLowerCase().includes(memberSearchQuery.toLowerCase()))
   );
   
-  const headerStyle = getHeaderStyle(communicationItem);
+  const headerStyle = getHeaderStyle(localItem);
 
   return (
     <Card className="h-full flex flex-col relative overflow-hidden border-0 shadow-none">
@@ -154,10 +188,10 @@ export function CommunicationWindow({
                  <Icon className={cn("w-5 h-5", iconColor)} />
               </div>
               <div className="min-w-0">
-                <CardTitle className="text-lg text-gray-800" title={communicationItem.title}>
-                  {communicationItem.title.length > 30
-                    ? `${communicationItem.title.substring(0, 30)}...`
-                    : communicationItem.title}
+                <CardTitle className="text-lg text-gray-800" title={localItem.title}>
+                  {localItem.title.length > 30
+                    ? `${localItem.title.substring(0, 30)}...`
+                    : localItem.title}
                 </CardTitle>
                 <p className="text-xs text-muted-foreground capitalize mt-0.5">
                   {isTicket ? `Support Ticket` : `${isGroup ? 'Group' : 'Direct'} Conversation`}
@@ -168,9 +202,18 @@ export function CommunicationWindow({
           <div className="flex flex-shrink-0 items-center gap-2">
               {isTicket && ticketDetails && (
                 <div className="flex items-center space-x-2">
-                   <Badge variant="outline" className={cn("capitalize font-semibold border-2", priorityBadgeColors[ticketDetails.priority])}>
-                    {ticketDetails.priority.toLowerCase()}
-                  </Badge>
+                   <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="outline" size="sm" className={cn("capitalize font-semibold border-2 h-7 px-2", priorityBadgeColors[ticketDetails.priority])}>
+                          {ticketDetails.priority.toLowerCase()}
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent>
+                        <DropdownMenuItem onClick={() => handlePriorityChange('LOW')}>Low</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handlePriorityChange('MEDIUM')}>Medium</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handlePriorityChange('HIGH')}>High</DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   <Badge 
                     variant="secondary" 
                     className="capitalize bg-white/60 hover:bg-white/60 text-gray-700 cursor-default"
@@ -260,7 +303,7 @@ export function CommunicationWindow({
                             <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-2">
                                 <Users className="w-8 h-8 text-purple-600" />
                             </div>
-                            <h4 className="font-bold text-lg">{communicationItem.title}</h4>
+                            <h4 className="font-bold text-lg">{localItem.title}</h4>
                             {amICreator && <Badge variant="secondary" className="mt-1">You created this group</Badge>}
                          </div>
                          
@@ -328,7 +371,7 @@ export function CommunicationWindow({
       <CardContent className="flex-1 flex flex-col p-0 min-h-0 bg-white">
         <div className="flex-1 p-4 overflow-y-auto bg-gray-100">
           <div className="space-y-4">
-            {details.messages.map((message) => {
+            {localDetails.messages.map((message) => {
               const isSelf = message.sender.id === currentUserId;
               let senderName = `${message.sender.firstName || ''} ${message.sender.lastName || ''}`.trim();
               if (isTicket && !isSelf) {

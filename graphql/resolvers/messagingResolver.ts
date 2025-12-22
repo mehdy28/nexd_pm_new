@@ -19,6 +19,38 @@ const log = (source: string, message: string, data?: any) => {
   console.log('--- End Log ---\n');
 };
 
+// Helper to fetch the data structure needed for list item subscriptions for ADMIN
+const getAdminTicketListItemPayload = async (ticketId: string) => {
+    const ticket = await prisma.ticket.findUnique({
+      where: { id: ticketId },
+      include: {
+        creator: {
+          select: { id: true, firstName: true, lastName: true, avatar: true, avatarColor: true },
+        },
+        workspace: {
+          select: { id: true, name: true, plan: true },
+        },
+        _count: {
+          select: {
+            messages: {
+              where: {
+                NOT: { sender: { role: 'ADMIN' } },
+                isReadByAdmin: false,
+              },
+            },
+          },
+        },
+      },
+    });
+  
+    if (!ticket) return null;
+  
+    return {
+      ...ticket,
+      unreadCount: ticket._count.messages,
+    };
+};
+
 // Helper to create a consistent payload for the communication list
 const createCommunicationListItemPayload = async (item: any, type: 'conversation' | 'ticket', userId: string) => {
   if (type === 'conversation') {
@@ -52,7 +84,7 @@ const createCommunicationListItemPayload = async (item: any, type: 'conversation
       lastMessage: item.messages[0]?.content || 'Ticket created.',
       participantInfo: 'Support Team',
       updatedAt: item.updatedAt,
-      unreadCount: 1, 
+      unreadCount: 0, 
       priority: item.priority,
       workspaceId: item.workspaceId,
       participants: [item.creator] 
@@ -398,45 +430,73 @@ export const messagingResolvers = {
     },
 
     createTicket: async (_: any, { input }: { input: { workspaceId: string; subject: string; priority: 'LOW' | 'MEDIUM' | 'HIGH'; message: string } }, context: GraphQLContext) => {
-      const source = 'Mutation: createTicket';
-      try {
-        log(source, 'Fired', { input });
-        const userId = context.user?.id;
-        if (!userId) throw new GraphQLError('Not authenticated');
-
-        const ticket = await prisma.ticket.create({
-          data: {
-            workspaceId: input.workspaceId,
-            subject: input.subject,
-            priority: input.priority,
-            creatorId: userId,
-            messages: {
-              create: {
-                senderId: userId,
-                content: input.message,
+        const source = 'Mutation: createTicket';
+        try {
+          log(source, 'Fired', { input });
+          const userId = context.user?.id;
+          if (!userId) throw new GraphQLError('Not authenticated');
+      
+          const [ticket, workspace] = await prisma.$transaction([
+            prisma.ticket.create({
+              data: {
+                workspaceId: input.workspaceId,
+                subject: input.subject,
+                priority: input.priority,
+                creatorId: userId,
+                messages: {
+                  create: {
+                    senderId: userId,
+                    content: input.message,
+                  },
+                },
               },
-            },
-          },
-          include: { messages: true, creator: true }, 
-        });
-
-        await prisma.ticketReadStatus.create({
-            data: {
-                ticketId: ticket.id,
-                userId: userId,
-                lastReadAt: new Date()
-            }
-        });
-
-        const payload = await createCommunicationListItemPayload(ticket, 'ticket', userId);
-        await pubsub.publish(Topics.COMMUNICATION_ITEM_ADDED, { communicationItemAdded: payload });
-        
-        return ticket;
-      } catch (error: any) {
-        log(source, 'ERROR', { error: error.message });
-        throw new GraphQLError(error.message || 'An error occurred creating the ticket.');
-      }
-    },
+              include: { 
+                messages: { orderBy: { createdAt: 'desc' }, take: 1 }, 
+                creator: { select: { id: true, firstName: true, lastName: true, avatar: true, avatarColor: true } }
+              }, 
+            }),
+            prisma.workspace.findUnique({
+                where: { id: input.workspaceId },
+                select: { id: true, name: true, plan: true }
+            })
+          ]);
+      
+          await prisma.ticketReadStatus.create({
+              data: {
+                  ticketId: ticket.id,
+                  userId: userId,
+                  lastReadAt: new Date()
+              }
+          });
+      
+          // Publish to user's communication list
+          const userPayload = await createCommunicationListItemPayload(ticket, 'ticket', userId);
+          await pubsub.publish(Topics.COMMUNICATION_ITEM_ADDED, { communicationItemAdded: userPayload });
+          
+          // Publish to admin's support ticket list
+          if (workspace) {
+              const adminPayload = {
+                  id: ticket.id,
+                  subject: ticket.subject,
+                  status: ticket.status, // Default is OPEN
+                  priority: ticket.priority,
+                  updatedAt: ticket.updatedAt,
+                  unreadCount: 1, // The first message is unread for admins
+                  creator: ticket.creator,
+                  workspace: workspace,
+              };
+              await pubsub.publish(Topics.ADMIN_TICKET_ADDED, { adminTicketAdded: adminPayload });
+              log(source, 'Published ADMIN_TICKET_ADDED event', { ticketId: ticket.id });
+          } else {
+              log(source, 'WARN', { warning: 'Workspace not found, could not publish ADMIN_TICKET_ADDED event', workspaceId: input.workspaceId });
+          }
+          
+          return ticket;
+        } catch (error: any) {
+          log(source, 'ERROR', { error: error.message });
+          throw new GraphQLError(error.message || 'An error occurred creating the ticket.');
+        }
+      },
     
     sendMessage: async (_: any, { input }: { input: { conversationId: string; content: string } }, context: GraphQLContext) => {
       const source = 'Mutation: sendMessage';
@@ -499,6 +559,11 @@ export const messagingResolvers = {
             ticketMessageAdded: messageWithSupportFlag,
         };
         await pubsub.publish(Topics.TICKET_MESSAGE_ADDED, payloadToPublish);
+        
+        const updatedTicketPayload = await getAdminTicketListItemPayload(input.ticketId);
+        if (updatedTicketPayload) {
+            await pubsub.publish(Topics.ADMIN_TICKET_UPDATED, { adminTicketUpdated: updatedTicketPayload });
+        }
         
         return messageWithSupportFlag;
       } catch (error: any) {
@@ -700,16 +765,23 @@ export const messagingResolvers = {
       subscribe: withFilter(
         () => pubsub.asyncIterableIterator([Topics.TICKET_MESSAGE_ADDED]),
         (payload, variables, context: GraphQLContext) => {
-            if (payload.ticketAuthorizer.workspaceId !== variables.workspaceId) {
+            const isAdmin = context.user?.role === 'ADMIN';
+
+            // Admins receive all ticket messages, no filtering needed.
+            if (isAdmin) {
+                return true;
+            }
+
+            // For regular users, filter by workspaceId
+            if (variables.workspaceId && payload.ticketAuthorizer.workspaceId !== variables.workspaceId) {
                 return false;
             }
 
             const userId = context.user?.id;
             if (!userId) return false;
 
-            const isCreator = payload.ticketAuthorizer.ticketCreatorId === userId;
-            const isAdmin = context.user?.role === 'ADMIN';
-            return isCreator || isAdmin;
+            // And ensure they are the creator of the ticket
+            return payload.ticketAuthorizer.ticketCreatorId === userId;
         }
       ),
     },

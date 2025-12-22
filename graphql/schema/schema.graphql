@@ -1,5 +1,4 @@
-# graphql/schema/schema.graphql
-
+### `graphql/schema/schema.graphql`
 # ----------------------------------
 # Enums
 # ----------------------------------
@@ -1734,7 +1733,7 @@ type Mutation {
 # ----------------------------------
 type Subscription {
   messageAdded(conversationId: ID, workspaceId: ID): Message
-  ticketMessageAdded(workspaceId: ID!): TicketMessage
+  ticketMessageAdded(workspaceId: ID): TicketMessage
   typingUser(conversationId: ID!): TypingUser
   communicationItemUpdated(workspaceId: ID!): CommunicationListItem
   communicationItemAdded(workspaceId: ID!): CommunicationListItem

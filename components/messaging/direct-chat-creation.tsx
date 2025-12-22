@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, Search, MessageSquare } from "lucide-react";
+import { ArrowLeft, Search, MessageSquare, Loader2 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { CommunicationItem, WorkspaceMember } from "@/hooks/useMessaging";
@@ -26,6 +26,7 @@ interface DirectChatCreationProps {
 export function DirectChatCreation({ workspaceId, members, communicationList, onBack, onChatSelected, createDirectConversation }: DirectChatCreationProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const { user: currentUser } = useUser();
+  const [creatingForUserId, setCreatingForUserId] = useState<string | null>(null);
 
   const filteredUsers = members.filter(member => {
       if (member.user.id === currentUser?.id) return false; // Exclude self
@@ -44,16 +45,25 @@ export function DirectChatCreation({ workspaceId, members, communicationList, on
   });
 
   const handleUserSelect = async (member: WorkspaceMember) => {
-    const res = await createDirectConversation({
-        variables: { workspaceId, participantId: member.user.id }
-    });
+    if (creatingForUserId) return; // Prevent new clicks while a creation is in progress
 
-    if (res.data?.createDirectConversation) {
-        onChatSelected({
-            id: res.data.createDirectConversation.id,
-            type: "conversation",
-            title: `${member.user.firstName || ''} ${member.user.lastName || ''}`.trim(),
-        } as CommunicationItem);
+    setCreatingForUserId(member.user.id);
+    try {
+      const res = await createDirectConversation({
+          variables: { workspaceId, participantId: member.user.id }
+      });
+
+      if (res.data?.createDirectConversation) {
+          onChatSelected({
+              id: res.data.createDirectConversation.id,
+              type: "conversation",
+              title: `${member.user.firstName || ''} ${member.user.lastName || ''}`.trim(),
+          } as CommunicationItem);
+      }
+    } catch (error) {
+      console.error("Failed to create direct conversation:", error);
+    } finally {
+      setCreatingForUserId(null); // Re-enable buttons
     }
   };
 
@@ -78,8 +88,13 @@ export function DirectChatCreation({ workspaceId, members, communicationList, on
             {filteredUsers.length > 0 ? (
                 filteredUsers.map(member => {
                     const fullName = `${member.user.firstName || ''} ${member.user.lastName || ''}`.trim();
+                    const isCreating = creatingForUserId === member.user.id;
                     return (
-                    <div key={member.id} className="p-3 rounded-lg cursor-pointer hover:bg-gray-100 flex items-center justify-between" onClick={() => handleUserSelect(member)}>
+                    <div 
+                        key={member.id} 
+                        className={`p-3 rounded-lg flex items-center justify-between transition-opacity ${isCreating ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:bg-gray-100'}`} 
+                        onClick={() => !isCreating && handleUserSelect(member)}
+                    >
                         <div className="flex items-center space-x-3">
                             <Avatar className="h-10 w-10">
                                 <AvatarImage src={member.user.avatar || undefined} alt={fullName} />
@@ -90,8 +105,13 @@ export function DirectChatCreation({ workspaceId, members, communicationList, on
                                 <p className="text-xs text-muted-foreground capitalize">{member.role.toLowerCase()}</p>
                             </div>
                         </div>
-                        <Button variant="ghost" size="sm">
-                            <MessageSquare className="w-4 h-4 mr-2 text-[hsl(174,75%,40%)]" /> Chat
+                        <Button variant="ghost" size="sm" disabled={isCreating}>
+                            {isCreating ? (
+                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            ) : (
+                                <MessageSquare className="w-4 h-4 mr-2 text-[hsl(174,75%,40%)]" />
+                            )}
+                            {isCreating ? 'Starting...' : 'Chat'}
                         </Button>
                     </div>
                 )})

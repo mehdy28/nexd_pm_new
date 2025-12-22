@@ -174,10 +174,14 @@ export const adminSupportResolvers = {
           prisma.ticket.update({ where: { id: ticketId }, data: { updatedAt: new Date() } }),
         ]);
 
-        const messageWithSupportFlag = { ...newMessage, isSupport: true };
+        const messageWithSupportFlag = { 
+          ...newMessage, 
+          ticketId: ticket.id,
+          isSupport: true 
+        };
 
         await pubsub.publish(Topics.TICKET_MESSAGE_ADDED, {
-            ticketAuthorizer: { ticketCreatorId: ticket.creatorId },
+            ticketAuthorizer: { ticketCreatorId: ticket.creatorId, workspaceId: ticket.workspaceId },
             ticketMessageAdded: messageWithSupportFlag,
         });
 
@@ -222,7 +226,6 @@ export const adminSupportResolvers = {
     adminUpdateTicketPriority: async (_: any, { ticketId, priority }: { ticketId: string; priority: 'LOW' | 'MEDIUM' | 'HIGH' }, context: GraphQLContext) => {
         const source = 'Mutation: adminUpdateTicketPriority';
         try {
-          checkAdmin(context);
           log(source, 'Fired', { ticketId, priority });
   
           const updatedTicket = await prisma.ticket.update({

@@ -39,7 +39,6 @@ export function SupportChatWindow({ ticketId }: SupportChatWindowProps) {
     detailsLoading, 
     detailsError,
     fetchTicketDetails,
-    subscribeToTicketMessages,
     sendMessage,
     sendingMessage,
     updateTicketStatus,
@@ -51,8 +50,6 @@ export function SupportChatWindow({ ticketId }: SupportChatWindowProps) {
       fetchTicketDetails(ticketId);
     }
   }, [ticketId, fetchTicketDetails]);
-  
-  subscribeToTicketMessages(ticketId);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -166,7 +163,7 @@ export function SupportChatWindow({ ticketId }: SupportChatWindowProps) {
                           className={cn(
                             "p-3 rounded-xl text-sm inline-block max-w-full text-left whitespace-pre-wrap break-words shadow-sm",
                             isSupportMessage
-                              ? "bg-[hsl(174,70%,54%)] text-white rounded-tr-sm"
+                              ? "bg-[hsl(174,75%,40%)] text-white rounded-tr-sm"
                               : "bg-white border text-gray-800 rounded-tl-sm",
                           )}
                         >
@@ -189,12 +186,12 @@ export function SupportChatWindow({ ticketId }: SupportChatWindowProps) {
                         onKeyDown={handleKeyDown}
                         rows={1}
                         className="flex-1 bg-transparent border-0 resize-none focus-visible:ring-0 focus-visible:ring-offset-0 p-0 max-h-32"
-                        disabled={sendingMessage}
+                        //disabled={sendingMessage}
                     />
                     <Button 
                         onClick={handleSendMessage} 
-                        disabled={sendingMessage || !newMessage.trim()} 
-                        className="bg-[hsl(174,70%,54%)] hover:bg-[hsl(174,70%,44%)] h-8 w-8 p-0 rounded-full flex-shrink-0"
+                        //disabled={sendingMessage || !newMessage.trim()} 
+                        className="bg-[hsl(174,75%,40%)] hover:bg-[hsl(174,75%,35%)] h-8 w-8 p-0 rounded-full flex-shrink-0"
                     >
                         {sendingMessage ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                     </Button>
@@ -275,11 +272,13 @@ export function SupportChatWindow({ ticketId }: SupportChatWindowProps) {
                     </DropdownMenuContent>
                 </DropdownMenu>
             </div>
-            <div className="flex items-center space-x-2">
-              <Calendar className="w-4 h-4 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">Created:</span>
-              <span className="text-sm font-medium">{format(new Date(ticketDetails.createdAt), 'PP')}</span>
-            </div>
+<div className="flex items-center justify-between">
+    <div className="flex items-center space-x-2">
+        <Calendar className="w-4 h-4 text-muted-foreground" />
+        <span className="text-sm text-muted-foreground">Created:</span>
+    </div>
+    <span className="text-sm font-medium">{format(new Date(ticketDetails.createdAt), 'PP')}</span>
+</div>
           </CardContent>
         </Card>
       </div>

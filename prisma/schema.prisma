@@ -264,8 +264,10 @@ model WorkspaceInvitation {
   workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   invitedBy   User      @relation("Inviter", fields: [invitedById], references: [id], onDelete: Cascade)
 
+  @@unique([workspaceId, email])
   @@map("workspace_invitations")
 }
+
 
 model WorkspaceSettings {
   id               String    @id @default(cuid())
@@ -655,7 +657,6 @@ model TaskDependency {
 
 // ---------------------------------
 // ---- MESSAGING MODELS (UPDATED) ----
-
 model Conversation {
   id          String           @id @default(cuid())
   workspaceId String
@@ -690,6 +691,7 @@ model ConversationParticipant {
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@unique([conversationId, userId])
   @@map("conversation_participants")
 }
 

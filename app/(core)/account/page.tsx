@@ -1,4 +1,3 @@
-//app/(core)/account/page.tsx
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
@@ -175,6 +174,8 @@ export default function AccountPage() {
                         id="firstName"
                         value={firstName}
                         onChange={(e) => setFirstName(e.target.value)}
+                        maxLength={7}
+                        className="bg-white"
                       />
                     </div>
                     <div className="space-y-2">
@@ -183,6 +184,8 @@ export default function AccountPage() {
                         id="lastName"
                         value={lastName}
                         onChange={(e) => setLastName(e.target.value)}
+                        maxLength={7}
+                        className="bg-white"
                       />
                     </div>
                   </div>

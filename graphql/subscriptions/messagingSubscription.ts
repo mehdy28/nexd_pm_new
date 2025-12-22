@@ -21,7 +21,7 @@ export const MESSAGE_ADDED_SUBSCRIPTION = gql`
 `;
 
 export const TICKET_MESSAGE_ADDED_SUBSCRIPTION = gql`
-  subscription TicketMessageAdded($workspaceId: ID!) {
+  subscription TicketMessageAdded($workspaceId: ID) {
     ticketMessageAdded(workspaceId: $workspaceId) {
       id
       content

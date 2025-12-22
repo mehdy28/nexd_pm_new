@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
-import { useQuery, useLazyQuery, useMutation, useSubscription, gql } from '@apollo/client';
+import { useCallback } from 'react';
+import { useQuery, useLazyQuery, useMutation, useSubscription, useApolloClient } from '@apollo/client';
 import { 
     ADMIN_SEND_TICKET_MESSAGE, 
     ADMIN_UPDATE_TICKET_STATUS,
@@ -9,7 +9,7 @@ import {
 import { TICKET_MESSAGE_ADDED_SUBSCRIPTION ,  ADMIN_TICKET_UPDATED_SUBSCRIPTION ,
    ADMIN_TICKET_ADDED_SUBSCRIPTION  } from '@/graphql/subscriptions/messagingSubscription';
 import { GET_ADMIN_SUPPORT_TICKETS, GET_ADMIN_TICKET_DETAILS } from '@/graphql/queries/adminSupportQueries';
-import { useUser } from './useUser';
+import { useAuth } from "@/hooks/useAuth";
 
 // ---------------------------------------------------------------- //
 //                          TYPE DEFINITIONS                        //
@@ -30,6 +30,7 @@ export interface TicketMessage {
   createdAt: string; // ISO Date String
   isSupport: boolean;
   sender: UserPartial;
+  ticketId: string;
 }
 
 export interface AdminTicketListItem {
@@ -68,7 +69,8 @@ export interface AdminTicketDetails {
 // ---------------------------------------------------------------- //
 
 export const useAdminSupport = () => {
-  const { user: adminUser } = useUser(); // Assuming the admin is also a 'User'
+  const { currentUser: adminUser } = useAuth();
+  const client = useApolloClient();
 
   // Query for the main list of tickets
   const { data: listData, loading: listLoading, error: listError } = useQuery<{ adminGetSupportTickets: AdminTicketListItem[] }>(GET_ADMIN_SUPPORT_TICKETS, {
@@ -83,6 +85,8 @@ export const useAdminSupport = () => {
   const [updateStatusMutation] = useMutation(ADMIN_UPDATE_TICKET_STATUS);
   const [updatePriorityMutation] = useMutation(ADMIN_UPDATE_TICKET_PRIORITY);
   const [markAsReadMutation] = useMutation(ADMIN_MARK_TICKET_AS_READ);
+
+  const selectedTicketId = detailsData?.adminGetTicketDetails?.id;
 
   // Subscription for new tickets being created
   useSubscription(ADMIN_TICKET_ADDED_SUBSCRIPTION, {
@@ -107,8 +111,8 @@ export const useAdminSupport = () => {
           }
       }
   });
-
-  // Subscription for updates to existing tickets (e.g., new message, status change)
+  
+  // This subscription is the single source of truth for LIST UPDATES.
   useSubscription(ADMIN_TICKET_UPDATED_SUBSCRIPTION, {
       onData: ({ client, data }) => {
           const updatedTicket = data.data?.adminTicketUpdated as AdminTicketListItem;
@@ -133,66 +137,57 @@ export const useAdminSupport = () => {
       }
   });
 
-
-  // Subscription for new messages on a specific ticket
-  const subscribeToTicketMessages = (ticketId: string) => {
-     useSubscription(TICKET_MESSAGE_ADDED_SUBSCRIPTION, {
-        variables: { ticketId },
-        skip: !ticketId,
-        onData: ({ client, data }) => {
-            const newMessage = data.data?.ticketMessageAdded;
-            if (!newMessage) return;
-
-            const queryOptions = { query: GET_ADMIN_TICKET_DETAILS, variables: { id: ticketId } };
-            try {
-                const cachedData = client.readQuery<{ adminGetTicketDetails: AdminTicketDetails }>(queryOptions);
-                if (cachedData?.adminGetTicketDetails) {
-                    if (cachedData.adminGetTicketDetails.messages.some(m => m.id === newMessage.id)) return;
-
-                    client.writeQuery({
-                        ...queryOptions,
-                        data: {
-                            adminGetTicketDetails: {
-                                ...cachedData.adminGetTicketDetails,
-                                messages: [...cachedData.adminGetTicketDetails.messages, newMessage]
-                            }
-                        }
-                    });
-                }
-            } catch (e) {
-                console.warn("Cache update failed for ticketMessageAdded", e);
-            }
+  // This subscription ONLY updates the DETAILS of the currently viewed ticket.
+  useSubscription(TICKET_MESSAGE_ADDED_SUBSCRIPTION, {
+      skip: !adminUser,
+      onData: ({ client, data }) => {
+        const newMessage = data.data?.ticketMessageAdded as TicketMessage;
+        if (!newMessage || newMessage.ticketId !== selectedTicketId) {
+          // Do nothing if the message is not for the currently selected ticket.
+          return;
         }
-    });
-  };
+
+        // Update details cache for the relevant ticket
+        const detailsQueryOptions = { query: GET_ADMIN_TICKET_DETAILS, variables: { id: newMessage.ticketId } };
+        try {
+            const cachedDetails = client.readQuery<{ adminGetTicketDetails: AdminTicketDetails }>(detailsQueryOptions);
+            if (cachedDetails?.adminGetTicketDetails && !cachedDetails.adminGetTicketDetails.messages.some(m => m.id === newMessage.id)) {
+                 client.writeQuery({
+                    ...detailsQueryOptions,
+                    data: { adminGetTicketDetails: { ...cachedDetails.adminGetTicketDetails, messages: [...cachedDetails.adminGetTicketDetails.messages, newMessage] } }
+                });
+            }
+        } catch (e) { 
+            // This is expected if the details are not yet in the cache.
+        }
+      }
+  });
 
   // Callback to fetch details for a selected ticket and mark as read
   const fetchTicketDetails = useCallback((ticketId: string) => {
     const listQuery = GET_ADMIN_SUPPORT_TICKETS;
-    const client = getTicketDetails.client;
-    if (client) {
-        try {
-            const cachedList = client.readQuery<{ adminGetSupportTickets: AdminTicketListItem[] }>({ query: listQuery });
-            if (cachedList?.adminGetSupportTickets) {
-                const ticketInList = cachedList.adminGetSupportTickets.find(t => t.id === ticketId);
-                if (ticketInList && ticketInList.unreadCount > 0) {
-                    const updatedList = cachedList.adminGetSupportTickets.map(t => 
-                        t.id === ticketId ? { ...t, unreadCount: 0 } : t
-                    );
-                    client.writeQuery({
-                        query: listQuery,
-                        data: { adminGetSupportTickets: updatedList }
-                    });
-                    markAsReadMutation({ variables: { ticketId } });
-                }
+    
+    try {
+        const cachedList = client.readQuery<{ adminGetSupportTickets: AdminTicketListItem[] }>({ query: listQuery });
+        if (cachedList?.adminGetSupportTickets) {
+            const ticketInList = cachedList.adminGetSupportTickets.find(t => t.id === ticketId);
+            if (ticketInList && ticketInList.unreadCount > 0) {
+                const updatedList = cachedList.adminGetSupportTickets.map(t => 
+                    t.id === ticketId ? { ...t, unreadCount: 0 } : t
+                );
+                client.writeQuery({
+                    query: listQuery,
+                    data: { adminGetSupportTickets: updatedList }
+                });
+                markAsReadMutation({ variables: { ticketId } });
             }
-        } catch (e) {
-            console.error("Failed to optimistically update unread count.", e);
         }
+    } catch (e) {
+        console.error("Failed to optimistically update unread count.", e);
     }
 
-    getTicketDetails({ variables: { id: ticketId } });
-  }, [getTicketDetails, markAsReadMutation]);
+    getTicketDetails({ variables: { id: ticketId }, fetchPolicy: 'cache-and-network' });
+  }, [client, getTicketDetails, markAsReadMutation]);
 
 
   // Callback for sending a message as an admin
@@ -207,14 +202,12 @@ export const useAdminSupport = () => {
       variables: { ticketId, status },
       update: (cache, { data }) => {
         if (!data?.adminUpdateTicketStatus) return;
-        // Update ticket list cache
         cache.modify({
           id: cache.identify({ __typename: 'AdminTicketListItem', id: ticketId }),
           fields: {
             status: () => data.adminUpdateTicketStatus.status,
           },
         });
-        // Update details cache
         cache.modify({
             id: cache.identify({ __typename: 'AdminTicketDetails', id: ticketId }),
             fields: {
@@ -259,7 +252,6 @@ export const useAdminSupport = () => {
     detailsLoading,
     detailsError,
     fetchTicketDetails,
-    subscribeToTicketMessages,
 
     // Actions
     sendMessage,

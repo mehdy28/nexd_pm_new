@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState } from "react"
@@ -40,13 +41,13 @@ export function CustomerSupport() {
         <CardHeader className="flex-shrink-0">
               <CardTitle>Support Tickets</CardTitle>
               <CardDescription>Active customer support requests</CardDescription>
-              <div className="relative mt-2">
+              <div className="relative mt-2 rounded-md has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring has-[:focus-visible]:ring-offset-2">
                 <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder="Search tickets..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-8"
+                  className="pl-8 bg-white "
                 />
               </div>
             </CardHeader>

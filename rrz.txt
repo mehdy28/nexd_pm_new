@@ -1,266 +1,686 @@
-"use client";
-import React, { useState, useEffect, useMemo } from "react";
-import { useCreatePrompt, useGeneratePromptContent } from "@/hooks/usePromptsAi";
-import { Loader2, Sparkles } from "lucide-react";
-import { ToastType } from "@/components/ui/custom-toast";
+Acknowledged. The problem is that the real-time subscriptions are only updating the cache for the *currently active* ticket or conversation. When a message arrives for an inactive item, the details for that item are not updated in the cache, leading to stale data being shown upon selection.
 
-interface GeneratePromptModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  WhiteboardImageBase64: string | null;
-  WhiteboardId?: string | null;
-  onShowToast: (message: string, type: ToastType) => void;
+I will adjust the subscription logic in both `useMessaging` and `useAdminSupport` hooks. The new logic will attempt to update the cache for *any* incoming message, regardless of whether its corresponding ticket/conversation is currently selected. I will also change the fetch policy when selecting an item to ensure the UI gets the most up-to-date information.
+
+Here are the complete, updated files to resolve this issue.
+
+### `hooks/useMessaging.ts`
+
+```typescript
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { useQuery, useLazyQuery, useMutation, useSubscription, useApolloClient } from '@apollo/client';
+import { 
+  CREATE_TICKET, 
+  CREATE_GROUP_CONVERSATION, 
+  SEND_MESSAGE, 
+  SEND_TICKET_MESSAGE, 
+  CREATE_DIRECT_CONVERSATION, 
+  USER_IS_TYPING, 
+  MARK_CONVERSATION_AS_READ,
+  MARK_TICKET_AS_READ,
+  LEAVE_CONVERSATION,
+  REMOVE_PARTICIPANT,
+  ADD_PARTICIPANTS
+} from '@/graphql/mutations/messagingMutations';
+import { 
+  MESSAGE_ADDED_SUBSCRIPTION, 
+  TICKET_MESSAGE_ADDED_SUBSCRIPTION, 
+  TYPING_USER_SUBSCRIPTION, 
+  COMMUNICATION_ITEM_ADDED_SUBSCRIPTION,
+  PARTICIPANT_REMOVED_SUBSCRIPTION
+} from '@/graphql/subscriptions/messagingSubscription';
+import { GET_MESSAGING_DATA, GET_CONVERSATION_DETAILS, GET_TICKET_DETAILS } from '@/graphql/queries/messagingQuerries';
+import { debounce } from 'lodash';
+import { useUser } from '@/hooks/useUser';
+
+// ---------------------------------------------------------------- //
+//                          TYPE DEFINITIONS                        //
+// ---------------------------------------------------------------- //
+export interface TypingUser {
+  id: string;
+  firstName: string | null;
+  lastName: string | null;
 }
 
-const AnimatedDots = () => {
-    const [dots, setDots] = useState('');
-    useEffect(() => {
-        const interval = setInterval(() => {
-            setDots(d => (d.length >= 3 ? '' : d + '.'));
-        }, 300);
-        return () => clearInterval(interval);
-    }, []);
-    return <span className="ml-1 w-4 inline-block text-left">{dots}</span>;
-};
+export interface UserAvatarPartial {
+  id: string;
+  firstName: string | null;
+  lastName: string | null;
+  avatar: string | null;
+  avatarColor?: string | null; 
+  __typename?: 'UserAvatarPartial';
+}
 
-export const GeneratePromptModal: React.FC<GeneratePromptModalProps> = ({
-  isOpen,
-  onClose,
-  WhiteboardImageBase64,
-  WhiteboardId,
-  onShowToast,
-}) => {
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [generatedContent, setGeneratedContent] = useState<string | null>(null);
-  
-  const { 
-    generate, 
-    loading: isGenerating, 
-    error: generateError 
-  } = useGeneratePromptContent();
+export interface CommunicationItem {
+  id: string;
+  type: 'conversation' | 'ticket';
+  title: string;
+  lastMessage: string | null;
+  participantInfo: string;
+  updatedAt: string; // ISO Date String
+  unreadCount: number;
+  priority?: 'LOW' | 'MEDIUM' | 'HIGH';
+  conversationType?: 'DIRECT' | 'GROUP';
+  participants?: UserAvatarPartial[];
+  __typename?: 'CommunicationListItem';
+}
 
-  const { 
-    createPrompt, 
-    loading: isCreating, 
-    error: createError 
-  } = useCreatePrompt();
-  
-  const generationPhases = useMemo(() => ['Thinking', 'Analyzing Whiteboard', 'Generating Content'], []);
-  const [currentPhaseIndex, setCurrentPhaseIndex] = useState<number>(-1);
+export interface WorkspaceMember {
+  id: string; // ID of the WorkspaceMember record
+  role: string;
+  user: UserAvatarPartial & { email: string };
+}
+
+export interface Message {
+  id: string;
+  content: string;
+  createdAt: string; // ISO Date String
+  sender: UserAvatarPartial;
+  conversationId: string;
+  __typename?: 'Message';
+}
+
+export interface TicketMessage extends Message {
+  isSupport: boolean;
+  ticketId: string;
+  __typename?: 'TicketMessage';
+}
+
+export interface ConversationDetails {
+  id: string;
+  type: 'DIRECT' | 'GROUP';
+  name: string | null;
+  creatorId?: string;
+  participants: UserAvatarPartial[]; 
+  messages: Message[];
+}
+
+export interface TicketDetails {
+  id: string;
+  subject: string;
+  priority: 'LOW' | 'MEDIUM' | 'HIGH';
+  status: 'OPEN' | 'IN_PROGRESS' | 'RESOLVED' | 'CLOSED';
+  creator: UserAvatarPartial;
+  messages: TicketMessage[];
+  createdAt: string; // ISO Date String
+}
+
+// ---------------------------------------------------------------- //
+//                         THE CUSTOM HOOK                          //
+// ---------------------------------------------------------------- //
+
+interface UseMessagingParams {
+  workspaceId: string;
+}
+
+export const useMessaging = ({ workspaceId }: UseMessagingParams) => {
+  const client = useApolloClient();
+  const { user: currentUser } = useUser();
+  const [selectedItem, setSelectedItem] = useState<CommunicationItem | null>(null);
+  const [typingUsers, setTypingUsers] = useState<TypingUser[]>([]);
+  const typingTimeoutRef = useRef<Record<string, NodeJS.Timeout>>({});
+
+  const { data, loading, error, refetch } = useQuery<{ getCommunicationList: CommunicationItem[], getWorkspaceMembers: WorkspaceMember[] }>(GET_MESSAGING_DATA, {
+    variables: { workspaceId },
+    skip: !workspaceId,
+    fetchPolicy: 'cache-and-network',
+  });
+
+  const [getConversation, { data: conversationData, loading: conversationLoading }] = useLazyQuery<{ getConversation: ConversationDetails }>(GET_CONVERSATION_DETAILS);
+  const [getTicket, { data: ticketData, loading: ticketLoading }] = useLazyQuery<{ getTicket: TicketDetails }>(GET_TICKET_DETAILS);
+
+  const [sendMessageMutation, { loading: sendingMessage }] = useMutation(SEND_MESSAGE);
+  const [sendTicketMessageMutation, { loading: sendingTicketMessage }] = useMutation(SEND_TICKET_MESSAGE);
+  const [createTicketMutation] = useMutation(CREATE_TICKET);
+  const [createDirectConversationMutation] = useMutation(CREATE_DIRECT_CONVERSATION);
+  const [createGroupConversationMutation] = useMutation(CREATE_GROUP_CONVERSATION);
+  const [userIsTypingMutation] = useMutation(USER_IS_TYPING);
+  const [markAsReadMutation] = useMutation(MARK_CONVERSATION_AS_READ);
+  const [markAsReadTicketMutation] = useMutation(MARK_TICKET_AS_READ);
+  const [leaveConversationMutation] = useMutation(LEAVE_CONVERSATION);
+  const [removeParticipantMutation] = useMutation(REMOVE_PARTICIPANT);
+  const [addParticipantsMutation] = useMutation(ADD_PARTICIPANTS);
+
+  // Subscription for newly created tickets and conversations
+  useSubscription(COMMUNICATION_ITEM_ADDED_SUBSCRIPTION, {
+    variables: { workspaceId },
+    skip: !workspaceId,
+    onData: ({ client, data }) => {
+      const newItem = data.data?.communicationItemAdded as CommunicationItem;
+      if (!newItem) return;
+
+      const query = GET_MESSAGING_DATA;
+      try {
+        const cachedData = client.readQuery<{ getCommunicationList: CommunicationItem[] }>({ query, variables: { workspaceId } });
+        if (cachedData?.getCommunicationList) {
+          if (cachedData.getCommunicationList.some(item => item.id === newItem.id)) return;
+          
+          const newList = [newItem, ...cachedData.getCommunicationList];
+          client.writeQuery({ 
+            query, 
+            variables: { workspaceId }, 
+            data: { ...cachedData, getCommunicationList: newList } 
+          });
+        }
+      } catch (e) {
+        console.warn("Could not update communication list cache with new item.", e);
+      }
+    }
+  });
+
+  // GOAL 1: Handle Instant Kick/Removal Updates
+  useSubscription(PARTICIPANT_REMOVED_SUBSCRIPTION, {
+    onData: ({ client, data }) => {
+        const removedInfo = data.data?.participantRemoved;
+        if (!removedInfo) return;
+
+        if (removedInfo.userId === currentUser?.id && selectedItem?.id === removedInfo.conversationId) {
+            getConversation({ variables: { id: removedInfo.conversationId }, fetchPolicy: 'network-only' });
+        } else if (selectedItem?.id === removedInfo.conversationId) {
+            getConversation({ variables: { id: removedInfo.conversationId }, fetchPolicy: 'network-only' });
+        }
+    }
+  });
+
+  // Main Message Subscription
+  useSubscription(MESSAGE_ADDED_SUBSCRIPTION, {
+    variables: { workspaceId },
+    onData: ({ client, data }) => {
+      const newMessage = data.data?.messageAdded as Message;
+      if (!newMessage) return;
+      
+      const isForCurrentChat = selectedItem?.id === newMessage.conversationId;
+
+      // Update the details cache for the conversation, even if not currently viewed.
+      const queryOptions = { query: GET_CONVERSATION_DETAILS, variables: { id: newMessage.conversationId } };
+      try {
+        const cachedData = client.readQuery<{ getConversation: ConversationDetails }>(queryOptions);
+        if (cachedData?.getConversation && !cachedData.getConversation.messages.some(m => m.id === newMessage.id)) {
+          client.writeQuery({ 
+            ...queryOptions, 
+            data: { getConversation: { ...cachedData.getConversation, messages: [...cachedData.getConversation.messages, newMessage] } } 
+          });
+        }
+      } catch (e) {
+        // This is expected if the conversation details haven't been cached yet.
+      }
+      
+      // Update the list item
+      const listQuery = GET_MESSAGING_DATA;
+      try {
+        const cachedList = client.readQuery<{ getCommunicationList: CommunicationItem[] }>({ query: listQuery, variables: { workspaceId } });
+        if (cachedList?.getCommunicationList) {
+           const updatedList = cachedList.getCommunicationList.map(item => {
+              if (item.id === newMessage.conversationId) {
+                 return {
+                    ...item,
+                    lastMessage: newMessage.content,
+                    updatedAt: newMessage.createdAt,
+                    unreadCount: !isForCurrentChat ? item.unreadCount + 1 : 0
+                 };
+              }
+              return item;
+           }).sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+
+           client.writeQuery({
+              query: listQuery,
+              variables: { workspaceId },
+              data: { ...cachedList, getCommunicationList: updatedList }
+           });
+        }
+      } catch (e) {
+        console.warn("Cache update failed for messageAdded (List)", e);
+      }
+    },
+  });
+
+  useSubscription(TICKET_MESSAGE_ADDED_SUBSCRIPTION, {
+    variables: { workspaceId },
+    skip: !workspaceId,
+    onData: ({ client, data }) => {
+      const newMessage = data.data?.ticketMessageAdded as TicketMessage;
+      if (!newMessage) return;
+      
+      const isForCurrentTicket = selectedItem?.id === newMessage.ticketId && selectedItem.type === 'ticket';
+
+      // Update the detailed view cache, even if the ticket is not currently open
+      const queryOptions = { query: GET_TICKET_DETAILS, variables: { id: newMessage.ticketId } };
+      try {
+        const cachedData = client.readQuery<{ getTicket: TicketDetails }>(queryOptions);
+        if (cachedData?.getTicket && !cachedData.getTicket.messages.some(m => m.id === newMessage.id)) {
+          client.writeQuery({ 
+            ...queryOptions, 
+            data: { getTicket: { ...cachedData.getTicket, messages: [...cachedData.getTicket.messages, newMessage] } } 
+          });
+        }
+      } catch (e) {
+        // This is expected if the ticket details haven't been cached yet.
+      }
+
+      // Update the main communication list
+      const listQuery = GET_MESSAGING_DATA;
+      try {
+        const cachedList = client.readQuery<{ getCommunicationList: CommunicationItem[] }>({ query: listQuery, variables: { workspaceId } });
+        if (cachedList?.getCommunicationList) {
+           const updatedList = cachedList.getCommunicationList.map(item => {
+              if (item.type === 'ticket' && item.id === newMessage.ticketId) {
+                 return {
+                    ...item,
+                    lastMessage: newMessage.content,
+                    updatedAt: newMessage.createdAt,
+                    unreadCount: !isForCurrentTicket ? item.unreadCount + 1 : 0
+                 };
+              }
+              return item;
+           }).sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+
+           client.writeQuery({
+              query: listQuery,
+              variables: { workspaceId },
+              data: { ...cachedList, getCommunicationList: updatedList }
+           });
+        }
+      } catch (e) {
+        console.warn("Cache update failed for ticketMessageAdded (List)", e);
+      }
+    },
+  });
+
+  useSubscription(TYPING_USER_SUBSCRIPTION, {
+    variables: { conversationId: selectedItem?.id },
+    skip: !selectedItem || selectedItem.type !== 'conversation',
+    onData: ({ data }) => {
+      const typingUser = data.data?.typingUser as TypingUser;
+      if (!typingUser) return;
+
+      if (typingTimeoutRef.current[typingUser.id]) {
+        clearTimeout(typingTimeoutRef.current[typingUser.id]);
+      }
+
+      setTypingUsers(current => current.some(u => u.id === typingUser.id) ? current : [...current, typingUser]);
+
+      typingTimeoutRef.current[typingUser.id] = setTimeout(() => {
+        setTypingUsers(current => current.filter(u => u.id !== typingUser.id));
+        delete typingTimeoutRef.current[typingUser.id];
+      }, 3000);
+    },
+  });
 
   useEffect(() => {
-      let interval: NodeJS.Timeout | undefined;
-      if (isGenerating) {
-          setGeneratedContent(null);
-          setCurrentPhaseIndex(0);
-          interval = setInterval(() => {
-              setCurrentPhaseIndex(prevIndex => {
-                  if (prevIndex < generationPhases.length) {
-                      return prevIndex + 1;
-                  }
-                  clearInterval(interval!);
-                  return prevIndex;
-              });
-          }, 1500);
-      } else {
-          setCurrentPhaseIndex(-1);
-      }
-      return () => {
-          if (interval) clearInterval(interval);
-      };
-  }, [isGenerating, generationPhases.length]);
-
-  const handleGenerate = async () => {
-    if (!WhiteboardImageBase64) return;
-
-    try {
-      const result = await generate({
-        variables: {
-          input: {
-            imageBase64: WhiteboardImageBase64,
-            context: description,
-          },
-        },
-      });
-      if (result.data?.generatePromptFromWhiteboard) {
-        setGeneratedContent(result.data.generatePromptFromWhiteboard);
-        onShowToast("Content generated successfully", "success");
-      }
-    } catch (err) {
-      console.error("Failed to generate content:", err);
-      onShowToast("Failed to generate content", "error");
+    if (!selectedItem) return;
+    setTypingUsers([]);
+    if (selectedItem.type === 'conversation') {
+      getConversation({ variables: { id: selectedItem.id }, fetchPolicy: 'cache-and-network' });
+    } else if (selectedItem.type === 'ticket') {
+      getTicket({ variables: { id: selectedItem.id }, fetchPolicy: 'cache-and-network' });
     }
-  };
+  }, [selectedItem, getConversation, getTicket]);
 
-  const handleCreatePrompt = async () => {
-    if (!generatedContent || !title || !WhiteboardId) return;
+  const handleSelectItem = useCallback((item: CommunicationItem | null) => {
+    setSelectedItem(item);
 
-    const versionInput = {
-      context: description, 
-      content: [{ type: "text", value: generatedContent, order: 0 }],
-      variables: [], 
-    };
+    if (!item || item.unreadCount <= 0) {
+      return;
+    }
 
-    const input = {
-      title,
-      description,
-      WhiteboardId: WhiteboardId,
-      versions: [versionInput], 
-    };
-
+    const query = GET_MESSAGING_DATA;
     try {
-      await createPrompt({ variables: { input } });
-      onShowToast("Prompt created successfully", "success");
-      handleClose();
+      const cachedData = client.readQuery<{ getCommunicationList: CommunicationItem[] }>({ query, variables: { workspaceId } });
+      if (cachedData?.getCommunicationList) {
+        const newList = cachedData.getCommunicationList.map(cachedItem => 
+          cachedItem.id === item.id ? { ...cachedItem, unreadCount: 0 } : cachedItem
+        );
+        client.writeQuery({
+          query,
+          variables: { workspaceId },
+          data: { ...cachedData, getCommunicationList: newList }
+        });
+      }
     } catch (e) {
-      console.error("Failed to create prompt:", e);
-      onShowToast("Failed to create prompt", "error");
+      console.error("Failed to optimistically update unread count in cache:", e);
     }
+    
+    if (item.type === 'conversation') {
+      markAsReadMutation({ variables: { conversationId: item.id } });
+    } else if (item.type === 'ticket') {
+      markAsReadTicketMutation({ variables: { ticketId: item.id }});
+    }
+  }, [workspaceId, client, markAsReadMutation, markAsReadTicketMutation]);
+
+  const handleSendMessage = useCallback(async (content: string) => {
+    if (!selectedItem || content.trim() === '') return;
+    if (selectedItem.type === 'conversation') {
+      await sendMessageMutation({ variables: { conversationId: selectedItem.id, content } });
+    } else {
+      await sendTicketMessageMutation({ variables: { ticketId: selectedItem.id, content } });
+    }
+  }, [selectedItem, sendMessageMutation, sendTicketMessageMutation]);
+
+  const notifyTyping = useCallback(
+    debounce(() => {
+      if (selectedItem?.type === 'conversation') {
+        userIsTypingMutation({ variables: { conversationId: selectedItem.id } });
+      }
+    }, 500),
+    [selectedItem, userIsTypingMutation]
+  );
+
+  const handleCreateTicket = useCallback(async (data: { subject: string; priority: 'LOW' | 'MEDIUM' | 'HIGH'; message: string }) => {
+    const response = await createTicketMutation({
+      variables: { workspaceId, ...data },
+    });
+    return response.data?.createTicket;
+  }, [workspaceId, createTicketMutation]);
+
+  const handleLeaveConversation = useCallback(async (conversationId: string) => {
+      await leaveConversationMutation({ variables: { conversationId }});
+      getConversation({ variables: { id: conversationId }, fetchPolicy: 'network-only' });
+  }, [leaveConversationMutation, getConversation]);
+
+  const handleRemoveParticipant = useCallback(async (conversationId: string, userId: string) => {
+      await removeParticipantMutation({ variables: { conversationId, userId }});
+      getConversation({ variables: { id: conversationId }, fetchPolicy: 'network-only' });
+  }, [removeParticipantMutation, getConversation]);
+
+  const handleAddParticipants = useCallback(async (conversationId: string, participantIds: string[]) => {
+      await addParticipantsMutation({ variables: { conversationId, participantIds }});
+      getConversation({ variables: { id: conversationId }, fetchPolicy: 'network-only' });
+  }, [addParticipantsMutation, getConversation]);
+
+
+  // Determine correct active details based on selected type
+  let activeItemDetails: ConversationDetails | TicketDetails | undefined | null = null;
+  if (selectedItem?.type === 'conversation') {
+      activeItemDetails = conversationData?.getConversation;
+  } else if (selectedItem?.type === 'ticket') {
+      activeItemDetails = ticketData?.getTicket;
+  }
+
+  return {
+    communicationList: data?.getCommunicationList || [],
+    workspaceMembers: data?.getWorkspaceMembers || [],
+    listLoading: loading,
+    error,
+    refetch,
+    selectedItem,
+    setSelectedItem: handleSelectItem,
+    activeItemDetails,
+    itemLoading: conversationLoading || ticketLoading,
+    sendMessage: handleSendMessage,
+    sendingMessage: sendingMessage || sendingTicketMessage,
+    createTicket: handleCreateTicket,
+    createDirectConversation: createDirectConversationMutation,
+    createGroupConversation: createGroupConversationMutation,
+    leaveConversation: handleLeaveConversation,
+    removeParticipant: handleRemoveParticipant,
+    addParticipants: handleAddParticipants,
+    typingUsers,
+    notifyTyping,
   };
+};
+```
 
-  const handleClose = () => {
-    setTitle("");
-    setDescription("");
-    setGeneratedContent(null);
-    onClose();
+### `hooks/useAdminSupport.ts`
+
+```typescript
+import { useCallback } from 'react';
+import { useQuery, useLazyQuery, useMutation, useSubscription, useApolloClient } from '@apollo/client';
+import { 
+    ADMIN_SEND_TICKET_MESSAGE, 
+    ADMIN_UPDATE_TICKET_STATUS,
+    ADMIN_UPDATE_TICKET_PRIORITY , 
+    ADMIN_MARK_TICKET_AS_READ
+} from '@/graphql/mutations/adminSupportMutations';
+import { TICKET_MESSAGE_ADDED_SUBSCRIPTION ,  ADMIN_TICKET_UPDATED_SUBSCRIPTION ,
+   ADMIN_TICKET_ADDED_SUBSCRIPTION  } from '@/graphql/subscriptions/messagingSubscription';
+import { GET_ADMIN_SUPPORT_TICKETS, GET_ADMIN_TICKET_DETAILS } from '@/graphql/queries/adminSupportQueries';
+import { useUser } from './useUser';
+
+// ---------------------------------------------------------------- //
+//                          TYPE DEFINITIONS                        //
+// ---------------------------------------------------------------- //
+
+export interface UserPartial {
+  id: string;
+  firstName: string | null;
+  lastName: string | null;
+  email?: string;
+  avatar: string | null;
+  avatarColor?: string | null;
+}
+
+export interface TicketMessage {
+  id: string;
+  content: string;
+  createdAt: string; // ISO Date String
+  isSupport: boolean;
+  sender: UserPartial;
+  ticketId: string;
+}
+
+export interface AdminTicketListItem {
+  id: string;
+  subject: string;
+  status: 'OPEN' | 'IN_PROGRESS' | 'RESOLVED' | 'CLOSED';
+  priority: 'LOW' | 'MEDIUM' | 'HIGH';
+  updatedAt: string; // ISO Date String
+  unreadCount: number;
+  creator: UserPartial;
+  workspace: {
+    id: string;
+    name: string;
+    plan: 'FREE' | 'PRO' | 'ENTERPRISE';
   };
+}
 
-  if (!isOpen) return null;
+export interface AdminTicketDetails {
+  id: string;
+  subject: string;
+  priority: 'LOW' | 'MEDIUM' | 'HIGH';
+  status: 'OPEN' | 'IN_PROGRESS' | 'RESOLVED' | 'CLOSED';
+  createdAt: string; // ISO Date String
+  creator: UserPartial;
+  workspace: {
+    id: string;
+    name: string;
+    plan: 'FREE' | 'PRO' | 'ENTERPRISE';
+    memberCount: number;
+  };
+  messages: TicketMessage[];
+}
 
-  const combinedError = generateError || createError;
+// ---------------------------------------------------------------- //
+//                         THE CUSTOM HOOK                          //
+// ---------------------------------------------------------------- //
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm" onClick={handleClose}>
-      <div 
-        className="bg-white rounded-lg shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col saas-card"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="p-3 pl-6 pr-6 border-b">
-          <h2 className="text-xl font-bold text-gray-800">Generate Prompt from Whiteboard</h2>
-        </div>
+export const useAdminSupport = () => {
+  const { user: adminUser } = useUser();
+  const client = useApolloClient();
 
-        <div className="flex-1 p-3 overflow-hidden grid grid-cols-1 md:grid-cols-2 gap-8">
-          <div className="flex flex-col space-y-6 overflow-y-auto pr-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-600 mb-2">Whiteboard Preview</label>
-              {WhiteboardImageBase64 ? (
-                <img src={WhiteboardImageBase64} alt="Whiteboard Preview" className="rounded-md border border-gray-200 shadow-sm w-full object-contain max-h-48" />
-              ) : (
-                <div className="rounded-md border border-dashed border-gray-300 bg-gray-50 h-48 flex items-center justify-center">
-                  <p className="text-sm text-gray-500">No Whiteboard image provided.</p>
-                </div>
-              )}
-            </div>
-            <div>
-              <label htmlFor="title" className="block text-sm font-medium text-gray-600 mb-1">Prompt Title</label>
-              <input
-                type="text"
-                id="title"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-teal-500 focus:border-teal-500"
-                placeholder="e.g., User Dashboard UI Prompt"
-                disabled={isGenerating}
-              />
-            </div>
-            <div>
-              <label htmlFor="description" className="block text-sm font-medium text-gray-600 mb-1">Context / Description</label>
-              <textarea
-                id="description"
-                rows={5}
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-teal-500 focus:border-teal-500"
-                placeholder="Provide context for the AI, e.g., 'This is the main dashboard for a project management tool.'"
-                disabled={isGenerating}
-              />
-            </div>
-          </div>
+  // Query for the main list of tickets
+  const { data: listData, loading: listLoading, error: listError } = useQuery<{ adminGetSupportTickets: AdminTicketListItem[] }>(GET_ADMIN_SUPPORT_TICKETS, {
+    fetchPolicy: 'cache-and-network',
+  });
 
-          <div className="flex flex-col">
-            <label className="block text-sm font-medium text-gray-600 mb-1">AI Output</label>
-            <div className="flex-1 mt-1 p-4 border border-gray-200 rounded-md bg-gray-50/50 flex flex-col justify-between min-h-[300px]">
-              
-              <div className="flex-1">
-                {isGenerating && (
-                  <div className="flex flex-col justify-center items-center h-full text-sm">
-                      {generationPhases.map((phase, index) => {
-                          if (index > currentPhaseIndex) return null;
+  // Lazy query for a single ticket's details
+  const [getTicketDetails, { data: detailsData, loading: detailsLoading, error: detailsError }] = useLazyQuery<{ adminGetTicketDetails: AdminTicketDetails }>(GET_ADMIN_TICKET_DETAILS);
 
-                          const isCompleted = index < currentPhaseIndex;
-                          const isActive = index === currentPhaseIndex && index < generationPhases.length;
+  // Mutations
+  const [sendMessageMutation, { loading: sendingMessage }] = useMutation(ADMIN_SEND_TICKET_MESSAGE);
+  const [updateStatusMutation] = useMutation(ADMIN_UPDATE_TICKET_STATUS);
+  const [updatePriorityMutation] = useMutation(ADMIN_UPDATE_TICKET_PRIORITY);
+  const [markAsReadMutation] = useMutation(ADMIN_MARK_TICKET_AS_READ);
 
-                          return (
-                              <div key={phase} className="flex items-center mb-3 last:mb-0 transition-all duration-300 w-full">
-                                  <div className="w-6 flex-shrink-0 flex items-center justify-center">
-                                  {isCompleted ? (
-                                      <span className="text-emerald-500 font-bold">✓</span>
-                                  ) : isActive ? (
-                                      <Loader2 className="h-4 w-4 animate-spin text-gray-500" />
-                                  ) : <div className="h-4 w-4"></div> }
-                                  </div>
-                                  <span className={`font-medium ml-2 ${isCompleted ? 'text-gray-400 line-through' : 'text-gray-700'}`}>{phase}</span>
-                                  {isActive && <AnimatedDots />}
-                              </div>
-                          );
-                      })}
-                  </div>
-                )}
-                
-                {generatedContent && !isGenerating && (
-                   <textarea
-                     readOnly
-                     value={generatedContent}
-                     className="w-full h-full bg-transparent border-none focus:ring-0 resize-none text-sm text-gray-700 p-2"
-                   />
-                )}
-                
-                {!isGenerating && !generatedContent && (
-                  <div className="flex flex-col justify-center items-center h-full text-center">
-                    <div className="p-3 bg-teal-100 rounded-full mb-3">
-                      <Sparkles className="h-6 w-6 text-teal-600" />
-                    </div>
-                    <p className="font-semibold text-gray-700">Ready to Generate</p>
-                    <p className="text-xs text-gray-500">Fill in the title and context, then click "Generate Content".</p>
-                  </div>
-                )}
-              </div>
+  const selectedTicketId = detailsData?.adminGetTicketDetails?.id;
 
-              {!isGenerating && !generatedContent && (
-                <button
-                  onClick={handleGenerate}
-                  disabled={!description || !title || !WhiteboardImageBase64}
-                  className="w-full mt-4 flex justify-center items-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-teal-500 hover:bg-teal-600 disabled:bg-gray-300 disabled:cursor-not-allowed focus:outline-none"
-                >
-                  <Sparkles className="h-4 w-4 mr-2" />
-                  Generate Content
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
+  // Subscription for new tickets being created
+  useSubscription(ADMIN_TICKET_ADDED_SUBSCRIPTION, {
+      onData: ({ client, data }) => {
+          const newTicket = data.data?.adminTicketAdded as AdminTicketListItem;
+          if (!newTicket) return;
 
-        {combinedError && 
-          <div className="px-6 py-2 border-t">
-            <p className="text-red-600 text-sm">{combinedError.message}</p>
-          </div>
+          const query = GET_ADMIN_SUPPORT_TICKETS;
+          try {
+              const cachedData = client.readQuery<{ adminGetSupportTickets: AdminTicketListItem[] }>({ query });
+              if (cachedData?.adminGetSupportTickets) {
+                  if (cachedData.adminGetSupportTickets.some(t => t.id === newTicket.id)) return;
+                  
+                  const newList = [newTicket, ...cachedData.adminGetSupportTickets];
+                  client.writeQuery({ 
+                      query, 
+                      data: { adminGetSupportTickets: newList } 
+                  });
+              }
+          } catch (e) {
+              console.warn("Could not update admin ticket list cache with new ticket.", e);
+          }
+      }
+  });
+  
+  // Subscription for new messages on any ticket
+  useSubscription(TICKET_MESSAGE_ADDED_SUBSCRIPTION, {
+      skip: !adminUser,
+      onData: ({ client, data }) => {
+        const newMessage = data.data?.ticketMessageAdded as TicketMessage;
+        if (!newMessage) return;
+
+        const isForCurrentTicket = selectedTicketId === newMessage.ticketId;
+
+        // Update details cache for the relevant ticket, even if not active
+        const detailsQueryOptions = { query: GET_ADMIN_TICKET_DETAILS, variables: { id: newMessage.ticketId } };
+        try {
+            const cachedDetails = client.readQuery<{ adminGetTicketDetails: AdminTicketDetails }>(detailsQueryOptions);
+            if (cachedDetails?.adminGetTicketDetails && !cachedDetails.adminGetTicketDetails.messages.some(m => m.id === newMessage.id)) {
+                 client.writeQuery({
+                    ...detailsQueryOptions,
+                    data: { adminGetTicketDetails: { ...cachedDetails.adminGetTicketDetails, messages: [...cachedDetails.adminGetTicketDetails.messages, newMessage] } }
+                });
+            }
+        } catch (e) { 
+            // This is expected if the details are not yet in the cache.
         }
 
-        <div className="p-4 bg-gray-50 border-t flex justify-end space-x-3">
-          <button onClick={handleClose} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-100">
-            Cancel
-          </button>
-          <button
-            onClick={handleCreatePrompt}
-            disabled={!generatedContent || !title || isCreating || !WhiteboardId}
-            className="px-4 py-2 bg-teal-500 text-white rounded-lg hover:bg-teal-600 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center"
-          >
-            {isCreating ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : null}
-            Create Prompt
-          </button>
-        </div>
-      </div>
-    </div>
-  );
+        // Update the list item (unread count, last updated)
+        const listQuery = GET_ADMIN_SUPPORT_TICKETS;
+        try {
+            const cachedList = client.readQuery<{ adminGetSupportTickets: AdminTicketListItem[] }>({ query: listQuery });
+            if (cachedList?.adminGetSupportTickets) {
+                const updatedList = cachedList.adminGetSupportTickets.map(ticket => {
+                    if (ticket.id === newMessage.ticketId) {
+                        return {
+                            ...ticket,
+                            updatedAt: newMessage.createdAt,
+                            unreadCount: isForCurrentTicket ? 0 : ticket.unreadCount + 1
+                        };
+                    }
+                    return ticket;
+                }).sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+                 client.writeQuery({ query: listQuery, data: { adminGetSupportTickets: updatedList } });
+            }
+        } catch (e) { 
+            console.warn("Could not update admin ticket list cache for new message.", e);
+        }
+      }
+  });
+
+  // Callback to fetch details for a selected ticket and mark as read
+  const fetchTicketDetails = useCallback((ticketId: string) => {
+    const listQuery = GET_ADMIN_SUPPORT_TICKETS;
+    
+    try {
+        const cachedList = client.readQuery<{ adminGetSupportTickets: AdminTicketListItem[] }>({ query: listQuery });
+        if (cachedList?.adminGetSupportTickets) {
+            const ticketInList = cachedList.adminGetSupportTickets.find(t => t.id === ticketId);
+            if (ticketInList && ticketInList.unreadCount > 0) {
+                const updatedList = cachedList.adminGetSupportTickets.map(t => 
+                    t.id === ticketId ? { ...t, unreadCount: 0 } : t
+                );
+                client.writeQuery({
+                    query: listQuery,
+                    data: { adminGetSupportTickets: updatedList }
+                });
+                markAsReadMutation({ variables: { ticketId } });
+            }
+        }
+    } catch (e) {
+        console.error("Failed to optimistically update unread count.", e);
+    }
+
+    getTicketDetails({ variables: { id: ticketId }, fetchPolicy: 'cache-and-network' });
+  }, [client, getTicketDetails, markAsReadMutation]);
+
+
+  // Callback for sending a message as an admin
+  const sendMessage = useCallback(async (ticketId: string, content: string) => {
+    if (!ticketId || content.trim() === '') return;
+    await sendMessageMutation({ variables: { ticketId, content } });
+  }, [sendMessageMutation]);
+
+  // Callback for updating ticket status
+  const updateTicketStatus = useCallback(async (ticketId: string, status: 'OPEN' | 'IN_PROGRESS' | 'RESOLVED' | 'CLOSED') => {
+    await updateStatusMutation({ 
+      variables: { ticketId, status },
+      update: (cache, { data }) => {
+        if (!data?.adminUpdateTicketStatus) return;
+        cache.modify({
+          id: cache.identify({ __typename: 'AdminTicketListItem', id: ticketId }),
+          fields: {
+            status: () => data.adminUpdateTicketStatus.status,
+          },
+        });
+        cache.modify({
+            id: cache.identify({ __typename: 'AdminTicketDetails', id: ticketId }),
+            fields: {
+              status: () => data.adminUpdateTicketStatus.status,
+            },
+        });
+      }
+    });
+  }, [updateStatusMutation]);
+
+  // Callback for updating ticket priority
+  const updateTicketPriority = useCallback(async (ticketId: string, priority: 'LOW' | 'MEDIUM' | 'HIGH') => {
+    await updatePriorityMutation({ 
+      variables: { ticketId, priority },
+      update: (cache, { data }) => {
+        if (!data?.adminUpdateTicketPriority) return;
+        cache.modify({
+            id: cache.identify({ __typename: 'AdminTicketListItem', id: ticketId }),
+            fields: {
+              priority: () => data.adminUpdateTicketPriority.priority,
+            },
+        });
+        cache.modify({
+            id: cache.identify({ __typename: 'AdminTicketDetails', id: ticketId }),
+            fields: {
+              priority: () => data.adminUpdateTicketPriority.priority,
+            },
+        });
+      }
+    });
+  }, [updatePriorityMutation]);
+
+
+  return {
+    // List properties
+    tickets: listData?.adminGetSupportTickets || [],
+    listLoading,
+    listError,
+
+    // Details properties
+    ticketDetails: detailsData?.adminGetTicketDetails,
+    detailsLoading,
+    detailsError,
+    fetchTicketDetails,
+
+    // Actions
+    sendMessage,
+    sendingMessage,
+    updateTicketStatus,
+    updateTicketPriority,
+
+    // Context
+    adminUser
+  };
 };
+```
