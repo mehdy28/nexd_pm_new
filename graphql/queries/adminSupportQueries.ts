@@ -26,13 +26,14 @@ export const GET_ADMIN_SUPPORT_TICKETS = gql`
 `;
 
 export const GET_ADMIN_TICKET_DETAILS = gql`
-  query GetAdminTicketDetails($id: ID!) {
-    adminGetTicketDetails(id: $id) {
+  query GetAdminTicketDetails($id: ID!, $cursor: ID, $limit: Int) {
+    adminGetTicketDetails(id: $id, cursor: $cursor, limit: $limit) {
       id
       subject
       priority
       status
       createdAt
+      hasMoreMessages
       creator {
         id
         firstName

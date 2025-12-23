@@ -1,6 +1,6 @@
-// hooks/useWorkspaceData.ts
 import { useQuery } from "@apollo/client";
-import { GET_WORKSPACE_DATA_QUERY } from "@/graphql/queries/getWorkspaceData"; // Adjust path
+import { GET_WORKSPACE_DATA_QUERY } from "@/graphql/queries/getWorkspaceData";
+import { useAuth } from "@/hooks/useAuth";
 
 // Define the type for the data returned by the query
 interface UserPartial {
@@ -44,27 +44,17 @@ interface GetWorkspaceDataResponse {
 }
 
 export function useWorkspaceData() {
+  const { currentUser, loading: authLoading } = useAuth();
+
   const { data, loading, error, refetch } = useQuery<GetWorkspaceDataResponse>(GET_WORKSPACE_DATA_QUERY, {
-    fetchPolicy: "network-only", // Ensure fresh data on initial load
-    // No variables needed as userId is implicitly from context
+    fetchPolicy: "network-only",
+    skip: !currentUser, // Skip the query if there is no authenticated user
   });
 
   return {
     workspaceData: data?.getWorkspaceData,
-    loading,
+    loading: authLoading || loading, // The hook is loading if auth OR the query is loading
     error,
     refetchWorkspaceData: refetch,
   };
 }
-
-
-
-
-
-
-
-
-
-
-
-

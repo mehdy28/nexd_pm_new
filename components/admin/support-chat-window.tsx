@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect, useRef } from "react"
+import React, { useState, useEffect, useRef, useLayoutEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
@@ -33,7 +33,10 @@ export function SupportChatWindow({ ticketId }: SupportChatWindowProps) {
   const [newMessage, setNewMessage] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const prevScrollHeightRef = useRef<number | null>(null);
+  const isInitialLoad = useRef(true);
+
   const { 
     ticketDetails, 
     detailsLoading, 
@@ -43,17 +46,36 @@ export function SupportChatWindow({ ticketId }: SupportChatWindowProps) {
     sendingMessage,
     updateTicketStatus,
     updateTicketPriority,
+    isLoadingMore,
+    loadMoreMessages,
   } = useAdminSupport();
+  
+  const lastMessageId = ticketDetails?.messages?.[ticketDetails.messages.length - 1]?.id;
 
   useEffect(() => {
     if (ticketId) {
+      isInitialLoad.current = true;
       fetchTicketDetails(ticketId);
     }
   }, [ticketId, fetchTicketDetails]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [ticketDetails?.messages]);
+    if (isInitialLoad.current && scrollContainerRef.current) {
+        scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
+        isInitialLoad.current = false;
+    } else {
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [lastMessageId]);
+
+  useLayoutEffect(() => {
+    const container = scrollContainerRef.current;
+    if (container && prevScrollHeightRef.current !== null) {
+      container.scrollTop = container.scrollHeight - prevScrollHeightRef.current;
+      prevScrollHeightRef.current = null;
+    }
+  }, [ticketDetails?.messages.length]);
+
 
   useEffect(() => {
     if (textareaRef.current) {
@@ -62,6 +84,15 @@ export function SupportChatWindow({ ticketId }: SupportChatWindowProps) {
     }
   }, [newMessage]);
 
+  const handleScroll = () => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    if (container.scrollTop === 0 && !isLoadingMore && ticketDetails?.hasMoreMessages) {
+        prevScrollHeightRef.current = container.scrollHeight;
+        loadMoreMessages();
+    }
+  };
 
   const handleSendMessage = () => {
     if (newMessage.trim()) {
@@ -77,7 +108,7 @@ export function SupportChatWindow({ ticketId }: SupportChatWindowProps) {
     }
   };
 
-  if (detailsLoading) {
+  if (detailsLoading && !ticketDetails) {
     return (
       <div className="grid gap-6 lg:grid-cols-3 h-full">
         <div className="lg:col-span-2">
@@ -130,7 +161,12 @@ export function SupportChatWindow({ ticketId }: SupportChatWindowProps) {
             </div>
           </CardHeader>
           <CardContent className="flex-1 flex flex-col p-0 min-h-0">
-            <div className="flex-1 p-4 overflow-y-auto bg-gray-50/50">
+            <div ref={scrollContainerRef} onScroll={handleScroll} className="flex-1 p-4 overflow-y-auto bg-gray-50/50">
+              {isLoadingMore && (
+                <div className="flex justify-center py-4">
+                    <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+                </div>
+              )}
               <div className="space-y-4">
                 {ticketDetails.messages.map((message) => {
                   const isSupportMessage = message.isSupport;
@@ -186,11 +222,10 @@ export function SupportChatWindow({ ticketId }: SupportChatWindowProps) {
                         onKeyDown={handleKeyDown}
                         rows={1}
                         className="flex-1 bg-transparent border-0 resize-none focus-visible:ring-0 focus-visible:ring-offset-0 p-0 max-h-32"
-                        //disabled={sendingMessage}
                     />
                     <Button 
                         onClick={handleSendMessage} 
-                        //disabled={sendingMessage || !newMessage.trim()} 
+                        disabled={sendingMessage || !newMessage.trim()} 
                         className="bg-[hsl(174,75%,40%)] hover:bg-[hsl(174,75%,35%)] h-8 w-8 p-0 rounded-full flex-shrink-0"
                     >
                         {sendingMessage ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}

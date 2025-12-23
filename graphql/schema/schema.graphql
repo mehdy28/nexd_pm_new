@@ -1,4 +1,5 @@
 ### `graphql/schema/schema.graphql`
+
 # ----------------------------------
 # Enums
 # ----------------------------------
@@ -876,6 +877,7 @@ type Conversation {
   participants: [UserLookupPartial!]!
   messages: [Message!]!
   updatedAt: DateTime!
+  hasMoreMessages: Boolean!
 }
 
 type Message {
@@ -895,6 +897,7 @@ type Ticket {
   messages: [TicketMessage!]!
   createdAt: DateTime!
   updatedAt: DateTime!
+  hasMoreMessages: Boolean!
 }
 
 type TicketMessage {
@@ -993,6 +996,7 @@ type AdminTicketDetails {
   creator: UserFullDetails!
   workspace: AdminTicketWorkspaceDetails!
   messages: [TicketMessage!]!
+  hasMoreMessages: Boolean!
 }
 
 type TicketStatusPayload {
@@ -1563,15 +1567,15 @@ type Query {
 
   # Messaging
   getCommunicationList(workspaceId: ID!): [CommunicationListItem!]!
-  getConversation(id: ID!): Conversation
-  getTicket(id: ID!): Ticket
+  getConversation(id: ID!, cursor: ID, limit: Int): Conversation
+  getTicket(id: ID!, cursor: ID, limit: Int): Ticket
 
   # Enterprise
   getWorkspaceAuditLogs(workspaceId: ID!, skip: Int, take: Int): AuditLogResponse!
 
   # Admin Support
   adminGetSupportTickets: [AdminTicketListItem!]!
-  adminGetTicketDetails(id: ID!): AdminTicketDetails
+  adminGetTicketDetails(id: ID!, cursor: ID, limit: Int): AdminTicketDetails
 
   # Admin Dashboard
   adminGetDashboardPageData: AdminPageData!

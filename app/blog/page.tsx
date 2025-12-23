@@ -24,7 +24,7 @@ export default async function BlogPage() {
             <div className="lg:col-span-3 space-y-6">
               <div>
                 <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-                  <TrendingUp className="w-5 h-5 text-teal-600" />
+                  <TrendingUp className="w-5 h-5 text-blue-600" />
                   Featured
                 </h2>
                 <div className="space-y-4">
@@ -59,7 +59,7 @@ export default async function BlogPage() {
                             <span>•</span>
                             <span>{post.author}</span>
                           </div>
-                          <h3 className="font-bold text-gray-900 text-sm leading-tight group-hover:text-teal-600 transition-colors line-clamp-3">
+                          <h3 className="font-bold text-gray-900 text-sm leading-tight group-hover:text-blue-600 transition-colors line-clamp-3">
                             {post.title}
                           </h3>
                           <p className="text-xs text-gray-600 mt-2 line-clamp-2">
@@ -106,7 +106,7 @@ export default async function BlogPage() {
                           </Badge>
                         ))}
                       </div>
-                      <h2 className="text-3xl font-bold text-gray-900 mb-4 group-hover:text-teal-600 transition-colors leading-tight">
+                      <h2 className="text-3xl font-bold text-gray-900 mb-4 group-hover:text-blue-600 transition-colors leading-tight">
                         {featuredPost.title}
                       </h2>
                       <p className="text-gray-600 mb-6 text-lg leading-relaxed">
@@ -145,7 +145,7 @@ export default async function BlogPage() {
                   </h2>
                   <Link
                     href="/blog"
-                    className="text-sm text-teal-600 hover:text-teal-700 font-medium"
+                    className="text-sm text-blue-600 hover:text-blue-700 font-medium"
                   >
                     VIEW ALL
                   </Link>
@@ -192,7 +192,7 @@ export default async function BlogPage() {
                                   </Badge>
                                 )}
                               </div>
-                              <h3 className="text-xl font-bold text-gray-900 mb-3 group-hover:text-teal-600 transition-colors line-clamp-2">
+                              <h3 className="text-xl font-bold text-gray-900 mb-3 group-hover:text-blue-600 transition-colors line-clamp-2">
                                 {post.title}
                               </h3>
                               <p className="text-gray-600 mb-4 line-clamp-2">
@@ -229,7 +229,7 @@ export default async function BlogPage() {
 
               {/* Newsletter CTA */}
               <div className="mt-12">
-                <Card className="bg-gradient-to-r from-teal-50 to-blue-50 border-teal-200">
+                <Card className="bg-gradient-to-r from-blue-50 to-blue-50 border-blue-200">
                   <CardContent className="p-8 text-center">
                     <h3 className="text-2xl font-bold text-gray-900 mb-4">
                       Stay Updated with NEXD.PM
@@ -254,7 +254,7 @@ export default async function BlogPage() {
                   </h2>
                   <Link
                     href="/blog"
-                    className="text-sm text-teal-600 hover:text-teal-700 font-medium"
+                    className="text-sm text-blue-600 hover:text-blue-700 font-medium"
                   >
                     VIEW ALL
                   </Link>
@@ -281,7 +281,7 @@ export default async function BlogPage() {
                           />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <h3 className="font-semibold text-sm text-gray-900 group-hover:text-teal-600 transition-colors line-clamp-2 mb-1">
+                          <h3 className="font-semibold text-sm text-gray-900 group-hover:text-blue-600 transition-colors line-clamp-2 mb-1">
                             {post.title}
                           </h3>
                           <div className="text-xs text-gray-500">
@@ -340,7 +340,7 @@ export default async function BlogPage() {
                             </Badge>
                           ))}
                         </div>
-                        <h3 className="font-bold text-gray-900 mb-2 group-hover:text-teal-600 transition-colors line-clamp-2">
+                        <h3 className="font-bold text-gray-900 mb-2 group-hover:text-blue-600 transition-colors line-clamp-2">
                           {post.title}
                         </h3>
                         <p className="text-sm text-gray-600 line-clamp-2 mb-3">

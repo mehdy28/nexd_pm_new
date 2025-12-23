@@ -50,7 +50,7 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
               <Link href="/" className="flex items-center">
 
                   <Button
-                    className="bg-teal-600 hover:bg-teal-700 text-white"
+                 className="rounded-full bg-blue-600 px-8  py-3.5 text-base font-semibold text-white shadow-sm hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
                   >
                     Join Wait List
                   </Button>
@@ -146,7 +146,7 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
                   </ol>
                 ),
                 blockquote: ({ children }) => (
-                  <blockquote className="border-l-4 border-teal-500 pl-6 italic text-gray-600 my-8">
+                  <blockquote className="border-l-4 border-blue-500 pl-6 italic text-gray-600 my-8">
                     {children}
                   </blockquote>
                 ),
@@ -207,7 +207,7 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
                             </Badge>
                           ))}
                         </div>
-                        <h4 className="font-bold text-gray-900 mb-2 group-hover:text-teal-600 transition-colors line-clamp-2">
+                        <h4 className="font-bold text-gray-900 mb-2 group-hover:text-blue-600 transition-colors line-clamp-2">
                           {relatedPost.title}
                         </h4>
                         <p className="text-sm text-gray-600 line-clamp-2">

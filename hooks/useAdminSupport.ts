@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { useQuery, useLazyQuery, useMutation, useSubscription, useApolloClient } from '@apollo/client';
 import { 
     ADMIN_SEND_TICKET_MESSAGE, 
@@ -62,7 +62,10 @@ export interface AdminTicketDetails {
     memberCount: number;
   };
   messages: TicketMessage[];
+  hasMoreMessages: boolean;
 }
+
+const MESSAGES_PAGE_SIZE = 6;
 
 // ---------------------------------------------------------------- //
 //                         THE CUSTOM HOOK                          //
@@ -71,6 +74,7 @@ export interface AdminTicketDetails {
 export const useAdminSupport = () => {
   const { currentUser: adminUser } = useAuth();
   const client = useApolloClient();
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
 
   // Query for the main list of tickets
   const { data: listData, loading: listLoading, error: listError } = useQuery<{ adminGetSupportTickets: AdminTicketListItem[] }>(GET_ADMIN_SUPPORT_TICKETS, {
@@ -78,7 +82,7 @@ export const useAdminSupport = () => {
   });
 
   // Lazy query for a single ticket's details
-  const [getTicketDetails, { data: detailsData, loading: detailsLoading, error: detailsError }] = useLazyQuery<{ adminGetTicketDetails: AdminTicketDetails }>(GET_ADMIN_TICKET_DETAILS);
+  const [getTicketDetails, { data: detailsData, loading: detailsLoading, error: detailsError, fetchMore }] = useLazyQuery<{ adminGetTicketDetails: AdminTicketDetails }>(GET_ADMIN_TICKET_DETAILS);
 
   // Mutations
   const [sendMessageMutation, { loading: sendingMessage }] = useMutation(ADMIN_SEND_TICKET_MESSAGE);
@@ -143,22 +147,20 @@ export const useAdminSupport = () => {
       onData: ({ client, data }) => {
         const newMessage = data.data?.ticketMessageAdded as TicketMessage;
         if (!newMessage || newMessage.ticketId !== selectedTicketId) {
-          // Do nothing if the message is not for the currently selected ticket.
           return;
         }
 
-        // Update details cache for the relevant ticket
-        const detailsQueryOptions = { query: GET_ADMIN_TICKET_DETAILS, variables: { id: newMessage.ticketId } };
+        const detailsQueryOptions = { query: GET_ADMIN_TICKET_DETAILS, variables: { id: newMessage.ticketId, limit: MESSAGES_PAGE_SIZE } };
         try {
             const cachedDetails = client.readQuery<{ adminGetTicketDetails: AdminTicketDetails }>(detailsQueryOptions);
             if (cachedDetails?.adminGetTicketDetails && !cachedDetails.adminGetTicketDetails.messages.some(m => m.id === newMessage.id)) {
                  client.writeQuery({
-                    ...detailsQueryOptions,
+                    query: GET_ADMIN_TICKET_DETAILS,
+                    variables: { id: newMessage.ticketId },
                     data: { adminGetTicketDetails: { ...cachedDetails.adminGetTicketDetails, messages: [...cachedDetails.adminGetTicketDetails.messages, newMessage] } }
                 });
             }
         } catch (e) { 
-            // This is expected if the details are not yet in the cache.
         }
       }
   });
@@ -186,8 +188,36 @@ export const useAdminSupport = () => {
         console.error("Failed to optimistically update unread count.", e);
     }
 
-    getTicketDetails({ variables: { id: ticketId }, fetchPolicy: 'cache-and-network' });
+    getTicketDetails({ variables: { id: ticketId, limit: MESSAGES_PAGE_SIZE } });
   }, [client, getTicketDetails, markAsReadMutation]);
+
+  const loadMoreMessages = useCallback(async () => {
+    if (isLoadingMore || !fetchMore) return;
+    
+    const currentData = detailsData?.adminGetTicketDetails;
+    if (!currentData || !currentData.hasMoreMessages || currentData.messages.length === 0) return;
+
+    setIsLoadingMore(true);
+    try {
+      await fetchMore({
+        variables: { cursor: currentData.messages[0].id },
+        updateQuery: (prev, { fetchMoreResult }) => {
+          if (!fetchMoreResult) return prev;
+          return {
+            adminGetTicketDetails: {
+              ...prev.adminGetTicketDetails,
+              messages: [...fetchMoreResult.adminGetTicketDetails.messages, ...prev.adminGetTicketDetails.messages],
+              hasMoreMessages: fetchMoreResult.adminGetTicketDetails.hasMoreMessages,
+            },
+          };
+        },
+      });
+    } catch (e) {
+      console.error("Failed to fetch more messages:", e);
+    } finally {
+      setIsLoadingMore(false);
+    }
+  }, [isLoadingMore, fetchMore, detailsData]);
 
 
   // Callback for sending a message as an admin
@@ -242,24 +272,23 @@ export const useAdminSupport = () => {
 
 
   return {
-    // List properties
     tickets: listData?.adminGetSupportTickets || [],
     listLoading,
     listError,
 
-    // Details properties
     ticketDetails: detailsData?.adminGetTicketDetails,
     detailsLoading,
     detailsError,
     fetchTicketDetails,
 
-    // Actions
+    isLoadingMore,
+    loadMoreMessages,
+
     sendMessage,
     sendingMessage,
     updateTicketStatus,
     updateTicketPriority,
 
-    // Context
     adminUser
   };
 };

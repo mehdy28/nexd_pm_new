@@ -64,14 +64,16 @@ export function WaitlistCTA() {
   }
 
   return (
-    <section className="w-full py-12 md:py-24 lg:py-32 bg-gradient-to-r from-teal-600 to-teal-700">
+    <section className="w-full py-12 md:py-24 lg:py-32 bg-[#f0f2f7]">
       <div className="container px-4 md:px-6 mx-auto text-center">
         <div className="max-w-3xl mx-auto space-y-8">
           <div className="space-y-4">
-            <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
+
+                  <span className="text-lg font-semibold text-gray-900">Limited Spots Available</span>
+            <h2 className="text-3xl font-bold tracking-tight text-gray-900  sm:text-4xl">
               Ready to Transform Your Project Management?
             </h2>
-            <p className="text-xl text-teal-100">
+            <p className="text-xl text-gray-600">
               Join thousands of forward-thinking teams waiting for the future of project management. Be the first to
               experience AI-powered productivity.
             </p>
@@ -111,7 +113,8 @@ export function WaitlistCTA() {
                 <Button
                   type="submit"
                   size="lg"
-                  className="bg-white text-teal-600 hover:bg-gray-100 px-8 py-3 text-base font-medium w-full"
+ className="rounded-full bg-blue-600 px-8  py-3.5 text-base font-semibold text-white shadow-sm hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600
+                   w-full"
                   disabled={isLoading}
                 >
                   {isLoading ? "Joining..." : "Join Waitlist"}
@@ -131,37 +134,25 @@ export function WaitlistCTA() {
             )}
           </div>
 
-          {/* Alternative CTA - Scroll to Hero Form */}
-          <div className="pt-4">
-            <Button
-              onClick={scrollToHeroForm}
-              variant="outline"
-              className="bg-transparent border-white/30 text-white hover:bg-white/10"
-            >
-              Or join at the top of the page
-            </Button>
-          </div>
+
 
           {/* Benefits */}
           <div className="grid md:grid-cols-3 gap-6 max-w-2xl mx-auto text-teal-100">
             <div className="flex items-center gap-2">
               <Users className="w-4 h-4" />
-              <span className="text-sm">Early access priority</span>
+              <span className="text-sm text-gray-600 ">Early access priority</span>
             </div>
             <div className="flex items-center gap-2">
               <Zap className="w-4 h-4" />
-              <span className="text-sm">Exclusive launch discount</span>
+              <span className="text-sm text-gray-600 ">Exclusive launch discount</span>
             </div>
             <div className="flex items-center gap-2">
               <Mail className="w-4 h-4" />
-              <span className="text-sm">Product updates & insights</span>
+              <span className="text-sm text-gray-600">Product updates & insights</span>
             </div>
           </div>
 
-          {/* Social Proof */}
-          <div className="pt-8 border-t border-white/20">
-            <p className="text-teal-100 text-lg font-medium">Join 2,500+ innovators already on the waitlist</p>
-          </div>
+
         </div>
       </div>
     </section>

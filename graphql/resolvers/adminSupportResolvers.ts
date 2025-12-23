@@ -8,6 +8,8 @@ interface GraphQLContext {
   user?: { id: string; email: string; role: string };
 }
 
+const MESSAGES_PAGE_SIZE = 30;
+
 // A helper function to make logs easier to read
 const log = (source: string, message: string, data?: any) => {
   console.log(`\n--- [${source}] ---`);
@@ -104,11 +106,11 @@ export const adminSupportResolvers = {
       }
     },
 
-    adminGetTicketDetails: async (_: any, { id }: { id: string }, context: GraphQLContext) => {
+    adminGetTicketDetails: async (_: any, { id, cursor, limit = MESSAGES_PAGE_SIZE }: { id: string, cursor?: string, limit?: number }, context: GraphQLContext) => {
       const source = 'Query: adminGetTicketDetails';
       try {
         checkAdmin(context);
-        log(source, 'Fired', { id });
+        log(source, 'Fired', { id, cursor, limit });
 
         const ticket = await prisma.ticket.findUnique({
           where: { id },
@@ -121,12 +123,6 @@ export const adminSupportResolvers = {
                 _count: { select: { members: true } },
               },
             },
-            messages: {
-              include: {
-                sender: { select: { id: true, firstName: true, lastName: true, avatar: true, avatarColor: true, role: true } },
-              },
-              orderBy: { createdAt: 'asc' },
-            },
           },
         });
 
@@ -134,16 +130,31 @@ export const adminSupportResolvers = {
           throw new GraphQLError('Ticket not found.');
         }
 
+        const messagesRaw = await prisma.ticketMessage.findMany({
+            where: { ticketId: id },
+            take: limit + 1,
+            ...(cursor && {
+                cursor: { id: cursor },
+                skip: 1,
+            }),
+            orderBy: { createdAt: 'desc' },
+            include: { sender: { select: { id: true, firstName: true, lastName: true, avatar: true, avatarColor: true, role: true } } },
+        });
+        
+        const hasMoreMessages = messagesRaw.length > limit;
+        const messages = hasMoreMessages ? messagesRaw.slice(0, limit) : messagesRaw;
+
         const result = {
           ...ticket,
           workspace: {
             ...ticket.workspace,
             memberCount: ticket.workspace._count.members,
           },
-          messages: ticket.messages.map(msg => ({
+          messages: messages.reverse().map(msg => ({
             ...msg,
             isSupport: msg.sender.role === 'ADMIN',
           })),
+          hasMoreMessages,
         };
 
         log(source, 'Successfully fetched ticket details');
@@ -285,7 +296,6 @@ export const adminSupportResolvers = {
       subscribe: withFilter(
         () => pubsub.asyncIterableIterator([Topics.ADMIN_TICKET_ADDED]),
         (payload, variables, context) => {
-          // No filter needed, all admins get all new tickets
           return true;
         }
       ),
@@ -294,7 +304,6 @@ export const adminSupportResolvers = {
         subscribe: withFilter(
           () => pubsub.asyncIterableIterator([Topics.ADMIN_TICKET_UPDATED]),
           (payload, variables, context) => {
-            // No filter needed, all admins get all ticket updates
             return true;
           }
         ),

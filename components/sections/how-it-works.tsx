@@ -81,7 +81,7 @@ export function HowItWorks() {
                 {/* Background: Whiteboard Editor - Shifted up slightly */}
                 <div className="relative bg-white rounded-2xl shadow-2xl border border-gray-200 overflow-hidden w-full max-w-2xl">
                   <Image
-                    src="/Whiteboard-editor.png"
+            	      src="/landing/6.png"
                     alt="Visual Whiteboard Editor"
                     width={1400}
                     height={900}
@@ -95,7 +95,7 @@ export function HowItWorks() {
                 <div className="absolute bottom-4 right-0 lg:-right-4 w-96 lg:w-[450px] z-10">
                   <div className="bg-white rounded-xl shadow-2xl border border-gray-200 overflow-hidden hover:shadow-3xl transition-shadow duration-300">
                     <Image
-                      src="/prompt-form-dialog.png"
+            	      src="/landing/6.png"
                       alt="Prompt Creation Form"
                       width={900}
                       height={600}
@@ -157,15 +157,15 @@ export function HowItWorks() {
                 </div>
               </div>
               <div className="relative flex items-center justify-center">
-                <div className="relative overflow-hidden bg-white rounded-2xl shadow-2xl border border-gray-200 w-full max-w-2xl">
+
                   <Image
-                    src="/create-prompt-form.png"
+            	    src="/landing/6-removebg-preview.png"
                     alt="AI Parameters Configuration"
                     width={1200}
-                    height={800}
+                    height={900}
                     className="w-full h-auto"
                   />
-                </div>
+
               </div>
             </div>
           </div>
@@ -209,15 +209,15 @@ export function HowItWorks() {
                 </div>
               </div>
               <div className="relative flex items-center justify-center">
-                <div className="relative overflow-hidden bg-white rounded-2xl shadow-2xl border border-gray-200 w-full max-w-2xl">
+
                   <Image
-                    src="/prompt-versioning.png"
+            	      src="/landing/5-removebg-preview.png"
                     alt="Prompt Version Management"
-                    width={1200}
-                    height={800}
+                    width={1300}
+                    height={1000}
                     className="w-full h-auto"
                   />
-                </div>
+
               </div>
             </div>
           </div>

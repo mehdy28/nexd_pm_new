@@ -55,10 +55,10 @@ export function WaitlistForm({ variant = "full" }: WaitlistFormProps) {
 
   if (variant === "sidebar") {
     return (
-      <Card className="bg-gradient-to-br from-teal-50 to-blue-50 border-teal-200">
+      <Card className="bg-gradient-to-br from-blue-50 to-blue-50 border-blue-200">
         <CardContent className="p-6">
           <div className="text-center mb-4">
-            <Sparkles className="w-8 h-8 text-teal-600 mx-auto mb-3" />
+            <Sparkles className="w-8 h-8 text-blue-600 mx-auto mb-3" />
             <h3 className="font-bold text-gray-900 mb-2">Join the Revolution</h3>
             <p className="text-sm text-gray-600">Get early access to NEXD.PM and transform your project management.</p>
           </div>
@@ -87,7 +87,7 @@ export function WaitlistForm({ variant = "full" }: WaitlistFormProps) {
               <Button
                 type="submit"
                 size="sm"
-                className="w-full bg-teal-600 hover:bg-teal-700 text-white"
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white"
                 disabled={isLoading}
               >
                 {isLoading ? "Joining..." : "Join Waitlist"}
@@ -106,7 +106,7 @@ export function WaitlistForm({ variant = "full" }: WaitlistFormProps) {
 
   if (variant === "inline") {
     return (
-      <div className="bg-gradient-to-r from-teal-50 to-blue-50 rounded-xl p-6 border border-teal-100">
+      <div className="bg-gradient-to-r from-blue-50 to-blue-50 rounded-xl p-6 border border-blue-100">
         <div className="text-center mb-6">
           <h3 className="text-xl font-bold text-gray-900 mb-2">Ready to Get Started?</h3>
           <p className="text-gray-600">
@@ -140,7 +140,7 @@ export function WaitlistForm({ variant = "full" }: WaitlistFormProps) {
             <Button
               type="submit"
               size="lg"
-              className="w-full bg-teal-600 hover:bg-teal-700 text-white"
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white"
               disabled={isLoading}
             >
               {isLoading ? "Joining..." : "Join Waitlist"}
@@ -159,11 +159,11 @@ export function WaitlistForm({ variant = "full" }: WaitlistFormProps) {
 
   // Full variant
   return (
-    <Card className="bg-gradient-to-r from-teal-600 to-teal-700 text-white border-0">
+    <Card className="bg-gradient-to-r from-blue-600 to-blue-700 text-white border-0">
       <CardContent className="p-8 text-center">
         <div className="max-w-2xl mx-auto">
           <h3 className="text-2xl font-bold mb-4">Transform Your Project Management Today</h3>
-          <p className="text-teal-100 mb-8 text-lg">
+          <p className="text-blue-100 mb-8 text-lg">
             Join thousands of forward-thinking teams waiting for the future of AI-powered project management.
           </p>
 
@@ -197,7 +197,7 @@ export function WaitlistForm({ variant = "full" }: WaitlistFormProps) {
               <Button
                 type="submit"
                 size="lg"
-                className="bg-white text-teal-600 hover:bg-gray-100 px-8 py-3 text-base font-medium"
+                className="bg-white text-blue-600 hover:bg-gray-100 px-8 py-3 text-base font-medium"
                 disabled={isLoading}
               >
                 {isLoading ? "Joining..." : "Join Waitlist"}
@@ -207,11 +207,11 @@ export function WaitlistForm({ variant = "full" }: WaitlistFormProps) {
           ) : (
             <div className="mb-6">
               <p className="text-white font-medium text-lg">🎉 Welcome to the Future!</p>
-              <p className="text-teal-100 mt-1">You're now on our exclusive waitlist.</p>
+              <p className="text-blue-100 mt-1">You're now on our exclusive waitlist.</p>
             </div>
           )}
 
-          <div className="grid md:grid-cols-3 gap-6 text-teal-100">
+          <div className="grid md:grid-cols-3 gap-6 text-blue-100">
             <div className="flex items-center gap-2 justify-center">
               <Users className="w-4 h-4" />
               <span className="text-sm">Early access priority</span>

@@ -1,4 +1,3 @@
-//components/messaging/user-communication.tsx
 "use client";
 
 import { useState, useEffect } from "react";
@@ -44,6 +43,8 @@ export function UserCommunication() {
     setSelectedItem,
     activeItemDetails,
     itemLoading,
+    isLoadingMore,
+    loadMoreMessages,
     sendMessage,
     sendingMessage,
     createTicket,
@@ -66,17 +67,12 @@ export function UserCommunication() {
   }, [communicationList]);
 
   const handleUpdateTicketPriority = (ticketId: string, priority: 'LOW' | 'MEDIUM' | 'HIGH') => {
-    // 1. Call the original mutation function from the hook to update the backend
     updateTicketPriority(ticketId, priority);
-
-    // 2. Optimistically update the list state for an immediate UI response
     setOptimisticList(currentList =>
         currentList.map(item =>
             item.id === ticketId ? { ...item, priority } : item
         )
     );
-
-    // 3. Optimistically update the selectedItem state if it's the one being changed
     if (selectedItem?.id === ticketId) {
         setSelectedItem(prev =>
             prev ? { ...prev, priority } as CommunicationItem : null
@@ -100,7 +96,6 @@ export function UserCommunication() {
     console.log("UserCommunication: useEffect triggered by selectedItem change. New value:", selectedItem);
   }, [selectedItem]);
 
-  // Combined loading state for workspace and messaging data
   console.log(`UserCommunication: Checking loading states -> workspace loading: ${loading}, listLoading: ${listLoading}`);
   if (loading || listLoading) {
     console.log("UserCommunication: Render -> LoadingPlaceholder.");
@@ -113,9 +108,6 @@ export function UserCommunication() {
     console.log("UserCommunication: Render -> ErrorPlaceholder.");
     return <ErrorPlaceholder error={error} onRetry={refetch} />
   }
-
-
-
 
   const handleCreateNewTicket = () => {
     console.log("UserCommunication: handleCreateNewTicket called. Changing view to 'new_ticket'.");
@@ -194,7 +186,7 @@ export function UserCommunication() {
     }
 
     console.log(`UserCommunication: renderRightPanel -> Checking item loading state: ${itemLoading}`);
-    if (itemLoading) {
+    if (itemLoading && !activeItemDetails) {
       console.log("UserCommunication: renderRightPanel -> Rendering item loading spinner.");
       return (
         <Card className="h-full flex items-center justify-center">
@@ -221,6 +213,8 @@ export function UserCommunication() {
           onRemoveParticipant={removeParticipant}
           onAddParticipants={addParticipants}
           onUpdateTicketPriority={handleUpdateTicketPriority}
+          onLoadMoreMessages={loadMoreMessages}
+          isLoadingMore={isLoadingMore}
         />
       );
     }

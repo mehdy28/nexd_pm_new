@@ -53,12 +53,13 @@ export const GET_MESSAGING_DATA = gql`
 `;
 
 export const GET_CONVERSATION_DETAILS = gql`
-  query GetConversation($id: ID!) {
-    getConversation(id: $id) {
+  query GetConversation($id: ID!, $cursor: ID, $limit: Int) {
+    getConversation(id: $id, cursor: $cursor, limit: $limit) {
       id
       type
       name
       creatorId
+      hasMoreMessages
       participants {
         id
         firstName
@@ -84,13 +85,14 @@ export const GET_CONVERSATION_DETAILS = gql`
 `;
 
 export const GET_TICKET_DETAILS = gql`
-  query GetTicket($id: ID!) {
-    getTicket(id: $id) {
+  query GetTicket($id: ID!, $cursor: ID, $limit: Int) {
+    getTicket(id: $id, cursor: $cursor, limit: $limit) {
       id
       subject
       priority
       status
       createdAt
+      hasMoreMessages
       creator {
         id
         firstName

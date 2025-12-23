@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect, useMemo, useLayoutEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Send, User as UserIcon, Users, LifeBuoy, MoreVertical, X, LogOut, Trash2, UserPlus, ArrowLeft } from "lucide-react";
+import { Send, User as UserIcon, Users, LifeBuoy, MoreVertical, X, LogOut, Trash2, UserPlus, ArrowLeft, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CommunicationItem, ConversationDetails, TicketDetails, TypingUser, WorkspaceMember } from "@/hooks/useMessaging";
 import { formatDistanceToNow } from 'date-fns';
@@ -26,7 +26,6 @@ const priorityBadgeColors: Record<string, string> = {
   HIGH: 'border-red-500/50 bg-red-100 text-red-800 hover:bg-red-100',
 };
  
-// Define header background styles based on type
 const getHeaderStyle = (item: CommunicationItem) => {
     if (item.type === 'ticket') {
         if (item.priority === 'HIGH') return 'bg-red-100/80 border-b-red-200';
@@ -37,8 +36,6 @@ const getHeaderStyle = (item: CommunicationItem) => {
     return 'bg-blue-100/80 border-b-blue-200';
 };
 
-
-// A simple animated dots component for the typing indicator
 const TypingIndicatorDots = () => (
   <div className="flex items-center space-x-1">
     <span className="h-2 w-2 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
@@ -60,6 +57,8 @@ interface CommunicationWindowProps {
   onRemoveParticipant?: (conversationId: string, userId: string) => void;
   onAddParticipants?: (conversationId: string, participantIds: string[]) => void;
   onUpdateTicketPriority?: (ticketId: string, priority: 'LOW' | 'MEDIUM' | 'HIGH') => void;
+  onLoadMoreMessages: () => Promise<void>;
+  isLoadingMore: boolean;
 }
 
 export function CommunicationWindow({ 
@@ -74,7 +73,9 @@ export function CommunicationWindow({
     onLeaveConversation,
     onRemoveParticipant,
     onAddParticipants,
-    onUpdateTicketPriority
+    onUpdateTicketPriority,
+    onLoadMoreMessages,
+    isLoadingMore,
 }: CommunicationWindowProps) {
   const [newMessage, setNewMessage] = useState("");
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -82,26 +83,40 @@ export function CommunicationWindow({
   const [memberSearchQuery, setMemberSearchQuery] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const prevScrollHeightRef = useRef<number | null>(null);
 
-  // Local state for optimistic UI updates
   const [localItem, setLocalItem] = useState(communicationItem);
   const [localDetails, setLocalDetails] = useState(details);
+  
+  const lastMessageId = localDetails.messages?.[localDetails.messages.length - 1]?.id;
+  const isInitialLoad = useRef(true);
 
   useEffect(() => {
     setLocalItem(communicationItem);
-  }, [communicationItem]);
-
-  useEffect(() => {
     setLocalDetails(details);
-  }, [details]);
+    isInitialLoad.current = true; // Reset on item change
+  }, [communicationItem, details]);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
-
+  // Scroll to bottom on initial load or when a new message arrives.
   useEffect(() => {
-    scrollToBottom();
-  }, [localDetails.messages, typingUsers]);
+    if (isInitialLoad.current && scrollContainerRef.current) {
+        scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
+        isInitialLoad.current = false;
+    } else {
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [lastMessageId]);
+
+  // Preserve scroll position when loading more messages
+  useLayoutEffect(() => {
+    const container = scrollContainerRef.current;
+    if (container && prevScrollHeightRef.current !== null) {
+        container.scrollTop = container.scrollHeight - prevScrollHeightRef.current;
+        prevScrollHeightRef.current = null;
+    }
+  }, [localDetails.messages.length]);
+
 
   useEffect(() => {
     if (textareaRef.current) {
@@ -109,6 +124,16 @@ export function CommunicationWindow({
         textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
     }
   }, [newMessage]);
+
+  const handleScroll = () => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    if (container.scrollTop === 0 && !isLoadingMore && details.hasMoreMessages) {
+        prevScrollHeightRef.current = container.scrollHeight;
+        onLoadMoreMessages();
+    }
+  };
 
   const handleSendMessage = () => {
     if (newMessage.trim()) {
@@ -124,26 +149,15 @@ export function CommunicationWindow({
 
   const handlePriorityChange = (newPriority: 'LOW' | 'MEDIUM' | 'HIGH') => {
     if (!onUpdateTicketPriority) return;
-
-    // 1. Call parent function to trigger the backend mutation
     onUpdateTicketPriority(localItem.id, newPriority);
-
-    // 2. Optimistically update local state for immediate UI feedback
     setLocalItem(prev => ({ ...prev, priority: newPriority } as CommunicationItem));
-    setLocalDetails(prev => ({
-        ...prev,
-        priority: newPriority,
-    }) as TicketDetails);
+    setLocalDetails(prev => ({ ...prev, priority: newPriority }) as TicketDetails);
   };
 
   const typingDisplay = useMemo(() => {
     if (typingUsers.length === 0) return null;
-    if (typingUsers.length === 1) {
-      return `${typingUsers[0].firstName || ''} ${typingUsers[0].lastName || ''} is typing`;
-    }
-    if (typingUsers.length === 2) {
-      return `${typingUsers[0].firstName} and ${typingUsers[1].firstName} are typing`;
-    }
+    if (typingUsers.length === 1) return `${typingUsers[0].firstName || ''} ${typingUsers[0].lastName || ''} is typing`;
+    if (typingUsers.length === 2) return `${typingUsers[0].firstName} and ${typingUsers[1].firstName} are typing`;
     return `${typingUsers.length} people are typing`;
   }, [typingUsers]);
 
@@ -151,8 +165,6 @@ export function CommunicationWindow({
   const ticketDetails = isTicket ? (localDetails as TicketDetails) : null;
   const conversationDetails = !isTicket ? (localDetails as ConversationDetails) : null;
   const isGroup = conversationDetails?.type === 'GROUP';
-
-  // Check if kicked - Added optional chaining
   const isParticipant = isTicket || (!!conversationDetails?.participants?.some(p => p.id === currentUserId));
 
   const { Icon, iconColor } = useMemo(() => {
@@ -165,10 +177,7 @@ export function CommunicationWindow({
     return { Icon: UserIcon, iconColor: "text-blue-600" };
   }, [isTicket, isGroup, ticketDetails]);
 
-  // Group Management Logic
   const amICreator = conversationDetails?.creatorId === currentUserId;
-
-  // Filter members for adding
   const existingParticipantIds = conversationDetails?.participants?.map(p => p.id) || [];
   const availableMembers = workspaceMembers.filter(
       m => !existingParticipantIds.includes(m.user.id) && 
@@ -198,7 +207,6 @@ export function CommunicationWindow({
                 </p>
               </div>
           </div>
-          
           <div className="flex flex-shrink-0 items-center gap-2">
               {isTicket && ticketDetails && (
                 <div className="flex items-center space-x-2">
@@ -214,36 +222,20 @@ export function CommunicationWindow({
                         <DropdownMenuItem onClick={() => handlePriorityChange('HIGH')}>High</DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
-                  <Badge 
-                    variant="secondary" 
-                    className="capitalize bg-white/60 hover:bg-white/60 text-gray-700 cursor-default"
-                  >
+                  <Badge variant="secondary" className="capitalize bg-white/60 hover:bg-white/60 text-gray-700 cursor-default">
                     {ticketDetails.status.toLowerCase().replace('_', ' ')}
                   </Badge>
                 </div>
               )}
-              
               {isGroup && (
-                <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="hover:bg-black/5"
-                    onClick={() => setIsSettingsOpen(true)}
-                >
+                <Button variant="ghost" size="icon" className="hover:bg-black/5" onClick={() => setIsSettingsOpen(true)}>
                     <MoreVertical className="w-5 h-5 text-gray-600" />
                 </Button>
               )}
           </div>
         </div>
       </CardHeader>
-      
-      {/* Sliding Settings Modal */}
-      <div 
-        className={cn(
-            "absolute inset-y-0 right-0 w-80 bg-white shadow-2xl z-20 transform transition-transform duration-300 ease-in-out border-l",
-            isSettingsOpen ? "translate-x-0" : "translate-x-full"
-        )}
-      >
+      <div className={cn( "absolute inset-y-0 right-0 w-80 bg-white shadow-2xl z-20 transform transition-transform duration-300 ease-in-out border-l", isSettingsOpen ? "translate-x-0" : "translate-x-full" )}>
          <div className="h-full flex flex-col">
             <div className="p-4 border-b flex items-center justify-between bg-gray-50">
                 <h3 className="font-semibold">{isAddingMember ? "Add Members" : "Group Info"}</h3>
@@ -251,18 +243,13 @@ export function CommunicationWindow({
                     <X className="w-4 h-4" />
                 </Button>
             </div>
-            
             {isAddingMember ? (
                 <div className="flex-1 flex flex-col">
                     <div className="p-4 border-b">
                          <Button variant="ghost" size="sm" className="mb-2 -ml-2" onClick={() => setIsAddingMember(false)}>
                             <ArrowLeft className="w-4 h-4 mr-1" /> Back
                         </Button>
-                        <Input 
-                            placeholder="Search people..." 
-                            value={memberSearchQuery}
-                            onChange={(e) => setMemberSearchQuery(e.target.value)}
-                        />
+                        <Input placeholder="Search people..." value={memberSearchQuery} onChange={(e) => setMemberSearchQuery(e.target.value)} />
                     </div>
                     <div className="flex-1 overflow-y-auto p-4 space-y-2">
                         {availableMembers.length > 0 ? availableMembers.map(m => (
@@ -277,17 +264,7 @@ export function CommunicationWindow({
                                         <div className="text-xs text-muted-foreground truncate max-w-[120px]">{m.user.email}</div>
                                      </div>
                                 </div>
-                                <Button 
-                                    size="sm" 
-                                    variant="outline"
-                                    onClick={() => {
-                                        if (conversationDetails) {
-                                            onAddParticipants?.(conversationDetails.id, [m.user.id]);
-                                            setIsAddingMember(false);
-                                            setMemberSearchQuery("");
-                                        }
-                                    }}
-                                >
+                                <Button size="sm" variant="outline" onClick={() => { if (conversationDetails) { onAddParticipants?.(conversationDetails.id, [m.user.id]); setIsAddingMember(false); setMemberSearchQuery(""); } }}>
                                     Add
                                 </Button>
                             </div>
@@ -306,7 +283,6 @@ export function CommunicationWindow({
                             <h4 className="font-bold text-lg">{localItem.title}</h4>
                             {amICreator && <Badge variant="secondary" className="mt-1">You created this group</Badge>}
                          </div>
-                         
                          <div>
                             <div className="flex items-center justify-between mb-3">
                                 <h5 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Members</h5>
@@ -333,12 +309,7 @@ export function CommunicationWindow({
                                              </div>
                                         </div>
                                         {amICreator && p.id !== currentUserId && (
-                                            <Button 
-                                                variant="ghost" 
-                                                size="sm" 
-                                                className="text-red-500 hover:text-red-700 hover:bg-red-50"
-                                                onClick={() => onRemoveParticipant?.(conversationDetails.id, p.id)}
-                                            >
+                                            <Button variant="ghost" size="sm" className="text-red-500 hover:text-red-700 hover:bg-red-50" onClick={() => onRemoveParticipant?.(conversationDetails.id, p.id)}>
                                                 <Trash2 className="w-4 h-4" />
                                             </Button>
                                         )}
@@ -349,16 +320,7 @@ export function CommunicationWindow({
                     </div>
                     {isParticipant && (
                         <div className="p-4 border-t bg-gray-50">
-                             <Button 
-                                variant="destructive" 
-                                className="w-full" 
-                                onClick={() => {
-                                    if (onLeaveConversation && conversationDetails) {
-                                        onLeaveConversation(conversationDetails.id);
-                                        setIsSettingsOpen(false);
-                                    }
-                                }}
-                             >
+                             <Button variant="destructive" className="w-full" onClick={() => { if (onLeaveConversation && conversationDetails) { onLeaveConversation(conversationDetails.id); setIsSettingsOpen(false); } }}>
                                 <LogOut className="w-4 h-4 mr-2" /> Leave Group
                              </Button>
                         </div>
@@ -369,7 +331,12 @@ export function CommunicationWindow({
       </div>
 
       <CardContent className="flex-1 flex flex-col p-0 min-h-0 bg-white">
-        <div className="flex-1 p-4 overflow-y-auto bg-gray-100">
+        <div ref={scrollContainerRef} onScroll={handleScroll} className="flex-1 p-4 overflow-y-auto bg-gray-100">
+          {isLoadingMore && (
+              <div className="flex justify-center py-4">
+                  <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+              </div>
+          )}
           <div className="space-y-4">
             {localDetails.messages.map((message) => {
               const isSelf = message.sender.id === currentUserId;
@@ -380,16 +347,10 @@ export function CommunicationWindow({
               const isSupportAgent = 'isSupport' in message && message.isSupport;
 
               return (
-              <div
-                key={message.id}
-                className={cn( "flex space-x-3", isSelf ? "flex-row-reverse space-x-reverse" : "flex-row" )}
-              >
+              <div key={message.id} className={cn( "flex space-x-3", isSelf ? "flex-row-reverse space-x-reverse" : "flex-row" )}>
                 <Avatar className="h-8 w-8 flex-shrink-0">
                   <AvatarImage src={message.sender.avatar || undefined} alt={senderName} />
-                  <AvatarFallback 
-                    className="text-xs text-white"
-                    style={{ backgroundColor: (message.sender as any).avatarColor   }}
-                  >
+                  <AvatarFallback className="text-xs text-white" style={{ backgroundColor: (message.sender as any).avatarColor }}>
                     {getInitials(senderName || 'U')}
                   </AvatarFallback>
                 </Avatar>
@@ -399,19 +360,12 @@ export function CommunicationWindow({
                     <span className="text-sm font-medium">{senderName}</span>
                     {isSupportAgent && <Badge variant="secondary" className="text-xs">Support</Badge>}
                   </div>
-                  <div
-                    className={cn(
-                      "p-3 rounded-xl text-sm inline-block max-w-full text-left whitespace-pre-wrap break-words shadow-sm",
-                      isSelf ? "bg-[hsl(174,75%,40%)] text-white rounded-tr-sm" : "bg-white border text-gray-800 rounded-tl-sm"
-                    )}
-                  >
+                  <div className={cn("p-3 rounded-xl text-sm inline-block max-w-full text-left whitespace-pre-wrap break-words shadow-sm", isSelf ? "bg-[hsl(174,75%,40%)] text-white rounded-tr-sm" : "bg-white border text-gray-800 rounded-tl-sm")}>
                     {message.content}
                   </div>
                 </div>
               </div>
             )})}
-
-            {/* ONLY SHOW TYPING INDICATOR IF USER IS PARTICIPANT */}
             {isParticipant && typingDisplay && (
               <div className="flex items-center space-x-3 h-8">
                 <div className="text-xs text-muted-foreground italic flex items-center space-x-2">
@@ -426,15 +380,7 @@ export function CommunicationWindow({
         <div className="p-4 flex-shrink-0 bg-gray-100 border-t">
             {isParticipant ? (
                 <div className="flex items-end space-x-2 border rounded-md p-2 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring has-[:focus-visible]:ring-offset-2 bg-white">
-                    <Textarea
-                        ref={textareaRef}
-                        placeholder={isTicket ? "Reply to support..." : "Send a message..."}
-                        value={newMessage}
-                        onChange={handleTyping}
-                        onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(); } }}
-                        rows={1}
-                        className="flex-1 bg-transparent border-0 resize-none focus-visible:ring-0 focus-visible:ring-offset-0 p-0 max-h-32"
-                    />
+                    <Textarea ref={textareaRef} placeholder={isTicket ? "Reply to support..." : "Send a message..."} value={newMessage} onChange={handleTyping} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(); } }} rows={1} className="flex-1 bg-transparent border-0 resize-none focus-visible:ring-0 focus-visible:ring-offset-0 p-0 max-h-32" />
                     <Button onClick={handleSendMessage} disabled={isSending || !newMessage.trim()} className="bg-[hsl(174,75%,40%)] hover:bg-[hsl(174,75%,35%)] h-8 w-8 p-0 rounded-full text-white">
                         <Send className="h-4 w-4" />
                     </Button>
@@ -450,3 +396,4 @@ export function CommunicationWindow({
     </Card>
   );
 }
+

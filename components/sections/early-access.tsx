@@ -89,8 +89,7 @@ export function EarlyAccess() {
           </Card>
         </div>
 
-        {/* Stats and Social Proof */}
-        <div className="mt-16">
+        {/* <div className="mt-16">
           <div className="grid md:grid-cols-4 gap-8 max-w-3xl mx-auto text-center mb-12">
             <div>
               <div className="text-3xl font-bold text-teal-600 mb-2">2,500+</div>
@@ -110,7 +109,6 @@ export function EarlyAccess() {
             </div>
           </div>
 
-          {/* Testimonials from Early Members */}
           <div className="grid md:grid-cols-2 gap-6 max-w-4xl mx-auto">
             <Card className="p-6 bg-white">
               <CardContent className="p-0">
@@ -159,7 +157,6 @@ export function EarlyAccess() {
             </Card>
           </div>
 
-          {/* CTA */}
           <div className="text-center mt-12">
             <Card className="p-8 bg-gradient-to-r from-teal-50 to-blue-50 border-teal-200 max-w-2xl mx-auto">
               <CardContent className="p-0">
@@ -181,7 +178,7 @@ export function EarlyAccess() {
               </CardContent>
             </Card>
           </div>
-        </div>
+        </div> */}
       </div>
     </section>
   )

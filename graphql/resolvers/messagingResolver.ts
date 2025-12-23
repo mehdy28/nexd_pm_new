@@ -8,6 +8,8 @@ interface GraphQLContext {
   user?: { id: string; email: string; role: string };
 }
 
+const MESSAGES_PAGE_SIZE = 30;
+
 // A helper function to make logs easier to read
 const log = (source: string, message: string, data?: any) => {
   console.log(`\n--- [${source}] ---`);
@@ -239,40 +241,44 @@ export const messagingResolvers = {
       }
     },
 
-    getConversation: async (_: any, { id }: { id: string }, context: GraphQLContext) => {
+    getConversation: async (_: any, { id, cursor, limit = MESSAGES_PAGE_SIZE }: { id: string; cursor?: string; limit?: number }, context: GraphQLContext) => {
       const source = 'Query: getConversation';
       try {
-        log(source, 'Fired', { id });
+        log(source, 'Fired', { id, cursor, limit });
         const userId = context.user?.id;
         if (!userId) throw new GraphQLError('Not authenticated');
         
-        // 1. Check if user is associated with this conversation at all
         const currentUserParticipant = await prisma.conversationParticipant.findFirst({
             where: { conversationId: id, userId }
         });
         if (!currentUserParticipant) throw new GraphQLError('Access denied');
 
-        // 2. Fetch conversation with ALL participants (to calculate active ones later if needed)
-        // or just fetch active ones using 'where' inside include
         const conversation = await prisma.conversation.findFirst({
           where: { id },
           include: {
-            // Only include ACTIVE participants in the details list so kicked users don't show up in the "Members" list
             participants: { 
                 where: { hasLeft: false }, 
                 include: { user: { select: { id: true, firstName: true, lastName: true, avatar: true , avatarColor : true } } } 
             },
-            messages: { 
-                include: { sender: { select: { id: true, firstName: true, lastName: true, avatar: true , avatarColor : true } } }, 
-                orderBy: { createdAt: 'asc' } 
-            },
           },
         });
         if (!conversation) throw new GraphQLError('Conversation not found.');
-        
-        // 3. Logic for Kicked Users:
-        // If the current user has left, filter messages. They only see history up to the point they left.
-        let messages = conversation.messages;
+
+        // Fetch paginated messages
+        const messagesRaw = await prisma.message.findMany({
+            where: { conversationId: id },
+            take: limit + 1, // Fetch one extra to check if there are more
+            ...(cursor && {
+                cursor: { id: cursor },
+                skip: 1,
+            }),
+            orderBy: { createdAt: 'desc' },
+            include: { sender: { select: { id: true, firstName: true, lastName: true, avatar: true, avatarColor: true } } },
+        });
+
+        const hasMoreMessages = messagesRaw.length > limit;
+        let messages = hasMoreMessages ? messagesRaw.slice(0, limit) : messagesRaw;
+
         if (currentUserParticipant.hasLeft && currentUserParticipant.leftAt) {
             const kickDate = new Date(currentUserParticipant.leftAt);
             messages = messages.filter(m => new Date(m.createdAt) <= kickDate);
@@ -280,8 +286,9 @@ export const messagingResolvers = {
 
         const flattenedConversation = {
             ...conversation,
-            messages,
-            participants: conversation.participants.map(p => p.user)
+            messages: messages.reverse(),
+            participants: conversation.participants.map(p => p.user),
+            hasMoreMessages,
         };
 
         log(source, 'Successfully fetched conversation');
@@ -292,33 +299,46 @@ export const messagingResolvers = {
       }
     },
 
-    getTicket: async (_: any, { id }: { id: string }, context: GraphQLContext) => {
+    getTicket: async (_: any, { id, cursor, limit = MESSAGES_PAGE_SIZE }: { id: string, cursor?: string; limit?: number }, context: GraphQLContext) => {
       const source = 'Query: getTicket';
        try {
-        log(source, 'Fired', { id });
+        log(source, 'Fired', { id, cursor, limit });
         const userId = context.user?.id;
         if (!userId) throw new GraphQLError('Not authenticated');
         const ticket = await prisma.ticket.findUnique({
           where: { id },
           include: {
             creator: { select: { id: true, firstName: true, lastName: true, avatar: true , avatarColor : true } },
-            messages: {
-              include: { sender: { select: { id: true, firstName: true, lastName: true, avatar: true , avatarColor : true, role: true } } },
-              orderBy: { createdAt: 'asc' },
-            },
           },
         });
         if (!ticket) throw new GraphQLError('Ticket not found.');
         const isSaasAdmin = context.user?.role === 'ADMIN';
         if (ticket.creatorId !== userId && !isSaasAdmin) throw new GraphQLError('Access denied');
+        
+        // Fetch paginated messages
+        const messagesRaw = await prisma.ticketMessage.findMany({
+            where: { ticketId: id },
+            take: limit + 1,
+            ...(cursor && {
+                cursor: { id: cursor },
+                skip: 1,
+            }),
+            orderBy: { createdAt: 'desc' },
+            include: { sender: { select: { id: true, firstName: true, lastName: true, avatar: true, avatarColor: true, role: true } } },
+        });
+
+        const hasMoreMessages = messagesRaw.length > limit;
+        const messages = hasMoreMessages ? messagesRaw.slice(0, limit) : messagesRaw;
+        
         log(source, 'Successfully fetched ticket');
         return { 
           ...ticket, 
-          messages: ticket.messages.map(msg => ({ 
+          messages: messages.reverse().map(msg => ({ 
             ...msg, 
             ticketId: ticket.id,
             isSupport: msg.sender.role === 'ADMIN' 
-          })) 
+          })),
+          hasMoreMessages
         };
       } catch (error: any) {
         log(source, 'ERROR', { error: error.message });
@@ -342,8 +362,6 @@ export const messagingResolvers = {
           typingUser: { ...user, conversationId }
         };
         
-        // This subscription should also theoretically check if the user is kicked, 
-        // but typing indicators are less critical security-wise.
         await pubsub.publish(Topics.USER_IS_TYPING, payload);
 
         return true;
@@ -617,14 +635,11 @@ export const messagingResolvers = {
             const userId = context.user?.id;
             if (!userId) throw new GraphQLError('Not authenticated');
 
-            // 1. Verify access: User must be an ACTIVE participant
             const participant = await prisma.conversationParticipant.findFirst({
                 where: { conversationId, userId, hasLeft: false }
             });
             if (!participant) throw new GraphQLError('You are not a participant of this conversation.');
 
-            // 2. Add new members
-            // We use upsert to handle re-adding previously kicked members by resetting hasLeft to false
             await prisma.$transaction(
                 participantIds.map(id => 
                     prisma.conversationParticipant.upsert({
@@ -635,15 +650,12 @@ export const messagingResolvers = {
                 )
             );
 
-            // 3. Notify clients. This ensures the new user sees the chat in their list immediately.
             const conversation = await prisma.conversation.findUnique({ 
                 where: { id: conversationId }, 
                 include: { participants: { include: { user: true } } }
             });
             
             if(conversation) {
-                // Hacky way to trigger list refresh for relevant users. 
-                // We fake a "new item" event payload.
                 const payload = await createCommunicationListItemPayload(conversation, 'conversation', userId);
                 await pubsub.publish(Topics.COMMUNICATION_ITEM_ADDED, { communicationItemAdded: payload });
             }
@@ -661,7 +673,6 @@ export const messagingResolvers = {
             const userId = context.user?.id;
             if (!userId) throw new GraphQLError('Not authenticated');
             
-            // Soft delete: User marks themselves as 'hasLeft'
             await prisma.conversationParticipant.update({
                 where: { conversationId_userId: { conversationId, userId } },
                 data: { hasLeft: true, leftAt: new Date() }
@@ -684,14 +695,11 @@ export const messagingResolvers = {
             
             if (conversation.creatorId !== currentUserId) throw new GraphQLError('Only the group creator can remove participants.');
 
-            // Soft delete: Mark target as 'hasLeft'
             await prisma.conversationParticipant.update({
                 where: { conversationId_userId: { conversationId, userId } },
                 data: { hasLeft: true, leftAt: new Date() }
             });
 
-            // PUBLISH KICK EVENT
-            // We use a custom topic string "PARTICIPANT_REMOVED" 
             await pubsub.publish('PARTICIPANT_REMOVED', { 
                 participantRemoved: { conversationId, userId } 
             });
@@ -711,9 +719,6 @@ export const messagingResolvers = {
             () => pubsub.asyncIterableIterator(['PARTICIPANT_REMOVED']),
             (payload, _, context: GraphQLContext) => {
                 const userId = context.user?.id;
-                // Only fire if the removed user is the current user (so they know they were kicked)
-                // OR if the current user is a participant of that conversation (to update their member list)
-                // For now, simpler: Just fire if authenticated. Frontend handles what to do.
                 return !!userId;
             }
         )
@@ -731,15 +736,10 @@ export const messagingResolvers = {
           
           if (workspaceId !== variables.workspaceId) return false;
           
-          // GOAL 2: Strict visibility check
-          // The payload 'participants' includes the creator for tickets, and members for convos.
-          // We check if the current userId is in that list.
-          // Admin can see all tickets, so we check role too.
           const participants = item.participants || [];
           const isParticipant = participants.some((p: any) => p.id === userId);
           const isAdmin = context.user?.role === 'ADMIN';
 
-          // If it's a ticket and user is admin, allow it.
           if (item.type === 'ticket' && isAdmin) return true;
 
           return isParticipant;
@@ -767,12 +767,10 @@ export const messagingResolvers = {
         (payload, variables, context: GraphQLContext) => {
             const isAdmin = context.user?.role === 'ADMIN';
 
-            // Admins receive all ticket messages, no filtering needed.
             if (isAdmin) {
                 return true;
             }
 
-            // For regular users, filter by workspaceId
             if (variables.workspaceId && payload.ticketAuthorizer.workspaceId !== variables.workspaceId) {
                 return false;
             }
@@ -780,7 +778,6 @@ export const messagingResolvers = {
             const userId = context.user?.id;
             if (!userId) return false;
 
-            // And ensure they are the creator of the ticket
             return payload.ticketAuthorizer.ticketCreatorId === userId;
         }
       ),
@@ -794,12 +791,10 @@ export const messagingResolvers = {
           const userId = context.user?.id;
           if (!userId) return false;
 
-          // Check if user is a valid participant AND hasn't been kicked/left
           const participant = await prisma.conversationParticipant.findFirst({
             where: { conversationId: payload.messageAdded.conversationId, userId }
           });
           
-          // If participant doesn't exist OR hasLeft is true, DO NOT send the message
           if (!participant || participant.hasLeft) return false;
 
           if (variables.conversationId) {

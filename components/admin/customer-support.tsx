@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState } from "react"
@@ -23,10 +22,8 @@ export function CustomerSupport() {
   );
 
   return (
-    // CHANGE 1: Main page container is now a flex column. This is the foundation.
     <div className="h-full flex flex-col p-6">
       
-      {/* CHANGE 2: Page header. 'flex-shrink-0' prevents it from shrinking. */}
       <div className="flex-shrink-0 pb-6">
         <h1 className="text-3xl font-bold text-gray-900">Customer Support</h1>
         <p className="text-gray-600">Manage customer inquiries and support tickets</p>
@@ -35,7 +32,6 @@ export function CustomerSupport() {
       <div className="grid gap-6 lg:grid-cols-4">
 
         
-        {/* Left Panel: Ticket List */}
         <div className="lg:col-span-1 flex flex-col h-[80vh]">
         <Card className="flex flex-col h-full">
         <CardHeader className="flex-shrink-0">
@@ -51,7 +47,7 @@ export function CustomerSupport() {
                 />
               </div>
             </CardHeader>
-            <CardContent className="p-0 flex-1 overflow-y-auto"> {/* This now scrolls correctly */}
+            <CardContent className="p-0 flex-1 overflow-y-auto">
               <SupportTicketList
                 tickets={filteredTickets}
                 isLoading={listLoading}
@@ -62,7 +58,6 @@ export function CustomerSupport() {
           </Card>
         </div>
 
-        {/* Right Panel: Chat Window */}
         <div className="lg:col-span-3  h-[80vh]">
           {selectedTicketId ? (
             <SupportChatWindow key={selectedTicketId} ticketId={selectedTicketId} />

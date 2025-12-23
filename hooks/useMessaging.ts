@@ -1,4 +1,3 @@
-// hooks/useMessaging.ts
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useQuery, useLazyQuery, useMutation, useSubscription, useApolloClient } from '@apollo/client';
 import { 
@@ -85,6 +84,7 @@ export interface ConversationDetails {
   creatorId?: string;
   participants: UserAvatarPartial[]; 
   messages: Message[];
+  hasMoreMessages: boolean;
 }
 
 export interface TicketDetails {
@@ -95,6 +95,7 @@ export interface TicketDetails {
   creator: UserAvatarPartial;
   messages: TicketMessage[];
   createdAt: string; // ISO Date String
+  hasMoreMessages: boolean;
 }
 
 // ---------------------------------------------------------------- //
@@ -105,12 +106,15 @@ interface UseMessagingParams {
   workspaceId: string;
 }
 
+const MESSAGES_PAGE_SIZE = 6;
+
 export const useMessaging = ({ workspaceId }: UseMessagingParams) => {
   const client = useApolloClient();
   const { currentUser } = useAuth();
   const [selectedItem, setSelectedItem] = useState<CommunicationItem | null>(null);
   const [typingUsers, setTypingUsers] = useState<TypingUser[]>([]);
   const typingTimeoutRef = useRef<Record<string, NodeJS.Timeout>>({});
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
 
   const { data, loading, error, refetch } = useQuery<{ getCommunicationList: CommunicationItem[], getWorkspaceMembers: WorkspaceMember[] }>(GET_MESSAGING_DATA, {
     variables: { workspaceId },
@@ -118,8 +122,8 @@ export const useMessaging = ({ workspaceId }: UseMessagingParams) => {
     fetchPolicy: 'cache-and-network',
   });
 
-  const [getConversation, { data: conversationData, loading: conversationLoading }] = useLazyQuery<{ getConversation: ConversationDetails }>(GET_CONVERSATION_DETAILS);
-  const [getTicket, { data: ticketData, loading: ticketLoading }] = useLazyQuery<{ getTicket: TicketDetails }>(GET_TICKET_DETAILS);
+  const [getConversation, { data: conversationData, loading: conversationLoading, fetchMore: fetchMoreConversation }] = useLazyQuery<{ getConversation: ConversationDetails }>(GET_CONVERSATION_DETAILS);
+  const [getTicket, { data: ticketData, loading: ticketLoading, fetchMore: fetchMoreTicket }] = useLazyQuery<{ getTicket: TicketDetails }>(GET_TICKET_DETAILS);
 
   const [sendMessageMutation, { loading: sendingMessage }] = useMutation(SEND_MESSAGE);
   const [sendTicketMessageMutation, { loading: sendingTicketMessage }] = useMutation(SEND_TICKET_MESSAGE);
@@ -164,7 +168,6 @@ export const useMessaging = ({ workspaceId }: UseMessagingParams) => {
     }
   });
 
-  // GOAL 1: Handle Instant Kick/Removal Updates
   useSubscription(PARTICIPANT_REMOVED_SUBSCRIPTION, {
     onData: ({ client, data }) => {
         const removedInfo = data.data?.participantRemoved;
@@ -187,13 +190,13 @@ export const useMessaging = ({ workspaceId }: UseMessagingParams) => {
       
       const isForCurrentChat = selectedItem?.id === newMessage.conversationId;
 
-      // Update the details cache for the conversation, even if not currently viewed.
-      const queryOptions = { query: GET_CONVERSATION_DETAILS, variables: { id: newMessage.conversationId } };
+      const queryOptions = { query: GET_CONVERSATION_DETAILS, variables: { id: newMessage.conversationId, limit: MESSAGES_PAGE_SIZE } };
       try {
         const cachedData = client.readQuery<{ getConversation: ConversationDetails }>(queryOptions);
         if (cachedData?.getConversation && !cachedData.getConversation.messages.some(m => m.id === newMessage.id)) {
           client.writeQuery({ 
-            ...queryOptions, 
+            query: GET_CONVERSATION_DETAILS,
+            variables: { id: newMessage.conversationId },
             data: { getConversation: { ...cachedData.getConversation, messages: [...cachedData.getConversation.messages, newMessage] } } 
           });
         }
@@ -201,7 +204,6 @@ export const useMessaging = ({ workspaceId }: UseMessagingParams) => {
         // This is expected if the conversation details haven't been cached yet.
       }
       
-      // Update the list item
       const listQuery = GET_MESSAGING_DATA;
       try {
         const cachedList = client.readQuery<{ getCommunicationList: CommunicationItem[] }>({ query: listQuery, variables: { workspaceId } });
@@ -239,13 +241,13 @@ export const useMessaging = ({ workspaceId }: UseMessagingParams) => {
       
       const isForCurrentTicket = selectedItem?.id === newMessage.ticketId && selectedItem.type === 'ticket';
 
-      // Update the detailed view cache, even if the ticket is not currently open
-      const queryOptions = { query: GET_TICKET_DETAILS, variables: { id: newMessage.ticketId } };
+      const queryOptions = { query: GET_TICKET_DETAILS, variables: { id: newMessage.ticketId, limit: MESSAGES_PAGE_SIZE } };
       try {
         const cachedData = client.readQuery<{ getTicket: TicketDetails }>(queryOptions);
         if (cachedData?.getTicket && !cachedData.getTicket.messages.some(m => m.id === newMessage.id)) {
           client.writeQuery({ 
-            ...queryOptions, 
+            query: GET_TICKET_DETAILS,
+            variables: { id: newMessage.ticketId },
             data: { getTicket: { ...cachedData.getTicket, messages: [...cachedData.getTicket.messages, newMessage] } } 
           });
         }
@@ -253,7 +255,6 @@ export const useMessaging = ({ workspaceId }: UseMessagingParams) => {
         // This is expected if the ticket details haven't been cached yet.
       }
 
-      // Update the main communication list
       const listQuery = GET_MESSAGING_DATA;
       try {
         const cachedList = client.readQuery<{ getCommunicationList: CommunicationItem[] }>({ query: listQuery, variables: { workspaceId } });
@@ -305,12 +306,60 @@ export const useMessaging = ({ workspaceId }: UseMessagingParams) => {
   useEffect(() => {
     if (!selectedItem) return;
     setTypingUsers([]);
+    const variables = { id: selectedItem.id, limit: MESSAGES_PAGE_SIZE };
     if (selectedItem.type === 'conversation') {
-      getConversation({ variables: { id: selectedItem.id }, fetchPolicy: 'cache-and-network' });
+      getConversation({ variables });
     } else if (selectedItem.type === 'ticket') {
-      getTicket({ variables: { id: selectedItem.id }, fetchPolicy: 'cache-and-network' });
+      getTicket({ variables });
     }
   }, [selectedItem, getConversation, getTicket]);
+
+  const loadMoreMessages = useCallback(async () => {
+    if (isLoadingMore) return;
+    setIsLoadingMore(true);
+
+    try {
+        if (selectedItem?.type === 'conversation' && fetchMoreConversation) {
+            const currentData = conversationData?.getConversation;
+            if (!currentData || !currentData.hasMoreMessages || currentData.messages.length === 0) return;
+
+            await fetchMoreConversation({
+                variables: { cursor: currentData.messages[0].id },
+                updateQuery: (prev, { fetchMoreResult }) => {
+                    if (!fetchMoreResult) return prev;
+                    return {
+                        getConversation: {
+                            ...prev.getConversation,
+                            messages: [...fetchMoreResult.getConversation.messages, ...prev.getConversation.messages],
+                            hasMoreMessages: fetchMoreResult.getConversation.hasMoreMessages,
+                        },
+                    };
+                },
+            });
+        } else if (selectedItem?.type === 'ticket' && fetchMoreTicket) {
+            const currentData = ticketData?.getTicket;
+            if (!currentData || !currentData.hasMoreMessages || currentData.messages.length === 0) return;
+            
+            await fetchMoreTicket({
+                variables: { cursor: currentData.messages[0].id },
+                updateQuery: (prev, { fetchMoreResult }) => {
+                    if (!fetchMoreResult) return prev;
+                    return {
+                        getTicket: {
+                            ...prev.getTicket,
+                            messages: [...fetchMoreResult.getTicket.messages, ...prev.getTicket.messages],
+                            hasMoreMessages: fetchMoreResult.getTicket.hasMoreMessages,
+                        },
+                    };
+                },
+            });
+        }
+    } catch (e) {
+        console.error("Failed to fetch more messages:", e);
+    } finally {
+        setIsLoadingMore(false);
+    }
+  }, [selectedItem, conversationData, ticketData, fetchMoreConversation, fetchMoreTicket, isLoadingMore]);
 
   const handleSelectItem = useCallback((item: CommunicationItem | null) => {
     setSelectedItem(item);
@@ -383,10 +432,7 @@ export const useMessaging = ({ workspaceId }: UseMessagingParams) => {
       getConversation({ variables: { id: conversationId }, fetchPolicy: 'network-only' });
   }, [addParticipantsMutation, getConversation]);
 
-
-
-    // Callback for updating ticket priority
-    const updateTicketPriority = useCallback(async (ticketId: string, priority: 'LOW' | 'MEDIUM' | 'HIGH') => {
+  const updateTicketPriority = useCallback(async (ticketId: string, priority: 'LOW' | 'MEDIUM' | 'HIGH') => {
       await updatePriorityMutation({ 
         variables: { ticketId, priority },
         update: (cache, { data }) => {
@@ -407,8 +453,6 @@ export const useMessaging = ({ workspaceId }: UseMessagingParams) => {
       });
     }, [updatePriorityMutation]);
   
-
-  // Determine correct active details based on selected type
   let activeItemDetails: ConversationDetails | TicketDetails | undefined | null = null;
   if (selectedItem?.type === 'conversation') {
       activeItemDetails = conversationData?.getConversation;
@@ -426,6 +470,8 @@ export const useMessaging = ({ workspaceId }: UseMessagingParams) => {
     setSelectedItem: handleSelectItem,
     activeItemDetails,
     itemLoading: conversationLoading || ticketLoading,
+    isLoadingMore,
+    loadMoreMessages,
     sendMessage: handleSendMessage,
     sendingMessage: sendingMessage || sendingTicketMessage,
     createTicket: handleCreateTicket,
