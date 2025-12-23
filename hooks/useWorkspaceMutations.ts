@@ -10,13 +10,11 @@ export function useWorkspaceMutations() {
   });
 
   const updateWorkspace = (payload: UpdateWorkspaceInput) => {
-    console.log("LOG: [useWorkspaceMutations] - Received payload for update:", payload);
     
     const variables = {
       input: payload,
     };
     
-    console.log("LOG: [useWorkspaceMutations] - Executing mutation with variables:", variables);
 
     return mutate({
       variables,

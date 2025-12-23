@@ -100,16 +100,13 @@ const documentResolvers = {
       { id }: { id: string },
       context: GraphQLContext
     ): Promise<PrismaDocumentType | null> => {
-      console.log("[getDocumentDetails Query] called with document ID:", id);
       const { user } = context;
 
       if (!user?.id) {
-        console.log("[getDocumentDetails Query] Authentication required: No user ID found.");
         throw new GraphQLError("Authentication required", {
           extensions: { code: "UNAUTHENTICATED" },
         });
       }
-      console.log("[getDocumentDetails Query] User authenticated:", user.id);
 
       try {
         const document = await prisma.document.findUnique({
@@ -125,10 +122,8 @@ const documentResolvers = {
         });
 
         if (!document) {
-          console.log(`[getDocumentDetails Query] Document with ID ${id} not found.`);
           return null;
         }
-        console.log(`[getDocumentDetails Query] Found document: ${document.title} (ID: ${document.id})`);
 
         const isProjectDocument = document.projectId !== null;
         const isPersonalDocument = document.userId !== null;
@@ -137,14 +132,11 @@ const documentResolvers = {
 
         if (isPersonalDocument && document.userId === user.id) {
           isAuthorized = true;
-          console.log("[getDocumentDetails Query] Authorized: User is personal owner.");
         } else if (isProjectDocument && document.projectId) {
           isAuthorized = true;
-          console.log("[getDocumentDetails Query] Authorized: Document is a project document (membership check skipped).");
         }
 
         if (!isAuthorized) {
-          console.log("[getDocumentDetails Query] Authorization failed: User not authorized to access this document.");
           throw new GraphQLError("Authorization required: Not authorized to access this document", {
             extensions: { code: "FORBIDDEN" },
           });
@@ -163,7 +155,6 @@ const documentResolvers = {
           activities: [],
           __typename: 'Document'
         };
-        console.log("[getDocumentDetails Query] Successfully fetched and transformed document details. Returning data.");
         return result;
       } catch (error) {
         console.error(`[getDocumentDetails Query] Error fetching document details for ID ${id}:`, error);
@@ -178,20 +169,16 @@ const documentResolvers = {
       { input }: { input: CreateDocumentInput },
       context: GraphQLContext
     ): Promise<DocumentListItem> => {
-      console.log("[createDocument Mutation] called with input:", input);
       const { user } = context;
       const { projectId, title, content, dataUrl } = input; // UPDATED: Destructure dataUrl
 
       if (!user?.id) {
-        console.log("[createDocument Mutation] Authentication required: No user ID found.");
         throw new GraphQLError("Authentication required", {
           extensions: { code: "UNAUTHENTICATED" },
         });
       }
-      console.log("[createDocument Mutation] User authenticated:", user.id);
 
       if (!projectId) {
-        console.log("[createDocument Mutation] Validation Error: Project ID is required.");
         throw new GraphQLError("Project ID is required to create a document.", {
           extensions: { code: "BAD_USER_INPUT" },
         });
@@ -199,7 +186,6 @@ const documentResolvers = {
 
       // NEW: Validation for either content (doc) or dataUrl (pdf)
       if (content === null && dataUrl === null) {
-        console.log("[createDocument Mutation] Validation Error: Document content or dataUrl is required.");
         throw new GraphQLError("Document content or dataUrl is required.", {
           extensions: { code: "BAD_USER_INPUT" },
         });
@@ -216,7 +202,6 @@ const documentResolvers = {
             project: { connect: { id: projectId } },
           },
         });
-        console.log(`[createDocument Mutation] Successfully created document: ${newDocument.title} (ID: ${newDocument.id})`);
 
         const result = {
           id: newDocument.id,
@@ -225,7 +210,6 @@ const documentResolvers = {
           type: newDocument.dataUrl ? "pdf" : "doc", // Determine type from saved document
           projectId: newDocument.projectId!,
         };
-        console.log("[createDocument Mutation] Returning newly created document.");
         return result;
       } catch (error) {
         console.error("[createDocument Mutation] Error creating document:", error);
@@ -238,17 +222,14 @@ const documentResolvers = {
       { input }: { input: UpdateDocumentInput },
       context: GraphQLContext
     ): Promise<DocumentListItem> => {
-      console.log("[updateDocument Mutation] called with input:", input);
       const { user } = context;
       const { id, title, content, dataUrl } = input; // UPDATED: Destructure dataUrl
 
       if (!user?.id) {
-        console.log("[updateDocument Mutation] Authentication required: No user ID found.");
         throw new GraphQLError("Authentication required", {
           extensions: { code: "UNAUTHENTICATED" },
         });
       }
-      console.log("[updateDocument Mutation] User authenticated:", user.id);
 
       try {
         const existingDocument = await prisma.document.findUnique({
@@ -257,12 +238,10 @@ const documentResolvers = {
         });
 
         if (!existingDocument) {
-          console.log(`[updateDocument Mutation] Document with ID ${id} not found.`);
           throw new GraphQLError("Document not found", {
             extensions: { code: "NOT_FOUND" },
           });
         }
-        console.log(`[updateDocument Mutation] Found existing document for update: ID ${id}`);
 
 
         const isProjectDocument = existingDocument.projectId !== null;
@@ -272,14 +251,11 @@ const documentResolvers = {
 
         if (isPersonalDocument && existingDocument.userId === user.id) {
           isAuthorized = true;
-          console.log("[updateDocument Mutation] Authorized: User is personal owner.");
         } else if (isProjectDocument && existingDocument.projectId) {
           isAuthorized = true;
-          console.log("[updateDocument Mutation] Authorized: Document is a project document (membership check skipped).");
         }
 
         if (!isAuthorized) {
-          console.log("[updateDocument Mutation] Authorization failed: User not authorized to update this document.");
           throw new GraphQLError("Authorization required: Not authorized to update this document", {
             extensions: { code: "FORBIDDEN" },
           });
@@ -293,7 +269,6 @@ const documentResolvers = {
             dataUrl: dataUrl !== undefined ? dataUrl : undefined, // Update dataUrl directly
           },
         });
-        console.log(`[updateDocument Mutation] Successfully updated document: ${updatedDocument.title} (ID: ${updatedDocument.id})`);
 
         const result = {
           id: updatedDocument.id,
@@ -302,7 +277,6 @@ const documentResolvers = {
           type: updatedDocument.dataUrl ? "pdf" : "doc", // Determine type from updated document
           projectId: updatedDocument.projectId!,
         };
-        console.log("[updateDocument Mutation] Returning updated document.");
         return result;
       } catch (error) {
         console.error(`[updateDocument Mutation] Error updating document ID ${id}:`, error);
@@ -314,16 +288,13 @@ const documentResolvers = {
       { id }: { id: string },
       context: GraphQLContext
     ): Promise<DocumentListItem> => {
-      console.log("[deleteDocument Mutation] called with document ID:", id);
       const { user } = context;
 
       if (!user?.id) {
-        console.log("[deleteDocument Mutation] Authentication required: No user ID found.");
         throw new GraphQLError("Authentication required", {
           extensions: { code: "UNAUTHENTICATED" },
         });
       }
-      console.log("[deleteDocument Mutation] User authenticated:", user.id);
 
       try {
         const existingDocument = await prisma.document.findUnique({
@@ -332,12 +303,10 @@ const documentResolvers = {
         });
 
         if (!existingDocument) {
-          console.log(`[deleteDocument Mutation] Document with ID ${id} not found.`);
           throw new GraphQLError("Document not found", {
             extensions: { code: "NOT_FOUND" },
           });
         }
-        console.log(`[deleteDocument Mutation] Found existing document for deletion: ID ${id}`);
 
         const isProjectDocument = existingDocument.projectId !== null;
         const isPersonalDocument = existingDocument.userId !== null;
@@ -346,14 +315,11 @@ const documentResolvers = {
 
         if (isPersonalDocument && existingDocument.userId === user.id) {
           isAuthorized = true;
-          console.log("[deleteDocument Mutation] Authorized: User is personal owner.");
         } else if (isProjectDocument && existingDocument.projectId) {
           isAuthorized = true;
-          console.log("[deleteDocument Mutation] Authorized: Document is a project document (membership check skipped).");
         }
 
         if (!isAuthorized) {
-          console.log("[deleteDocument Mutation] Authorization failed: User not authorized to delete this document.");
           throw new GraphQLError("Authorization required: Not authorized to delete this document", {
             extensions: { code: "FORBIDDEN" },
           });
@@ -362,7 +328,6 @@ const documentResolvers = {
         const deletedDocument = await prisma.document.delete({
           where: { id },
         });
-        console.log(`[deleteDocument Mutation] Successfully deleted document: ${deletedDocument.title} (ID: ${deletedDocument.id})`);
 
         const result = {
           id: deletedDocument.id,
@@ -371,7 +336,6 @@ const documentResolvers = {
           type: deletedDocument.dataUrl ? "pdf" : "doc", // Determine type from deleted document
           projectId: deletedDocument.projectId!,
         };
-        console.log("[deleteDocument Mutation] Returning deleted document info.");
         return result;
       } catch (error) {
         console.error(`[deleteDocument Mutation] Error deleting document ID ${id}:`, error);
@@ -385,11 +349,9 @@ const documentResolvers = {
       { ids }: { ids: string[] },
       context: GraphQLContext
     ): Promise<{ count: number }> => {
-      console.log("[deleteManyDocuments Mutation] called with IDs:", ids);
       const { user } = context;
 
       if (!user?.id) {
-        console.log("[deleteManyDocuments Mutation] Authentication required.");
         throw new GraphQLError("Authentication required", {
           extensions: { code: "UNAUTHENTICATED" },
         });
@@ -414,7 +376,6 @@ const documentResolvers = {
           },
         });
 
-        console.log(`[deleteManyDocuments Mutation] Successfully deleted ${count} documents.`);
         return { count };
       } catch (error) {
         console.error("[deleteManyDocuments Mutation] Error deleting documents:", error);

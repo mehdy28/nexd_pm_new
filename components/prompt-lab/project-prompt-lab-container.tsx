@@ -15,7 +15,6 @@ interface ProjectPromptLabContainerProps {
 }
 
 export function ProjectPromptLabContainer({ projectId }: ProjectPromptLabContainerProps) {
-  console.log("[ProjectPromptLabContainer] [Trace: Render] Component rendering for Project ID:", projectId)
 
   if (!projectId) {
     return <ErrorPlaceholder error={new Error("Project ID is missing.")} />
@@ -73,7 +72,6 @@ export function ProjectPromptLabContainer({ projectId }: ProjectPromptLabContain
 
   const selectPrompt = useCallback(
     (id: string | null) => {
-      console.log("[ProjectPromptLabContainer] [Trace: Select] selectPrompt called with ID:", id)
       setSelectedPromptId(id)
       if (id === null) {
         triggerPromptsListFetch(true)
@@ -83,14 +81,11 @@ export function ProjectPromptLabContainer({ projectId }: ProjectPromptLabContain
   )
 
   const handleCreateNewPrompt = useCallback(async () => {
-    console.log(
-      "[ProjectPromptLabContainer] [Trace: HandleCreate] handleCreateNewPrompt: Initiating project prompt creation.",
-    )
+
     setIsPostCreationLoading(true)
     try {
       const newPrompt = await createPromptInList({ projectId }) 
       if (newPrompt) {
-        console.log("[ProjectPromptLabContainer] [Trace: HandleCreate] New prompt created:", newPrompt.id)
         showToast("Prompt created successfully", "success")
         selectPrompt(newPrompt.id)
       } else {
@@ -105,9 +100,6 @@ export function ProjectPromptLabContainer({ projectId }: ProjectPromptLabContain
 
   const handleCreateFromTemplate = useCallback(
     async (template: PromptTemplate) => {
-      console.log(
-        `[ProjectPromptLabContainer] [Trace: HandleCreateTemplate] Creating project prompt from template: "${template.name}"`,
-      )
       setIsCreatingTemplate(true)
       setIsPostCreationLoading(true)
       try {
@@ -125,10 +117,6 @@ export function ProjectPromptLabContainer({ projectId }: ProjectPromptLabContain
 
         const newPrompt = await createPromptInList(promptData)
         if (newPrompt) {
-          console.log(
-            "[ProjectPromptLabContainer] [Trace: HandleCreateTemplate] New prompt created from template:",
-            newPrompt.id,
-          )
           showToast(`Created from ${template.name}`, "success")
           selectPrompt(newPrompt.id)
         } else {
@@ -150,17 +138,11 @@ export function ProjectPromptLabContainer({ projectId }: ProjectPromptLabContain
 
   const handleDeletePrompt = useCallback(
     async (id: string) => {
-      console.log(
-        "[ProjectPromptLabContainer] [Trace: HandleDelete] handleDeletePrompt: Initiating deletion for ID:",
-        id,
-      )
       try {
         await deletePromptFromList(id)
         showToast("Prompt deleted", "success")
-        console.log("[ProjectPromptLabContainer] [Trace: HandleDelete] Deletion promise resolved.")
 
         if (selectedPromptId === id) {
-          console.log("[ProjectPromptLabContainer] [Trace: HandleDelete] Deselecting deleted prompt.")
           selectPrompt(null)
         }
       } catch (err) {
@@ -172,14 +154,9 @@ export function ProjectPromptLabContainer({ projectId }: ProjectPromptLabContain
 
   const handleDeleteManyPrompts = useCallback(
     async (ids: string[]) => {
-      console.log(
-        "[ProjectPromptLabContainer] [Trace: HandleDeleteMany] handleDeleteManyPrompts: Initiating deletion for IDs:",
-        ids,
-      )
       try {
         await deleteManyPromptsFromList(ids)
         showToast(`${ids.length} prompts deleted`, "success")
-        console.log("[ProjectPromptLabContainer] [Trace: HandleDeleteMany] Bulk deletion promise resolved.")
 
         if (selectedPromptId && ids.includes(selectedPromptId)) {
           selectPrompt(null)
@@ -192,12 +169,10 @@ export function ProjectPromptLabContainer({ projectId }: ProjectPromptLabContain
   )
 
   const handleBack = () => {
-    console.log("[ProjectPromptLabContainer] [Trace: HandleBack] handleBack: Deselecting prompt.")
     selectPrompt(null)
   }
 
   const handleRetry = useCallback(() => {
-    console.log("[ProjectPromptLabContainer] [Trace: RetryButton] Retry button clicked.")
     if (selectedPromptId) {
       refetchPromptDetails()
     } else {

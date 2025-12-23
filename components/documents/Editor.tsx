@@ -16,7 +16,6 @@ interface EditorProps {
 
 // Our <Editor> component we can reuse later
 export default function Editor({ initialContent, onChange }: EditorProps) {
-  console.log("LOG: <Editor> component rendering.", { initialContent })
   // Creates a new editor instance.
   const editor = useCreateBlockNote({
     // FIX: Blocknote throws an error if initialContent is an empty array.
@@ -32,7 +31,6 @@ export default function Editor({ initialContent, onChange }: EditorProps) {
       theme="light"
       editor={editor}
       onChange={() => {
-        console.log("LOG: <Editor> onChange triggered.")
         onChange?.(editor.document)
       }} // editor.document already returns Block[]
     />

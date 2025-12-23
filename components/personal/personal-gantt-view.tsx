@@ -78,8 +78,6 @@ const PersonalGanttView: React.FC<PersonalGanttViewProps> = () => {
 
   useEffect(() => {
     if (ganttTasks && !isMutating) {
-      console.log("PersonalGanttView: Syncing server state to local state. Not mutating.")
-
       // Calculate section dates based on children before setting local state
       const sections = ganttTasks.filter(t => t.originalType === "SECTION")
       let processedTasks = [...ganttTasks]
@@ -100,9 +98,7 @@ const PersonalGanttView: React.FC<PersonalGanttViewProps> = () => {
 
       setOptimisticGanttTasks(processedTasks)
     } else if (isMutating) {
-      console.log("PersonalGanttView: Skipping state sync. Mutation in progress.")
     } else if (!ganttTasks) {
-      console.log("PersonalGanttView: Skipping state sync. No ganttTasks data.")
     }
   }, [ganttTasks, isMutating])
 
@@ -146,13 +142,6 @@ const PersonalGanttView: React.FC<PersonalGanttViewProps> = () => {
       }
 
       if (hasChanges) {
-        console.log(`PersonalGanttView: Optimistically updating task ${task.id}. New data:`, {
-          start: task.start,
-          end: task.end,
-          name: task.name,
-        })
-        console.log("[UPDATE GANTT TASK] Task list before update:", optimisticGanttTasks)
-
         // Optimistic UI update
         setOptimisticGanttTasks(prev => {
           // 1. Update the moved/edited task
@@ -187,14 +176,11 @@ const PersonalGanttView: React.FC<PersonalGanttViewProps> = () => {
             )
           }
 
-          console.log("[UPDATE GANTT TASK] Task list after update:", newTasksList)
           return newTasksList
         })
 
         try {
-          console.log(`PersonalGanttView: Sending update mutation for task ID ${originalItem.originalTaskId}.`)
           await updatePersonalGanttTask(input)
-          console.log(`PersonalGanttView: Update mutation for task ID ${originalItem.originalTaskId} successful.`)
         } catch (err) {
           console.error(
             `PersonalGanttView: Update mutation failed for task ID ${originalItem.originalTaskId}. Reverting optimistic update.`,
@@ -209,7 +195,6 @@ const PersonalGanttView: React.FC<PersonalGanttViewProps> = () => {
           refetchPersonalGanttData()
         }
       } else {
-        console.log(`PersonalGanttView: No changes detected for task ${task.id}. Skipping update.`)
       }
     },
     [optimisticGanttTasks, updatePersonalGanttTask, refetchPersonalGanttData]
@@ -266,12 +251,9 @@ const PersonalGanttView: React.FC<PersonalGanttViewProps> = () => {
 
       const roundedNewProgress = Math.round(task.progress || 0)
       if (originalItem.progress !== roundedNewProgress) {
-        console.log("[UPDATE GANTT TASK] Task list before update:", optimisticGanttTasks)
-
         // Optimistic UI update
         setOptimisticGanttTasks(prev => {
           const newTasksList = prev.map(t => (t.id === task.id ? { ...t, progress: roundedNewProgress } : t))
-          console.log("[UPDATE GANTT TASK] Task list after update:", newTasksList)
           return newTasksList
         })
 
@@ -326,7 +308,6 @@ const PersonalGanttView: React.FC<PersonalGanttViewProps> = () => {
     return <ErrorPlaceholder error={error} onRetry={refetchPersonalGanttData} />
   }
 
-  console.log("Gantt component rendering with tasks:", optimisticGanttTasks)
   return (
     <div className="relative px-6">
       <div className="flex items-center gap-3 py-6">

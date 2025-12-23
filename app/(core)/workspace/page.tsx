@@ -135,7 +135,6 @@ export default function WorkspacePage() {
       setProjectToDelete(null);
       refetchWorkspaceData();
     } catch (err) {
-      console.error("LOG: [handleDeleteProject] - deleteProject FAILED:", err);
       setProjectToDelete(null);
     }
   };

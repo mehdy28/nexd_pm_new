@@ -3,14 +3,7 @@ import { TaskStatus, Priority, SprintStatus, ProjectStatus, ProjectRole } from "
 import { GraphQLError } from "graphql";
 
 
-function log(prefix: string, message: string, data?: any) {
-  const timestamp = new Date().toISOString();
-  if (data !== undefined) {
-    console.log(`${timestamp} ${prefix} ${message}`, data);
-  } else {
-    console.log(`${timestamp} ${prefix} ${message}`);
-  }
-}
+
 
 interface GraphQLContext {
   prisma: typeof prisma;
@@ -65,10 +58,8 @@ interface UpdateSprintInput {
 export const projectResolver = {
   Query: {
     getProjectDetails: async (_parent: unknown, args: GetProjectDetailsArgs, context: GraphQLContext) => {
-      log("[getProjectDetails Query]", "called with args:", args);
 
       if (!context.user?.id) {
-        log("[getProjectDetails Query]", "No authenticated user found in context.");
         throw new Error("Authentication required: No user ID found in context.");
       }
 
@@ -88,16 +79,13 @@ export const projectResolver = {
         });
 
         if (!project) {
-          log("[getProjectDetails Query]", `Project with ID ${projectId} not found.`);
           return null;
         }
 
         const isMember = project.members.some(member => member.userId === userId);
         if (!isMember) {
-          log("[getProjectDetails Query]", `User ${userId} is not a member of project ${projectId}. Access denied.`);
           throw new Error("Access Denied: You are not a member of this project.");
         }
-        log("[getProjectDetails Query]", `Access granted for user ${userId} to project ${projectId}.`);
 
 
         const totalTasks = project.tasks.length;
@@ -156,11 +144,9 @@ export const projectResolver = {
           sprints: transformedSprints,
         };
 
-        log("[getProjectDetails Query]", "Project data fetched and transformed successfully.", result);
         return result;
 
       } catch (error) {
-        log("[getProjectDetails Query]", "Error fetching project details:", error);
         throw error;
       }
     },
@@ -172,7 +158,6 @@ export const projectResolver = {
     getAssignableProjectMembers: async (_: any, { workspaceId, projectId }: { workspaceId: string, projectId: string }, context: GraphQLContext) => {
       const source = 'Query: getAssignableProjectMembers';
       try {
-        log(source, 'Fired', { workspaceId, projectId });
         const userId = context.user?.id;
         if (!userId) throw new GraphQLError('Not authenticated');
 
@@ -201,7 +186,6 @@ export const projectResolver = {
 
         return assignableMembers;
       } catch (error: any) {
-        log(source, 'ERROR', { error: error.message });
         throw new GraphQLError(error.message || 'An error occurred fetching assignable project members.');
       }
     },
@@ -237,10 +221,8 @@ export const projectResolver = {
 
 
     getGanttData: async (_parent: unknown, args: GetGanttDataArgs, context: GraphQLContext) => {
-      log("[getGanttData Query]", "called with args:", args);
 
       if (!context.user?.id) {
-        log("[getGanttData Query]", "No authenticated user found in context.");
         throw new Error("Authentication required: No user ID found in context.");
       }
 
@@ -253,17 +235,14 @@ export const projectResolver = {
         });
 
         if (!projectMember) {
-          log("[getGanttData Query]", `User ${userId} is not a member of project ${projectId}. Access denied.`);
           throw new Error("Access Denied: You are not a member of this project.");
         }
-        log("[getGanttData Query]", `Access granted for user ${userId} to project ${projectId}.`);
 
         const projectSprints = await prisma.sprint.findMany({
           where: { projectId: projectId },
           select: { id: true, name: true, startDate: true, endDate: true, isCompleted: true, createdAt: true, description: true },
           orderBy: { createdAt: 'desc' },
         });
-        log("[getGanttData Query]", `Fetched ${projectSprints.length} sprints for project ${projectId}.`);
 
         const ganttTasks: any[] = [];
         let currentDisplayOrder = 1;
@@ -347,11 +326,9 @@ export const projectResolver = {
           tasks: ganttTasks,
         };
 
-        log("[getGanttData Query]", "Gantt data fetched and transformed successfully.", result);
         return result;
 
       } catch (error) {
-        log("[getGanttData Query]", "Error fetching Gantt data:", error);
         throw error;
       }
     },
@@ -359,10 +336,8 @@ export const projectResolver = {
 
 
         getProjectTasksAndSections: async (_parent: unknown, args: GetProjectTasksAndSectionsArgs, context: GraphQLContext) => {
-          log("[getProjectTasksAndSections Query]", "called with args:", args);
     
           if (!context.user?.id) {
-            log("[getProjectTasksAndSections Query]", "No authenticated user found in context.");
             throw new Error("Authentication required: No user ID found in context.");
           }
     
@@ -383,23 +358,19 @@ export const projectResolver = {
             });
     
             if (!project || project.members.length === 0) {
-              log("[getProjectTasksAndSections Query]", `User ${userId} is not a member of project ${projectId}. Access denied.`);
               throw new Error("Access Denied: You are not a member of this project.");
             }
-            log("[getProjectTasksAndSections Query]", `Access granted for user ${userId} to project ${projectId}.`);
     
             const allProjectSprints = await prisma.sprint.findMany({
               where: { projectId: projectId },
               select: { id: true, name: true, startDate: true, endDate: true, isCompleted: true, createdAt: true },
               orderBy: { createdAt: 'desc' },
             });
-            log("[getProjectTasksAndSections Query]", `Fetched ${allProjectSprints.length} sprints for project ${projectId}.`);
     
             let effectiveSprintId: string | null | undefined = argSprintId;
     
             if (!effectiveSprintId && allProjectSprints.length > 0) {
               effectiveSprintId = allProjectSprints[0].id;
-              log("[getProjectTasksAndSections Query]", `Defaulting to latest sprint by createdAt: ${allProjectSprints[0].name} (${allProjectSprints[0].id})`);
             }
     
     
@@ -423,7 +394,6 @@ export const projectResolver = {
                 },
               },
             });
-            log("[getProjectTasksAndSections Query]", `Fetched ${projectSections.length} project sections.`);
     
             const personalSections = await prisma.personalSection.findMany({
                 where: { userId: userId },
@@ -443,7 +413,6 @@ export const projectResolver = {
                     },
                 },
             });
-            log("[getProjectTasksAndSections Query]", `Fetched ${personalSections.length} personal sections for user ${userId}.`);
     
     
             const transformedProjectSections = projectSections.map(section => ({
@@ -505,7 +474,6 @@ export const projectResolver = {
                     },
                 },
             });
-            log("[getProjectTasksAndSections Query]", `Fetched ${allProjectMembers.length} project members.`);
     
             const transformedProjectMembers = allProjectMembers.map(member => ({
               id: member.id,
@@ -527,11 +495,9 @@ export const projectResolver = {
               projectMembers: transformedProjectMembers,
             };
     
-            log("[getProjectTasksAndSections Query]", "Tasks, sections, and members fetched successfully.", result);
             return result;
     
           } catch (error) {
-            log("[getProjectTasksAndSections Query]", "Error fetching project tasks and sections:", error);
             throw error;
           }
         },
@@ -543,10 +509,8 @@ export const projectResolver = {
       args: CreateProjectArgs,
       context: GraphQLContext
     ) => {
-      log("[createProject Mutation]", "called with args:", args);
 
       if (!context.user?.id) {
-        log("[createProject Mutation]", "No authenticated user found in context.");
         throw new Error("Authentication required: No user ID found in context.");
       }
 
@@ -564,10 +528,8 @@ export const projectResolver = {
         });
 
         if (!workspaceMember) {
-          log("[createProject Mutation]", `User ${userId} is not a member of workspace ${workspaceId}.`);
           throw new Error(`Forbidden: User is not a member of the specified workspace.`);
         }
-        log("[createProject Mutation]", `User ${userId} is a member of workspace ${workspaceId}. Proceeding.`);
 
         const project = await prisma.project.create({
           data: {
@@ -589,7 +551,6 @@ export const projectResolver = {
             sections: true,
           }
         });
-        log("[createProject Mutation]", "Project created successfully:", { id: project.id, name: project.name });
 
 
         const now = new Date();
@@ -602,7 +563,6 @@ export const projectResolver = {
             projectId: project.id,
           },
         });
-        log("[createProject Mutation]", `Initial Sprint created for project ${project.id}.`);
 
 
         const defaultProjectSections = ["To Do", "In Progress", "In Review", "Done"];
@@ -613,7 +573,6 @@ export const projectResolver = {
             projectId: project.id,
           })),
         });
-        log("[createProject Mutation]", `Default sections created for project ${project.id}.`);
 
         const createdProject = await prisma.project.findUnique({
             where: { id: project.id },
@@ -625,13 +584,11 @@ export const projectResolver = {
         });
 
         if (!createdProject) {
-            log("[createProject Mutation]", "Failed to retrieve the created project after creation steps for final return.");
             throw new Error("Failed to retrieve the newly created project for final return.");
         }
         return createdProject;
 
       } catch (error) {
-        log("[createProject Mutation]", "Error creating project:", error);
         throw error;
       }
     },
@@ -641,10 +598,8 @@ export const projectResolver = {
         args: UpdateProjectArgs,
         context: GraphQLContext
     ) => {
-        log("[updateProject Mutation]", "called with args:", args);
 
         if (!context.user?.id) {
-            log("[updateProject Mutation]", "No authenticated user found in context.");
             throw new Error("Authentication required.");
         }
 
@@ -659,7 +614,6 @@ export const projectResolver = {
         });
 
         if (!member || ![ProjectRole.OWNER, ProjectRole.ADMIN].includes(member.role as "ADMIN" | "OWNER")) {
-            log("[updateProject Mutation]", `User ${userId} does not have sufficient permissions for project ${id}.`);
             throw new Error("Forbidden: You do not have permission to update this project.");
         }
 
@@ -668,10 +622,8 @@ export const projectResolver = {
                 where: { id: id },
                 data: dataToUpdate,
             });
-            log("[updateProject Mutation]", "Project updated successfully:", updatedProject);
             return updatedProject;
         } catch (error) {
-            log("[updateProject Mutation]", "Error updating project:", error);
             throw new Error("Failed to update project.");
         }
     },
@@ -681,10 +633,8 @@ export const projectResolver = {
         args: DeleteProjectArgs,
         context: GraphQLContext
     ) => {
-        log("[deleteProject Mutation]", "called with args:", args);
 
         if (!context.user?.id) {
-            log("[deleteProject Mutation]", "No authenticated user found in context.");
             throw new Error("Authentication required.");
         }
 
@@ -699,7 +649,6 @@ export const projectResolver = {
         });
 
         if (!member || member.role !== ProjectRole.OWNER) {
-            log("[deleteProject Mutation]", `User ${userId} is not the owner of project ${id}.`);
             throw new Error("Forbidden: Only the project owner can delete the project.");
         }
 
@@ -709,19 +658,15 @@ export const projectResolver = {
             const deletedProject = await prisma.project.delete({
                 where: { id: id },
             });
-            log("[deleteProject Mutation]", "Project deleted successfully:", deletedProject);
             return deletedProject;
         } catch (error) {
-            log("[deleteProject Mutation]", "Error deleting project:", error);
             throw new Error("Failed to delete project.");
         }
     },
 
     updateSprint: async (_parent: unknown, args: { input: UpdateSprintInput }, context: GraphQLContext) => {
-      log("[updateSprint Mutation]", "called with input:", args.input);
 
       if (!context.user?.id) {
-        log("[updateSprint Mutation]", "No authenticated user found in context.");
         throw new Error("Authentication required: No user ID found in context.");
       }
 
@@ -739,14 +684,11 @@ export const projectResolver = {
         });
 
         if (!sprint) {
-          log("[updateSprint Mutation]", `Sprint with ID ${sprintId} not found.`);
           throw new Error(`Sprint with ID ${sprintId} not found.`);
         }
         if (!sprint.project || sprint.project.members.length === 0) {
-          log("[updateSprint Mutation]", `User ${userId} is not a member of the project owning sprint ${sprintId}. Access denied.`);
           throw new Error("Access Denied: You are not authorized to update this sprint.");
         }
-        log("[updateSprint Mutation]", `Access granted for user ${userId} to update sprint ${sprintId}.`);
 
         const dataToUpdate: any = {};
         for (const key in updates) {
@@ -766,7 +708,6 @@ export const projectResolver = {
           where: { id: sprintId },
           data: dataToUpdate,
         });
-        log("[updateSprint Mutation]", "Sprint updated successfully:", { id: updatedSprint.id, updates: dataToUpdate });
 
         return {
           ...updatedSprint,
@@ -780,7 +721,6 @@ export const projectResolver = {
         };
 
       } catch (error) {
-        log("[updateSprint Mutation]", "Error updating sprint:", error);
         throw error;
       }
     },

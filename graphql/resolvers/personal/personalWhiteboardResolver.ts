@@ -40,18 +40,7 @@ interface WhiteboardsResponse {
   totalCount: number
 }
 
-// Helper for consistent logging
-const log = (
-  level: "info" | "warn" | "error",
-  message: string,
-  context?: Record<string, any>
-) => {
-  const timestamp = new Date().toISOString()
-  console.log(`[${timestamp}] [PERSONAL_WHITEBOARD_RESOLVERS] [${level.toUpperCase()}] ${message}`)
-  if (context) {
-    console.log(`  Context: ${JSON.stringify(context)}`)
-  }
-}
+
 
 const personalWhiteboardResolvers = {
   Query: {
@@ -65,16 +54,13 @@ const personalWhiteboardResolvers = {
       context: GraphQLContext
     ): Promise<WhiteboardsResponse> => {
       const operation = "getMyWhiteboards"
-      log("info", `${operation} called.`, { search, skip, take })
 
       const { user } = context
       if (!user?.id) {
-        log("warn", `${operation}: Authentication required.`)
         throw new GraphQLError("Authentication required", {
           extensions: { code: "UNAUTHENTICATED" },
         })
       }
-      log("info", `${operation}: User ${user.id} authenticated.`, { userId: user.id })
 
       const where: Prisma.WhiteboardWhereInput = {
         userId: user.id,
@@ -106,9 +92,6 @@ const personalWhiteboardResolvers = {
           prisma.whiteboard.count({ where }),
         ])
 
-        log("info", `${operation}: Found ${Whiteboards.length} Whiteboards, total count is ${totalCount}.`, {
-          userId: user.id,
-        })
 
         const mappedWhiteboards = Whiteboards.map(wf => ({
           id: wf.id,
@@ -125,11 +108,7 @@ const personalWhiteboardResolvers = {
           totalCount,
         }
       } catch (error: any) {
-        log("error", `${operation}: Failed to fetch personal Whiteboards.`, {
-          userId: user.id,
-          errorName: error.name,
-          errorMessage: error.message,
-        })
+
         throw new GraphQLError(`Failed to retrieve Whiteboards: ${error.message}`, {
           extensions: { code: "DATABASE_ERROR" },
         })
@@ -143,11 +122,9 @@ const personalWhiteboardResolvers = {
     ) => {
       // This implementation is identical to the one in WhiteboardResolver as it handles both cases
       const operation = "getWhiteboardDetails"
-      log("info", `${operation} called.`, { WhiteboardId: id })
 
       const { user } = context
       if (!user?.id) {
-        log("warn", `${operation}: Authentication required.`, { WhiteboardId: id })
         throw new GraphQLError("Authentication required", {
           extensions: { code: "UNAUTHENTICATED" },
         })
@@ -166,7 +143,6 @@ const personalWhiteboardResolvers = {
       })
 
       if (!Whiteboard) {
-        log("warn", `${operation}: Whiteboard ${id} not found.`, { WhiteboardId: id })
         return null
       }
 
@@ -195,16 +171,13 @@ const personalWhiteboardResolvers = {
       context: GraphQLContext
     ): Promise<WhiteboardListItemOutput> => {
       const operation = "createPersonalWhiteboard"
-      log("info", `${operation} called.`, { input: { ...input, data: "[REDACTED]" } })
 
       const { user } = context
       if (!user?.id) {
-        log("warn", `${operation}: Authentication required.`)
         throw new GraphQLError("Authentication required", {
           extensions: { code: "UNAUTHENTICATED" },
         })
       }
-      log("info", `${operation}: User ${user.id} authenticated.`, { userId: user.id })
 
       const { title, data, thumbnail } = input
 
@@ -226,10 +199,7 @@ const personalWhiteboardResolvers = {
             projectId: true,
           },
         })
-        log("info", `${operation}: Personal Whiteboard ${newWhiteboard.id} created.`, {
-          WhiteboardId: newWhiteboard.id,
-          title: newWhiteboard.title,
-        })
+
 
         // NOTE: Activities are tied to projects in the schema, so we don't create one here.
 
@@ -243,10 +213,7 @@ const personalWhiteboardResolvers = {
           __typename: "WhiteboardListItem",
         }
       } catch (error: any) {
-        log("error", `${operation}: Failed to create personal Whiteboard.`, {
-          errorName: error.name,
-          errorMessage: error.message,
-        })
+
         throw new GraphQLError(`Failed to create personal Whiteboard: ${error.message}`, {
           extensions: { code: "DATABASE_ERROR" },
         })
@@ -261,7 +228,6 @@ const personalWhiteboardResolvers = {
       context: GraphQLContext
     ): Promise<WhiteboardListItemOutput> => {
       const operation = "updateWhiteboard"
-      log("info", `${operation} called for personal context.`, { input: { ...input, data: "[REDACTED]" } })
 
       const { user } = context
       if (!user?.id) {
@@ -323,14 +289,11 @@ const personalWhiteboardResolvers = {
       context: GraphQLContext,
     ): Promise<WhiteboardListItemOutput> => {
       const operation = "deleteWhiteboard";
-      log("info", `${operation} called.`, { WhiteboardId: id });
 
       const { user } = context;
       if (!user?.id) {
-        log("warn", `${operation}: Authentication required.`);
         throw new GraphQLError("Authentication required", { extensions: { code: "UNAUTHENTICATED" } });
       }
-      log("info", `${operation}: User ${user.id} authenticated.`, { userId: user.id });
 
       let existingWhiteboard;
       try {
@@ -342,20 +305,16 @@ const personalWhiteboardResolvers = {
           },
         });
       } catch (error: any) {
-        log("error", `${operation}: Database error fetching existing Whiteboard ${id} for authorization.`, { WhiteboardId: id, errorName: error.name, errorMessage: error.message });
         throw new GraphQLError(`Failed to authorize Whiteboard deletion: ${error.message}`, { extensions: { code: "DATABASE_ERROR" } });
       }
 
       if (!existingWhiteboard) {
-        log("warn", `${operation}: Whiteboard ${id} not found.`, { WhiteboardId: id });
         throw new GraphQLError("Whiteboard not found.", { extensions: { code: "NOT_FOUND" } });
       }
-      log("info", `${operation}: Found existing Whiteboard for deletion.`, { WhiteboardId: id, projectId: existingWhiteboard.projectId, ownerUserId: existingWhiteboard.userId });
 
       let isAuthorized = false;
       if (existingWhiteboard.projectId) {
         if (!existingWhiteboard.project) {
-          log("error", `${operation}: Project data inconsistency (project relation missing for existingWhiteboard).`, { WhiteboardId: id, projectId: existingWhiteboard.projectId });
           throw new GraphQLError("Project data inconsistency for this Whiteboard.", { extensions: { code: "INTERNAL_SERVER_ERROR" } });
         }
         const isProjectMember = existingWhiteboard.project.members.length > 0;
@@ -366,15 +325,12 @@ const personalWhiteboardResolvers = {
       } else if (existingWhiteboard.userId) {
         isAuthorized = existingWhiteboard.userId === user.id;
       } else {
-        log("error", `${operation}: Whiteboard ${id} has no associated project or user.`, { WhiteboardId: id });
         throw new GraphQLError("Whiteboard has no associated project or user.", { extensions: { code: "FORBIDDEN" } });
       }
 
       if (!isAuthorized) {
-        log("warn", `${operation}: Forbidden: User ${user.id} not authorized to delete Whiteboard ${id}.`, { WhiteboardId: id, userId: user.id });
         throw new GraphQLError("Forbidden: Not authorized to delete this Whiteboard", { extensions: { code: "FORBIDDEN" } });
       }
-      log("info", `${operation}: User ${user.id} authorized to delete Whiteboard ${id}.`, { WhiteboardId: id, userId: user.id });
 
       // NOTE: Since the delete operation returns the item *before* deletion, 
       // we must fetch the data field if the GraphQL schema requires it for the 
@@ -386,7 +342,6 @@ const personalWhiteboardResolvers = {
              select: { data: true }
          });
       } catch (e) {
-         log("warn", `${operation}: Failed to fetch 'data' before deletion, proceeding with delete.`, { WhiteboardId: id });
       }
 
 
@@ -404,11 +359,9 @@ const personalWhiteboardResolvers = {
         await prisma.whiteboard.delete({
           where: { id },
         });
-        log("info", `${operation}: Whiteboard ${id} deleted.`, { WhiteboardId: id, title: existingWhiteboard.title });
 
         return deletedWhiteboardInfo;
       } catch (error: any) {
-        log("error", `${operation}: Failed to delete Whiteboard ${id}.`, { WhiteboardId: id, errorName: error.name, errorMessage: error.message, stack: error.stack });
         throw new GraphQLError(`Failed to delete Whiteboard: ${error.message}`, { extensions: { code: "DATABASE_ERROR" } });
       }
     },

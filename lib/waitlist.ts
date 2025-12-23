@@ -38,8 +38,6 @@ export async function submitToWaitlist(data: {
       timestamp: new Date(),
     }
 
-    // Log to console for now (remove in production)
-    console.log("Waitlist submission:", waitlistEntry)
 
     return {
       success: true,

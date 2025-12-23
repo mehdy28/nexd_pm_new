@@ -16,20 +16,12 @@ interface GraphQLContext {
   decodedToken?: DecodedIdToken | null;
 }
 
-function log(prefix: string, message: string, data?: any) {
-  const timestamp = new Date().toISOString();
-  if (data !== undefined) {
-    console.log(`${timestamp} ${prefix} ${message}`, JSON.stringify(data, null, 2));
-  } else {
-    console.log(`${timestamp} ${prefix} ${message}`);
-  }
-}
+
 
 export const userResolver = {
   Query: {
     me: async (_parent: unknown, _args: unknown, context: GraphQLContext) => {
       if (!context.user?.id) {
-        log("[me Query]", "No user ID found in context. Returning null.");
         return null;
       }
       try {
@@ -40,10 +32,8 @@ export const userResolver = {
             workspaceMembers: { select: { workspace: { select: { id: true } } } },
           },
         });
-        log("[me Query]", "User fetched successfully:", user);
         return user;
       } catch (error) {
-        log("[me Query]", "Error during database fetch:", error);
         throw new Error("Failed to fetch user profile.");
       }
     },
@@ -88,11 +78,9 @@ export const userResolver = {
       },
       context: GraphQLContext
     ) => {
-      log("[createUser Mutation]", "Mutation initiated with args:", args);
 
       const firebaseUid = context.decodedToken?.uid;
       if (!firebaseUid) {
-        log("[createUser Mutation]", "CRITICAL: firebaseUid not found in context. Aborting.");
         throw new ForbiddenError("Authentication token is invalid or missing.");
       }
 
@@ -148,7 +136,6 @@ export const userResolver = {
 
           return newUser;
         } catch (error) {
-          log("[createUser Mutation]", "Error during transaction:", error);
           throw new Error("Failed to create account and join workspace.");
         }
       } else {

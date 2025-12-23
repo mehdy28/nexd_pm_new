@@ -55,7 +55,6 @@ export const sendWorkspaceInvitationEmail = async ({
 
   try {
     const info = await transporter.sendMail(mailOptions);
-    console.log('Invitation email sent: %s', info.messageId);
     return info;
   } catch (error) {
     console.error('Error sending invitation email:', error);
@@ -80,7 +79,6 @@ export const sendEmailConfirmationEmail = async ({
 
   try {
     const info = await transporter.sendMail(mailOptions);
-    console.log('Confirmation email sent: %s', info.messageId);
     return info;
   } catch (error) {
     console.error('Error sending confirmation email:', error);
@@ -104,7 +102,6 @@ export const sendPasswordResetEmail = async ({
 
   try {
     const info = await transporter.sendMail(mailOptions);
-    console.log('Password reset email sent: %s', info.messageId);
     return info;
   } catch (error) {
     console.error('Error sending password reset email:', error);
@@ -127,7 +124,6 @@ export const sendEarlyAccessConfirmationEmail = async ({
 
   try {
     const info = await transporter.sendMail(mailOptions);
-    console.log('Early access confirmation email sent: %s', info.messageId);
     return info;
   } catch (error) {
     console.error('Error sending early access confirmation email:', error);

@@ -129,7 +129,6 @@ export function ProjectPromptList({
 
   const confirmSingleDelete = useCallback(async () => {
     if (!deleteTarget) return
-    console.log("[ProjectPromptList] [Trace: SingleDelete] Confirming ID:", deleteTarget)
     try {
       await onDeletePrompt(deleteTarget)
     } catch (err) {
@@ -141,7 +140,6 @@ export function ProjectPromptList({
 
   const confirmBulkDelete = useCallback(async () => {
     if (!deleteManyTarget) return
-    console.log("[ProjectPromptList] [Trace: BulkDelete] Confirming IDs:", deleteManyTarget)
     try {
       await onDeleteManyPrompts(deleteManyTarget)
       setSelected({})

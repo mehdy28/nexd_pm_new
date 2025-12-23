@@ -10,16 +10,7 @@ interface GraphQLContext {
 
 const MESSAGES_PAGE_SIZE = 30;
 
-// A helper function to make logs easier to read
-const log = (source: string, message: string, data?: any) => {
-  console.log(`\n--- [${source}] ---`);
-  console.log(`${new Date().toISOString()} - ${message}`);
-  if (data) {
-    console.log('Data:');
-    console.dir(data, { depth: null });
-  }
-  console.log('--- End Log ---\n');
-};
+
 
 // Helper to fetch the data structure needed for list item subscriptions for ADMIN
 const getAdminTicketListItemPayload = async (ticketId: string) => {
@@ -101,7 +92,6 @@ export const messagingResolvers = {
     getWorkspaceMembers: async (_: any, { workspaceId }: { workspaceId: string }, context: GraphQLContext) => {
       const source = 'Query: getWorkspaceMembers';
       try {
-        log(source, 'Fired', { workspaceId });
         const userId = context.user?.id;
         if (!userId) throw new GraphQLError('Not authenticated');
         
@@ -116,7 +106,6 @@ export const messagingResolvers = {
 
         return members;
       } catch (error: any) {
-        log(source, 'ERROR', { error: error.message });
         throw new GraphQLError(error.message || 'An error occurred fetching workspace members.');
       }
     },
@@ -124,7 +113,6 @@ export const messagingResolvers = {
     getCommunicationList: async (_: any, { workspaceId }: { workspaceId: string }, context: GraphQLContext) => {
       const source = 'Query: getCommunicationList';
       try {
-        log(source, 'Fired', { workspaceId });
         const userId = context.user?.id;
         if (!userId) throw new GraphQLError('Not authenticated');
 
@@ -233,10 +221,8 @@ export const messagingResolvers = {
         );
         
         const result = [...conversationItems, ...ticketItems].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-        log(source, 'Successfully fetched communication list', { itemCount: result.length });
         return result;
       } catch (error: any) {
-        log(source, 'ERROR', { error: error.message });
         throw new GraphQLError(error.message || 'An error occurred fetching communication list.');
       }
     },
@@ -244,7 +230,6 @@ export const messagingResolvers = {
     getConversation: async (_: any, { id, cursor, limit = MESSAGES_PAGE_SIZE }: { id: string; cursor?: string; limit?: number }, context: GraphQLContext) => {
       const source = 'Query: getConversation';
       try {
-        log(source, 'Fired', { id, cursor, limit });
         const userId = context.user?.id;
         if (!userId) throw new GraphQLError('Not authenticated');
         
@@ -291,10 +276,8 @@ export const messagingResolvers = {
             hasMoreMessages,
         };
 
-        log(source, 'Successfully fetched conversation');
         return flattenedConversation;
       } catch (error: any) {
-        log(source, 'ERROR', { error: error.message });
         throw new GraphQLError(error.message || 'An error occurred fetching the conversation.');
       }
     },
@@ -302,7 +285,6 @@ export const messagingResolvers = {
     getTicket: async (_: any, { id, cursor, limit = MESSAGES_PAGE_SIZE }: { id: string, cursor?: string; limit?: number }, context: GraphQLContext) => {
       const source = 'Query: getTicket';
        try {
-        log(source, 'Fired', { id, cursor, limit });
         const userId = context.user?.id;
         if (!userId) throw new GraphQLError('Not authenticated');
         const ticket = await prisma.ticket.findUnique({
@@ -330,7 +312,6 @@ export const messagingResolvers = {
         const hasMoreMessages = messagesRaw.length > limit;
         const messages = hasMoreMessages ? messagesRaw.slice(0, limit) : messagesRaw;
         
-        log(source, 'Successfully fetched ticket');
         return { 
           ...ticket, 
           messages: messages.reverse().map(msg => ({ 
@@ -341,7 +322,6 @@ export const messagingResolvers = {
           hasMoreMessages
         };
       } catch (error: any) {
-        log(source, 'ERROR', { error: error.message });
         throw new GraphQLError(error.message || 'An error occurred fetching the ticket.');
       }
     },
@@ -366,7 +346,6 @@ export const messagingResolvers = {
 
         return true;
       } catch (error: any) {
-        log(source, 'ERROR', { error: error.message });
         return false;
       }
     },
@@ -374,7 +353,6 @@ export const messagingResolvers = {
     createDirectConversation: async (_: any, { input }: { input: { workspaceId: string, participantId: string } }, context: GraphQLContext) => {
       const source = 'Mutation: createDirectConversation';
       try {
-        log(source, 'Fired', { input });
         const userId = context.user?.id;
         if (!userId) throw new GraphQLError('Not authenticated');
         const { workspaceId, participantId } = input;
@@ -411,7 +389,6 @@ export const messagingResolvers = {
 
         return { ...conversation, participants: conversation.participants.map(p => p.user) };
       } catch (error: any) {
-        log(source, 'ERROR', { error: error.message });
         throw new GraphQLError(error.message || 'An error occurred creating a direct conversation.');
       }
     },
@@ -419,7 +396,6 @@ export const messagingResolvers = {
     createGroupConversation: async (_: any, { input }: { input: { workspaceId: string; name: string; participantIds: string[] } }, context: GraphQLContext) => {
       const source = 'Mutation: createGroupConversation';
       try {
-        log(source, 'Fired', { input });
         const userId = context.user?.id;
         if (!userId) throw new GraphQLError('Not authenticated');
         const { workspaceId, name, participantIds } = input;
@@ -442,7 +418,6 @@ export const messagingResolvers = {
 
         return { ...conversation, participants: conversation.participants.map(p => p.user) };
       } catch (error: any) {
-        log(source, 'ERROR', { error: error.message });
         throw new GraphQLError(error.message || 'An error occurred creating a group conversation.');
       }
     },
@@ -450,7 +425,6 @@ export const messagingResolvers = {
     createTicket: async (_: any, { input }: { input: { workspaceId: string; subject: string; priority: 'LOW' | 'MEDIUM' | 'HIGH'; message: string } }, context: GraphQLContext) => {
         const source = 'Mutation: createTicket';
         try {
-          log(source, 'Fired', { input });
           const userId = context.user?.id;
           if (!userId) throw new GraphQLError('Not authenticated');
       
@@ -504,14 +478,11 @@ export const messagingResolvers = {
                   workspace: workspace,
               };
               await pubsub.publish(Topics.ADMIN_TICKET_ADDED, { adminTicketAdded: adminPayload });
-              log(source, 'Published ADMIN_TICKET_ADDED event', { ticketId: ticket.id });
           } else {
-              log(source, 'WARN', { warning: 'Workspace not found, could not publish ADMIN_TICKET_ADDED event', workspaceId: input.workspaceId });
           }
           
           return ticket;
         } catch (error: any) {
-          log(source, 'ERROR', { error: error.message });
           throw new GraphQLError(error.message || 'An error occurred creating the ticket.');
         }
       },
@@ -519,7 +490,6 @@ export const messagingResolvers = {
     sendMessage: async (_: any, { input }: { input: { conversationId: string; content: string } }, context: GraphQLContext) => {
       const source = 'Mutation: sendMessage';
       try {
-        log(source, 'Fired', { input });
         const userId = context.user?.id;
         if (!userId) throw new GraphQLError('Not authenticated');
         const { conversationId, content } = input;
@@ -537,11 +507,9 @@ export const messagingResolvers = {
         ]);
         
         const payload = { messageAdded: newMessage };
-        log(source, `Publishing to topic: ${Topics.MESSAGE_ADDED}`, payload);
         await pubsub.publish(Topics.MESSAGE_ADDED, payload);
         return newMessage;
       } catch (error: any) {
-        log(source, 'ERROR', { error: error.message });
         throw new GraphQLError(error.message || 'An error occurred sending the message.');
       }
     },
@@ -549,7 +517,6 @@ export const messagingResolvers = {
     sendTicketMessage: async (_: any, { input }: { input: { ticketId: string; content: string } }, context: GraphQLContext) => {
       const source = 'Mutation: sendTicketMessage';
       try {
-        log(source, 'Fired', { input });
         const userId = context.user?.id;
         if (!userId) throw new GraphQLError('Not authenticated');
 
@@ -585,7 +552,6 @@ export const messagingResolvers = {
         
         return messageWithSupportFlag;
       } catch (error: any) {
-        log(source, 'ERROR', { error: error.message });
         throw new GraphQLError(error.message || 'An error occurred sending the ticket message.');
       }
     },
@@ -601,7 +567,6 @@ export const messagingResolvers = {
         });
         return true;
       } catch (error: any) {
-        log(source, 'ERROR', { error: error.message });
         throw new GraphQLError(error.message || 'An error occurred marking as read.');
       }
     },
@@ -624,7 +589,6 @@ export const messagingResolvers = {
             });
             return true;
         } catch (error: any) {
-            log(source, 'ERROR', { error: error.message });
             throw new GraphQLError('An error occurred marking ticket as read.');
         }
     },
@@ -662,7 +626,6 @@ export const messagingResolvers = {
 
             return true;
         } catch (error: any) {
-            log(source, 'ERROR', { error: error.message });
             throw new GraphQLError('Failed to add participants');
         }
     },
@@ -679,7 +642,6 @@ export const messagingResolvers = {
             });
             return true;
         } catch (error: any) {
-            log(source, 'ERROR', { error: error.message });
             throw new GraphQLError('Could not leave conversation.');
         }
     },
@@ -706,7 +668,6 @@ export const messagingResolvers = {
 
             return true;
         } catch (error: any) {
-            log(source, 'ERROR', { error: error.message });
             throw new GraphQLError('Could not remove participant.');
         }
     }

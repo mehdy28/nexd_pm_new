@@ -28,12 +28,9 @@ export function AssignProjectMembersModal({ isOpen, onClose, workspaceId, projec
   const [selectedMembers, setSelectedMembers] = useState<SelectedMember[]>([]);
 
   useEffect(() => {
-    console.log('[Modal] Props:', { isOpen, workspaceId, projectId });
   }, [isOpen, workspaceId, projectId]);
 
   useEffect(() => {
-    console.log('[Modal] Assignable members from hook:', assignableMembers);
-    console.log('[Modal] Loading state:', loading);
   }, [assignableMembers, loading]);
 
   useEffect(() => {
@@ -43,34 +40,28 @@ export function AssignProjectMembersModal({ isOpen, onClose, workspaceId, projec
   }, [isOpen]);
 
   const handleSelectMember = (userId: string, checked: boolean) => {
-    console.log(`[Modal] handleSelectMember called for userId: ${userId}, checked: ${checked}`);
     if (checked) {
       setSelectedMembers(prev => {
         const newState = [...prev, { userId, role: ProjectRole.MEMBER }];
-        console.log('[Modal] New selectedMembers state after adding:', newState);
         return newState;
       });
     } else {
       setSelectedMembers(prev => {
         const newState = prev.filter(member => member.userId !== userId);
-        console.log('[Modal] New selectedMembers state after removing:', newState);
         return newState;
       });
     }
   };
 
   const handleRoleChange = (userId: string, role: ProjectRole) => {
-    console.log(`[Modal] handleRoleChange called for userId: ${userId}, new role: ${role}`);
     setSelectedMembers(prev => {
       const newState = prev.map(member => (member.userId === userId ? { ...member, role } : member));
-      console.log('[Modal] New selectedMembers state after role change:', newState);
       return newState;
     });
   };
 
   const handleSubmit = async () => {
     if (selectedMembers.length === 0) return;
-    console.log('[Modal] handleSubmit called. Submitting members:', selectedMembers);
     try {
       await addProjectMembers(selectedMembers);
       onClose();

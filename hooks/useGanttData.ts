@@ -51,9 +51,7 @@ export interface GanttDataResponse {
 
 // --- Main Hook ---
 export function useGanttData(projectId: string, selectedSprintIdFromProps?: string | null) {
-  console.log(
-    `[sprint] GANTT_HOOK: useGanttData called with projectId: ${projectId}, selectedSprintIdFromProps: ${selectedSprintIdFromProps}`
-  )
+
 
   // Apollo Query for Gantt data
   const { data, loading, error, refetch } = useQuery<GanttDataResponse>(GET_GANTT_DATA_QUERY, {
@@ -102,7 +100,6 @@ export function useGanttData(projectId: string, selectedSprintIdFromProps?: stri
   }, [transformedGanttData?.sprints])
 
   const refetchGanttData = useCallback(() => {
-    console.log("[sprint] GANTT_HOOK: refetchGanttData triggered.")
     refetch()
   }, [refetch])
 
@@ -110,10 +107,8 @@ export function useGanttData(projectId: string, selectedSprintIdFromProps?: stri
   const defaultSelectedSprintIdToSuggest: string | undefined = useMemo(() => {
     if (sprintFilterOptions.length > 0) {
       // Pick the first sprint from the fetched options as a default suggestion
-      console.log(`[sprint] GANTT_HOOK: Suggesting default sprint ID: ${sprintFilterOptions[0].id}`)
       return sprintFilterOptions[0].id
     }
-    console.log("[sprint] GANTT_HOOK: No default sprint ID suggested (no sprints available).")
     return undefined
   }, [sprintFilterOptions])
 

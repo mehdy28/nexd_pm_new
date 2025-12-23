@@ -79,12 +79,7 @@ export function VariableDiscoveryBuilder({ open, onOpenChange, onCreate, project
   workspaceId?: string;
 }) {
   // LOG: Init
-  useEffect(() => {
-    if(open) {
-      console.log('🔥🔥 [VariableDiscoveryBuilder] MOUNT/OPEN 🔥🔥');
-      console.log('Props:', { projectId, workspaceId });
-    }
-  }, [open, projectId, workspaceId]);
+
 
   const [activeTab, setActiveTab] = useState<'library' | 'builder'>('library');
   const [builderMode, setBuilderMode] = useState<'dynamic' | 'manual'>('dynamic');
@@ -110,19 +105,6 @@ export function VariableDiscoveryBuilder({ open, onOpenChange, onCreate, project
   const [defaultValue, setDefaultValue] = useState('');
   
   // LOG: Detailed State Tracking
-  useEffect(() => {
-    if(!open) return;
-    console.log('⚡ [VariableDiscoveryBuilder] STATE UPDATE ⚡', {
-      activeTab,
-      builderMode,
-      entity,
-      retrievalType,
-      field,
-      aggregation,
-      filtersCount: filters.length,
-      name
-    });
-  }, [activeTab, builderMode, entity, retrievalType, field, aggregation, filters, name, open]);
 
   // --- HOOKS ---
   const { dataCategories, getEntityDefinition } = useEntityDefinitions();
@@ -137,17 +119,9 @@ export function VariableDiscoveryBuilder({ open, onOpenChange, onCreate, project
     notifyOnNetworkStatusChange: true
   });
 
-  // LOG: Preview Fetching
-  useEffect(() => {
-    if (debouncedSource) {
-      console.log('👀 [VariableDiscoveryBuilder] Fetching Preview for:', debouncedSource);
-    }
-  }, [debouncedSource]);
 
-  useEffect(() => {
-    if (previewData) console.log('✅ [VariableDiscoveryBuilder] Preview Data Recieved:', previewData);
-    if (previewError) console.error('❌ [VariableDiscoveryBuilder] Preview Error:', previewError);
-  }, [previewData, previewError]);
+
+
 
   // --- PRESETS DEFINITION ---
   const PRESETS: VariablePreset[] = [
@@ -330,16 +304,7 @@ export function VariableDiscoveryBuilder({ open, onOpenChange, onCreate, project
     }
   }, [open]);
 
-  // LOG FOR PICKER OPENING
-  useEffect(() => {
-    if (isItemPickerOpen) {
-        console.log('--------------------------------------------------');
-        console.log('📌 [VariableDiscoveryBuilder] Opening Item Picker');
-        console.log('   Entity:', entity);
-        console.log('   Filters:', filters);
-        console.log('--------------------------------------------------');
-    }
-  }, [isItemPickerOpen, entity, filters]);
+
 
   // 2. Fetch Preview (Only for Dynamic)
   useEffect(() => {
@@ -404,7 +369,6 @@ export function VariableDiscoveryBuilder({ open, onOpenChange, onCreate, project
 
   // --- HANDLERS ---
   const handleApplyPreset = (preset: VariablePreset) => {
-    console.log('🔘 [VariableDiscoveryBuilder] Applying Preset:', preset.id);
     setBuilderMode(preset.config.mode);
     setName(preset.title);
     setDescription(preset.description);
@@ -425,7 +389,6 @@ export function VariableDiscoveryBuilder({ open, onOpenChange, onCreate, project
   };
 
   const handleCreate = () => {
-    console.log('🚀 [VariableDiscoveryBuilder] Creating Variable. Name:', name);
     if (!name) return;
     
     let finalType = manualType;
@@ -452,14 +415,12 @@ export function VariableDiscoveryBuilder({ open, onOpenChange, onCreate, project
       source: finalSource,
     };
     
-    console.log('📦 [VariableDiscoveryBuilder] Payload:', payload);
     onCreate(payload);
     onOpenChange(false);
   };
   
   // Handle adding specific IDs from the modal
   const handleAddSpecificItems = (ids: string[]) => {
-      console.log('📌 [VariableDiscoveryBuilder] Adding Specific Items:', ids);
       // Remove existing ID filter if present
       const newFilters = filters.filter(f => f.field !== 'id');
       
@@ -572,7 +533,6 @@ export function VariableDiscoveryBuilder({ open, onOpenChange, onCreate, project
                           <button
                             key={cat.value}
                             onClick={() => { 
-                                console.log('🖱️ [VariableDiscoveryBuilder] Selected Entity:', cat.value);
                                 // Aggressively reset all state when switching entities manually
                                 setEntity(cat.value as any); 
                                 setField(null); 
@@ -607,7 +567,7 @@ export function VariableDiscoveryBuilder({ open, onOpenChange, onCreate, project
                                 <Rows3 className={cn("h-4 w-4", retrievalType === 'field' ? "text-indigo-600" : "text-slate-500")}/>
                                 <span className="font-semibold text-slate-900">List of Values</span>
                               </div>
-                              <Select value={field || ''} onValueChange={(v) => { console.log('Set Field:', v); setField(v); }}>
+                              <Select value={field || ''} onValueChange={(v) => { setField(v); }}>
                                   <SelectTrigger className="bg-white border-slate-200"><SelectValue placeholder="Select field..." /></SelectTrigger>
                                   <SelectContent>{entityDef.fields.map(f => <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>)}</SelectContent>
                               </Select>
@@ -653,7 +613,6 @@ export function VariableDiscoveryBuilder({ open, onOpenChange, onCreate, project
                              <FilterAddDialog 
                                 entityDef={entityDef} 
                                 onAddFilter={(f) => {
-                                    console.log('➕ [FilterAdd] Adding:', f);
                                     setFilters([...filters, f]);
                                 }} 
                                 projectId={projectId}
@@ -868,7 +827,6 @@ function SpecificItemPicker({ entityType, open, onOpenChange, onConfirm, existin
     const [debouncedSearch] = useDebounce(searchTerm, 300);
 
     // DEBUG LOG
-    console.log('[SpecificItemPicker] Initializing with entityType:', entityType);
 
     // Fetch data using existing hook
     const { tasks, documents, loading } = usePromptDataLookups({ 
@@ -877,14 +835,10 @@ function SpecificItemPicker({ entityType, open, onOpenChange, onConfirm, existin
         workspaceId 
     });
 
-    // DEBUG LOG
-    useEffect(() => {
-        console.log('[SpecificItemPicker] Data Loaded:', { loading, tasks: tasks?.length, docs: documents?.length });
-    }, [tasks, documents, loading]);
+
 
     // Normalize data for display AND apply client-side filtering
     const items = useMemo(() => {
-        console.log('[SpecificItemPicker] Calculation Items. Search:', debouncedSearch);
         
         let rawItems: any[] = [];
         if (entityType === 'TASK') rawItems = tasks || [];
@@ -1038,7 +992,6 @@ function FilterAddDialog({ entityDef, onAddFilter, projectId, workspaceId }: {
     // Reset internal state when opening
     useEffect(() => { 
         if(open) { 
-            console.log('🔓 [FilterAddDialog] Opened');
             setSelectedField(''); 
             setValue(''); 
             setSpecialValue(''); 
@@ -1054,7 +1007,6 @@ function FilterAddDialog({ entityDef, onAddFilter, projectId, workspaceId }: {
     });
     
     const handleAdd = () => {
-        console.log('📝 [FilterAddDialog] Submitting filter:', { selectedField, operator, value, specialValue });
         if (!selectedField) return;
         
         const filter: FilterCondition = {
@@ -1085,7 +1037,7 @@ function FilterAddDialog({ entityDef, onAddFilter, projectId, workspaceId }: {
                     {/* 1. Field */}
                     <div className="space-y-1">
                         <label className="text-xs font-semibold text-slate-500 uppercase">Field</label>
-                        <Select value={selectedField} onValueChange={(v) => { console.log('Selected Filter Field:', v); setSelectedField(v); }}>
+                        <Select value={selectedField} onValueChange={(v) => { setSelectedField(v); }}>
                             <SelectTrigger className="bg-white border-slate-200"><SelectValue placeholder="Select field..." /></SelectTrigger>
                             <SelectContent>
                                 {entityDef.filters?.filter((f: any) => !f.isItemPicker).map((f: any) => <SelectItem key={f.field} value={f.field}>{f.label}</SelectItem>)}
@@ -1115,7 +1067,6 @@ function FilterAddDialog({ entityDef, onAddFilter, projectId, workspaceId }: {
                             <label className="text-xs font-semibold text-slate-500 uppercase">Value</label>
                             {fieldDef?.lookupEntity === 'MEMBER' ? (
                                 <Select value={value || specialValue} onValueChange={(v) => {
-                                    console.log('Selected Member:', v);
                                     if (v === SpecialFilterValue.CURRENT_USER) { setSpecialValue(v); setValue(''); }
                                     else { setValue(v); setSpecialValue(''); }
                                 }}>
@@ -1127,7 +1078,6 @@ function FilterAddDialog({ entityDef, onAddFilter, projectId, workspaceId }: {
                                 </Select>
                             ) : fieldDef?.lookupEntity === 'SPRINT' ? (
                                 <Select value={value || specialValue} onValueChange={(v) => {
-                                    console.log('Selected Sprint:', v);
                                     if (v === SpecialFilterValue.ACTIVE_SPRINT) { setSpecialValue(v); setValue(''); }
                                     else { setValue(v); setSpecialValue(''); }
                                 }}>

@@ -1,6 +1,8 @@
 import { TaskStatus, Priority, ActivityType } from "@prisma/client"
 import { v2 as cloudinary } from "cloudinary"
 import { GraphQLError } from "graphql"
+import { prisma } from "@/lib/prisma"
+
 
 // Configure Cloudinary with environment variables
 cloudinary.config({
@@ -10,14 +12,7 @@ cloudinary.config({
   secure: true,
 })
 
-function log(prefix: string, message: string, data?: any) {
-  const timestamp = new Date().toISOString()
-  if (data !== undefined) {
-    console.log(`${timestamp} ${prefix} ${message}`, data)
-  } else {
-    console.log(`${timestamp} ${prefix} ${message}`)
-  }
-}
+
 
 interface GraphQLContext {
   prisma: typeof prisma
@@ -100,7 +95,6 @@ const toISODateString = (date: Date | null | undefined): string | null => {
 export const taskResolver = {
   Query: {
     task: async (_parent: unknown, args: { id: string }, context: GraphQLContext) => {
-      log("[Task Query]", `Fetching details for task ID: ${args.id}`)
       if (!context.user?.id) {
         throw new Error("Authentication required.")
       }
@@ -146,7 +140,6 @@ export const taskResolver = {
       { input }: { input: CreateProjectTaskInput },
       context: GraphQLContext
     ) => {
-      log("[createProjectTask Mutation]", "called with input:", input)
       if (!context.user?.id) throw new Error("Authentication required.")
       const userId = context.user.id
       const { projectId, ...taskData } = input
@@ -183,7 +176,6 @@ export const taskResolver = {
         },
       })
 
-      log("[createProjectTask Mutation]", "Task created successfully:", { id: newTask.id })
       return {
         ...newTask,
         dueDate: toISODateString(newTask.dueDate),
@@ -194,18 +186,14 @@ export const taskResolver = {
 
     updateProjectTask: async (_parent: unknown, args: { input: UpdateProjectTaskInput }, context: GraphQLContext) => {
       const LOG_PREFIX = "[updateProjectTask Mutation]"
-      log(LOG_PREFIX, "Execution started. Received input:", args.input)
 
       if (!context.user?.id) {
-        log(LOG_PREFIX, "Authentication failed. User not found in context.")
         throw new Error("Authentication required.")
       }
       const userId = context.user.id
-      log(LOG_PREFIX, `Authenticated user ID: ${userId}`)
 
       const { id: taskId, ...updates } = args.input
 
-      log(LOG_PREFIX, `Fetching existing task with ID: ${taskId}`)
       const existingTask = await prisma.task.findUnique({
         where: { id: taskId },
         select: {
@@ -228,19 +216,15 @@ export const taskResolver = {
       })
 
       if (!existingTask) {
-        log(LOG_PREFIX, `Error: Task with ID ${taskId} not found.`)
         throw new GraphQLError("Task not found", { extensions: { code: "NOT_FOUND" } })
       }
-      log(LOG_PREFIX, "Successfully fetched existing task state:", existingTask)
 
       const activitiesToCreate: { type: ActivityType; data: any; userId: string; taskId: string; projectId: string }[] =
         []
       const commonActivityData = { userId, taskId, projectId: existingTask.projectId }
 
-      log(LOG_PREFIX, "Starting comparison of fields to generate activities...")
 
       if (updates.title !== undefined && updates.title !== existingTask.title) {
-        log(LOG_PREFIX, `Change detected in 'title'. Old: "${existingTask.title}", New: "${updates.title}"`)
         activitiesToCreate.push({
           type: "TASK_UPDATED",
           data: { change: "title", old: existingTask.title, new: updates.title },
@@ -248,10 +232,7 @@ export const taskResolver = {
         })
       }
       if (updates.priority !== undefined && updates.priority !== existingTask.priority) {
-        log(
-          LOG_PREFIX,
-          `Change detected in 'priority'. Old: "${existingTask.priority}", New: "${updates.priority}"`
-        )
+
         activitiesToCreate.push({
           type: "PRIORITY_UPDATED",
           data: { old: existingTask.priority, new: updates.priority },
@@ -259,7 +240,6 @@ export const taskResolver = {
         })
       }
       if (updates.status !== undefined && updates.status !== existingTask.status) {
-        log(LOG_PREFIX, `Change detected in 'status'. Old: "${existingTask.status}", New: "${updates.status}"`)
         activitiesToCreate.push({
           type: "STATUS_UPDATED",
           data: { old: existingTask.status, new: updates.status },
@@ -267,7 +247,6 @@ export const taskResolver = {
         })
       }
       if (updates.points !== undefined && (updates.points ?? null) !== (existingTask.points ?? null)) {
-        log(LOG_PREFIX, `Change detected in 'points'. Old: ${existingTask.points ?? null}, New: ${updates.points ?? null}`)
         activitiesToCreate.push({
           type: "POINTS_UPDATED",
           data: { old: existingTask.points ?? null, new: updates.points ?? null },
@@ -280,7 +259,6 @@ export const taskResolver = {
       ) {
         const oldDate = toISODateString(existingTask.dueDate)
         const newDate = toISODateString(updates.dueDate ? new Date(updates.dueDate) : null)
-        log(LOG_PREFIX, `Change detected in 'dueDate'. Old: ${oldDate}, New: ${newDate}`)
         activitiesToCreate.push({
           type: "DUE_DATE_UPDATED",
           data: { old: oldDate, new: newDate },
@@ -294,7 +272,6 @@ export const taskResolver = {
       ) {
         const oldDate = toISODateString(existingTask.startDate)
         const newDate = toISODateString(updates.startDate ? new Date(updates.startDate) : null)
-        log(LOG_PREFIX, `Change detected in 'startDate'. Old: ${oldDate}, New: ${newDate}`)
         activitiesToCreate.push({
           type: "TASK_UPDATED",
           data: { change: "start date", old: oldDate, new: newDate },
@@ -307,7 +284,6 @@ export const taskResolver = {
       ) {
         const oldDate = toISODateString(existingTask.endDate)
         const newDate = toISODateString(updates.endDate ? new Date(updates.endDate) : null)
-        log(LOG_PREFIX, `Change detected in 'endDate'. Old: ${oldDate}, New: ${newDate}`)
         activitiesToCreate.push({
           type: "TASK_UPDATED",
           data: { change: "end date", old: oldDate, new: newDate },
@@ -315,14 +291,10 @@ export const taskResolver = {
         })
       }
       if (updates.description !== undefined && updates.description !== existingTask.description) {
-        log(LOG_PREFIX, "Change detected in 'description'.")
         activitiesToCreate.push({ type: "DESCRIPTION_UPDATED", data: {}, ...commonActivityData })
       }
       if (updates.assigneeId !== undefined && updates.assigneeId !== existingTask.assigneeId) {
-        log(
-          LOG_PREFIX,
-          `Change detected in 'assigneeId'. Old: "${existingTask.assigneeId}", New: "${updates.assigneeId}"`
-        )
+
         const newAssignee = updates.assigneeId ? await prisma.user.findUnique({ where: { id: updates.assigneeId } }) : null
         activitiesToCreate.push({
           type: "TASK_ASSIGNED",
@@ -334,7 +306,6 @@ export const taskResolver = {
         })
       }
       if (updates.sprintId !== undefined && updates.sprintId !== existingTask.sprintId) {
-        log(LOG_PREFIX, `Change detected in 'sprintId'. Old: "${existingTask.sprintId}", New: "${updates.sprintId}"`)
         const newSprint = updates.sprintId ? await prisma.sprint.findUnique({ where: { id: updates.sprintId } }) : null
         activitiesToCreate.push({
           type: "TASK_UPDATED",
@@ -343,10 +314,7 @@ export const taskResolver = {
         })
       }
       if (updates.sectionId !== undefined && updates.sectionId !== existingTask.sectionId) {
-        log(
-          LOG_PREFIX,
-          `Change detected in 'sectionId'. Old: "${existingTask.sectionId}", New: "${updates.sectionId}"`
-        )
+
         const newSection = updates.sectionId ? await prisma.section.findUnique({ where: { id: updates.sectionId } }) : null
         activitiesToCreate.push({
           type: "TASK_UPDATED",
@@ -355,10 +323,8 @@ export const taskResolver = {
         })
       }
 
-      log(LOG_PREFIX, "Comparison finished. Final activities to be created:", activitiesToCreate)
 
       if (activitiesToCreate.length === 0 && Object.keys(updates).every(k => k === 'id')) {
-        log(LOG_PREFIX, "No changes detected. Skipping database transaction and returning existing data.")
         // If there are no activities and no actual data updates, we can short-circuit.
         // This is a failsafe, as the frontend shouldn't call the mutation without changes.
         const taskForReturn = await prisma.task.findUnique({
@@ -373,7 +339,6 @@ export const taskResolver = {
         }
       }
 
-      log(LOG_PREFIX, "Starting database transaction to create activities and update the task.")
       const [, updatedTask] = await prisma.$transaction([
         prisma.activity.createMany({ data: activitiesToCreate }),
         prisma.task.update({
@@ -395,7 +360,6 @@ export const taskResolver = {
           include: { assignee: { select: { id: true, firstName: true, lastName: true, avatar: true, avatarColor: true } } },
         }),
       ])
-      log(LOG_PREFIX, "Transaction successful. Updated task data:", updatedTask)
 
       const finalResponse = {
         ...updatedTask,
@@ -403,12 +367,10 @@ export const taskResolver = {
         startDate: toISODateString(updatedTask.startDate),
         endDate: toISODateString(updatedTask.endDate),
       }
-      log(LOG_PREFIX, "Execution finished. Returning final response:", finalResponse)
       return finalResponse
     },
 
     deleteProjectTask: async (_parent: unknown, args: { id: string }, context: GraphQLContext) => {
-      log("[deleteProjectTask Mutation]", `called for task ID: ${args.id}`)
       if (!context.user?.id) throw new Error("Authentication required.")
       const userId = context.user.id
 
@@ -416,7 +378,6 @@ export const taskResolver = {
 
       const deletedTask = await prisma.task.delete({ where: { id: args.id } })
 
-      log("[deleteProjectTask Mutation]", "Task deleted successfully:", deletedTask)
       return {
         ...deletedTask,
         dueDate: toISODateString(deletedTask.dueDate),
@@ -426,7 +387,6 @@ export const taskResolver = {
     },
 
     deleteManyProjectTasks: async (_parent: unknown, { ids }: { ids: string[] }, context: GraphQLContext) => {
-      log("[deleteManyProjectTasks Mutation]", `called for task IDs: ${ids.join(", ")}`)
       if (!context.user?.id) {
         throw new GraphQLError("Authentication required.", { extensions: { code: "UNAUTHENTICATED" } })
       }
@@ -451,12 +411,10 @@ export const taskResolver = {
         where: { id: { in: ids } },
       })
 
-      log("[deleteManyProjectTasks Mutation]", `${tasksToDelete.length} tasks deleted successfully.`)
       return tasksToDelete
     },
 
     createTaskComment: async (_parent: unknown, args: { taskId: string; content: string }, context: GraphQLContext) => {
-      log("[createTaskComment Mutation]", "called with input:", args)
       if (!context.user?.id) throw new Error("Authentication required.")
       const { taskId, content } = args
       const authorId = context.user.id
@@ -476,12 +434,10 @@ export const taskResolver = {
         }),
       ])
 
-      log("[createTaskComment Mutation]", "Comment created successfully:", newComment)
       return newComment
     },
 
     deleteTaskComment: async (_parent: unknown, args: { id: string }, context: GraphQLContext) => {
-      log("[deleteTaskComment Mutation]", `called for comment ID: ${args.id}`)
       if (!context.user?.id) throw new Error("Authentication required.")
       const userId = context.user.id
 
@@ -490,12 +446,10 @@ export const taskResolver = {
       if (comment.authorId !== userId) throw new Error("You can only delete your own comments.")
 
       const deletedComment = await prisma.comment.delete({ where: { id: args.id } })
-      log("[deleteTaskComment Mutation]", "Comment deleted successfully:", deletedComment)
       return deletedComment
     },
 
     getAttachmentUploadSignature: async (_parent: unknown, args: { taskId: string }, context: GraphQLContext) => {
-      log("[getAttachmentUploadSignature Mutation]", "called with input:", args)
       if (!context.user?.id) throw new Error("Authentication required.")
 
       const timestamp = Math.round(new Date().getTime() / 1000)
@@ -520,7 +474,6 @@ export const taskResolver = {
       { input }: { input: ConfirmAttachmentInput },
       context: GraphQLContext
     ) => {
-      log("[confirmAttachmentUpload Mutation]", "called with input:", input)
       if (!context.user?.id) throw new Error("Authentication required.")
       const uploaderId = context.user.id
       const { taskId, publicId, url, fileName, fileType, fileSize } = input
@@ -544,12 +497,10 @@ export const taskResolver = {
         }),
       ])
 
-      log("[confirmAttachmentUpload Mutation]", "Attachment confirmed and created:", newAttachment)
       return newAttachment
     },
 
     deleteAttachment: async (_parent: unknown, args: { id: string }, context: GraphQLContext) => {
-      log("[deleteAttachment Mutation]", `called for attachment ID: ${args.id}`)
       if (!context.user?.id) throw new Error("Authentication required.")
       const userId = context.user.id
 
@@ -585,7 +536,6 @@ export const taskResolver = {
         }),
       ])
 
-      log("[deleteAttachment Mutation]", "Attachment deleted from Cloudinary and DB:", deletedAttachment)
       return deletedAttachment
     },
 

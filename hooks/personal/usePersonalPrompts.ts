@@ -57,11 +57,9 @@ export function usePersonalPrompts(): UsePersonalPromptsHook {
   const lastDetailedPromptData = useRef<Prompt | null>(null)
 
   const selectPrompt = useCallback((id: string | null) => {
-    console.log("[usePersonalPrompts] [Trace: Select] selectPrompt called with ID:", id)
     setSelectedId(id)
     if (id === null) {
       lastDetailedPromptData.current = null
-      console.log("[usePersonalPrompts] [Trace: Select] Deselected prompt, cleared lastDetailedPromptData.")
     }
   }, [])
 
@@ -71,11 +69,7 @@ export function usePersonalPrompts(): UsePersonalPromptsHook {
   ] = useLazyQuery(GET_MY_PROMPTS_QUERY, {
     fetchPolicy: "network-only",
     onCompleted: data => {
-      console.log(
-        "[usePersonalPrompts] [Trace: QueryListComplete] GET_MY_PROMPTS_QUERY onCompleted. Data length:",
-        data?.getMyPrompts.prompts.length,
-        "prompts."
-      )
+
       setLocalError(null)
       const mappedPrompts: Prompt[] =
         data.getMyPrompts.prompts.map((p: any) => ({
@@ -138,10 +132,7 @@ export function usePersonalPrompts(): UsePersonalPromptsHook {
           })
           .filter(Boolean) as Prompt[]
 
-        console.log(
-          "[usePersonalPrompts] [Trace: SetPromptsList] Updating prompts state from list. New count:",
-          finalPrompts.length
-        )
+
         return finalPrompts.sort(
           (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
         )
@@ -154,9 +145,7 @@ export function usePersonalPrompts(): UsePersonalPromptsHook {
   })
 
   const triggerInitialPromptsFetch = useCallback(() => {
-    console.log(
-      "[usePersonalPrompts] [Trace: TriggerFetch] Explicitly triggering GET_MY_PROMPTS_QUERY (network-only)."
-    )
+
     getMyPrompts()
     setPrompts([])
     setSelectedId(null)
@@ -166,7 +155,6 @@ export function usePersonalPrompts(): UsePersonalPromptsHook {
 
   useEffect(() => {
     if (selectedId === null && !promptsListData && !getMyPrompts.called) {
-      console.log("[usePersonalPrompts] [Trace: useEffectListFetch] Triggering initial list fetch (auto-load).")
       getMyPrompts()
     }
   }, [getMyPrompts, selectedId, promptsListData])
@@ -177,10 +165,7 @@ export function usePersonalPrompts(): UsePersonalPromptsHook {
     fetchPolicy: "network-only",
     onCompleted: data => {
       if (data?.getPromptDetails) {
-        console.log(
-          "[usePersonalPrompts] [Trace: QueryDetailsComplete] GET_PROMPT_DETAILS_QUERY onCompleted. Details for ID:",
-          data.getPromptDetails.id
-        )
+
         setLocalError(null)
         const detailedPrompt: Prompt = {
           id: data.getPromptDetails.id,

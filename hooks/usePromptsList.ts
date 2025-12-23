@@ -66,7 +66,6 @@ export function usePromptsList(projectId: string | undefined, selectedId: string
     skip: !projectId || selectedId !== null, // Skip query if no project or if a prompt is selected
     fetchPolicy: "network-only",
     onCompleted: (data) => {
-      console.log('[usePromptsList] [Trace: QueryListComplete] GET_PROJECT_PROMPTS_QUERY onCompleted. Data length:', data?.getProjectPrompts.prompts.length, 'prompts. Total Count:', data?.getProjectPrompts.totalCount);
       setLocalListError(null);
       const mappedPrompts: Prompt[] = data.getProjectPrompts.prompts.map(
         (p: any) => ({
@@ -87,7 +86,6 @@ export function usePromptsList(projectId: string | undefined, selectedId: string
       );
       setPrompts(mappedPrompts); // Replace prompts with the current page's data
       setTotalPromptsCount(data.getProjectPrompts.totalCount);
-      console.log('[usePromptsList] [Trace: SetPromptsList] Updating prompts state from list. New count:', mappedPrompts.length);
     },
     onError: (err) => {
       console.error("[usePromptsList] [Error: QueryList] Error fetching project prompts list:", err);
@@ -108,7 +106,6 @@ export function usePromptsList(projectId: string | undefined, selectedId: string
 
   const triggerPromptsListFetch = useCallback((forceRefetch: boolean = false) => {
     if (projectId && forceRefetch) {
-      console.log('[usePromptsList] [Trace: TriggerFetch] Explicitly triggering GET_PROJECT_PROMPTS_QUERY refetch.');
       setLocalListError(null);
       setPage(1); // Reset to page 1 on a manual full refresh
       apolloRefetchPromptsList();
@@ -124,7 +121,6 @@ export function usePromptsList(projectId: string | undefined, selectedId: string
   const [createPromptMutation] = useMutation(CREATE_PROMPT_MUTATION, {
     onCompleted: (data) => {
       if (data?.createPrompt) {
-        console.log('[usePromptsList] [Trace: MutationCreateComplete] CREATE_PROMPT_MUTATION onCompleted. New prompt ID:', data.createPrompt.id);
         // Do not select here, let container handle it.
         // Refetch the list to ensure pagination and sorting are correct.
         apolloRefetchPromptsList();
@@ -139,7 +135,6 @@ export function usePromptsList(projectId: string | undefined, selectedId: string
   const [deletePromptMutation] = useMutation(DELETE_PROMPT_MUTATION, {
     onCompleted: (data) => {
       if (data?.deletePrompt.id) {
-        console.log('[usePromptsList] [Trace: MutationDeleteComplete] DELETE_PROMPT_MUTATION onCompleted. Deleted prompt ID:', data.deletePrompt.id);
         // If the deleted item was the last on the page, go back one page.
         if (prompts.length === 1 && page > 1) {
           setPage(p => p - 1);
@@ -158,7 +153,6 @@ export function usePromptsList(projectId: string | undefined, selectedId: string
   const createPrompt = useCallback(
     async (): Promise<Prompt | undefined> => {
       setLocalListError(null);
-      console.log('[usePromptsList] [Trace: Create] createPrompt: Initiating creation for projectId:', projectId);
       try {
         const defaultPromptInput = {
           title: 'Untitled Prompt',
@@ -212,7 +206,6 @@ export function usePromptsList(projectId: string | undefined, selectedId: string
   const deletePrompt = useCallback(
     (id: string) => {
       setLocalListError(null);
-      console.log('[usePromptsList] [Trace: Delete] deletePrompt: Initiating deletion for prompt ID:', id);
       deletePromptMutation({ variables: { id } }).catch((err) => {
         console.error("[usePromptsList] [Error: DeleteGraphQL] Error deleting prompt via GraphQL:", err);
         setLocalListError("Failed to delete prompt.");

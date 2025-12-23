@@ -18,20 +18,15 @@ import { LoadingPlaceholder, ErrorPlaceholder } from "@/components/placeholders/
 type ViewState = 'list' | 'new_ticket' | 'new_group_chat' | 'new_direct_chat';
 
 export function UserCommunication() {
-  console.log("UserCommunication: Component rendering or re-rendering.");
 
   const [currentView, setCurrentView] = useState<ViewState>('list');
   const [searchQuery, setSearchQuery] = useState("");
-  console.log(`UserCommunication: State -> currentView: ${currentView}, searchQuery: "${searchQuery}"`);
 
   const { currentUser } = useAuth();
-  console.log("UserCommunication: useAuth hook data:", { currentUser });
 
   const { workspaceData, loading, refetchWorkspaceData } = useWorkspaceData();
-  console.log("UserCommunication: useWorkspaceData hook data:", { workspaceData, loading });
 
   const useMessagingPayload = { workspaceId: workspaceData?.id ?? "" };
-  console.log("UserCommunication: Payload for useMessaging hook:", useMessagingPayload);
   
   const {
     communicationList,
@@ -81,75 +76,51 @@ export function UserCommunication() {
   };
 
 
-  console.log("UserCommunication: useMessaging hook data:", {
-    communicationList,
-    workspaceMembers,
-    listLoading,
-    error,
-    selectedItem,
-    activeItemDetails,
-    itemLoading,
-    sendingMessage,
-  });
+
 
   useEffect(() => {
-    console.log("UserCommunication: useEffect triggered by selectedItem change. New value:", selectedItem);
   }, [selectedItem]);
 
-  console.log(`UserCommunication: Checking loading states -> workspace loading: ${loading}, listLoading: ${listLoading}`);
   if (loading || listLoading) {
-    console.log("UserCommunication: Render -> LoadingPlaceholder.");
     return <LoadingPlaceholder message="Loading your messages & tickets..." />
   }
   
-  console.log("UserCommunication: Checking for error state -> error:", error);
   if (error) {
     console.error("UserCommunication: An error occurred in useMessaging.", error);
-    console.log("UserCommunication: Render -> ErrorPlaceholder.");
     return <ErrorPlaceholder error={error} onRetry={refetch} />
   }
 
   const handleCreateNewTicket = () => {
-    console.log("UserCommunication: handleCreateNewTicket called. Changing view to 'new_ticket'.");
     setCurrentView('new_ticket');
     setSelectedItem(null as any);
   };
 
   const handleCreateNewGroupChat = () => {
-    console.log("UserCommunication: handleCreateNewGroupChat called. Changing view to 'new_group_chat'.");
     setCurrentView('new_group_chat');
     setSelectedItem(null as any);
   };
 
   const handleCreateNewDirectChat = () => {
-    console.log("UserCommunication: handleCreateNewDirectChat called. Changing view to 'new_direct_chat'.");
     setCurrentView('new_direct_chat');
     setSelectedItem(null as any);
   };
 
   const handleChatCreated = (newItem: CommunicationItem) => {
-    console.log("UserCommunication: handleChatCreated called with new item:", newItem);
     setSelectedItem(newItem);
     setCurrentView('list');
   };
 
   const handleTicketSubmission = async (data: { subject: string; priority: any; message: string }) => {
-    console.log("UserCommunication: handleTicketSubmission called with data:", data);
     const newTicket = await createTicket(data);
-    console.log("UserCommunication: createTicket returned:", newTicket);
     if (newTicket) {
-      console.log("UserCommunication: Ticket created successfully. Changing view to 'list'.");
       setCurrentView('list');
     } else {
-      console.log("UserCommunication: Ticket creation failed.");
     }
   };
 
   const renderRightPanel = () => {
-    console.log(`UserCommunication: renderRightPanel called. Current view: ${currentView}`);
 
     if (currentView === 'new_ticket') {
-      console.log("UserCommunication: renderRightPanel -> Rendering NewTicketForm.");
       return (
         <NewTicketForm
           onBack={() => setCurrentView('list')}
@@ -159,7 +130,6 @@ export function UserCommunication() {
     }
 
     if (currentView === 'new_group_chat') {
-        console.log("UserCommunication: renderRightPanel -> Rendering GroupChatCreation.");
         return (
             <GroupChatCreation
                 workspaceId={workspaceData.id}
@@ -172,7 +142,6 @@ export function UserCommunication() {
     }
 
     if (currentView === 'new_direct_chat') {
-        console.log("UserCommunication: renderRightPanel -> Rendering DirectChatCreation.");
         return (
             <DirectChatCreation
                 workspaceId={workspaceData.id}
@@ -185,9 +154,7 @@ export function UserCommunication() {
         );
     }
 
-    console.log(`UserCommunication: renderRightPanel -> Checking item loading state: ${itemLoading}`);
     if (itemLoading && !activeItemDetails) {
-      console.log("UserCommunication: renderRightPanel -> Rendering item loading spinner.");
       return (
         <Card className="h-full flex items-center justify-center">
           <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
@@ -195,10 +162,8 @@ export function UserCommunication() {
       );
     }
 
-    console.log("UserCommunication: renderRightPanel -> Checking for selected item and details:", { selectedItem, activeItemDetails });
     if (selectedItem && activeItemDetails) {
-      console.log("UserCommunication: renderRightPanel -> Rendering CommunicationWindow for item ID:", selectedItem.id);
-      return (
+$      return (
         <CommunicationWindow
           key={selectedItem.id}
           communicationItem={selectedItem}
@@ -219,7 +184,6 @@ export function UserCommunication() {
       );
     }
     
-    console.log("UserCommunication: renderRightPanel -> Rendering default placeholder.");
     return (
       <Card className="h-full flex items-center justify-center bg-gray-100">
         <div className="text-center text-muted-foreground">
@@ -237,7 +201,6 @@ export function UserCommunication() {
     );
   };
 
-  console.log("UserCommunication: Preparing to render main layout.");
   return (
     <div className="h-full overflow-hidden flex pt-6 ">
       <div className="h-full flex flex-col justify-center px-6 w-full">
@@ -252,7 +215,6 @@ export function UserCommunication() {
                             placeholder="Search chats or tickets..."
                             value={searchQuery}
                             onChange={(e) => {
-                              console.log("UserCommunication: Search query changed to:", e.target.value);
                               setSearchQuery(e.target.value)
                             }}
                             className="pl-8 bg-white"
@@ -271,14 +233,12 @@ export function UserCommunication() {
                       </div>
                   </CardHeader>
                 <CardContent className="p-0 h-full overflow-y-auto">
-                  {console.log("UserCommunication: Rendering CommunicationList with props:", { list: optimisticList, loading: listLoading, searchQuery, selectedItem, currentUserId: currentUser?.id })}
                   <CommunicationList
                     list={optimisticList}
                     loading={listLoading}
                     searchQuery={searchQuery}
                     selectedItem={selectedItem}
                     onSelectItem={(item) => {
-                      console.log("UserCommunication: onSelectItem in CommunicationList triggered. Item:", item);
                       setSelectedItem(item);
                     }}
                     currentUserId={currentUser?.id}

@@ -124,7 +124,6 @@ export function useProjectTaskMutations(projectId: string, currentSprintId?: str
 
   const updateTask = useCallback(
     async (taskId: string, currentSectionId: string, input: Omit<UpdateProjectTaskVariables["input"], "id">) => {
-      console.log(`🚀 [updateTask] Initiated. Task ID: ${taskId}, Input:`, input)
 
       // Fixed Fragment: Removed fields (commentCount, attachmentCount) not guaranteed to be in Board Cache
       const fragment = gql`
@@ -149,7 +148,6 @@ export function useProjectTaskMutations(projectId: string, currentSprintId?: str
       `
       const fragmentId = `TaskListView:${taskId}`
       const taskFragment = client.readFragment({ id: fragmentId, fragment })
-      console.log(`📦 [updateTask] Fragment read result for ${fragmentId}:`, taskFragment)
 
       if (!taskFragment) {
         // Warn but proceed with server update to ensure data consistency even if optimistic fails
@@ -164,7 +162,6 @@ export function useProjectTaskMutations(projectId: string, currentSprintId?: str
         sprintId: (taskFragment as any).sprintId || currentSprintId,
         ...input,
       }
-      console.log("✨ [updateTask] Constructed optimistic response payload:", optimisticResponsePayload)
 
       try {
         return await updateProjectTaskApolloMutation({
@@ -243,12 +240,10 @@ export function useProjectTaskMutations(projectId: string, currentSprintId?: str
 
   const deleteTask = useCallback(
     async (taskId: string, sectionId: string) => {
-      console.log(`[deleteTask] Initiated for task ID: ${taskId} in section ID: ${sectionId}`)
 
       return deleteProjectTaskApolloMutation({
         variables: { id: taskId },
         update: (cache, { data }) => {
-          console.log("[deleteTask Cache Update] Received data from mutation:", data)
           const deletedTask = data?.deleteProjectTask
 
           if (!deletedTask || !deletedTask.id) {
@@ -270,10 +265,7 @@ export function useProjectTaskMutations(projectId: string, currentSprintId?: str
                 `,
               })
               const taskIdsBefore = currentSectionData?.tasks.map(t => t.id) || ["CACHE READ FAILED"]
-              console.log(
-                `[deleteTask Cache Update] Tasks in section ${sectionId} BEFORE removal:`,
-                JSON.stringify(taskIdsBefore)
-              )
+
 
               cache.modify({
                 id: sectionCacheId,
@@ -281,9 +273,7 @@ export function useProjectTaskMutations(projectId: string, currentSprintId?: str
                   tasks: (existingTaskRefs = [], { readField }) => {
                     const initialCount = existingTaskRefs.length
                     const updatedTaskRefs = existingTaskRefs.filter(ref => readField("id", ref) !== deletedTask.id)
-                    console.log(
-                      `[deleteTask Cache Update] Filtering tasks. Initial count: ${initialCount}. Task to remove: ${deletedTask.id}. New count: ${updatedTaskRefs.length}.`
-                    )
+
                     return updatedTaskRefs
                   },
                 },
@@ -300,10 +290,7 @@ export function useProjectTaskMutations(projectId: string, currentSprintId?: str
                 `,
               })
               const taskIdsAfter = sectionDataAfter?.tasks.map(t => t.id) || ["CACHE READ FAILED"]
-              console.log(
-                `[deleteTask Cache Update] Tasks in section ${sectionId} AFTER removal:`,
-                JSON.stringify(taskIdsAfter)
-              )
+
             } else {
               console.warn(`[deleteTask Cache Update] Could not find section ${sectionId} in cache.`)
             }
@@ -314,7 +301,6 @@ export function useProjectTaskMutations(projectId: string, currentSprintId?: str
           const taskCacheId = cache.identify({ __typename: "TaskListView", id: deletedTask.id })
           if (taskCacheId) {
             const evicted = cache.evict({ id: taskCacheId })
-            console.log(`[deleteTask Cache Update] Evicting task ${deletedTask.id} from cache. Success: ${evicted}`)
             cache.gc()
           }
         },
@@ -326,12 +312,10 @@ export function useProjectTaskMutations(projectId: string, currentSprintId?: str
   const deleteManyTasks = useCallback(
     async (tasks: TaskWithSectionId[]) => {
       const taskIds = tasks.map(t => t.taskId)
-      console.log(`[deleteManyTasks] Initiated for project tasks. Task IDs:`, taskIds)
 
       return deleteManyProjectTasksApolloMutation({
         variables: { ids: taskIds },
         update: (cache, { data }) => {
-          console.log(`[deleteManyTasks Cache Update] Received data from mutation:`, data)
           const deletedTasks = data?.deleteManyProjectTasks
           if (!deletedTasks || deletedTasks.length === 0) {
             console.warn(`[deleteManyTasks Cache Update] No deleted tasks data returned. Aborting cache update.`)
@@ -351,7 +335,6 @@ export function useProjectTaskMutations(projectId: string, currentSprintId?: str
             {} as Record<string, string[]>
           )
 
-          console.log(`[deleteManyTasks Cache Update] Grouped deleted tasks by section:`, tasksBySection)
 
           for (const sectionId in tasksBySection) {
             const deletedIds = new Set(tasksBySection[sectionId])

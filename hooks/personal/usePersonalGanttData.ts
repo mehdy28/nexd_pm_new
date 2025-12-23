@@ -55,7 +55,6 @@ export function usePersonalGanttData() {
   })
 
   // LOG 1: Raw data from the server
-  console.log("[usePersonalGanttData] Raw data object from useQuery:", data)
 
   const transformedGanttData = data?.getMyGanttData
 
@@ -63,7 +62,6 @@ export function usePersonalGanttData() {
     if (!transformedGanttData?.tasks) return []
 
     // LOG 2: Tasks array before any processing
-    console.log("[usePersonalGanttData] Raw tasks array before mapping:", transformedGanttData.tasks)
 
     // Data is pre-sorted by the backend. We only need to perform
     // client-side transformations, like converting date strings to Date objects.
@@ -79,11 +77,7 @@ export function usePersonalGanttData() {
       return ganttTask
     })
 
-    // LOG 3: Final processed and structured tasks array
-    console.log(
-      "[usePersonalGanttData] Final processed tasks array being returned from useMemo:",
-      finalList
-    )
+
 
     return finalList
   }, [transformedGanttData?.tasks])

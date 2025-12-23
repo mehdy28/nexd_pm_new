@@ -88,7 +88,6 @@ export default function PlaybookDownloadPage() {
     setIsSubmitting(true)
 
     try {
-      console.log("Form submission data:", formData)
       await new Promise((resolve) => setTimeout(resolve, 2000))
 
       // Trigger PDF download

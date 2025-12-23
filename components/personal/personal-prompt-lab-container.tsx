@@ -11,7 +11,6 @@ import { generateClientKey } from "@/lib/utils"
 import { CustomToast, ToastType } from "@/components/ui/custom-toast"
 
 export function PersonalPromptLabContainer() {
-  console.log("[PersonalPromptLabContainer] [Trace: Render] Component rendering.")
 
   const [selectedPromptId, setSelectedPromptId] = useState<string | null>(null)
   const [isCreatingTemplate, setIsCreatingTemplate] = useState(false)
@@ -64,7 +63,6 @@ export function PersonalPromptLabContainer() {
 
   const selectPrompt = useCallback(
     (id: string | null) => {
-      console.log("[PersonalPromptLabContainer] [Trace: Select] selectPrompt called with ID:", id)
       setSelectedPromptId(id)
       if (id === null) {
         triggerPromptsListFetch(true)
@@ -74,14 +72,11 @@ export function PersonalPromptLabContainer() {
   )
 
   const handleCreateNewPrompt = useCallback(async () => {
-    console.log(
-      "[PersonalPromptLabContainer] [Trace: HandleCreate] handleCreateNewPrompt: Initiating prompt creation.",
-    )
+
     setIsPostCreationLoading(true)
     try {
       const newPrompt = await createPromptInList()
       if (newPrompt) {
-        console.log("[PersonalPromptLabContainer] [Trace: HandleCreate] New prompt created:", newPrompt.id)
         showToast("Prompt created successfully", "success")
         selectPrompt(newPrompt.id)
       } else {
@@ -96,9 +91,7 @@ export function PersonalPromptLabContainer() {
 
   const handleCreateFromTemplate = useCallback(
     async (template: PromptTemplate) => {
-      console.log(
-        `[PersonalPromptLabContainer] [Trace: HandleCreateTemplate] Creating prompt from template: "${template.name}"`,
-      )
+
       setIsCreatingTemplate(true)
       setIsPostCreationLoading(true)
       try {
@@ -114,10 +107,6 @@ export function PersonalPromptLabContainer() {
 
         const newPrompt = await createPromptInList(promptData)
         if (newPrompt) {
-          console.log(
-            "[PersonalPromptLabContainer] [Trace: HandleCreateTemplate] New prompt created from template:",
-            newPrompt.id,
-          )
           showToast(`Created from ${template.name}`, "success")
           selectPrompt(newPrompt.id)
         } else {
@@ -139,17 +128,12 @@ export function PersonalPromptLabContainer() {
 
   const handleDeletePrompt = useCallback(
     async (id: string) => {
-      console.log(
-        "[PersonalPromptLabContainer] [Trace: HandleDelete] handleDeletePrompt: Initiating deletion for ID:",
-        id,
-      )
+
       try {
         await deletePromptFromList(id)
         showToast("Prompt deleted", "success")
-        console.log("[PersonalPromptLabContainer] [Trace: HandleDelete] Deletion promise resolved.")
         
         if (selectedPromptId === id) {
-          console.log("[PersonalPromptLabContainer] [Trace: HandleDelete] Deselecting deleted prompt.")
           selectPrompt(null)
         }
       } catch (err) {
@@ -161,14 +145,10 @@ export function PersonalPromptLabContainer() {
 
   const handleDeleteManyPrompts = useCallback(
     async (ids: string[]) => {
-      console.log(
-        "[PersonalPromptLabContainer] [Trace: HandleDeleteMany] handleDeleteManyPrompts: Initiating deletion for IDs:",
-        ids,
-      )
+
       try {
         await deleteManyPromptsFromList(ids)
         showToast(`${ids.length} prompts deleted`, "success")
-        console.log("[PersonalPromptLabContainer] [Trace: HandleDeleteMany] Bulk deletion promise resolved.")
 
         if (selectedPromptId && ids.includes(selectedPromptId)) {
           selectPrompt(null)
@@ -181,12 +161,10 @@ export function PersonalPromptLabContainer() {
   )
 
   const handleBack = () => {
-    console.log("[PersonalPromptLabContainer] [Trace: HandleBack] handleBack: Deselecting prompt.")
     selectPrompt(null)
   }
 
   const handleRetry = useCallback(() => {
-    console.log("[PersonalPromptLabContainer] [Trace: RetryButton] Retry button clicked.")
     if (selectedPromptId) {
       refetchPromptDetails()
     } else {

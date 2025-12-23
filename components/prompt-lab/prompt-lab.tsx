@@ -459,8 +459,6 @@ export function PromptLab({
         }
 
         console.group('📡 [PromptLab] handleUpdateVersion Triggered');
-        console.log('Target Version ID:', selectedVersionId);
-        console.log('Patch Data:', patch);
 
         // --- OPTIMISTIC UI UPDATE: Immediate List Reflection ---
         setVersionOverrides(prev => ({
@@ -470,7 +468,6 @@ export function PromptLab({
 
         // --- CACHE UPDATE: Content Caching ---
         if (patch.content) {
-            console.log('💾 [PromptLab] Caching content for version:', selectedVersionId);
             blockCache.current[selectedVersionId] = patch.content as Block[];
         }
         console.groupEnd();
@@ -509,13 +506,11 @@ export function PromptLab({
 
 
     const handleUpdatePrompt = useCallback((patch: Partial<Prompt>) => {
-        console.log('📡 [PromptLab] handleUpdatePrompt:', patch);
         updatePromptDetails(currentPrompt.id, patch);
     }, [currentPrompt.id, updatePromptDetails]);
 
 
     const handleSnapshot = useCallback(async (notes?: string) => {
-        console.log('📸 [PromptLab] Snapshotting Version. Notes:', notes);
         setIsSnapshotting(true);
         try {
             await snapshotPrompt(notes);
@@ -529,7 +524,6 @@ export function PromptLab({
     }, [currentPrompt.id, snapshotPrompt, onShowToast]);
 
     const handleSetActiveVersion = useCallback(async (versionId: string) => {
-        console.log('🏁 [PromptLab] Setting Active Version:', versionId);
         setIsSettingActive(true);
         try {
             await setActivePromptVersion(versionId);
@@ -544,16 +538,13 @@ export function PromptLab({
     // --- HANDLER: Create Variable ---
     const handleCreateVariable = useCallback((newVariable: Omit<PromptVariable, 'id'>) => {
         console.group('➕ [PromptLab] Creating Variable');
-        console.log('Input Data:', newVariable);
         
         const variableWithId: PromptVariable = {
             ...newVariable,
             id: generateClientKey('p-var-'),
         };
-        console.log('Generated Variable:', variableWithId);
 
         const updatedVariables = [...variablesToDisplay, variableWithId];
-        console.log('New Variable List (Length):', updatedVariables.length);
 
         // Send update
         handleUpdateVersion({ variables: updatedVariables });
@@ -564,7 +555,6 @@ export function PromptLab({
     }, [variablesToDisplay, handleUpdateVersion]);
 
     const handleRemoveVariable = useCallback((variableId: string) => {
-        console.log('🗑️ [PromptLab] Removing Variable ID:', variableId);
         const updatedVariables = variablesToDisplay.filter(v => v.id !== variableId);
         handleUpdateVersion({ variables: updatedVariables });
     }, [variablesToDisplay, handleUpdateVersion]);
@@ -1001,8 +991,6 @@ function EditorPanel({
         
         if (isEditingEnabled && !hasInitialized.current) {
             console.group('✏️ [EditorPanel] Initializing Version Content');
-            console.log('Version ID:', versionId);
-            console.log('Content:', contentToDisplay);
             console.groupEnd();
 
             isSwitchingVersions.current = true;
@@ -1019,14 +1007,12 @@ function EditorPanel({
             return () => clearTimeout(timer);
         } else if (hasInitialized.current && isEditingEnabled) {
             // Debug log to confirm we are blocking the stale prop
-            // console.log('🛡️ [EditorPanel] Ignoring prop update (already initialized)');
         }
     }, [isEditingEnabled, contentToDisplay, contextToDisplay, notesToDisplay, versionId]);
 
     // --- LOGGING: Block State Changes ---
     useEffect(() => {
         if(!isSwitchingVersions.current) {
-            console.log('🔄 [EditorPanel] Blocks Updated (Local State):', blocks.length, 'blocks');
         }
     }, [blocks]);
 
@@ -1039,7 +1025,6 @@ function EditorPanel({
     useEffect(() => {
         if (isSwitchingVersions.current || !isEditingEnabled) return;
         if (!deepCompareBlocks(debouncedBlocks, contentToDisplay)) {
-            console.log('📡 [EditorPanel] Syncing Blocks to Parent (Debounced):', debouncedBlocks);
             onUpdateVersion({ content: debouncedBlocks });
         }
     }, [debouncedBlocks, isEditingEnabled, onUpdateVersion]); // Removed contentToDisplay from deps to avoid loop loops, relying on ref init
@@ -1067,7 +1052,6 @@ function EditorPanel({
 
 
     const insertVariableAt = useCallback((index: number, variable: { placeholder: string; id: string; name: string }) => {
-        console.log(`➕ [EditorPanel] Inserting Variable at index ${index}:`, variable);
         setBlocks(prev => {
             let copy = [...prev];
             const newVarBlock: Block = { type: 'variable', id: generateClientKey('v-'), varId: variable.id, placeholder: variable.placeholder, name: variable.name };
@@ -1077,7 +1061,6 @@ function EditorPanel({
     }, []);
 
     const insertTextAt = useCallback((index: number, text = '') => {
-        console.log(`➕ [EditorPanel] Inserting Text Block at index ${index}. Text: "${text}"`);
         setBlocks(prev => {
             let copy = [...prev];
             const newBlock: Block = { type: 'text', id: generateClientKey('t-'), value: text }
@@ -1103,7 +1086,6 @@ function EditorPanel({
     }, []);
 
     const removeBlock = useCallback((index: number) => {
-        console.log(`🗑️ [EditorPanel] Removing Block at index ${index}`);
         setBlocks(prev => {
             let copy = [...prev];
             if (index < 0 || index >= copy.length) return prev;
@@ -1116,7 +1098,6 @@ function EditorPanel({
     }, []);
 
     const moveBlock = useCallback((from: number, to: number) => {
-        console.log(`🚚 [EditorPanel] Moving Block from ${from} to ${to}`);
         setBlocks(prev => {
             let copy = [...prev];
             if (from < 0 || from >= copy.length || to < 0 || to > copy.length) return prev;
@@ -1132,7 +1113,6 @@ function EditorPanel({
         accept: [ItemTypes.VARIABLE, ItemTypes.BLOCK],
         drop: (item: any, monitor) => {
             if (!isEditingEnabled || monitor.didDrop()) return;
-            console.log('⬇️ [EditorPanel] Item Dropped on Container', item);
             let targetIndex = blocks.length === 0 ? 0 : blocks.length;
             if (monitor.getItemType() === ItemTypes.VARIABLE) {
                 insertVariableAt(targetIndex, item);
@@ -1346,7 +1326,6 @@ function BlockRenderer({
         drop(item: any, monitor) {
             if (!isEditingEnabled || monitor.didDrop()) return;
             
-            console.log('⬇️ [BlockRenderer] Drop on Block', { targetIndex: index, item });
 
             const dragItemType = monitor.getItemType();
             setLocalDropTargetPosition(null);

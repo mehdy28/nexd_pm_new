@@ -11,14 +11,6 @@ cloudinary.config({
   secure: true,
 })
 
-function log(prefix: string, message: string, data?: any) {
-  const timestamp = new Date().toISOString()
-  if (data !== undefined) {
-    console.log(`${timestamp} ${prefix} ${message}`, data)
-  } else {
-    console.log(`${timestamp} ${prefix} ${message}`)
-  }
-}
 
 interface GraphQLContext {
   prisma: typeof prisma
@@ -110,7 +102,6 @@ const toISODateString = (date: Date | null | undefined): string | null => {
 export const personalTaskResolver = {
   Query: {
     getMyGanttData: async (_parent: unknown, _args: {}, context: GraphQLContext) => {
-      log("[getMyGanttData Query]", "called")
       if (!context.user?.id) {
         throw new GraphQLError("Authentication required", { extensions: { code: "UNAUTHENTICATED" } })
       }
@@ -238,13 +229,11 @@ export const personalTaskResolver = {
           tasks: finalGanttTasks,
         }
       } catch (error) {
-        log("[getMyGanttData Query]", "Error fetching personal Gantt data:", error)
         throw error
       }
     },
 
     personalTask: async (_parent: unknown, args: { id: string }, context: GraphQLContext) => {
-      log("[Personal Task Query]", `Fetching details for personal task ID: ${args.id}`)
       if (!context.user?.id) {
         throw new Error("Authentication required.")
       }

@@ -74,7 +74,6 @@ export const mapTaskStatusToUI = (status: TaskStatusUI): boolean => {
 }
 
 export function useMyTasksAndSections() {
-  console.log("[useMyTasksAndSections] Hook initialized.")
   const client = useApolloClient()
   const { data, loading, error, refetch } = useQuery<MyTasksAndSectionsResponse>(
     GET_MY_TASKS_AND_SECTIONS_QUERY,
@@ -84,15 +83,12 @@ export function useMyTasksAndSections() {
   )
 
   useEffect(() => {
-    console.log("[useMyTasksAndSections Query State] Status changed.", { loading, error: !!error })
     if (loading) {
-      console.log("[useMyTasksAndSections Query State] Fetching data...")
     }
     if (error) {
       console.error("[useMyTasksAndSections Query State] Fucking error occurred:", error)
     }
     if (!loading && data) {
-      console.log("[useMyTasksAndSections Query State] Data fetched or updated from cache:", data)
     }
   }, [loading, error, data])
 
@@ -112,12 +108,9 @@ export function useMyTasksAndSections() {
   >(REORDER_PERSONAL_SECTIONS_MUTATION)
 
   const personalSections: SectionUI[] = useMemo(() => {
-    console.log("[useMyTasksAndSections Memo] Re-computing personalSections.")
     if (!data?.getMyTasksAndSections) {
-      console.log("[useMyTasksAndSections Memo] No data available, returning empty array.")
       return []
     }
-    console.log("[useMyTasksAndSections Memo] Mapping raw GraphQL data to UI model.")
     const mappedData = data.getMyTasksAndSections.personalSections.map(sec => ({
       id: sec.id,
       title: sec.name,
@@ -136,21 +129,17 @@ export function useMyTasksAndSections() {
       })),
       editing: false,
     }))
-    console.log("[useMyTasksAndSections Memo] Finished mapping. Result:", mappedData)
     return mappedData
   }, [data])
 
   const createSection = useCallback(
     async (name: string, order?: number) => {
-      console.log(`[createSection] Initiated. Name: ${name}, Order: ${order}`)
       const numSections = personalSections.length
       const finalOrder = order ?? numSections
-      console.log(`[createSection] Final order determined: ${finalOrder}. Current sections count: ${numSections}.`)
       try {
         await createPersonalSectionMutation({
           variables: { name, order: finalOrder },
         })
-        console.log(`[createSection] Mutation successfully executed for section "${name}". It will refetch the main query.`)
       } catch (e) {
         console.error(`[createSection] Fucking failed to create section "${name}".`, e)
       }
@@ -160,7 +149,6 @@ export function useMyTasksAndSections() {
 
   const updateSection = useCallback(
     async (id: string, name: string) => {
-      console.log(`[updateSection] Initiated. ID: ${id}, New Name: ${name}`)
       const optimisticResponsePayload = {
         updatePersonalSection: {
           __typename: "PersonalSection",
@@ -168,13 +156,11 @@ export function useMyTasksAndSections() {
           name,
         },
       }
-      console.log(`[updateSection] Constructed optimistic response:`, optimisticResponsePayload)
 
       await updatePersonalSectionMutation({
         variables: { id, name },
         optimisticResponse: optimisticResponsePayload,
         update: (cache, { data: mutationData }) => {
-          console.log(`[updateSection Cache Update] Received data from mutation:`, mutationData)
           const idToUpdate = mutationData?.updatePersonalSection.id
           if (!idToUpdate) {
             console.warn(`[updateSection Cache Update] No section ID returned. Aborting cache update.`)
@@ -189,13 +175,11 @@ export function useMyTasksAndSections() {
             return
           }
 
-          console.log(`[updateSection Cache Update] Modifying cache for section: ${sectionCacheId}`)
           cache.modify({
             id: sectionCacheId,
             fields: {
               name() {
                 const newName = mutationData?.updatePersonalSection.name
-                console.log(`[updateSection Cache Update] Setting new name in cache: "${newName}"`)
                 return newName
               },
             },
@@ -210,7 +194,6 @@ export function useMyTasksAndSections() {
 
   const renameSection = useCallback(
     async (id: string, name: string) => {
-      console.log(`[renameSection] Initiated. ID: ${id}, Name: ${name}`)
       
       // FIX: Retrieve the current order from the cached data.
       // If we don't include 'order', Apollo cache writing fails because the active query expects it.
@@ -250,12 +233,10 @@ export function useMyTasksAndSections() {
 
   const deleteSection = useCallback(
     async (id: string, options: { deleteTasks: boolean; reassignToSectionId?: string | null }) => {
-      console.log(`[deleteSection] Initiated. ID: ${id}, Options:`, options)
       try {
         await deletePersonalSectionMutation({
           variables: { id, options },
         })
-        console.log(`[deleteSection] Mutation successfully executed for section ID "${id}". It will refetch the main query.`)
       } catch (e) {
         console.error(`[deleteSection] Fucking failed to delete section ID "${id}".`, e)
       }
@@ -265,24 +246,19 @@ export function useMyTasksAndSections() {
 
   const reorderSections = useCallback(
     async (sectionsToReorder: ReorderSectionInput[]) => {
-      console.log(`[reorderSections] Initiated. New order:`, sectionsToReorder)
 
-      console.log(`[reorderSections] Reading current sections from cache to perform optimistic update.`)
       const originalQuery = client.readQuery<MyTasksAndSectionsResponse>({
         query: GET_MY_TASKS_AND_SECTIONS_QUERY,
       })
 
       // Optimistically update the cache
       if (originalQuery?.getMyTasksAndSections) {
-        console.log(`[reorderSections] Found original query data in cache.`)
         const currentSections = [...originalQuery.getMyTasksAndSections.personalSections]
         const sectionMap = new Map(currentSections.map(s => [s.id, s]))
-        console.log(`[reorderSections] Created a map of current sections for quick lookup.`)
 
         const reorderedSections = sectionsToReorder
           .map(s => sectionMap.get(s.id))
           .filter((s): s is NonNullable<typeof s> => s != null)
-        console.log(`[reorderSections] Constructed new optimistically reordered section list:`, reorderedSections)
 
         if (reorderedSections.length !== sectionsToReorder.length) {
           console.warn(
@@ -290,7 +266,6 @@ export function useMyTasksAndSections() {
           )
         }
 
-        console.log(`[reorderSections] Writing the new optimistic order to the Apollo cache.`)
         client.writeQuery({
           query: GET_MY_TASKS_AND_SECTIONS_QUERY,
           data: {
@@ -305,16 +280,13 @@ export function useMyTasksAndSections() {
       }
 
       try {
-        console.log(`[reorderSections] Sending mutation to the server.`)
         await reorderPersonalSectionsMutation({
           variables: { sections: sectionsToReorder },
         })
-        console.log(`[reorderSections] Mutation successful.`)
       } catch (err)
  {
         console.error("Fucking failed to reorder sections:", err)
         // On error, revert the optimistic update by refetching from the server
-        console.log(`[reorderSections] Reverting optimistic update by refetching data.`)
         refetch()
         throw err
       }

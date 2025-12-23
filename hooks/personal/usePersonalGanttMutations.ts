@@ -87,7 +87,6 @@ export function usePersonalGanttMutations() {
 
   const createPersonalGanttTask = useCallback(
     async (input: CreatePersonalGanttTaskVariables["input"]): Promise<any> => {
-      console.log("usePersonalGanttMutations: Attempting to create task with input:", input)
       try {
         const response = await createGanttTaskMutation({
           variables: {
@@ -98,7 +97,6 @@ export function usePersonalGanttMutations() {
             },
           },
         })
-        console.log("usePersonalGanttMutations: Create task successful. Response:", response.data)
         return response.data?.createPersonalGanttTask
       } catch (err: any) {
         console.error("usePersonalGanttMutations: Failed to create task.", { error: err, input })
@@ -110,12 +108,10 @@ export function usePersonalGanttMutations() {
 
   const updatePersonalGanttTask = useCallback(
     async (input: UpdatePersonalGanttTaskVariables["input"]): Promise<any> => {
-      console.log("[UPDATE GANTT TASK] Attempting to update task with input:", input)
       try {
         const response = await updateGanttTaskMutation({
           variables: { input: input },
         })
-        console.log("[UPDATE GANTT TASK] Update successful. Response:", response.data)
         return response.data?.updatePersonalGanttTask
       } catch (err: any) {
         console.error("[UPDATE GANTT TASK] Failed to update task.", { error: err, input: input })
@@ -127,7 +123,6 @@ export function usePersonalGanttMutations() {
 
   const updatePersonalSectionName = useCallback(
     async (sectionId: string, name: string): Promise<any> => {
-      console.log(`usePersonalGanttMutations: Attempting to update section ${sectionId} with new name: "${name}"`)
       try {
         const response = await updateSectionMutation({
           variables: {
@@ -137,7 +132,6 @@ export function usePersonalGanttMutations() {
             },
           },
         })
-        console.log(`usePersonalGanttMutations: Update section successful. Response:`, response.data)
         return response.data?.updatePersonalSection
       } catch (err: any) {
         console.error("usePersonalGanttMutations: Failed to update section.", { error: err, sectionId, name })

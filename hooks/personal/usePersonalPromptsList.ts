@@ -85,7 +85,6 @@ export function usePersonalPromptsList(selectedId: string | null): UsePersonalPr
       return []
     }
     
-    console.log(`[usePersonalPromptsList] [Trace: Memo] Recalculating prompts. Count: ${promptsListData.getMyPrompts.prompts.length}`)
 
     return promptsListData.getMyPrompts.prompts.map((p: any) => ({
       id: p.id,
@@ -132,7 +131,6 @@ export function usePersonalPromptsList(selectedId: string | null): UsePersonalPr
     ],
     awaitRefetchQueries: true,
     onCompleted: data => {
-      console.log(`[usePersonalPromptsList] [Trace: DeleteMutation] Completed. Deleted ID: ${data?.deletePrompt?.id}`)
       // If we deleted the last item on the page, go back
       if (prompts.length === 1 && page > 1) {
         setPage(p => p - 1)
@@ -151,7 +149,6 @@ export function usePersonalPromptsList(selectedId: string | null): UsePersonalPr
     awaitRefetchQueries: true,
     onCompleted: data => {
       const count = data?.deleteManyPrompts?.count || 0
-      console.log(`[usePersonalPromptsList] [Trace: DeleteManyMutation] Completed. Deleted count: ${count}`)
       if (prompts.length <= count && page > 1) {
         setPage(p => p - 1)
       }
@@ -174,7 +171,6 @@ export function usePersonalPromptsList(selectedId: string | null): UsePersonalPr
   const triggerPromptsListFetch = useCallback(
     (forceRefetch: boolean = false) => {
       if (forceRefetch) {
-        console.log("[usePersonalPromptsList] [Trace] Force refetch triggering.")
         setLocalListError(null)
         setPage(1)
         apolloRefetchPromptsList()
@@ -248,7 +244,6 @@ export function usePersonalPromptsList(selectedId: string | null): UsePersonalPr
   const deletePrompt = useCallback(
     async (id: string) => {
       setLocalListError(null)
-      console.log(`[usePersonalPromptsList] [Trace: Delete] Calling mutation for ID: ${id}`)
       await deletePromptMutation({ variables: { id } })
     },
     [deletePromptMutation],
@@ -257,7 +252,6 @@ export function usePersonalPromptsList(selectedId: string | null): UsePersonalPr
   const deleteManyPrompts = useCallback(
     async (ids: string[]) => {
       setLocalListError(null)
-      console.log(`[usePersonalPromptsList] [Trace: DeleteMany] Calling mutation for IDs: ${ids.join(', ')}`)
       await deleteManyPromptsMutation({ variables: { ids } })
     },
     [deleteManyPromptsMutation]

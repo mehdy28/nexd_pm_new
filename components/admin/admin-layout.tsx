@@ -27,11 +27,9 @@ export function AdminLayout({ children }: AdminLayoutProps) {
     if (!loading) {
       if (!currentUser && pathname !== "/admin-register") {
         // User is not authenticated, redirect to login
-        console.log("[AdminLayout] No current user, redirecting to /login")
         router.push("/login")
       } else if (currentUser && currentUser.role !== "ADMIN") {
         // User is authenticated but is NOT an ADMIN, redirect them away
-        console.log("[AdminLayout] Non-admin user detected, redirecting to core app.")
         // Assuming core app entry point is '/' or similar
         router.push("/")
       }

@@ -66,7 +66,6 @@ export function useCreateProjectModal(
   // Handle successful mutation
   useEffect(() => {
     if (mutationData?.createProject?.id) {
-      console.log("Project created successfully:", mutationData.createProject);
       onProjectCreated?.(mutationData.createProject.id); // Call optional callback
       onClose(); // Close the modal
     }

@@ -1,14 +1,7 @@
 import { prisma } from "@/lib/prisma"
 import { GraphQLError } from "graphql"
 
-function log(prefix: string, message: string, data?: any) {
-  const timestamp = new Date().toISOString()
-  if (data !== undefined) {
-    console.log(`${timestamp} ${prefix} ${message}`, data)
-  } else {
-    console.log(`${timestamp} ${prefix} ${message}`)
-  }
-}
+
 
 
 
@@ -51,10 +44,8 @@ export const personalSectionResolver = {
       args: CreatePersonalSectionArgs,
       context: GraphQLContext
     ) => {
-      log("[createPersonalSection Mutation]", "called with args:", args)
 
       if (!context.user?.id) {
-        log("[createPersonalSection Mutation]", "No authenticated user found in context.")
         throw new GraphQLError("Authentication required", { extensions: { code: "UNAUTHENTICATED" } })
       }
 
@@ -78,15 +69,11 @@ export const personalSectionResolver = {
             user: { connect: { id: userId } },
           },
         })
-        log("[createPersonalSection Mutation]", "Personal Section created successfully:", {
-          id: newSection.id,
-          name: newSection.name,
-        })
+
         // Return with empty tasks array for type consistency
         return { ...newSection, tasks: [] }
       } catch (error: any) {
 
-        log("[createPersonalSection Mutation]", "Error creating personal section:", error)
         throw new GraphQLError("Could not create personal section.")
       }
     },
@@ -96,10 +83,8 @@ export const personalSectionResolver = {
       args: UpdatePersonalSectionArgs,
       context: GraphQLContext
     ) => {
-      log("[updatePersonalSection Mutation]", "called with args:", args)
 
       if (!context.user?.id) {
-        log("[updatePersonalSection Mutation]", "No authenticated user found in context.")
         throw new GraphQLError("Authentication required", { extensions: { code: "UNAUTHENTICATED" } })
       }
 
@@ -112,7 +97,6 @@ export const personalSectionResolver = {
         })
 
         if (!sectionToUpdate) {
-          log("[updatePersonalSection Mutation]", `Personal Section with ID ${id} not found for user ${userId}.`)
           throw new GraphQLError("Section not found or you do not have permission to update it.", {
             extensions: { code: "FORBIDDEN" },
           })
@@ -125,13 +109,9 @@ export const personalSectionResolver = {
             order: order ?? undefined,
           },
         })
-        log("[updatePersonalSection Mutation]", "Personal Section updated successfully:", {
-          id: updatedSection.id,
-          name: updatedSection.name,
-        })
+
         return updatedSection
       } catch (error) {
-        log("[updatePersonalSection Mutation]", "Error updating personal section:", error)
         throw new GraphQLError("Could not update personal section.")
       }
     },
@@ -141,10 +121,8 @@ export const personalSectionResolver = {
       args: DeletePersonalSectionArgs,
       context: GraphQLContext
     ) => {
-      log("[deletePersonalSection Mutation]", "called with args:", args)
 
       if (!context.user?.id) {
-        log("[deletePersonalSection Mutation]", "No authenticated user found in context.")
         throw new GraphQLError("Authentication required", { extensions: { code: "UNAUTHENTICATED" } })
       }
 
@@ -161,10 +139,7 @@ export const personalSectionResolver = {
         })
 
         if (!section) {
-          log(
-            "[deletePersonalSection Mutation]",
-            `Personal Section with ID ${sectionIdToDelete} not found for user ${userId}.`
-          )
+
           throw new GraphQLError("Section not found or you do not have permission to delete it.", {
             extensions: { code: "FORBIDDEN" },
           })
@@ -176,7 +151,6 @@ export const personalSectionResolver = {
         await prisma.$transaction(async tx => {
           if (hasTasks) {
             if (deleteTasks) {
-              log("[deletePersonalSection Mutation]", `Deleting all ${taskIds.length} tasks in section ${sectionIdToDelete}.`)
               await tx.task.deleteMany({
                 where: { id: { in: taskIds } },
               })
@@ -191,16 +165,12 @@ export const personalSectionResolver = {
                 })
               }
 
-              log(
-                "[deletePersonalSection Mutation]",
-                `Reassigning tasks from section ${sectionIdToDelete} to section ${reassignToSectionId}.`
-              )
+
               await tx.task.updateMany({
                 where: { id: { in: taskIds } },
                 data: { personalSectionId: reassignToSectionId },
               })
             } else {
-              log("[deletePersonalSection Mutation]", `Unassigning tasks from section ${sectionIdToDelete}.`)
               await tx.task.updateMany({
                 where: { id: { in: taskIds } },
                 data: { personalSectionId: null },
@@ -208,17 +178,14 @@ export const personalSectionResolver = {
             }
           }
 
-          log("[deletePersonalSection Mutation]", `Deleting section ${sectionIdToDelete}.`)
           await tx.personalSection.delete({
             where: { id: sectionIdToDelete },
           })
         })
 
         const returnedSection = { id: sectionIdToDelete, name: section.name, order: section.order }
-        log("[deletePersonalSection Mutation]", "Personal section deletion complete. Returning:", returnedSection)
         return returnedSection
       } catch (error) {
-        log("[deletePersonalSection Mutation]", "Error deleting personal section:", error)
         if (error instanceof GraphQLError) {
           throw error
         }

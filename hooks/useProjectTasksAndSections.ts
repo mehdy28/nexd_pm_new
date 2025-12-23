@@ -103,14 +103,6 @@ export function useProjectTasksAndSections(projectId: string, sprintIdFromProps?
     }
   )
 
-  useEffect(() => {
-    console.groupCollapsed(`[useProjectTasksAndSections] Query State Change (Project: ${projectId})`)
-    console.log("Query Variables:", { projectId, sprintId: sprintIdFromProps })
-    console.log("Loading state:", loading)
-    console.log("Error state:", error)
-    console.log("Raw GraphQL Data from useQuery:", data)
-    console.groupEnd()
-  }, [data, loading, error, projectId, sprintIdFromProps])
 
 
   // --- Section Mutations ---
@@ -137,11 +129,9 @@ export function useProjectTasksAndSections(projectId: string, sprintIdFromProps?
   const sections: SectionUI[] = useMemo(() => {
     console.groupCollapsed(`[useProjectTasksAndSections] Transforming Data into UI State`)
     if (!transformedData) {
-      console.log("No transformedData available. Returning empty array.")
       console.groupEnd()
       return []
     }
-    console.log("Input (raw sections from GraphQL):", transformedData.sections)
 
     const uiSections = transformedData.sections.map(sec => ({
       id: sec.id,
@@ -161,7 +151,6 @@ export function useProjectTasksAndSections(projectId: string, sprintIdFromProps?
       editing: false,
     }))
 
-    console.log("Output (sections formatted for UI):", uiSections)
     console.groupEnd()
     return uiSections
   }, [transformedData])
@@ -185,7 +174,6 @@ export function useProjectTasksAndSections(projectId: string, sprintIdFromProps?
         name,
         order: order ?? numSections,
       }
-      console.log("[useProjectTasksAndSections] Calling createSection with variables:", variables)
       await createProjectSectionMutation({ variables })
     },
     [projectId, createProjectSectionMutation, sections.length]
@@ -198,8 +186,6 @@ export function useProjectTasksAndSections(projectId: string, sprintIdFromProps?
         updateProjectSection: { __typename: "Section", id, name },
       }
       console.group(`[useProjectTasksAndSections] Calling updateSection for section ID: ${id}`)
-      console.log("Variables:", variables)
-      console.log("Optimistic Response:", optimisticResponse)
 
       await updateProjectSectionMutation({
         variables: variables,
@@ -207,20 +193,16 @@ export function useProjectTasksAndSections(projectId: string, sprintIdFromProps?
         update: (cache, { data: mutationData }) => {
           console.group(`[useProjectTasksAndSections] Cache update for updateSection (ID: ${id})`)
           const idToUpdate = mutationData?.updateProjectSection.id
-          console.log("Mutation data received by update function:", mutationData)
           if (!idToUpdate) {
-            console.log("No ID to update found in mutation data. Aborting cache update.")
             console.groupEnd()
             return
           }
 
           const cacheId = cache.identify({ __typename: "Section", id: idToUpdate })
-          console.log(`Modifying cache for fragment with ID: ${cacheId}`)
           cache.modify({
             id: cacheId,
             fields: {
               name() {
-                console.log(`Updating 'name' field in cache to: '${mutationData?.updateProjectSection.name}'`)
                 return mutationData?.updateProjectSection.name
               },
             },
@@ -239,7 +221,6 @@ export function useProjectTasksAndSections(projectId: string, sprintIdFromProps?
 
   const renameSection = useCallback(
     async (id: string, name: string) => {
-      console.log(`[renameSection] Initiated. ID: ${id}, Name: ${name}`)
       
       // FIX: Retrieve the current order from the cached data.
       // If we don't include 'order', Apollo cache writing fails because the active query expects it.
@@ -291,7 +272,6 @@ export function useProjectTasksAndSections(projectId: string, sprintIdFromProps?
   const deleteSection = useCallback(
     async (id: string, options: { deleteTasks: boolean; reassignToSectionId?: string | null }) => {
       const variables = { id, options }
-      console.log("[useProjectTasksAndSections] Calling deleteSection with variables:", variables)
       await deleteProjectSectionMutation({ variables })
     },
     [deleteProjectSectionMutation]
@@ -301,7 +281,6 @@ export function useProjectTasksAndSections(projectId: string, sprintIdFromProps?
   const reorderSections = useCallback(
     async (sectionsToReorder: ReorderSectionInput[]) => {
       console.group(`[useProjectTasksAndSections] Calling reorderSections for project ID: ${projectId}`)
-      console.log("Input: Sections with new order:", sectionsToReorder)
 
       const queryOptions = {
         query: GET_PROJECT_TASKS_AND_SECTIONS_QUERY,
@@ -309,7 +288,6 @@ export function useProjectTasksAndSections(projectId: string, sprintIdFromProps?
       }
 
       const originalQuery = client.readQuery<ProjectTasksAndSectionsResponse>(queryOptions)
-      console.log("State of cache BEFORE optimistic update:", originalQuery)
 
 
       // Optimistically update the cache
@@ -331,23 +309,18 @@ export function useProjectTasksAndSections(projectId: string, sprintIdFromProps?
           },
         }
 
-        console.log("Data being written to cache for optimistic update:", newCacheData.data)
         client.writeQuery(newCacheData)
 
         const updatedCache = client.readQuery<ProjectTasksAndSectionsResponse>(queryOptions)
-        console.log("State of cache AFTER optimistic update:", updatedCache)
       } else {
         console.warn("Could not find original query in cache. Skipping optimistic update.")
       }
 
       try {
         const mutationVariables = { projectId, sections: sectionsToReorder }
-        console.log("Executing reorderProjectSectionsMutation with variables:", mutationVariables)
         await reorderProjectSectionsMutation({ variables: mutationVariables })
-        console.log("Reorder mutation successful.")
       } catch (err) {
         console.error("Failed to reorder sections:", err)
-        console.log("Reverting optimistic update by refetching from server.")
         refetch() // On error, revert by refetching from the server
         throw err
       } finally {

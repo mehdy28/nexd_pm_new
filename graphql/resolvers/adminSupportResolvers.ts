@@ -10,16 +10,6 @@ interface GraphQLContext {
 
 const MESSAGES_PAGE_SIZE = 30;
 
-// A helper function to make logs easier to read
-const log = (source: string, message: string, data?: any) => {
-  console.log(`\n--- [${source}] ---`);
-  console.log(`${new Date().toISOString()} - ${message}`);
-  if (data) {
-    console.log('Data:');
-    console.dir(data, { depth: null });
-  }
-  console.log('--- End Log ---\n');
-};
 
 // Helper to check for admin privileges
 const checkAdmin = (context: GraphQLContext) => {
@@ -69,7 +59,6 @@ export const adminSupportResolvers = {
       const source = 'Query: adminGetSupportTickets';
       try {
         checkAdmin(context);
-        log(source, 'Fired');
 
         const tickets = await prisma.ticket.findMany({
           include: {
@@ -98,10 +87,8 @@ export const adminSupportResolvers = {
             unreadCount: ticket._count.messages
         }));
 
-        log(source, 'Successfully fetched all support tickets', { count: result.length });
         return result;
       } catch (error: any) {
-        log(source, 'ERROR', { error: error.message });
         throw new GraphQLError(error.message || 'An error occurred fetching support tickets.');
       }
     },
@@ -110,7 +97,6 @@ export const adminSupportResolvers = {
       const source = 'Query: adminGetTicketDetails';
       try {
         checkAdmin(context);
-        log(source, 'Fired', { id, cursor, limit });
 
         const ticket = await prisma.ticket.findUnique({
           where: { id },
@@ -157,10 +143,8 @@ export const adminSupportResolvers = {
           hasMoreMessages,
         };
 
-        log(source, 'Successfully fetched ticket details');
         return result;
       } catch (error: any) {
-        log(source, 'ERROR', { error: error.message });
         throw new GraphQLError(error.message || 'An error occurred fetching ticket details.');
       }
     },
@@ -172,7 +156,6 @@ export const adminSupportResolvers = {
       const source = 'Mutation: adminSendTicketMessage';
       try {
         const adminId = checkAdmin(context);
-        log(source, 'Fired', { ticketId });
 
         const ticket = await prisma.ticket.findUnique({ where: { id: ticketId } });
         if (!ticket) throw new GraphQLError('Ticket not found.');
@@ -201,10 +184,8 @@ export const adminSupportResolvers = {
             await pubsub.publish(Topics.ADMIN_TICKET_UPDATED, { adminTicketUpdated: updatedTicketPayload });
         }
 
-        log(source, 'Successfully sent message and published events');
         return messageWithSupportFlag;
       } catch (error: any) {
-        log(source, 'ERROR', { error: error.message });
         throw new GraphQLError(error.message || 'An error occurred sending the ticket message.');
       }
     },
@@ -213,7 +194,6 @@ export const adminSupportResolvers = {
       const source = 'Mutation: adminUpdateTicketStatus';
       try {
         checkAdmin(context);
-        log(source, 'Fired', { ticketId, status });
 
         const updatedTicket = await prisma.ticket.update({
           where: { id: ticketId },
@@ -226,10 +206,8 @@ export const adminSupportResolvers = {
             await pubsub.publish(Topics.ADMIN_TICKET_UPDATED, { adminTicketUpdated: updatedTicketPayload });
         }
 
-        log(source, 'Successfully updated ticket status and published event');
         return updatedTicket;
       } catch (error: any) {
-        log(source, 'ERROR', { error: error.message });
         throw new GraphQLError(error.message || 'Failed to update ticket status.');
       }
     },
@@ -237,7 +215,6 @@ export const adminSupportResolvers = {
     adminUpdateTicketPriority: async (_: any, { ticketId, priority }: { ticketId: string; priority: 'LOW' | 'MEDIUM' | 'HIGH' }, context: GraphQLContext) => {
         const source = 'Mutation: adminUpdateTicketPriority';
         try {
-          log(source, 'Fired', { ticketId, priority });
   
           const updatedTicket = await prisma.ticket.update({
             where: { id: ticketId },
@@ -250,10 +227,8 @@ export const adminSupportResolvers = {
               await pubsub.publish(Topics.ADMIN_TICKET_UPDATED, { adminTicketUpdated: updatedTicketPayload });
           }
   
-          log(source, 'Successfully updated ticket priority and published event');
           return updatedTicket;
         } catch (error: any) {
-          log(source, 'ERROR', { error: error.message });
           throw new GraphQLError(error.message || 'Failed to update ticket priority.');
         }
     },
@@ -262,7 +237,6 @@ export const adminSupportResolvers = {
         const source = 'Mutation: adminMarkTicketAsRead';
         try {
           checkAdmin(context);
-          log(source, 'Fired', { ticketId });
           
           await prisma.ticketMessage.updateMany({
             where: {
@@ -280,11 +254,9 @@ export const adminSupportResolvers = {
               await pubsub.publish(Topics.ADMIN_TICKET_UPDATED, { adminTicketUpdated: updatedTicketPayload });
           }
 
-          log(source, 'Successfully marked ticket messages as read');
           return { id: ticketId, unreadCount: 0 };
 
         } catch (error: any) {
-          log(source, 'ERROR', { error: error.message });
           throw new GraphQLError(error.message || 'Failed to mark ticket as read.');
         }
     },

@@ -98,7 +98,6 @@ function debounce<T extends (...args: any[]) => any>(
 
 const WhiteboardEditorPage: React.FC<WhiteboardEditorPageProps> = memo(
   ({ WhiteboardId, onBack, onShowToast }) => {
-    console.log(`LOG: [WhiteboardEditorPage] Rendering with WhiteboardId: ${WhiteboardId}`);
     const [excalidrawAPI, setExcalidrawAPI] = useState<ExcalidrawAPI | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [WhiteboardImageForModal, setWhiteboardImageForModal] = useState<string | null>(null);
@@ -106,7 +105,6 @@ const WhiteboardEditorPage: React.FC<WhiteboardEditorPageProps> = memo(
     const canSave = useRef(false);
 
     const { Whiteboard, loading, error } = useWhiteboardDetails(WhiteboardId);
-    console.log(`LOG: [WhiteboardEditorPage] useWhiteboardDetails state:`, { loading, error, Whiteboard: !!Whiteboard });
 
     const [stableInitialData, setStableInitialData] = useState<{
         elements: ReadonlyArray<ExcalidrawElement>;
@@ -133,13 +131,11 @@ const WhiteboardEditorPage: React.FC<WhiteboardEditorPageProps> = memo(
     useEffect(() => {
       if (Whiteboard) {
         if (Whiteboard.title !== WhiteboardName) {
-            console.log(`LOG: [WhiteboardEditorPage] useEffect syncing WhiteboardName from fetched data. New name: "${Whiteboard.title}"`);
             setWhiteboardName(Whiteboard.title);
         }
 
         // Only compute and set the initial data ONCE when it first loads.
         if (!stableInitialData) {
-            console.log("LOG: [WhiteboardEditorPage] Preparing STABLE initial data for Excalidraw component from fetched Whiteboard.");
             const content = Whiteboard.data;
             const elements = content.elements ?? [];
             const appState = content.appState ?? {};
@@ -152,7 +148,6 @@ const WhiteboardEditorPage: React.FC<WhiteboardEditorPageProps> = memo(
 
 
     useEffect(() => {
-      console.log("LOG: [WhiteboardEditorPage] Component has mounted. Setting hasMounted to true.");
       setHasMounted(true);
     }, []);
 
@@ -163,11 +158,9 @@ const WhiteboardEditorPage: React.FC<WhiteboardEditorPageProps> = memo(
       currentTitle: string
     ) => {
       if (!WhiteboardId) {
-        console.warn("LOG: [WhiteboardEditorPage] Cannot save: WhiteboardId is missing.");
         return;
       }
 
-      console.log("LOG: [WhiteboardEditorPage] Executing saveWhiteboardData...");
 
       const filteredElements = elements.filter((element) => !element.isDeleted);
 
@@ -195,11 +188,9 @@ const WhiteboardEditorPage: React.FC<WhiteboardEditorPageProps> = memo(
             appState: appStateToSave,
           },
         });
-        console.log("LOG: [WhiteboardEditorPage] Whiteboard data saved successfully.");
         // After a successful save, disable further saves until the next user interaction.
         canSave.current = false;
       } catch (err) {
-        console.error("LOG: [WhiteboardEditorPage] Error saving Whiteboard data:", err);
         onShowToast("Failed to save whiteboard content", "error");
       }
     }, [WhiteboardId, updateWhiteboard, onShowToast]);
@@ -207,7 +198,6 @@ const WhiteboardEditorPage: React.FC<WhiteboardEditorPageProps> = memo(
     // --- Debounced version of saveWhiteboardData ---
     const debouncedSaveWhiteboardData = useMemo(
       () => {
-        console.log("LOG: [WhiteboardEditorPage] Creating debounced save function for Whiteboard data.");
         return debounce(saveWhiteboardData, 1500);
       },
       [saveWhiteboardData]
@@ -215,12 +205,9 @@ const WhiteboardEditorPage: React.FC<WhiteboardEditorPageProps> = memo(
 
     // --- Save Whiteboard Name function ---
     const saveWhiteboardName = useCallback(async (id: string, title: string) => {
-      console.log(`LOG: [WhiteboardEditorPage] Executing saveWhiteboardName with title: "${title}"`);
       try {
         await updateWhiteboard(id, { title });
-        console.log(`LOG: [WhiteboardEditorPage] Whiteboard name updated to "${title}".`);
       } catch (err) {
-        console.error("LOG: [WhiteboardEditorPage] Error updating Whiteboard name:", err);
         onShowToast("Failed to update whiteboard name", "error");
       }
     }, [updateWhiteboard, onShowToast]);
@@ -228,7 +215,6 @@ const WhiteboardEditorPage: React.FC<WhiteboardEditorPageProps> = memo(
     // --- Debounced version of saveWhiteboardName ---
     const debouncedSaveWhiteboardName = useMemo(
       () => {
-        console.log("LOG: [WhiteboardEditorPage] Creating debounced save function for Whiteboard name.");
         return debounce(saveWhiteboardName, 1000);
       },
       [saveWhiteboardName]
@@ -237,10 +223,8 @@ const WhiteboardEditorPage: React.FC<WhiteboardEditorPageProps> = memo(
     // --- Excalidraw onChange Handler ---
     const handleExcalidrawChange = useCallback(
       (elements: ReadonlyArray<ExcalidrawElement>, appState: ExcalidrawAppState) => {
-        console.log("LOG: [WhiteboardEditorPage] handleExcalidrawChange triggered.");
 
         if (!canSave.current) {
-          console.log("LOG: [WhiteboardEditorPage] Ignoring onChange event: save not enabled yet.");
           return;
         }
         
@@ -251,7 +235,6 @@ const WhiteboardEditorPage: React.FC<WhiteboardEditorPageProps> = memo(
     
     const handlePointerDown = useCallback(() => {
         if (!canSave.current) {
-            console.log("LOG: [WhiteboardEditorPage] First user interaction detected. Enabling save.");
             canSave.current = true;
         }
     }, []);
@@ -266,10 +249,8 @@ const WhiteboardEditorPage: React.FC<WhiteboardEditorPageProps> = memo(
     const handleNameChange = useCallback(
       (e: React.ChangeEvent<HTMLInputElement>) => {
         const newName = e.target.value;
-        console.log(`LOG: [WhiteboardEditorPage] handleNameChange. New value: "${newName}"`);
         setWhiteboardName(newName);
         if (!WhiteboardId) {
-          console.warn("LOG: [WhiteboardEditorPage] Cannot rename: WhiteboardId is missing.");
           return;
         }
         debouncedSaveWhiteboardName(WhiteboardId, newName);
@@ -279,7 +260,6 @@ const WhiteboardEditorPage: React.FC<WhiteboardEditorPageProps> = memo(
 
     // --- Back Callback ---
     const editorOnBack = useCallback(() => {
-      console.log("LOG: [WhiteboardEditorPage] Back button clicked. Flushing pending saves.");
       debouncedSaveWhiteboardData.flush();
       debouncedSaveWhiteboardName.flush();
       onBack();
@@ -287,10 +267,8 @@ const WhiteboardEditorPage: React.FC<WhiteboardEditorPageProps> = memo(
 
     const handleOpenModal = useCallback(async () => {
       if (!excalidrawAPI) {
-        console.warn("LOG: [WhiteboardEditorPage] Cannot generate prompt: Excalidraw API not ready.");
         return;
       }
-      console.log("LOG: [WhiteboardEditorPage] Generating image for prompt modal using exportToBlob...");
       try {
         const blob = await exportToBlob({
           elements: excalidrawAPI.getSceneElements(),
@@ -304,7 +282,6 @@ const WhiteboardEditorPage: React.FC<WhiteboardEditorPageProps> = memo(
         });
 
         if (!blob) {
-          console.error("LOG: [WhiteboardEditorPage] exportToBlob returned null or undefined.");
           onShowToast("Failed to prepare whiteboard image", "error");
           return;
         }
@@ -317,13 +294,11 @@ const WhiteboardEditorPage: React.FC<WhiteboardEditorPageProps> = memo(
           setIsModalOpen(true);
         };
         reader.onerror = (error) => {
-          console.error("LOG: [WhiteboardEditorPage] FileReader error:", error);
           onShowToast("Error processing image data", "error");
         };
         reader.readAsDataURL(blob);
 
       } catch (error) {
-        console.error("LOG: [WhiteboardEditorPage] Failed to export Whiteboard to blob:", error);
         onShowToast("Error exporting whiteboard", "error");
       }
     }, [excalidrawAPI, onShowToast]);
@@ -335,7 +310,6 @@ const WhiteboardEditorPage: React.FC<WhiteboardEditorPageProps> = memo(
 
     // Render loading state until Whiteboard data is fetched AND stable initial data is set.
     if (!hasMounted || loading || !stableInitialData) {
-      console.log("LOG: [WhiteboardEditorPage] Rendering loading state (waiting for stableInitialData).");
       return (
         <div className="page-scroller grid h-full place-items-center p-4">
           <Loader2 className="h-8 w-8 animate-spin text-emerald-500" />
@@ -344,7 +318,6 @@ const WhiteboardEditorPage: React.FC<WhiteboardEditorPageProps> = memo(
     }
 
     if (error) {
-      console.log("LOG: [WhiteboardEditorPage] Rendering error state.", { error });
       return (
         <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", height: "100vh", padding: "1rem" }}>
           <p style={{ marginBottom: "1rem", color: "red" }}>Error loading Whiteboard: {error.message}</p>
@@ -354,7 +327,6 @@ const WhiteboardEditorPage: React.FC<WhiteboardEditorPageProps> = memo(
     }
 
     if (!Whiteboard) {
-      console.log("LOG: [WhiteboardEditorPage] Rendering 'not found' state.");
       return (
         <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", height: "100vh", padding: "1rem" }}>
           <p style={{ marginBottom: "1rem" }}>Whiteboard not found or is unavailable.</p>
@@ -363,7 +335,6 @@ const WhiteboardEditorPage: React.FC<WhiteboardEditorPageProps> = memo(
       );
     }
 
-    console.log("LOG: [WhiteboardEditorPage] Rendering main editor view.");
     return (
       <div style={{
         display: "flex",

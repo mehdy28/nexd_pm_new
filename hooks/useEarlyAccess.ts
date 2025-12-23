@@ -30,13 +30,11 @@ export function useEarlyAccess() {
 
   const joinWaitlist = useCallback(
     async ({ name, email }: EarlyAccessUserInput) => {
-      console.log("[useEarlyAccess][joinWaitlist] Attempting to sign up:", email);
       try {
         const response = await createEarlyAccessUserMutation({
           variables: { name, email },
         });
         if (response.data?.createEarlyAccessUser) {
-          console.log("[useEarlyAccess][joinWaitlist] Success:", response.data.createEarlyAccessUser);
           return { success: true, data: response.data.createEarlyAccessUser };
         }
         // This case should ideally not be hit if the mutation is set up correctly
@@ -50,7 +48,6 @@ export function useEarlyAccess() {
   );
 
   const fetchWaitlist = useCallback(async () => {
-    console.log("[useEarlyAccess][fetchWaitlist] Fetching waitlist...");
     try {
       await getEarlyAccessUsersQuery();
     } catch (err: any) {

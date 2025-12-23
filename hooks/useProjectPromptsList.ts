@@ -91,7 +91,6 @@ export function useProjectPromptsList(
       return []
     }
 
-    console.log(`[useProjectPromptsList] [Trace: Memo] Recalculating prompts. Count: ${promptsListData.getProjectPrompts.prompts.length}`)
 
     return promptsListData.getProjectPrompts.prompts.map((p: any) => ({
       id: p.id,
@@ -141,7 +140,6 @@ export function useProjectPromptsList(
     ],
     awaitRefetchQueries: true,
     onCompleted: data => {
-      console.log(`[useProjectPromptsList] [Trace: DeleteMutation] Completed. Deleted ID: ${data?.deletePrompt?.id}`)
       if (prompts.length === 1 && page > 1) {
         setPage(p => p - 1)
       }
@@ -162,7 +160,6 @@ export function useProjectPromptsList(
     awaitRefetchQueries: true,
     onCompleted: data => {
       const count = data?.deleteManyPrompts?.count || 0
-      console.log(`[useProjectPromptsList] [Trace: DeleteManyMutation] Completed. Deleted count: ${count}`)
       if (prompts.length <= count && page > 1) {
           setPage(p => p - 1)
       }
@@ -188,7 +185,6 @@ export function useProjectPromptsList(
   const triggerPromptsListFetch = useCallback(
     (forceRefetch: boolean = false) => {
       if (forceRefetch) {
-        console.log("[useProjectPromptsList] [Trace] Force refetch triggering.")
         setLocalListError(null)
         setPage(1)
         apolloRefetchPromptsList()
@@ -266,7 +262,6 @@ export function useProjectPromptsList(
   const deletePrompt = useCallback(
     async (id: string) => {
       setLocalListError(null)
-      console.log(`[useProjectPromptsList] [Trace: Delete] Calling mutation for ID: ${id}`)
       await deletePromptMutation({ variables: { id } })
     },
     [deletePromptMutation],
@@ -275,7 +270,6 @@ export function useProjectPromptsList(
   const deleteManyPrompts = useCallback(
     async (ids: string[]) => {
       setLocalListError(null)
-      console.log(`[useProjectPromptsList] [Trace: DeleteMany] Calling mutation for IDs: ${ids.join(', ')}`)
       await deleteManyPromptsMutation({ variables: { ids } })
     },
     [deleteManyPromptsMutation]

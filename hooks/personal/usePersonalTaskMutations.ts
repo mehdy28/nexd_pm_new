@@ -42,7 +42,6 @@ interface TaskWithSectionId {
 
 // --- Main Hook ---
 export function usePersonalTaskmutations() {
-  console.log("[usePersonalTaskmutations] Hook initialized.")
   const client = useApolloClient()
 
   const [createPersonalTaskApolloMutation, { loading: createLoading, error: createError }] = useMutation(
@@ -62,9 +61,7 @@ export function usePersonalTaskmutations() {
 
   const createTask = useCallback(
     async (personalSectionId: string, input: Omit<CreatePersonalTaskVariables["input"], "personalSectionId">) => {
-      console.log(`[createTask] Initiated. Section ID: ${personalSectionId}, Input:`, input)
       const optimisticId = `optimistic-${Date.now()}`
-      console.log(`[createTask] Generated optimistic ID: ${optimisticId}`)
 
       const mutationVariables = {
         input: {
@@ -72,7 +69,6 @@ export function usePersonalTaskmutations() {
           ...input,
         },
       }
-      console.log(`[createTask] Mutation variables:`, mutationVariables)
 
       const optimisticResponsePayload = {
         createPersonalTask: {
@@ -91,13 +87,11 @@ export function usePersonalTaskmutations() {
           assignee: null,
         },
       }
-      console.log(`[createTask] Optimistic response payload:`, optimisticResponsePayload)
 
       return createPersonalTaskApolloMutation({
         variables: mutationVariables,
         optimisticResponse: optimisticResponsePayload,
         update: (cache, { data }) => {
-          console.log(`[createTask Cache Update] Received data from mutation:`, data)
           const newTask = data?.createPersonalTask
           if (!newTask) {
             console.warn(`[createTask Cache Update] No new task data returned. Aborting cache update.`)
@@ -111,19 +105,13 @@ export function usePersonalTaskmutations() {
             return
           }
 
-          console.log(`[createTask Cache Update] Modifying cache for section: ${sectionCacheId}`)
           cache.modify({
             id: sectionCacheId,
             fields: {
               tasks(existingTasks = [], { readField }) {
-                console.log(
-                  `[createTask Cache Update] Updating tasks field. Found ${existingTasks.length} existing tasks.`
-                )
                 const withoutOptimistic = existingTasks.filter((t: any) => readField("id", t) !== optimisticId)
                 const newTaskRef = cache.identify(newTask)
-                console.log(`[createTask Cache Update] Adding new task ref: ${newTaskRef}`)
                 const updatedTasks = [...withoutOptimistic, { __ref: newTaskRef }]
-                console.log(`[createTask Cache Update] New task list length: ${updatedTasks.length}`)
                 return updatedTasks
               },
             },
@@ -141,7 +129,6 @@ export function usePersonalTaskmutations() {
       input: Omit<UpdatePersonalTaskVariables["input"], "id">
     ) => {
       // LOG 1: Log the initial call to see what's being updated.
-      console.log(`🚀 [updateTask] Initiated. Task ID: ${taskId}, Input:`, input)
 
       // FIX: Removed sprintId as it causes cache miss if not fetched by main query.
       // Kept startDate as it is needed for UI sorting/priority logic.
@@ -168,7 +155,6 @@ export function usePersonalTaskmutations() {
       `
 
       // LOG 2: Announce the attempt to read from cache.
-      console.log(`🔍 [updateTask] Reading fragment from cache for ID: TaskListView:${taskId}`)
 
       const taskFragment = client.readFragment({
         id: `TaskListView:${taskId}`,
@@ -176,7 +162,6 @@ export function usePersonalTaskmutations() {
       })
 
       // LOG 3: Log the result of the fragment read.
-      console.log("📦 [updateTask] Fragment read result:", taskFragment)
 
       if (!taskFragment) {
         console.error(
@@ -199,7 +184,6 @@ export function usePersonalTaskmutations() {
       }
 
       // LOG 4: Log the complete object that will be used for the optimistic update.
-      console.log("✨ [updateTask] Constructed optimistic response payload:", optimisticResponsePayload)
 
       try {
         return await updatePersonalTaskApolloMutation({
@@ -209,7 +193,6 @@ export function usePersonalTaskmutations() {
           },
           update: (cache, { data }) => {
             // LOG 5: Log what the update function receives after the mutation.
-            console.log("🔄 [updateTask Cache Update] Received data:", data)
 
             const updatedTask = data?.updatePersonalTask
             if (!updatedTask) {
@@ -219,9 +202,7 @@ export function usePersonalTaskmutations() {
 
             const newSectionId = input.personalSectionId
             if (newSectionId && newSectionId !== currentSectionId) {
-              console.log(
-                `🔄 [updateTask Cache Update] Task moved from section ${currentSectionId} to ${newSectionId}.`
-              )
+
 
               // FIX: Use the correct typename for the section object.
               const oldSectionCacheId = cache.identify({
@@ -229,9 +210,7 @@ export function usePersonalTaskmutations() {
                 id: currentSectionId,
               })
               if (oldSectionCacheId) {
-                console.log(
-                  `🔄 [updateTask Cache Update] Removing task ${updatedTask.id} from old section ${oldSectionCacheId}.`
-                )
+
                 cache.modify({
                   id: oldSectionCacheId,
                   fields: {
@@ -239,9 +218,7 @@ export function usePersonalTaskmutations() {
                       const filteredTasks = existingTaskRefs.filter(
                         taskRef => readField("id", taskRef) !== updatedTask.id
                       )
-                      console.log(
-                        `🔄 [updateTask Cache Update] Old section task count changed from ${existingTaskRefs.length} to ${filteredTasks.length}.`
-                      )
+
                       return filteredTasks
                     },
                   },
@@ -255,24 +232,18 @@ export function usePersonalTaskmutations() {
               // FIX: Use the correct typename for the section object.
               const newSectionCacheId = cache.identify({ __typename: "PersonalSectionWithTasks", id: newSectionId })
               if (newSectionCacheId) {
-                console.log(
-                  `🔄 [updateTask Cache Update] Adding task ${updatedTask.id} to new section ${newSectionCacheId}.`
-                )
+
                 cache.modify({
                   id: newSectionCacheId,
                   fields: {
                     tasks(existingTaskRefs = [], { readField }) {
                       const newTaskRef = cache.identify(updatedTask)
                       if (existingTaskRefs.some(ref => readField("id", ref) === updatedTask.id)) {
-                        console.log(
-                          `🔄 [updateTask Cache Update] Task already exists in new section. No change needed.`
-                        )
+
                         return existingTaskRefs
                       }
                       const updatedTasks = [{ __ref: newTaskRef }, ...existingTaskRefs]
-                      console.log(
-                        `🔄 [updateTask Cache Update] New section task count changed from ${existingTaskRefs.length} to ${updatedTasks.length}. Task added to the top.`
-                      )
+
                       return updatedTasks
                     },
                   },
@@ -283,9 +254,7 @@ export function usePersonalTaskmutations() {
                 )
               }
             } else {
-              console.log(
-                "🔄 [updateTask Cache Update] Task updated within the same section. No section move logic needed."
-              )
+
             }
           },
         })
@@ -300,12 +269,8 @@ export function usePersonalTaskmutations() {
 
   const toggleTaskCompleted = useCallback(
     async (taskId: string, personalSectionId: string, currentStatus: TaskStatusUI) => {
-      console.log(
-        `[toggleTaskCompleted] Initiated for task ID: ${taskId} from section ${personalSectionId} with current status: ${currentStatus}`
-      )
+
       const newStatus = currentStatus === "DONE" ? "TODO" : "DONE"
-      console.log(`[toggleTaskCompleted] New status will be: ${newStatus}`)
-      console.log(`[toggleTaskCompleted] Calling updateTask to apply the status change.`)
       return updateTask(taskId, personalSectionId, { status: newStatus })
     },
     [updateTask]
@@ -313,7 +278,6 @@ export function usePersonalTaskmutations() {
 
   const deleteTask = useCallback(
     async (taskId: string, personalSectionId: string) => {
-      console.log(`[deleteTask] Initiated. Task ID: ${taskId}, Section ID: ${personalSectionId}`)
 
       if (!personalSectionId) {
         console.error(
@@ -322,35 +286,28 @@ export function usePersonalTaskmutations() {
       }
 
       const mutationVariables = { id: taskId }
-      console.log(`[deleteTask] Mutation variables:`, mutationVariables)
 
       return deletePersonalTaskApolloMutation({
         variables: mutationVariables,
         // THIS IS THE FIX: optimisticResponse is removed.
         update: (cache, { data }) => {
-          console.log(`[deleteTask Cache Update] Received data from mutation:`, data)
           const deletedTask = data?.deletePersonalTask
           if (!deletedTask || !deletedTask.id) {
             console.warn(`[deleteTask Cache Update] No deleted task data returned. Aborting cache update.`)
             return
           }
           const deletedTaskId = deletedTask.id
-          console.log(`[deleteTask Cache Update] Task to remove from cache: ${deletedTaskId}`)
 
           if (personalSectionId) {
             // FIX: Use the correct typename for the section object.
             const sectionCacheId = cache.identify({ __typename: "PersonalSectionWithTasks", id: personalSectionId })
             if (sectionCacheId) {
-              console.log(`[deleteTask Cache Update] Modifying cache for section: ${sectionCacheId}`)
               cache.modify({
                 id: sectionCacheId,
                 fields: {
                   tasks(existingTaskRefs = [], { readField }) {
-                    console.log(
-                      `[deleteTask Cache Update] Filtering tasks field. Found ${existingTaskRefs.length} existing tasks.`
-                    )
+
                     const updatedTasks = existingTaskRefs.filter(taskRef => readField("id", taskRef) !== deletedTaskId)
-                    console.log(`[deleteTask Cache Update] New task list length: ${updatedTasks.length}`)
                     return updatedTasks
                   },
                 },
@@ -368,12 +325,10 @@ export function usePersonalTaskmutations() {
 
           const taskCacheId = cache.identify({ __typename: "TaskListView", id: deletedTaskId })
           if (taskCacheId) {
-            console.log(`[deleteTask Cache Update] Evicting task object from cache: ${taskCacheId}`)
             cache.evict({ id: taskCacheId })
           } else {
             console.warn(`[deleteTask Cache Update] Could not find task ${deletedTaskId} in cache to evict.`)
           }
-          console.log(`[deleteTask Cache Update] Triggering garbage collection.`)
           cache.gc()
         },
       })
@@ -384,12 +339,10 @@ export function usePersonalTaskmutations() {
   const deleteManyTasks = useCallback(
     async (tasks: TaskWithSectionId[]) => {
       const taskIds = tasks.map(t => t.taskId)
-      console.log(`[deleteManyTasks] Initiated. Task IDs:`, taskIds)
 
       return deleteManyPersonalTasksApolloMutation({
         variables: { ids: taskIds },
         update: (cache, { data }) => {
-          console.log(`[deleteManyTasks Cache Update] Received data from mutation:`, data)
           const deletedTasks = data?.deleteManyPersonalTasks
           if (!deletedTasks || deletedTasks.length === 0) {
             console.warn(`[deleteManyTasks Cache Update] No deleted tasks data returned. Aborting cache update.`)
@@ -410,7 +363,6 @@ export function usePersonalTaskmutations() {
             {} as Record<string, string[]>
           )
 
-          console.log(`[deleteManyTasks Cache Update] Grouped deleted tasks by section:`, tasksBySection)
 
           // Update each affected section
           for (const sectionId in tasksBySection) {
@@ -418,7 +370,6 @@ export function usePersonalTaskmutations() {
             const sectionCacheId = cache.identify({ __typename: "PersonalSectionWithTasks", id: sectionId })
 
             if (sectionCacheId) {
-              console.log(`[deleteManyTasks Cache Update] Modifying cache for section: ${sectionCacheId}`)
               cache.modify({
                 id: sectionCacheId,
                 fields: {
@@ -427,9 +378,7 @@ export function usePersonalTaskmutations() {
                     const updatedTasks = existingTaskRefs.filter(
                       taskRef => !deletedIds.has(readField("id", taskRef))
                     )
-                    console.log(
-                      `[deleteManyTasks Cache Update] Section ${sectionId}: task count changed from ${originalCount} to ${updatedTasks.length}`
-                    )
+
                     return updatedTasks
                   },
                 },
@@ -444,11 +393,9 @@ export function usePersonalTaskmutations() {
             const taskCacheId = cache.identify({ __typename: "TaskListView", id: task.id })
             if (taskCacheId) {
               cache.evict({ id: taskCacheId })
-              console.log(`[deleteManyTasks Cache Update] Evicted task ${task.id} from cache.`)
             }
           })
 
-          console.log(`[deleteManyTasks Cache Update] Triggering garbage collection.`)
           cache.gc()
         },
       })

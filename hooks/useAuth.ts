@@ -38,10 +38,8 @@ interface User {
 
 const setAuthCookies = (token: string | null, user: User | null = null) => {
   if (token) {
-    console.log("[useAuth] Setting session cookie.");
     document.cookie = `session=${token}; path=/; SameSite=Lax`;
     if (user) {
-      console.log("[useAuth] Setting user-metadata cookie.");
       const hasWorkspace = (user.ownedWorkspaces?.length ?? 0) > 0 || (user.workspaceMembers?.length ?? 0) > 0;
       const metadata = {
         role: user.role,
@@ -51,7 +49,6 @@ const setAuthCookies = (token: string | null, user: User | null = null) => {
       document.cookie = `user-metadata=${JSON.stringify(metadata)}; path=/; SameSite=Lax`;
     }
   } else {
-    console.log("[useAuth] Clearing auth cookies.");
     document.cookie = "session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
     document.cookie = "user-metadata=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
   }
@@ -74,12 +71,10 @@ export function useAuth() {
   const fetchMe = useCallback(async (): Promise<User | null> => {
     const user = auth.currentUser;
     if (!user) {
-      console.log("[useAuth][fetchMe] No Firebase user found.");
       return null;
     }
 
     try {
-      console.log("[useAuth][fetchMe] Fetching user profile from GraphQL...");
       const token = await user.getIdToken();
       const { data } = await client.query({
         query: ME_QUERY,
@@ -89,7 +84,6 @@ export function useAuth() {
       
       const me = data?.me ?? null;
       if (me) {
-        console.log("[useAuth][fetchMe] Profile found:", me.email);
         const hasWorkspace = (me.ownedWorkspaces?.length ?? 0) > 0 || (me.workspaceMembers?.length ?? 0) > 0;
         const enrichedUser = { ...me, hasWorkspace };
         setAuthCookies(token, enrichedUser);
@@ -97,7 +91,6 @@ export function useAuth() {
         return enrichedUser;
       }
       
-      console.log("[useAuth][fetchMe] No profile returned from GraphQL.");
       setAuthCookies(token, null);
       setCurrentUser(null); // Update state here
       return null;
@@ -109,25 +102,20 @@ export function useAuth() {
 
   const register = useCallback(
     async (email: string, password: string, firstName: string, lastName: string, invitationToken: string | null, role: "MEMBER" | "ADMIN" = "MEMBER") => {
-      console.log("[useAuth][register] Registration initiated for:", email);
       setLoading(true);
       setError(null);
       try {
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         const firebaseUser = userCredential.user;
-        console.log("[useAuth][register] Firebase user created:", firebaseUser.uid);
         
         const firebaseIdToken = await firebaseUser.getIdToken();
-        console.log("[useAuth][register] Token acquired. Setting initial session cookie.");
         setAuthCookies(firebaseIdToken, null);
 
-        console.log("[useAuth][register] Calling createUser mutation...");
         await createUser({
           variables: { email, firstName, lastName, role, invitationToken },
           context: { headers: { Authorization: `Bearer ${firebaseIdToken}` } },
         });
 
-        console.log("[useAuth][register] Mutation successful. Verifying profile...");
         const me = await fetchMe();
         if (me) {
           setCurrentUser(me);
@@ -136,7 +124,6 @@ export function useAuth() {
           setCurrentUser({ email: firebaseUser.email, emailVerified: false, role } as any);
         }
         
-        console.log("[useAuth][register] Redirecting to /check-email");
         router.push("/check-email");
       } catch (err: any) {
         console.error("[useAuth][register] Registration error:", err.message);
@@ -152,21 +139,17 @@ export function useAuth() {
 
   const login = useCallback(
     async (email: string, password: string, invitationToken: string | null = null) => {
-      console.log("[useAuth][login] Login initiated for:", email);
       setLoading(true);
       setError(null);
       try {
         await signInWithEmailAndPassword(auth, email, password);
-        console.log("[useAuth][login] Firebase login successful.");
         const me = await fetchMe();
         if (me) {
           setCurrentUser(me);
           if (!me.emailVerified) {
-            console.log("[useAuth][login] Email not verified. Redirecting to /check-email.");
             router.push("/check-email");
           } else {
             const dest = me.role === "ADMIN" ? "/admin-dashboard" : (me.hasWorkspace ? "/workspace" : "/setup");
-            console.log("[useAuth][login] Success. Redirecting to:", dest);
             router.push(dest);
           }
         } else {
@@ -185,7 +168,6 @@ export function useAuth() {
   );
 
   const logout = useCallback(async () => {
-    console.log("[useAuth][logout] Logging out...");
     setLoading(true);
     setError(null);
     try {
@@ -262,7 +244,6 @@ export function useAuth() {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user: FirebaseUser | null) => {
-      console.log("[useAuth][Observer] Auth state changed. User:", user ? user.email : "none");
       setLoading(true);
       try {
         if (user) {
@@ -270,7 +251,6 @@ export function useAuth() {
           if (me) {
             setCurrentUser(me);
           } else {
-            console.log("[useAuth][Observer] No profile record found yet.");
             const token = await user.getIdToken();
             setAuthCookies(token, null);
             setCurrentUser(null);
