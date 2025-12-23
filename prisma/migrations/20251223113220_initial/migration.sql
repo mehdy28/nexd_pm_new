@@ -29,7 +29,7 @@ CREATE TYPE "Plan" AS ENUM ('FREE', 'PRO', 'ENTERPRISE');
 CREATE TYPE "SubscriptionStatus" AS ENUM ('ACTIVE', 'CANCELLED', 'PAST_DUE', 'UNPAID');
 
 -- CreateEnum
-CREATE TYPE "ActivityType" AS ENUM ('TASK_CREATED', 'TASK_UPDATED', 'TASK_COMPLETED', 'TASK_ASSIGNED', 'PROJECT_CREATED', 'PROJECT_UPDATED', 'DOCUMENT_CREATED', 'DOCUMENT_UPDATED', 'WIREFRAME_CREATED', 'WIREFRAME_UPDATED', 'COMMENT_ADDED', 'MEMBER_ADDED', 'MEMBER_REMOVED', 'STATUS_UPDATED', 'PRIORITY_UPDATED', 'DUE_DATE_UPDATED', 'POINTS_UPDATED', 'DESCRIPTION_UPDATED', 'ATTACHMENT_ADDED', 'ATTACHMENT_REMOVED');
+CREATE TYPE "ActivityType" AS ENUM ('TASK_CREATED', 'TASK_UPDATED', 'TASK_COMPLETED', 'TASK_ASSIGNED', 'TASK_DELETED', 'PROJECT_CREATED', 'PROJECT_UPDATED', 'PROJECT_DELETED', 'DOCUMENT_CREATED', 'DOCUMENT_UPDATED', 'DOCUMENT_DELETED', 'WHITEBOARD_CREATED', 'WHITEBOARD_UPDATED', 'WHITEBOARD_DELETED', 'PROMPT_CREATED', 'PROMPT_UPDATED', 'PROMPT_DELETED', 'COMMENT_ADDED', 'COMMENT_UPDATED', 'COMMENT_DELETED', 'MEMBER_ADDED', 'MEMBER_REMOVED', 'MEMBER_UPDATED', 'STATUS_UPDATED', 'PRIORITY_UPDATED', 'DUE_DATE_UPDATED', 'POINTS_UPDATED', 'DESCRIPTION_UPDATED', 'ATTACHMENT_ADDED', 'ATTACHMENT_REMOVED');
 
 -- CreateEnum
 CREATE TYPE "PromptVariableType" AS ENUM ('STRING', 'NUMBER', 'BOOLEAN', 'DATE', 'RICH_TEXT', 'LIST_OF_STRINGS', 'SELECT', 'DYNAMIC');
@@ -53,8 +53,11 @@ CREATE TABLE "users" (
     "firstName" TEXT,
     "lastName" TEXT,
     "avatar" TEXT,
+    "avatarColor" TEXT,
     "firebaseUid" TEXT,
     "role" "UserRole" NOT NULL DEFAULT 'MEMBER',
+    "emailVerified" BOOLEAN NOT NULL DEFAULT false,
+    "verificationToken" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -274,7 +277,7 @@ CREATE TABLE "documents" (
 );
 
 -- CreateTable
-CREATE TABLE "wireframes" (
+CREATE TABLE "Whiteboards" (
     "id" TEXT NOT NULL,
     "title" TEXT NOT NULL,
     "data" JSONB NOT NULL,
@@ -284,7 +287,7 @@ CREATE TABLE "wireframes" (
     "projectId" TEXT,
     "userId" TEXT,
 
-    CONSTRAINT "wireframes_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "Whiteboards_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -296,7 +299,7 @@ CREATE TABLE "comments" (
     "authorId" TEXT NOT NULL,
     "taskId" TEXT,
     "documentId" TEXT,
-    "wireframeId" TEXT,
+    "WhiteboardId" TEXT,
     "promptId" TEXT,
 
     CONSTRAINT "comments_pkey" PRIMARY KEY ("id")
@@ -321,7 +324,7 @@ CREATE TABLE "activities" (
     "projectId" TEXT,
     "taskId" TEXT,
     "documentId" TEXT,
-    "wireframeId" TEXT,
+    "WhiteboardId" TEXT,
     "promptId" TEXT,
 
     CONSTRAINT "activities_pkey" PRIMARY KEY ("id")
@@ -347,18 +350,16 @@ CREATE TABLE "subscriptions" (
 CREATE TABLE "prompts" (
     "id" TEXT NOT NULL,
     "title" TEXT NOT NULL,
-    "context" TEXT NOT NULL DEFAULT '',
     "description" TEXT,
     "category" TEXT,
     "tags" TEXT[],
     "isPublic" BOOLEAN NOT NULL DEFAULT false,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
-    "model" TEXT DEFAULT 'gpt-4o',
-    "aiEnhancedContent" TEXT,
+    "modelProfileId" TEXT,
     "projectId" TEXT,
     "userId" TEXT,
-    "wireframeId" TEXT,
+    "WhiteboardId" TEXT,
 
     CONSTRAINT "prompts_pkey" PRIMARY KEY ("id")
 );
@@ -371,6 +372,7 @@ CREATE TABLE "versions" (
     "notes" TEXT,
     "description" TEXT,
     "aiEnhancedContent" TEXT,
+    "isActive" BOOLEAN NOT NULL DEFAULT true,
     "promptId" TEXT NOT NULL,
 
     CONSTRAINT "versions_pkey" PRIMARY KEY ("id")
@@ -385,8 +387,7 @@ CREATE TABLE "prompt_variables" (
     "type" "PromptVariableType" NOT NULL,
     "defaultValue" TEXT,
     "source" JSONB,
-    "promptId" TEXT,
-    "versionId" TEXT,
+    "versionId" TEXT NOT NULL,
 
     CONSTRAINT "prompt_variables_pkey" PRIMARY KEY ("id")
 );
@@ -400,10 +401,21 @@ CREATE TABLE "content_blocks" (
     "placeholder" TEXT,
     "name" TEXT,
     "order" INTEGER NOT NULL,
-    "promptId" TEXT,
-    "versionId" TEXT,
+    "versionId" TEXT NOT NULL,
 
     CONSTRAINT "content_blocks_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "model_profiles" (
+    "id" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "provider" TEXT,
+    "enhancementInstructions" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "model_profiles_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -423,6 +435,7 @@ CREATE TABLE "conversations" (
     "workspaceId" TEXT NOT NULL,
     "type" "ConversationType" NOT NULL,
     "name" TEXT,
+    "creatorId" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -436,6 +449,8 @@ CREATE TABLE "conversation_participants" (
     "userId" TEXT NOT NULL,
     "joinedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "lastReadAt" TIMESTAMP(3),
+    "hasLeft" BOOLEAN NOT NULL DEFAULT false,
+    "leftAt" TIMESTAMP(3),
 
     CONSTRAINT "conversation_participants_pkey" PRIMARY KEY ("id")
 );
@@ -474,8 +489,19 @@ CREATE TABLE "ticket_messages" (
     "content" TEXT NOT NULL,
     "isSupport" BOOLEAN NOT NULL DEFAULT false,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "isReadByAdmin" BOOLEAN NOT NULL DEFAULT false,
 
     CONSTRAINT "ticket_messages_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "ticket_read_statuses" (
+    "id" TEXT NOT NULL,
+    "lastReadAt" TIMESTAMP(3) NOT NULL,
+    "ticketId" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+
+    CONSTRAINT "ticket_read_statuses_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -502,11 +528,24 @@ CREATE TABLE "audit_logs" (
     CONSTRAINT "audit_logs_pkey" PRIMARY KEY ("id")
 );
 
+-- CreateTable
+CREATE TABLE "early_access_users" (
+    "id" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "email" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "early_access_users_pkey" PRIMARY KEY ("id")
+);
+
 -- CreateIndex
 CREATE UNIQUE INDEX "users_email_key" ON "users"("email");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "users_firebaseUid_key" ON "users"("firebaseUid");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "users_verificationToken_key" ON "users"("verificationToken");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "workspaces_slug_key" ON "workspaces"("slug");
@@ -527,28 +566,22 @@ CREATE UNIQUE INDEX "workspace_settings_workspaceId_key" ON "workspace_settings"
 CREATE UNIQUE INDEX "project_members_projectId_userId_key" ON "project_members"("projectId", "userId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "personal_sections_userId_name_key" ON "personal_sections"("userId", "name");
-
--- CreateIndex
 CREATE UNIQUE INDEX "attachments_publicId_key" ON "attachments"("publicId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "labels_name_workspaceId_key" ON "labels"("name", "workspaceId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "mentions_commentId_userId_key" ON "mentions"("commentId", "userId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "subscriptions_workspaceId_key" ON "subscriptions"("workspaceId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "task_dependencies_precedingTaskId_dependentTaskId_key" ON "task_dependencies"("precedingTaskId", "dependentTaskId");
-
--- CreateIndex
 CREATE UNIQUE INDEX "conversation_participants_conversationId_userId_key" ON "conversation_participants"("conversationId", "userId");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "ticket_read_statuses_ticketId_userId_key" ON "ticket_read_statuses"("ticketId", "userId");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "user_notification_settings_userId_key" ON "user_notification_settings"("userId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "early_access_users_email_key" ON "early_access_users"("email");
 
 -- AddForeignKey
 ALTER TABLE "workspaces" ADD CONSTRAINT "workspaces_ownerId_fkey" FOREIGN KEY ("ownerId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -638,10 +671,10 @@ ALTER TABLE "documents" ADD CONSTRAINT "documents_projectId_fkey" FOREIGN KEY ("
 ALTER TABLE "documents" ADD CONSTRAINT "documents_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "wireframes" ADD CONSTRAINT "wireframes_projectId_fkey" FOREIGN KEY ("projectId") REFERENCES "projects"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "Whiteboards" ADD CONSTRAINT "Whiteboards_projectId_fkey" FOREIGN KEY ("projectId") REFERENCES "projects"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "wireframes" ADD CONSTRAINT "wireframes_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "Whiteboards" ADD CONSTRAINT "Whiteboards_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "comments" ADD CONSTRAINT "comments_authorId_fkey" FOREIGN KEY ("authorId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -653,7 +686,7 @@ ALTER TABLE "comments" ADD CONSTRAINT "comments_taskId_fkey" FOREIGN KEY ("taskI
 ALTER TABLE "comments" ADD CONSTRAINT "comments_documentId_fkey" FOREIGN KEY ("documentId") REFERENCES "documents"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "comments" ADD CONSTRAINT "comments_wireframeId_fkey" FOREIGN KEY ("wireframeId") REFERENCES "wireframes"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "comments" ADD CONSTRAINT "comments_WhiteboardId_fkey" FOREIGN KEY ("WhiteboardId") REFERENCES "Whiteboards"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "comments" ADD CONSTRAINT "comments_promptId_fkey" FOREIGN KEY ("promptId") REFERENCES "prompts"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -677,7 +710,7 @@ ALTER TABLE "activities" ADD CONSTRAINT "activities_taskId_fkey" FOREIGN KEY ("t
 ALTER TABLE "activities" ADD CONSTRAINT "activities_documentId_fkey" FOREIGN KEY ("documentId") REFERENCES "documents"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "activities" ADD CONSTRAINT "activities_wireframeId_fkey" FOREIGN KEY ("wireframeId") REFERENCES "wireframes"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "activities" ADD CONSTRAINT "activities_WhiteboardId_fkey" FOREIGN KEY ("WhiteboardId") REFERENCES "Whiteboards"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "activities" ADD CONSTRAINT "activities_promptId_fkey" FOREIGN KEY ("promptId") REFERENCES "prompts"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -686,7 +719,7 @@ ALTER TABLE "activities" ADD CONSTRAINT "activities_promptId_fkey" FOREIGN KEY (
 ALTER TABLE "subscriptions" ADD CONSTRAINT "subscriptions_workspaceId_fkey" FOREIGN KEY ("workspaceId") REFERENCES "workspaces"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "prompts" ADD CONSTRAINT "prompts_wireframeId_fkey" FOREIGN KEY ("wireframeId") REFERENCES "wireframes"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "prompts" ADD CONSTRAINT "prompts_WhiteboardId_fkey" FOREIGN KEY ("WhiteboardId") REFERENCES "Whiteboards"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "prompts" ADD CONSTRAINT "prompts_projectId_fkey" FOREIGN KEY ("projectId") REFERENCES "projects"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -695,16 +728,13 @@ ALTER TABLE "prompts" ADD CONSTRAINT "prompts_projectId_fkey" FOREIGN KEY ("proj
 ALTER TABLE "prompts" ADD CONSTRAINT "prompts_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "prompts" ADD CONSTRAINT "prompts_modelProfileId_fkey" FOREIGN KEY ("modelProfileId") REFERENCES "model_profiles"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "versions" ADD CONSTRAINT "versions_promptId_fkey" FOREIGN KEY ("promptId") REFERENCES "prompts"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "prompt_variables" ADD CONSTRAINT "prompt_variables_promptId_fkey" FOREIGN KEY ("promptId") REFERENCES "prompts"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
 ALTER TABLE "prompt_variables" ADD CONSTRAINT "prompt_variables_versionId_fkey" FOREIGN KEY ("versionId") REFERENCES "versions"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "content_blocks" ADD CONSTRAINT "content_blocks_promptId_fkey" FOREIGN KEY ("promptId") REFERENCES "prompts"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "content_blocks" ADD CONSTRAINT "content_blocks_versionId_fkey" FOREIGN KEY ("versionId") REFERENCES "versions"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -714,6 +744,9 @@ ALTER TABLE "task_dependencies" ADD CONSTRAINT "task_dependencies_precedingTaskI
 
 -- AddForeignKey
 ALTER TABLE "task_dependencies" ADD CONSTRAINT "task_dependencies_dependentTaskId_fkey" FOREIGN KEY ("dependentTaskId") REFERENCES "tasks"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "conversations" ADD CONSTRAINT "conversations_creatorId_fkey" FOREIGN KEY ("creatorId") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "conversations" ADD CONSTRAINT "conversations_workspaceId_fkey" FOREIGN KEY ("workspaceId") REFERENCES "workspaces"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -741,6 +774,12 @@ ALTER TABLE "ticket_messages" ADD CONSTRAINT "ticket_messages_ticketId_fkey" FOR
 
 -- AddForeignKey
 ALTER TABLE "ticket_messages" ADD CONSTRAINT "ticket_messages_senderId_fkey" FOREIGN KEY ("senderId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "ticket_read_statuses" ADD CONSTRAINT "ticket_read_statuses_ticketId_fkey" FOREIGN KEY ("ticketId") REFERENCES "tickets"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "ticket_read_statuses" ADD CONSTRAINT "ticket_read_statuses_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "user_notification_settings" ADD CONSTRAINT "user_notification_settings_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;

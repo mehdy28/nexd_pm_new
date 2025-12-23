@@ -1075,6 +1075,18 @@ type AdminDashboardData {
 }
 
 # ----------------------------------
+# NEW EARLY ACCESS TYPE
+# ----------------------------------
+
+type EarlyAccessUser {
+  id: ID!
+  name: String!
+  email: String!
+  createdAt: DateTime!
+}
+
+
+# ----------------------------------
 # Inputs
 # ----------------------------------
 
@@ -1516,6 +1528,10 @@ input UpdateNotificationSettingsInput {
 # Root Queries
 # ----------------------------------
 type Query {
+  # Early Access (Admin Only)
+  earlyAccessUsers: [EarlyAccessUser!]!
+
+
   # General
   me: User
   task(id: ID!): Task
@@ -1587,6 +1603,9 @@ type Query {
 # Root Mutations
 # ----------------------------------
 type Mutation {
+  # Early Access
+  createEarlyAccessUser(name: String!, email: String!): EarlyAccessUser!
+  
   # User & Workspace Setup
   createUser(email: String!, firstName: String, lastName: String, role: UserRole, invitationToken: String): User!
   verifyEmail(token: String!): User!

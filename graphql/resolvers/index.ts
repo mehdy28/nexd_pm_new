@@ -37,7 +37,7 @@ import modelProfileResolvers from "./modelProfilesResolver";
 import { adminSupportResolvers } from "./adminSupportResolvers";
 import { adminResolvers } from "./admi";
 
-
+import { earlyAccessResolver } from "./earlyAccessResolver";
 
 export const resolvers = {
   Query: {
@@ -75,6 +75,9 @@ export const resolvers = {
     
     // Model Profiles
     ...modelProfileResolvers.Query,
+
+    // Early Access
+    ...earlyAccessResolver.Query,
   },
   Mutation: {
     // General & Workspace
@@ -122,6 +125,9 @@ export const resolvers = {
     // Model Profiles
     ...modelProfileResolvers.Mutation,
     
+
+    // Early Access
+    ...earlyAccessResolver.Mutation,
 
 
   },

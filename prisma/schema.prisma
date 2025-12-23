@@ -783,4 +783,15 @@ model AuditLog {
 
   @@map("audit_logs")
 }
+
 // ---------------------------------
+// --- NEW EARLY ACCESS MODEL ---
+
+model EarlyAccessUser {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  createdAt DateTime @default(now())
+
+  @@map("early_access_users")
+}

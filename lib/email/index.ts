@@ -1,7 +1,9 @@
+//lib/email/index.ts
 import nodemailer from 'nodemailer';
 import { workspaceInvitationTemplate } from './templates/workspace-invitation';
 import { emailConfirmationTemplate } from './templates/email-confirmation';
 import { passwordResetTemplate } from './templates/password-reset';
+import { earlyAccessConfirmationTemplate } from './templates/early-access-confirmation';
 
 const transporter = nodemailer.createTransport({
   service: 'gmail',
@@ -30,6 +32,11 @@ interface SendPasswordResetEmailParams {
   resetLink: string;
 }
 
+interface SendEarlyAccessConfirmationEmailParams {
+  to: string;
+  name: string;
+}
+
 export const sendWorkspaceInvitationEmail = async ({
   to,
   inviterName,
@@ -37,12 +44,13 @@ export const sendWorkspaceInvitationEmail = async ({
   token,
 }: SendInvitationEmailParams) => {
   const invitationLink = `${process.env.NEXT_PUBLIC_APP_URL}/accept-invitation?token=${token}`;
+  const logoUrl = `${process.env.NEXT_PUBLIC_APP_URL}/landing/logo.png`;
 
   const mailOptions = {
     from: `"Nexd" <${process.env.GMAIL_USER}>`,
     to,
     subject: `You're invited to join ${workspaceName} on Nexd`,
-    html: workspaceInvitationTemplate({ inviterName, workspaceName, invitationLink }),
+    html: workspaceInvitationTemplate({ inviterName, workspaceName, invitationLink, logoUrl }),
   };
 
   try {
@@ -61,12 +69,13 @@ export const sendEmailConfirmationEmail = async ({
   token,
 }: SendConfirmationEmailParams) => {
   const confirmationLink = `${process.env.NEXT_PUBLIC_APP_URL}/verify-email?token=${token}`;
+  const logoUrl = `${process.env.NEXT_PUBLIC_APP_URL}/landing/logo.png`;
 
   const mailOptions = {
     from: `"Nexd" <${process.env.GMAIL_USER}>`,
     to,
     subject: 'Confirm your Nexd account',
-    html: emailConfirmationTemplate({ firstName, confirmationLink }),
+    html: emailConfirmationTemplate({ firstName, confirmationLink, logoUrl }),
   };
 
   try {
@@ -84,11 +93,13 @@ export const sendPasswordResetEmail = async ({
   firstName,
   resetLink,
 }: SendPasswordResetEmailParams) => {
+  const logoUrl = `${process.env.NEXT_PUBLIC_APP_URL}/landing/logo.png`;
+
   const mailOptions = {
     from: `"Nexd" <${process.env.GMAIL_USER}>`,
     to,
     subject: 'Reset your Nexd password',
-    html: passwordResetTemplate({ firstName, resetLink }),
+    html: passwordResetTemplate({ firstName, resetLink, logoUrl }),
   };
 
   try {
@@ -98,5 +109,28 @@ export const sendPasswordResetEmail = async ({
   } catch (error) {
     console.error('Error sending password reset email:', error);
     throw new Error('Failed to send password reset email.');
+  }
+};
+
+export const sendEarlyAccessConfirmationEmail = async ({
+  to,
+  name,
+}: SendEarlyAccessConfirmationEmailParams) => {
+  const logoUrl = `${process.env.NEXT_PUBLIC_APP_URL}/landing/logo.png`;
+
+  const mailOptions = {
+    from: `"Nexd" <${process.env.GMAIL_USER}>`,
+    to,
+    subject: "You're on the list for Nexd.PM!",
+    html: earlyAccessConfirmationTemplate({ name, logoUrl }),
+  };
+
+  try {
+    const info = await transporter.sendMail(mailOptions);
+    console.log('Early access confirmation email sent: %s', info.messageId);
+    return info;
+  } catch (error) {
+    console.error('Error sending early access confirmation email:', error);
+    throw new Error('Failed to send early access confirmation email.');
   }
 };

@@ -3,19 +3,20 @@
 import type React from "react"
 
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
-import { Brain, ArrowRight, CheckCircle, Sparkles, Users } from "lucide-react"
+import { ArrowRight, CheckCircle } from "lucide-react"
 import Image from "next/image"
 import { useState } from "react"
-import { submitToWaitlist, isValidEmail, isValidName } from "@/lib/waitlist"
+import { isValidEmail, isValidName } from "@/lib/waitlist"
+import { useEarlyAccess } from "@/hooks/useEarlyAccess"
 
 export function Hero() {
   const [name, setName] = useState("")
   const [email, setEmail] = useState("")
   const [isSubmitted, setIsSubmitted] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
+
+  const { joinWaitlist, mutationLoading, mutationError } = useEarlyAccess()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -32,29 +33,27 @@ export function Hero() {
       return
     }
 
-    setIsLoading(true)
+    const response = await joinWaitlist({ name, email })
 
-    try {
-      const response = await submitToWaitlist({ name, email })
-
-      if (response.success) {
-        setIsSubmitted(true)
-        setName("")
-        setEmail("")
-      } else {
-        setError(response.message)
-      }
-    } catch (error) {
-      setError("Something went wrong. Please try again.")
-    } finally {
-      setIsLoading(false)
+    if (response.success) {
+      setIsSubmitted(true)
+      setName("")
+      setEmail("")
+    } else {
+      setError(
+        response.error ||
+          mutationError?.message ||
+          "Something went wrong. Please try again.",
+      )
     }
   }
 
   return (
-    <section className="w-full pt-4 pb-8 md:pt-6 md:pb-16 lg:pt-8 lg:pb-20 
+    <section
+      className="w-full pt-4 pb-8 md:pt-6 md:pb-16 lg:pt-8 lg:pb-20 
 bg-[#f0f2f7]
-    ">
+    "
+    >
       <div className="container px-1 md:px-1 mx-auto overflow-visible   ">
         <div className="grid lg:grid-cols-2 gap-3 items-center  ">
           {/* Left Content */}
@@ -75,8 +74,9 @@ bg-[#f0f2f7]
                 Platform
               </h1>
               <p className="text-xl text-gray-600 leading-relaxed max-w-2xl">
-                Be among the first to experience project management with <strong>built-in AI prompt management</strong>.
-                Join our exclusive waitlist and get early access when we launch.
+                Be among the first to experience project management with{" "}
+                <strong>built-in AI prompt management</strong>. Join our
+                exclusive waitlist and get early access when we launch.
               </p>
             </div>
 
@@ -109,7 +109,7 @@ bg-[#f0f2f7]
                         onChange={(e) => setName(e.target.value)}
                         required
                         className="flex-1"
-                        disabled={isLoading}
+                        disabled={mutationLoading}
                       />
                       <Input
                         type="email"
@@ -118,33 +118,34 @@ bg-[#f0f2f7]
                         onChange={(e) => setEmail(e.target.value)}
                         required
                         className="flex-1"
-                        disabled={isLoading}
+                        disabled={mutationLoading}
                       />
                     </div>
                     {error && <p className="text-red-600 text-sm">{error}</p>}
                     <Button
                       type="submit"
                       size="lg"
-                 className="rounded-full bg-blue-600 px-8  py-3.5 text-base font-semibold text-white shadow-sm hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
-                
-                      disabled={isLoading}
+                      className="rounded-full bg-blue-600 px-8  py-3.5 text-base font-semibold text-white shadow-sm hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
+                      disabled={mutationLoading}
                     >
-                      {isLoading ? "Joining..." : "Join Waitlist"}
-                      {!isLoading && <ArrowRight className="w-4 h-4 ml-2" />}
+                      {mutationLoading ? "Joining..." : "Join Waitlist"}
+                      {!mutationLoading && (
+                        <ArrowRight className="w-4 h-4 ml-2" />
+                      )}
                     </Button>
                   </form>
                 ) : (
                   <div className="bg-green-50 border border-green-200 rounded-lg p-4 max-w-sm">
-                    <p className="text-green-800 font-medium">🎉 You're on the list!</p>
-                    <p className="text-green-600 text-sm mt-1">We'll notify you when NEXD.PM launches.</p>
+                    <p className="text-green-800 font-medium">
+                      🎉 You're on the list!
+                    </p>
+                    <p className="text-green-600 text-sm mt-1">
+                      We'll notify you when NEXD.PM launches.
+                    </p>
                   </div>
                 )}
               </div>
-
-
             </div>
-
-
           </div>
 
           {/* Right Content - Product Screenshot */}
