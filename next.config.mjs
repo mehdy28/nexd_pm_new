@@ -10,9 +10,6 @@ const __dirname = dirname(__filename);
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
   typescript: {
     ignoreBuildErrors: true,
   },
@@ -21,12 +18,10 @@ const nextConfig = {
   },
   reactStrictMode: false,
   
-  // This configuration forces Vercel to include the 'blogs' directory and all
-  // its files within the serverless function's file system. This is the fix.
-  experimental: {
-    outputFileTracingIncludes: {
-      '/blog/[slug]': ['./blogs/**/*'],
-    },
+  // This is the corrected configuration. The key is now at the top level.
+  // This forces Vercel to include the 'blogs' directory in the serverless function.
+  outputFileTracingIncludes: {
+    '/blog/[slug]': ['./blogs/**/*'],
   },
 
   webpack: (config, { isServer }) => {
