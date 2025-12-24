@@ -3,7 +3,7 @@ import {
   getBlogPost,
   getRelatedPosts,
   getAllBlogPosts,
-} from "@/lib/blog";
+} from "../../../lib/blog.js";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";

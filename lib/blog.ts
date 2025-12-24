@@ -1,3 +1,4 @@
+//lib/blog.ts
 import path from "path";
 import matter from "gray-matter";
 import { cache } from "react";
@@ -38,6 +39,20 @@ export const getAllBlogPosts = cache(async (): Promise<BlogPost[]> => {
   }
 
   const fs = await import("fs"); // Dynamic import
+
+  // --- START VERCEL BUILD DEBUG ---
+  console.log("--- VERCEL BUILD DEBUG ---");
+  console.log("Current working directory:", process.cwd());
+  console.log("Attempting to read from directory:", blogsDirectory);
+  try {
+    const fileNamesCheck = fs.readdirSync(blogsDirectory);
+    console.log("SUCCESS: Files found in directory:", fileNamesCheck);
+  } catch (error) {
+    console.error("ERROR: Failed to read blogs directory during build.", error);
+    return []; // Return empty if directory is not found
+  }
+  console.log("--- END VERCEL BUILD DEBUG ---");
+  // --- END VERCEL BUILD DEBUG ---
 
   try {
     const fileNames = fs.readdirSync(blogsDirectory);
