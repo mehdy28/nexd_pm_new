@@ -1,4 +1,9 @@
-import { getBlogPost, getRelatedPosts } from "@/lib/blog";
+//app/blog/[slug]/page.tsx
+import {
+  getBlogPost,
+  getRelatedPosts,
+  getAllBlogPosts,
+} from "@/lib/blog";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -13,6 +18,13 @@ interface BlogPostPageProps {
   params: {
     slug: string;
   };
+}
+
+export async function generateStaticParams() {
+  const posts = await getAllBlogPosts();
+  return posts.map((post) => ({
+    slug: post.slug,
+  }));
 }
 
 export default async function BlogPostPage({ params }: BlogPostPageProps) {
@@ -47,16 +59,12 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
                 />
               </Link>
               <div className="w-[120px]">
-              <Link href="/" className="flex items-center">
-
-                  <Button
-                 className="rounded-full bg-blue-600 px-8  py-3.5 text-base font-semibold text-white shadow-sm hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
-                  >
+                <Link href="/" className="flex items-center">
+                  <Button className="rounded-full bg-blue-600 px-8  py-3.5 text-base font-semibold text-white shadow-sm hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600">
                     Join Wait List
                   </Button>
-                  </Link>
-
-                </div>
+                </Link>
+              </div>
             </div>
           </div>
         </div>

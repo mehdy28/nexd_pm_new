@@ -1,3 +1,4 @@
+//components/sections/header.tsx
 "use client"
 
 import { Button } from "@/components/ui/button"
@@ -31,17 +32,17 @@ export function Header() {
                 />
               </Link>
       <nav className="hidden md:flex items-center gap-6">
-        <Link href="#features" className="text-sm font-medium text-gray-600 hover:text-teal-600 transition-colors">
+        <Link href="/#features" className="text-sm font-medium text-gray-600 hover:text-teal-600 transition-colors">
           Features
         </Link>
-        <Link href="#ai-prompts" className="text-sm font-medium text-gray-600 hover:text-teal-600 transition-colors">
+        <Link href="/#ai-prompts" className="text-sm font-medium text-gray-600 hover:text-teal-600 transition-colors">
           AI Prompts
+        </Link>
+        <Link href="/#community" className="text-sm font-medium text-gray-600 hover:text-teal-600 transition-colors">
+          Community
         </Link>
         <Link href="/blog" className="text-sm font-medium text-gray-600 hover:text-teal-600 transition-colors">
           Blog
-        </Link>
-        <Link href="#about" className="text-sm font-medium text-gray-600 hover:text-teal-600 transition-colors">
-          About
         </Link>
         <Button size="sm" 
                  className="rounded-full bg-blue-600 px-8  py-3.5 text-base font-semibold text-white shadow-sm hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"

@@ -1,0 +1,34 @@
+// app/not-found.tsx
+
+import Link from 'next/link';
+import Image from 'next/image';
+
+export default function NotFound() {
+  return (
+    <main className="flex min-h-screen flex-col items-center justify-center bg-[#F7F9FC] p-6 text-center">
+      <div className="max-w-md">
+        <Image
+          src="/landing/logo.png"
+          alt="Nexd.pm Logo"
+          width={128}
+          height={32}
+          className="mx-auto mb-10"
+          priority
+        />
+        <h1 className="text-8xl font-bold text-[#1E293B]">404</h1>
+        <h2 className="mt-4 text-3xl font-semibold text-[#334155]">
+          Page Not Found
+        </h2>
+        <p className="mt-3 text-base text-[#64748B]">
+          Sorry, the page you are looking for does not exist or has been moved.
+        </p>
+        <Link
+          href="/home"
+          className="mt-8 inline-flex items-center justify-center rounded-lg bg-[#2563EB] px-5 py-3 text-base font-medium text-white shadow-sm transition-colors hover:bg-[#1D4ED8] focus:outline-none focus:ring-2 focus:ring-[#2563EB] focus:ring-offset-2"
+        >
+          Go back home
+        </Link>
+      </div>
+    </main>
+  );
+}

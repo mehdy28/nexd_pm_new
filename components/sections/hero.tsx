@@ -61,21 +61,21 @@ bg-[#f0f2f7]
             {/* Launch Badge */}
             {/* <Badge variant="secondary" className="bg-teal-50 text-teal-700 border-teal-200 px-4 py-2 w-fit">
               <Sparkles className="w-4 h-4 mr-2" />
-              Coming Soon: Revolutionary AI Project Management
+              Coming Soon: Revolutionary Ai Project Management
             </Badge> */}
 
             {/* Enhanced Headline */}
             <div className="space-y-4">
               <h1 className="text-4xl font-bold tracking-tight text-gray-900 sm:text-5xl md:text-6xl">
-                The First AI-Powered{" "}
+                The First Ai-Powered{" "}
                 <span className="bg-blue-600  bg-clip-text text-transparent">
                   Project Management
                 </span>{" "}
-                Platform
+                Solution
               </h1>
               <p className="text-xl text-gray-600 leading-relaxed max-w-2xl">
                 Be among the first to experience project management with{" "}
-                <strong>built-in AI prompt management</strong>. Join our
+                <strong>built-in Ai prompt management</strong>. Join our
                 exclusive waitlist and get early access when we launch.
               </p>
             </div>
@@ -84,7 +84,7 @@ bg-[#f0f2f7]
             <div className="flex flex-wrap gap-6 text-sm">
               <div className="flex items-center gap-2 text-gray-600">
                 <CheckCircle className="w-4 h-4 text-teal-600" />
-                Context-aware AI prompts
+                Context-aware Ai prompts
               </div>
               <div className="flex items-center gap-2 text-gray-600">
                 <CheckCircle className="w-4 h-4 text-teal-600" />
