@@ -20,6 +20,15 @@ const nextConfig = {
     unoptimized: true,
   },
   reactStrictMode: false,
+  
+  // This configuration forces Vercel to include the 'blogs' directory and all
+  // its files within the serverless function's file system. This is the fix.
+  experimental: {
+    outputFileTracingIncludes: {
+      '/blog/[slug]': ['./blogs/**/*'],
+    },
+  },
+
   webpack: (config, { isServer }) => {
     if (!isServer) {
         config.plugins.push(
