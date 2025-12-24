@@ -7,7 +7,7 @@
     "ws": "^8.18.3"
   },
   "scripts": {
-    "build": "prisma generate && tsc -p tsconfig.server.json && next build",
+    "build": "prisma generate && tsc -p tsconfig.server.json && next build --webpack",
     "dev": "tsx --no-cache server.ts",
     "lint": "next lint",
     "start": "NODE_ENV=production node dist/server.js"
