@@ -17,3 +17,68 @@ the user logs in here is redirected in the workspace page .
 - a messaging page for the entire workspace . the user can create and chat in direct msgs or group msgs or create tickets for the support of the saas for any matter .
 
 - account page : the user can update his name lastname . color of a vatar . reset his password.
+
+
+
+
+
+
+
+
+
+
+
+GPT-5.2
+OpenAI
+Put clear instructions at the prompt's beginning using ### or """ delimiters to separate from context. Explicitly request step-by-step thinking when reasoning is needed (e.g., "Think step-by-step before responding"). Use tool descriptions with allowed_tools constraints and add tool preambles explaining usage for reliability. Control verbosity via parameters rather than prose; favor concise, task-focused outputs with strong instruction adherence.
+
+
+GPT-5.1
+OpenAI
+Emphasize explicit reasoning chains: "Outline your plan first, then execute step-by-step." Leverage compaction for long tasks and request understandable intermediate responses. Design around tools over sequences, grounding outputs in provided data to minimize ambiguity.
+       
+
+Claude Opus 4.5
+Anthropic	
+Be highly explicit with instructions, providing motivation/context and aligning examples strictly to desired behaviors. Use modifiers for quality (e.g., "Think carefully"), suggest actions to take rather than avoid, and request JSON/XML for structured outputs. Excel at long-horizon reasoning; frame for parallel tool use and state tracking across turns.
+
+
+Gemini 3	
+Google	
+Use direct, concise instructions with defined parameters and XML tags for structure. Treat multimodal inputs equally; explicitly request elaborate responses if not succinct by default. Maintain consistency to enable agentic tool use and reasoning chains.
+
+
+
+Gemini 2.5 Flash	
+Google
+Prioritize low-latency prompts: state goals clearly without fluff. Explicitly define vague terms and manage length by requesting verbosity levels. Integrate vision/text seamlessly for whiteboard/prompt generation.
+
+
+Grok 4.1	
+xAI
+Establish persona in system prompt (e.g., "You are a helpful project manager"), then provide task data. Encourage tool calls (web_search, code_execution) with explanations of why to use them. Add guardrails like "Be concise, number steps, ask clarifying questions." Focus on emotional intelligence and reduced hallucinations via clear, creative framing.
+
+
+Nano Banana Pro	
+Google
+Leverage world knowledge for context-rich image edits; use natural language prompts for multi-image fusion, character preservation, and scene-aware processing. Specify "analyze whiteboard elements spatially, extract text/diagrams step-by-step, output structured prompt blocks" for precise visual-to-text conversion. Maintain composition and integrate real-time details without breaking visuals.
+
+
+Gemini 3 Pro Vision	
+Google
+Provide images first, then explicit instructions for spatial reasoning, pointing (pixel coordinates), and open-vocabulary object detection. Request "Describe layout, relationships, and content hierarchically; generate JSON with extracted elements for prompt blocks." Handles documents, videos, screens with state-of-the-art accuracy.
+
+
+
+GPT-5.2 Vision	
+OpenAI	
+Start with image + clear directives using ### delimiters: "Analyze spatial layout, identify components (text, shapes, flows), reason step-by-step on relationships." Request JSON outputs for charts/UI; emphasize visual details like positioning to halve errors in diagrams/whiteboards.
+
+
+
+Llama 3.1 Vision	
+Meta	
+Use for local deployment: "Step-by-step visual reasoning on images, extract entities/relations for SaaS prompts." Balances accuracy/portability for private vision tasks.
+
+
+

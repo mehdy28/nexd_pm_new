@@ -1,9 +1,9 @@
 //lib/email/index.ts
 import nodemailer from 'nodemailer';
-import { workspaceInvitationTemplate } from './templates/workspace-invitation';
-import { emailConfirmationTemplate } from './templates/email-confirmation';
-import { passwordResetTemplate } from './templates/password-reset';
-import { earlyAccessConfirmationTemplate } from './templates/early-access-confirmation';
+import { workspaceInvitationTemplate } from './templates/workspace-invitation.js';
+import { emailConfirmationTemplate } from './templates/email-confirmation.js';
+import { passwordResetTemplate } from './templates/password-reset.js';
+import { earlyAccessConfirmationTemplate } from './templates/early-access-confirmation.js';
 
 const transporter = nodemailer.createTransport({
   service: 'gmail',
@@ -47,9 +47,9 @@ export const sendWorkspaceInvitationEmail = async ({
   const logoUrl = `${process.env.NEXT_PUBLIC_APP_URL}/landing/logo.png`;
 
   const mailOptions = {
-    from: `"Nexd" <${process.env.GMAIL_USER}>`,
+    from: `"nexd.pm" <${process.env.GMAIL_USER}>`,
     to,
-    subject: `You're invited to join ${workspaceName} on Nexd`,
+    subject: `You're invited to join ${workspaceName} on nexd.pm`,
     html: workspaceInvitationTemplate({ inviterName, workspaceName, invitationLink, logoUrl }),
   };
 
@@ -71,9 +71,9 @@ export const sendEmailConfirmationEmail = async ({
   const logoUrl = `${process.env.NEXT_PUBLIC_APP_URL}/landing/logo.png`;
 
   const mailOptions = {
-    from: `"Nexd" <${process.env.GMAIL_USER}>`,
+    from: `"nexd.pm" <${process.env.GMAIL_USER}>`,
     to,
-    subject: 'Confirm your Nexd account',
+    subject: 'Confirm your nexd.pm account',
     html: emailConfirmationTemplate({ firstName, confirmationLink, logoUrl }),
   };
 
@@ -94,9 +94,9 @@ export const sendPasswordResetEmail = async ({
   const logoUrl = `${process.env.NEXT_PUBLIC_APP_URL}/landing/logo.png`;
 
   const mailOptions = {
-    from: `"Nexd" <${process.env.GMAIL_USER}>`,
+    from: `"nexd.pm" <${process.env.GMAIL_USER}>`,
     to,
-    subject: 'Reset your Nexd password',
+    subject: 'Reset your nexd.pm password',
     html: passwordResetTemplate({ firstName, resetLink, logoUrl }),
   };
 
@@ -116,9 +116,9 @@ export const sendEarlyAccessConfirmationEmail = async ({
   const logoUrl = `${process.env.NEXT_PUBLIC_APP_URL}/landing/logo.png`;
 
   const mailOptions = {
-    from: `"Nexd" <${process.env.GMAIL_USER}>`,
+    from: `"nexd.pm" <${process.env.GMAIL_USER}>`,
     to,
-    subject: "You're on the list for Nexd.PM!",
+    subject: "You're on the list for nexd.pm.PM!",
     html: earlyAccessConfirmationTemplate({ name, logoUrl }),
   };
 

@@ -1,43 +1,44 @@
-import { userResolver } from "./userResolver";
-import setupResolver from "./setupResolver";
-import workspaceResolver from "./workspaceResolver";
-import { accountResolver } from "./accountResolver";
+//graphql/resolvers/index.ts
+import { userResolver } from "./userResolver.js";
+import setupResolver from "./setupResolver.js";
+import workspaceResolver from "./workspaceResolver.js";
+import { accountResolver } from "./accountResolver.js";
 // Project-specific resolvers
-import projectResolver from "./projectResolver";
-import projectSectionResolver from "./projectSectionResolver";
-import taskResolver from "./taskResolver";
-import { sprintResolvers } from "./sprintResolver";
-import documentResolvers from "./documentResolver";
-import WhiteboardResolvers from "./WhiteboardResolver";
-import promptResolvers from "./promptResolver";
-import promptVariableResolver from "./promptVariableResolver";
-import lookupResolvers from "./lookupResolvers";
-import { projectDashboardResolvers } from "./projectDashboardResolver";
+import projectResolver from "./projectResolver.js";
+import projectSectionResolver from "./projectSectionResolver.js";
+import taskResolver from "./taskResolver.js";
+import { sprintResolvers } from "./sprintResolver.js";
+import documentResolvers from "./documentResolver.js";
+import WhiteboardResolvers from "./WhiteboardResolver.js";
+import promptResolvers from "./promptResolver.js";
+import promptVariableResolver from "./promptVariableResolver.js";
+import lookupResolvers from "./lookupResolvers.js";
+import { projectDashboardResolvers } from "./projectDashboardResolver.js";
 
 // Personal/User-specific resolvers
-import personalResolver from "./personal/personalResolver";
-import personalSectionResolver from "./personal/personalSectionResolver";
-import personalTaskResolver from "./personal/personalTaskResolver";
-import personalDocumentResolvers from "./personal/personalDocumentResolver";
-import personalWhiteboardResolvers from "./personal/personalWhiteboardResolver";
-import personalPromptResolvers from "./personal/personalPromptResolver";
+import personalResolver from "./personal/personalResolver.js";
+import personalSectionResolver from "./personal/personalSectionResolver.js";
+import personalTaskResolver from "./personal/personalTaskResolver.js";
+import personalDocumentResolvers from "./personal/personalDocumentResolver.js";
+import personalWhiteboardResolvers from "./personal/personalWhiteboardResolver.js";
+import personalPromptResolvers from "./personal/personalPromptResolver.js";
 
 // Messaging and Ticketing resolvers
-import { messagingResolvers } from "./messagingResolver";
+import { messagingResolvers } from "./messagingResolver.js";
 
 // Member management resolvers
-import { memberManagementResolvers } from "./memberManagementResolver";
+import { memberManagementResolvers } from "./memberManagementResolver.js";
 
-import promptResolversAi from "./promptResolverAi";
+import promptResolversAi from "./promptResolverAi.js";
 
 // Model Profile Resolvers
-import modelProfileResolvers from "./modelProfilesResolver";
+import modelProfileResolvers from "./modelProfilesResolver.js";
 
 // Admin management resolvers
-import { adminSupportResolvers } from "./adminSupportResolvers";
-import { adminResolvers } from "./admi";
+import { adminSupportResolvers } from "./adminSupportResolvers.js";
+import { adminResolvers } from "./admi.js";
 
-import { earlyAccessResolver } from "./earlyAccessResolver";
+import { earlyAccessResolver } from "./earlyAccessResolver.js";
 
 export const resolvers = {
   Query: {

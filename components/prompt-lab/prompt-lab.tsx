@@ -611,13 +611,17 @@ export function PromptLab({
     }
 
     function copy(text: string, type: 'original' | 'enhanced') {
-        navigator.clipboard.writeText(text).then(() => {
-            setCopiedStatus(type);
-            setTimeout(() => setCopiedStatus(null), 2000);
-            onShowToast("Copied to clipboard!", "success");
-        }).catch(() => {
-            onShowToast("Failed to copy.", "error");
-        });
+        if (typeof window !== 'undefined' && navigator.clipboard) {
+            navigator.clipboard.writeText(text).then(() => {
+                setCopiedStatus(type);
+                setTimeout(() => setCopiedStatus(null), 2000);
+                onShowToast("Copied to clipboard!", "success");
+            }).catch(() => {
+                onShowToast("Failed to copy.", "error");
+            });
+        } else {
+            onShowToast("Clipboard not available in this environment.", "error");
+        }
     }
 
     return (

@@ -1,16 +1,18 @@
 //server.ts
 import next from 'next';
-import { createServer, Server } from 'http';
+import { createServer, Server, IncomingMessage } from 'http';
 import { parse } from 'url';
 import express from 'express';
 import { ApolloServer } from 'apollo-server-express';
 import { makeExecutableSchema } from '@graphql-tools/schema';
 import { WebSocketServer } from 'ws';
 import { useServer } from 'graphql-ws/use/ws';
-import { typeDefs } from './graphql/schema';
-import { resolvers } from './graphql/resolvers';
-import { prisma } from './lib/prisma';
-import { pubsub } from './graphql/pubsub';
+import { Context, SubscribeMessage, SubscribePayload } from 'graphql-ws';
+import { GraphQLError } from 'graphql';
+import { typeDefs } from './graphql/schema/index.js'; // ADJUSTED to match file structure (graphql/schema/index.ts)
+import { resolvers } from './graphql/resolvers/index.js'; // RESOLVED TO INDEX FILE
+import { prisma } from './lib/prisma.js'; 
+import { pubsub } from './graphql/pubsub.js'; 
 import { getAuth, DecodedIdToken } from 'firebase-admin/auth';
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
 
@@ -57,8 +59,8 @@ async function startServer() {
     const wsCleanup = useServer(
       {
         schema,
-        context: async (ctx: any) => {
-          const rawAuth = ctx.connectionParams?.authorization as string | undefined;
+        context: async (ctx: Context<{ authorization?: string }>) => {
+          const rawAuth = ctx.connectionParams?.authorization;
           const token = rawAuth ? rawAuth.replace('Bearer ', '') : null;
           let user = undefined;
           if (token) {
@@ -81,18 +83,20 @@ async function startServer() {
           }
           return { prisma, user, pubsub };
         },
-        onConnect: async (ctx) => {
-          log(`🔗 WebSocket connected from ${ctx.extra.request.socket.remoteAddress}`);
+        onConnect: async (ctx: Context) => {
+          const { request } = ctx.extra as { request: IncomingMessage };
+          log(`🔗 WebSocket connected from ${request.socket.remoteAddress}`);
         },
-        onDisconnect: async (ctx, code, reason) => {
+        onDisconnect: async (ctx: Context, code?: number, reason?: string) => {
+          const { request } = ctx.extra as { request: IncomingMessage };
           log(
-            `❌ WebSocket disconnected [${ctx.extra.request.socket.remoteAddress}] Code: ${code} Reason: ${
+            `❌ WebSocket disconnected [${request.socket.remoteAddress}] Code: ${code} Reason: ${
               reason?.toString() || 'none'
             }`
           );
         },
-        onError: (ctx, msg, errors) => {
-          logError('⚠️ WebSocket error:', msg, errors);
+        onError: (ctx: Context, id: string, payload: SubscribePayload, errors: readonly GraphQLError[]) => {
+          logError('⚠️ WebSocket error:', { id, payload }, errors);
         },
       },
       wsServer
@@ -146,10 +150,10 @@ async function startServer() {
 
     await apolloServer.start();
     // Configure body parsing limit directly in applyMiddleware to avoid double parsing conflict
-    apolloServer.applyMiddleware({ 
-      app, 
-      path: '/api/graphql', 
-      bodyParserConfig: { limit: '10mb' } // Sets the maximum request body size for GraphQL endpoint
+    apolloServer.applyMiddleware({
+      app,
+      path: '/api/graphql',
+      bodyParserConfig: { limit: '10mb' }, // Sets the maximum request body size for GraphQL endpoint
     });
 
     log('✅ Apollo GraphQL server initialized.');
@@ -158,7 +162,6 @@ async function startServer() {
     app.use((req: any, res: any) => {
       return handle(req, res, parse(req.url!, true));
     });
-
 
     httpServer.listen(3000, () => {
       log(`🚀 Server ready at: http://localhost:3000`);
@@ -183,3 +186,17 @@ async function startServer() {
 }
 
 startServer();
+
+
+
+
+
+
+
+
+
+
+
+
+
+

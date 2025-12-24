@@ -1,28 +1,28 @@
 // graphql/resolvers/documentResolver.ts
 
 import { GraphQLError } from "graphql"
-import { prisma } from "@/lib/prisma"
-import type { Prisma } from "@prisma/client"
+import { prisma } from "../../lib/prisma.js"
+import { Prisma } from "@prisma/client"
 import type { Block } from "@blocknote/core"
 
 // Interfaces remain largely the same, but the resolver's return type changes.
 interface DocumentListItem {
   id: string
-  title: string
-  updatedAt: string
-  type: "doc" | "pdf"
-  projectId: string
+  title?: string
+  updatedAt?: string
+  type?: "doc" | "pdf"
+  projectId?: string
 }
 
 interface DocumentsResponse {
-  documents: DocumentListItem[]
-  totalCount: number
+  documents?: DocumentListItem[]
+  totalCount?: number
 }
 
 interface CreateDocumentInput {
   projectId: string
-  title: string
-  content: Block[] | null
+  title?: string
+  content?: Block[] | null
   dataUrl?: string | null
 }
 
@@ -81,7 +81,7 @@ const documentResolvers = {
           id: doc.id,
           title: doc.title,
           updatedAt: doc.updatedAt.toISOString(),
-          type: doc.dataUrl ? "pdf" : "doc",
+          type: doc.dataUrl ? "pdf" as "pdf" : "doc" as "doc",
           projectId: projectId,
         }))
 
@@ -147,15 +147,18 @@ const documentResolvers = {
           title: document.title,
           content: document.content, // Prisma's JSON type already returns the object/array directly
           dataUrl: document.dataUrl, // ADDED: Include dataUrl
-          createdAt: document.createdAt.toISOString(),
-          updatedAt: document.updatedAt.toISOString(),
+          createdAt: document.createdAt,
+          updatedAt: document.updatedAt,
+          projectId: document.projectId, // Include projectId
+          userId: document.userId, // Include userId
+          type: document.dataUrl ? "pdf" : "doc", // Determine type from dataUrl
           project: document.project ? { ...document.project, __typename: 'Project' } : null,
           personalUser: document.personalUser ? { ...document.personalUser, __typename: 'User' } : null,
           comments: [],
           activities: [],
           __typename: 'Document'
         };
-        return result;
+        return { ...result, type: result.type as "pdf" | "doc" };
       } catch (error) {
         console.error(`[getDocumentDetails Query] Error fetching document details for ID ${id}:`, error);
         throw error;
@@ -196,21 +199,21 @@ const documentResolvers = {
       try {
         const newDocument = await prisma.document.create({
           data: {
-            title,
-            content: content, // Save Block[] directly
+            title: title ?? "Untitled",
+            content: content !== null ? content : Prisma.JsonNull, // Save Block[] directly or set to JsonNull
             dataUrl: dataUrl, // Save dataUrl directly
             project: { connect: { id: projectId } },
           },
         });
 
-        const result = {
+        const result: DocumentListItem = {
           id: newDocument.id,
           title: newDocument.title,
           updatedAt: newDocument.updatedAt.toISOString(),
-          type: newDocument.dataUrl ? "pdf" : "doc", // Determine type from saved document
+          type: newDocument.dataUrl ? "pdf" as "pdf" : "doc" as "doc", // Explicitly cast type
           projectId: newDocument.projectId!,
         };
-        return result;
+        return { ...result, type: result.type as "doc" | "pdf" };
       } catch (error) {
         console.error("[createDocument Mutation] Error creating document:", error);
         throw error;
@@ -265,19 +268,19 @@ const documentResolvers = {
           where: { id },
           data: {
             title: title ?? undefined,
-            content: content !== undefined ? content : undefined, // Update Block[] directly
+            content: content === null ? Prisma.JsonNull : content !== undefined ? content : undefined, // Handle null and undefined cases
             dataUrl: dataUrl !== undefined ? dataUrl : undefined, // Update dataUrl directly
           },
         });
 
-        const result = {
+        const result: DocumentListItem = {
           id: updatedDocument.id,
           title: updatedDocument.title,
           updatedAt: updatedDocument.updatedAt.toISOString(),
-          type: updatedDocument.dataUrl ? "pdf" : "doc", // Determine type from updated document
+          type: updatedDocument.dataUrl ? "pdf" : "doc", // Explicitly typed as "pdf" | "doc"
           projectId: updatedDocument.projectId!,
         };
-        return result;
+        return { ...result, type: result.type as "doc" | "pdf" };
       } catch (error) {
         console.error(`[updateDocument Mutation] Error updating document ID ${id}:`, error);
         throw error;
@@ -336,7 +339,7 @@ const documentResolvers = {
           type: deletedDocument.dataUrl ? "pdf" : "doc", // Determine type from deleted document
           projectId: deletedDocument.projectId!,
         };
-        return result;
+        return { ...result, type: result.type as "pdf" | "doc" };
       } catch (error) {
         console.error(`[deleteDocument Mutation] Error deleting document ID ${id}:`, error);
         throw error;

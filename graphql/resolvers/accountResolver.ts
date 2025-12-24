@@ -1,5 +1,5 @@
 // graphql/resolvers/accountResolver.ts
-import { prisma } from "@/lib/prisma"
+import { prisma } from "../../lib/prisma.js"
 import { GraphQLError } from "graphql"
 
 interface GraphQLContext {

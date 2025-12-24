@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/prisma";
+import { prisma } from "../../lib/prisma.js";
 import { GraphQLError } from "graphql";
 import type { Prisma } from "@prisma/client";
 
@@ -114,7 +114,7 @@ const WhiteboardResolvers = {
           thumbnail: wf.thumbnail,
           projectId: wf.projectId,
           data: wf.data, // <-- Data is now included in the response object
-          __typename: "WhiteboardListItem",
+          __typename: "WhiteboardListItem" as const,
         }));
 
         return {
@@ -122,10 +122,6 @@ const WhiteboardResolvers = {
           totalCount,
         };
       } catch (error: any) {
-          projectId,
-          errorName: error.name,
-          errorMessage: error.message,
-        });
         throw new GraphQLError(`Failed to retrieve Whiteboards: ${error.message}`, {
           extensions: { code: "DATABASE_ERROR" },
         });
@@ -211,7 +207,7 @@ const WhiteboardResolvers = {
         personalUser: Whiteboard.personalUser ? { ...Whiteboard.personalUser, __typename: 'User' } : null,
         comments: [],
         activities: [],
-      } as PrismaWhiteboardWithRelations & { __typename: 'Whiteboard'; comments: any[]; activities: any[] };
+      } as unknown as PrismaWhiteboardWithRelations & { __typename: 'Whiteboard'; comments: any[]; activities: any[] };
 
       return result;
     },

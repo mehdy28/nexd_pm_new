@@ -1,6 +1,6 @@
 // graphql/resolvers/projectSectionResolver.ts
 
-import { prisma } from "@/lib/prisma";
+import { prisma } from "../../lib/prisma.js";
 import { GraphQLError } from "graphql"
 
 

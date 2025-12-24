@@ -1,0 +1,49 @@
+/**
+ * Placeholder function for waitlist signup
+ * Replace this with your actual backend integration
+ */
+export async function submitToWaitlist(data) {
+    try {
+        // Simulate API delay
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        // TODO: Replace with actual backend call
+        // Example:
+        // const response = await fetch('/api/waitlist', {
+        //   method: 'POST',
+        //   headers: { 'Content-Type': 'application/json' },
+        //   body: JSON.stringify(data)
+        // })
+        // return await response.json()
+        // Placeholder success response
+        const waitlistEntry = {
+            name: data.name,
+            email: data.email,
+            timestamp: new Date(),
+        };
+        return {
+            success: true,
+            message: `Welcome ${data.name}! You've been added to our waitlist.`,
+            data: waitlistEntry,
+        };
+    }
+    catch (error) {
+        console.error("Waitlist submission error:", error);
+        return {
+            success: false,
+            message: "Something went wrong. Please try again.",
+        };
+    }
+}
+/**
+ * Validate email format
+ */
+export function isValidEmail(email) {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+}
+/**
+ * Validate name (basic validation)
+ */
+export function isValidName(name) {
+    return name.trim().length >= 2;
+}

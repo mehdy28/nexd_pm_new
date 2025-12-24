@@ -1,8 +1,7 @@
-import { TaskStatus, Priority, ActivityType } from "@prisma/client"
+import { TaskStatus, Priority, ActivityType, $Enums } from "@prisma/client"
 import { v2 as cloudinary } from "cloudinary"
 import { GraphQLError } from "graphql"
-import { prisma } from "@/lib/prisma"
-
+import { prisma } from "../../lib/prisma.js"
 
 // Configure Cloudinary with environment variables
 cloudinary.config({
@@ -11,8 +10,6 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
   secure: true,
 })
-
-
 
 interface GraphQLContext {
   prisma: typeof prisma
@@ -138,7 +135,7 @@ export const taskResolver = {
     createProjectTask: async (
       _parent: unknown,
       { input }: { input: CreateProjectTaskInput },
-      context: GraphQLContext
+      context: GraphQLContext,
     ) => {
       if (!context.user?.id) throw new Error("Authentication required.")
       const userId = context.user.id
@@ -219,10 +216,15 @@ export const taskResolver = {
         throw new GraphQLError("Task not found", { extensions: { code: "NOT_FOUND" } })
       }
 
+      if (!existingTask.projectId) {
+        throw new GraphQLError("This task is not associated with a project.", {
+          extensions: { code: "BAD_REQUEST" },
+        })
+      }
+
       const activitiesToCreate: { type: ActivityType; data: any; userId: string; taskId: string; projectId: string }[] =
         []
       const commonActivityData = { userId, taskId, projectId: existingTask.projectId }
-
 
       if (updates.title !== undefined && updates.title !== existingTask.title) {
         activitiesToCreate.push({
@@ -232,7 +234,6 @@ export const taskResolver = {
         })
       }
       if (updates.priority !== undefined && updates.priority !== existingTask.priority) {
-
         activitiesToCreate.push({
           type: "PRIORITY_UPDATED",
           data: { old: existingTask.priority, new: updates.priority },
@@ -294,7 +295,6 @@ export const taskResolver = {
         activitiesToCreate.push({ type: "DESCRIPTION_UPDATED", data: {}, ...commonActivityData })
       }
       if (updates.assigneeId !== undefined && updates.assigneeId !== existingTask.assigneeId) {
-
         const newAssignee = updates.assigneeId ? await prisma.user.findUnique({ where: { id: updates.assigneeId } }) : null
         activitiesToCreate.push({
           type: "TASK_ASSIGNED",
@@ -314,7 +314,6 @@ export const taskResolver = {
         })
       }
       if (updates.sectionId !== undefined && updates.sectionId !== existingTask.sectionId) {
-
         const newSection = updates.sectionId ? await prisma.section.findUnique({ where: { id: updates.sectionId } }) : null
         activitiesToCreate.push({
           type: "TASK_UPDATED",
@@ -323,14 +322,14 @@ export const taskResolver = {
         })
       }
 
-
-      if (activitiesToCreate.length === 0 && Object.keys(updates).every(k => k === 'id')) {
-        // If there are no activities and no actual data updates, we can short-circuit.
-        // This is a failsafe, as the frontend shouldn't call the mutation without changes.
+      if (activitiesToCreate.length === 0 && Object.keys(updates).every(k => k === "id")) {
         const taskForReturn = await prisma.task.findUnique({
           where: { id: taskId },
           include: { assignee: { select: { id: true, firstName: true, lastName: true, avatar: true, avatarColor: true } } },
         })
+        if (!taskForReturn) {
+          throw new GraphQLError("Task not found after update.", { extensions: { code: "INTERNAL_SERVER_ERROR" } })
+        }
         return {
           ...taskForReturn,
           dueDate: toISODateString(taskForReturn.dueDate),
@@ -344,7 +343,7 @@ export const taskResolver = {
         prisma.task.update({
           where: { id: taskId },
           data: {
-            title: updates.title,
+            title: updates.title === null ? undefined : updates.title,
             description: updates.description,
             status: updates.status,
             priority: updates.priority,
@@ -458,7 +457,7 @@ export const taskResolver = {
           timestamp: timestamp,
           folder: `attachments/${args.taskId}`,
         },
-        process.env.CLOUDINARY_API_SECRET!
+        process.env.CLOUDINARY_API_SECRET!,
       )
 
       return {
@@ -472,12 +471,20 @@ export const taskResolver = {
     confirmAttachmentUpload: async (
       _parent: unknown,
       { input }: { input: ConfirmAttachmentInput },
-      context: GraphQLContext
+      context: GraphQLContext,
     ) => {
       if (!context.user?.id) throw new Error("Authentication required.")
       const uploaderId = context.user.id
       const { taskId, publicId, url, fileName, fileType, fileSize } = input
       const task = await prisma.task.findUnique({ where: { id: taskId }, select: { projectId: true } })
+      if (!task) {
+        throw new GraphQLError(`Task with ID ${taskId} not found.`, { extensions: { code: "NOT_FOUND" } })
+      }
+      if (!task.projectId) {
+        throw new GraphQLError(`Task with ID ${taskId} is not associated with a project.`, {
+          extensions: { code: "BAD_REQUEST" },
+        })
+      }
 
       const [newAttachment] = await prisma.$transaction([
         prisma.attachment.create({
@@ -511,6 +518,11 @@ export const taskResolver = {
 
       if (!attachment) {
         throw new Error("Attachment not found.")
+      }
+      if (!attachment.task.projectId) {
+        throw new GraphQLError(`Task with ID ${attachment.taskId} is not associated with a project.`, {
+          extensions: { code: "BAD_REQUEST" },
+        })
       }
 
       // Determine resource_type from the URL which is the most reliable indicator of how Cloudinary stored it
@@ -564,7 +576,7 @@ export const taskResolver = {
         endDate = new Date(input.endDate)
       } else {
         endDate = new Date(startDate)
-        endDate.setDate(startDate.getDate() + 1)
+        endDate.setDate(endDate.getDate() + 1)
       }
 
       const newGanttTask = await prisma.task.create({
@@ -613,7 +625,7 @@ export const taskResolver = {
       const updatedGanttTask = await prisma.task.update({
         where: { id },
         data: {
-          title: name,
+          title: name === null ? undefined : name,
           description: updates.description,
           startDate: updates.startDate ? new Date(updates.startDate) : undefined,
           endDate: updates.endDate ? new Date(updates.endDate) : undefined,
@@ -635,10 +647,7 @@ export const taskResolver = {
         progress: updatedGanttTask.completionPercentage ?? 0,
         type: type,
         sprint: updatedGanttTask.sprintId,
-        // --- FIX ---
-        // Explicitly return the assignee object if it exists, otherwise return null.
-        // This ensures that GraphQL doesn't try to resolve sub-fields on a null object.
-        assignee: updatedGanttTask.assignee || null,
+        assignee: (updatedGanttTask as any).assignee || null,
         originalTaskId: updatedGanttTask.id,
         originalType: type,
         displayOrder: input.displayOrder,

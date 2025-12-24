@@ -1,0 +1,73 @@
+export const templates = [
+    {
+        name: "Meeting Notes",
+        category: "Business",
+        path: "/document-templates/meeting-notes.json",
+        description: "A structured template for capturing meeting minutes, decisions, and action items. Keep your team aligned with sections for attendees, agenda, and next steps.",
+        previewImage: "/document-templates/meeting-notes.png",
+    },
+    {
+        name: "Project Brief",
+        category: "Project Management",
+        path: "/document-templates/project-brief.json",
+        description: "Outline your project's objectives, scope, deliverables, and timeline. This template ensures all stakeholders have a clear understanding of the project's goals.",
+        previewImage: "/document-templates/project-brief.png",
+    },
+    {
+        name: "Bug Report",
+        category: "Project Management",
+        path: "/document-templates/bug-report.json",
+        description: "A standardized format for reporting software bugs, including steps to reproduce, expected vs. actual behavior, and environment details to help developers fix issues faster.",
+        previewImage: "/document-templates/bug-report.png",
+    },
+    {
+        name: "Project Kickoff",
+        category: "Project Management",
+        path: "/document-templates/project-kickoff.json",
+        description: "A comprehensive agenda for starting a new project. Covers introductions, project vision, goals, roles, and communication plan to ensure the team is aligned from day one.",
+        previewImage: "/document-templates/project-kickoff.png",
+    },
+    {
+        name: "Sprint Planning",
+        category: "Project Management",
+        path: "/document-templates/sprint-planning.json",
+        description: "A template for agile teams to plan their upcoming sprint. Includes sections for the sprint goal, team capacity, backlog items, and the definition of done.",
+        previewImage: "/document-templates/sprint-planning.png",
+    },
+    {
+        name: "Project Status Report",
+        category: "Project Management",
+        path: "/document-templates/project-status-report.json",
+        description: "A periodic report to update stakeholders on project progress. Features an executive summary, health metrics, key accomplishments, and a list of risks or blockers.",
+        previewImage: "/document-templates/project-status-report.png",
+    },
+    {
+        name: "Retrospective",
+        category: "Project Management",
+        path: "/document-templates/retrospective.json",
+        description: "A structured format for agile teams to reflect on their past sprint. Guides the team through what went well, what could be improved, and creates actionable items.",
+        previewImage: "/document-templates/retrospective.png",
+    },
+    {
+        name: "Risk Register",
+        category: "Project Management",
+        path: "/document-templates/risk-register.json",
+        description: "A central document for tracking potential project risks. This table-based template helps in identifying, assessing, and planning mitigation strategies for each risk.",
+        previewImage: "/document-templates/risk-register.png",
+    },
+    {
+        name: "Product Roadmap",
+        category: "Project Management",
+        path: "/document-templates/product-roadmap.json",
+        description: "A high-level, strategic document that outlines the vision and direction of your product over time. Organizes initiatives into 'Now', 'Next', and 'Later'.",
+        previewImage: "/document-templates/product-roadmap.png",
+    },
+    {
+        name: "1-on-1 Meeting",
+        category: "Business",
+        path: "/document-templates/one-on-one-meeting.json",
+        description: "A collaborative agenda for managers and direct reports to discuss progress, challenges, and focus on career growth and development. Ensures productive conversations.",
+        previewImage: "/document-templates/one-on-one-meeting.png",
+    },
+];
+export const templateCategories = [...new Set(templates.map((t) => t.category))].sort();

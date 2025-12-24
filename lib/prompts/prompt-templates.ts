@@ -1,4 +1,4 @@
-import { PromptVariable, Block } from "@/components/prompt-lab/store"
+import { PromptVariable, Block, PromptVariableType } from "@/components/prompt-lab/store"
 
 export type PromptTemplate = {
   name: string
@@ -30,7 +30,6 @@ export const templates: PromptTemplate[] = [
         id: "p1",
         placeholder: "{{TIMEFRAME}}",
         name: "TIMEFRAME",
-        value: "{{TIMEFRAME}}",
       },
       {
         type: "text",
@@ -42,7 +41,6 @@ export const templates: PromptTemplate[] = [
         id: "p2",
         placeholder: "{{FOCUS_AREAS}}",
         name: "FOCUS_AREAS",
-        value: "{{FOCUS_AREAS}}",
       },
     ],
     context: "Format the output clearly using the OKR structure (Objective 1 -> Key Results). Ensure KRs are challenging yet achievable and quantifiable. Do not reference specific project tasks.",
@@ -50,14 +48,14 @@ export const templates: PromptTemplate[] = [
       {
         name: "Timeframe",
         placeholder: "{{TIMEFRAME}}",
-        type: "SELECT",
+        type: PromptVariableType.SELECT,
         description: "The time horizon for these objectives.",
         defaultValue: "Quarter",
       },
       {
         name: "Focus Areas",
         placeholder: "{{FOCUS_AREAS}}",
-        type: "RICH_TEXT",
+        type: PromptVariableType.RICH_TEXT,
         description: "General areas for personal improvement (e.g., leadership, technical depth, communication, process efficiency).",
         defaultValue: "Improving team mentorship skills, reducing time spent on administrative tasks, learning advanced Python features.",
       },
@@ -81,7 +79,6 @@ export const templates: PromptTemplate[] = [
         id: "p1",
         placeholder: "{{TIME_OF_DAY}}",
         name: "TIME_OF_DAY",
-        value: "{{TIME_OF_DAY}}",
       },
       {
         type: "text",
@@ -93,7 +90,6 @@ export const templates: PromptTemplate[] = [
         id: "p2",
         placeholder: "{{WEEKLY_SUMMARY}}",
         name: "WEEKLY_SUMMARY",
-        value: "{{WEEKLY_SUMMARY}}",
       },
     ],
     context: "The output must be structured into two sections: 1) Identified Time Sinks and Recommended Fixes, and 2) A Sample 'Deep Work' Time-Blocking Schedule (Monday to Friday).",
@@ -101,14 +97,14 @@ export const templates: PromptTemplate[] = [
       {
         name: "Time of Day",
         placeholder: "{{TIME_OF_DAY}}",
-        type: "SELECT",
+        type: PromptVariableType.SELECT,
         description: "When are you most productive?",
         defaultValue: "Morning (8:00 AM - 11:00 AM)",
       },
       {
         name: "Weekly Summary",
         placeholder: "{{WEEKLY_SUMMARY}}",
-        type: "RICH_TEXT",
+        type: PromptVariableType.RICH_TEXT,
         description: "Briefly list how your time is spent (e.g., 10 meetings, 5 hours on email, 15 hours coding, 3 hours context switching).",
         defaultValue: "Too many unnecessary Slack notifications. Four hours of mandatory check-in meetings. Two hours spent searching for documents daily. 1 hour of procrastination after lunch.",
       },
@@ -132,7 +128,6 @@ export const templates: PromptTemplate[] = [
         id: "p1",
         placeholder: "{{NEW_SKILL}}",
         name: "NEW_SKILL",
-        value: "{{NEW_SKILL}}",
       },
       {
         type: "text",
@@ -144,7 +139,6 @@ export const templates: PromptTemplate[] = [
         id: "p2",
         placeholder: "{{CURRENT_LEVEL}}",
         name: "CURRENT_LEVEL",
-        value: "{{CURRENT_LEVEL}}",
       },
       {
         type: "text",
@@ -157,14 +151,14 @@ export const templates: PromptTemplate[] = [
       {
         name: "New Skill",
         placeholder: "{{NEW_SKILL}}",
-        type: "STRING",
+        type: PromptVariableType.STRING,
         description: "The skill to acquire (e.g., Advanced SQL Optimization, Public Speaking, Terraform).",
         defaultValue: "Advanced Data Visualization with D3.js",
       },
       {
         name: "Current Level",
         placeholder: "{{CURRENT_LEVEL}}",
-        type: "SELECT",
+        type: PromptVariableType.SELECT,
         description: "Your current familiarity with the skill.",
         defaultValue: "Beginner",
       },
@@ -188,7 +182,6 @@ export const templates: PromptTemplate[] = [
         id: "p1",
         placeholder: "{{AUDIENCE_ROLE}}",
         name: "AUDIENCE_ROLE",
-        value: "{{AUDIENCE_ROLE}}",
       },
       {
         type: "text",
@@ -200,7 +193,6 @@ export const templates: PromptTemplate[] = [
         id: "p2",
         placeholder: "{{CONVERSATION_GOAL}}",
         name: "CONVERSATION_GOAL",
-        value: "{{CONVERSATION_GOAL}}",
       },
       {
         type: "text",
@@ -212,7 +204,6 @@ export const templates: PromptTemplate[] = [
         id: "p3",
         placeholder: "{{CONTEXT_DETAILS}}",
         name: "CONTEXT_DETAILS",
-        value: "{{CONTEXT_DETAILS}}",
       },
     ],
     context: "Use a non-confrontational, professional tone. Structure the response using the following steps: 1) Opening (Set the stage), 2) Facts/Observations (Evidence), 3) Impact (Why it matters), 4) Proposed Solution/Request, and 5) Next Steps/Commitment.",
@@ -220,21 +211,21 @@ export const templates: PromptTemplate[] = [
       {
         name: "Audience Role",
         placeholder: "{{AUDIENCE_ROLE}}",
-        type: "STRING",
+        type: PromptVariableType.STRING,
         description: "The person you are speaking to (e.g., Manager, Direct Report, Colleague).",
         defaultValue: "Direct Manager",
       },
       {
         name: "Conversation Goal",
         placeholder: "{{CONVERSATION_GOAL}}",
-        type: "STRING",
+        type: PromptVariableType.STRING,
         description: "The desired outcome (e.g., Negotiate a higher salary band, delegate a long-standing responsibility, discuss recurring behavioral issue).",
         defaultValue: "Request higher compensation based on market data and increased responsibilities.",
       },
       {
         name: "Context Details",
         placeholder: "{{CONTEXT_DETAILS}}",
-        type: "RICH_TEXT",
+        type: PromptVariableType.RICH_TEXT,
         description: "Any relevant background information or history.",
         defaultValue: "I have taken on 50% more workload since January, and my compensation review is scheduled for next month. I want to initiate the conversation early.",
       },
@@ -258,7 +249,6 @@ export const templates: PromptTemplate[] = [
         id: "p1",
         placeholder: "{{PROBLEM_STATEMENT}}",
         name: "PROBLEM_STATEMENT",
-        value: "{{PROBLEM_STATEMENT}}",
       },
       {
         type: "text",
@@ -271,7 +261,7 @@ export const templates: PromptTemplate[] = [
       {
         name: "Problem Statement",
         placeholder: "{{PROBLEM_STATEMENT}}",
-        type: "RICH_TEXT",
+        type: PromptVariableType.RICH_TEXT,
         description: "The recurring issue you want to solve (e.g., 'I consistently miss minor details in final reviews' or 'Team handoffs frequently break due to forgotten context').",
         defaultValue: "I constantly feel stressed and overworked by Friday afternoon.",
       },
@@ -295,7 +285,6 @@ export const templates: PromptTemplate[] = [
         id: "p1",
         placeholder: "{{FEEDBACK_TEXT}}",
         name: "FEEDBACK_TEXT",
-        value: "{{FEEDBACK_TEXT}}",
       },
       {
         type: "text",
@@ -307,7 +296,6 @@ export const templates: PromptTemplate[] = [
         id: "p2",
         placeholder: "{{ROLE}}",
         name: "ROLE",
-        value: "{{ROLE}}",
       },
     ],
     context: "The output should be a numbered list of goals, each starting with a clear verb (e.g., 'Initiate...', 'Document...', 'Seek...'). The focus must shift from past failure to future action.",
@@ -315,14 +303,14 @@ export const templates: PromptTemplate[] = [
       {
         name: "Feedback Text",
         placeholder: "{{FEEDBACK_TEXT}}",
-        type: "RICH_TEXT",
+        type: PromptVariableType.RICH_TEXT,
         description: "The specific, raw feedback you received.",
         defaultValue: "You need to be more proactive in meetings and your communication style is too technical for non-engineering stakeholders.",
       },
       {
         name: "Role",
         placeholder: "{{ROLE}}",
-        type: "STRING",
+        type: PromptVariableType.STRING,
         description: "Your professional title (e.g., Senior Software Engineer, Marketing Lead).",
         defaultValue: "Product Manager",
       },
@@ -346,7 +334,6 @@ export const templates: PromptTemplate[] = [
         id: "p1",
         placeholder: "{{EXPERTISE}}",
         name: "EXPERTISE",
-        value: "{{EXPERTISE}}",
       },
       {
         type: "text",
@@ -358,7 +345,6 @@ export const templates: PromptTemplate[] = [
         id: "p2",
         placeholder: "{{AUDIENCE}}",
         name: "AUDIENCE",
-        value: "{{AUDIENCE}}",
       },
       {
         type: "text",
@@ -371,14 +357,14 @@ export const templates: PromptTemplate[] = [
       {
         name: "Expertise",
         placeholder: "{{EXPERTISE}}",
-        type: "RICH_TEXT",
+        type: PromptVariableType.RICH_TEXT,
         description: "Your professional niche (e.g., cloud security, design thinking, scaling distributed databases, B2B SaaS sales).",
         defaultValue: "Automated testing strategies for microservices and CI/CD pipeline efficiency.",
       },
       {
         name: "Audience",
         placeholder: "{{AUDIENCE}}",
-        type: "SELECT",
+        type: PromptVariableType.SELECT,
         description: "The primary audience for the content.",
         defaultValue: "Mid-level Engineers and Technical Leaders",
       },
@@ -402,7 +388,6 @@ export const templates: PromptTemplate[] = [
         id: "p1",
         placeholder: "{{WORD_COUNT}}",
         name: "WORD_COUNT",
-        value: "{{WORD_COUNT}}",
       },
       {
         type: "text",
@@ -414,7 +399,6 @@ export const templates: PromptTemplate[] = [
         id: "p2",
         placeholder: "{{SOURCE_TEXT}}",
         name: "SOURCE_TEXT",
-        value: "{{SOURCE_TEXT}}",
       },
     ],
     context: "Structure the output into three sections: 1) Core Concept, 2) Business Relevance (Opportunity/Risk), and 3) Recommended Action/Next Steps. Focus purely on translating the provided text.",
@@ -422,14 +406,14 @@ export const templates: PromptTemplate[] = [
       {
         name: "Max Word Count",
         placeholder: "{{WORD_COUNT}}",
-        type: "NUMBER",
+        type: PromptVariableType.NUMBER,
         description: "Maximum length of the final summary.",
         defaultValue: "150",
       },
       {
         name: "Source Text",
         placeholder: "{{SOURCE_TEXT}}",
-        type: "RICH_TEXT",
+        type: PromptVariableType.RICH_TEXT,
         description: "Paste the content of the technical paper, standard draft, or complex documentation.",
         defaultValue: "The implementation of the new RPC protocol, leveraging gRPC with Protobuf schema validation, promises a 40% reduction in inter-service latency, provided we successfully integrate the Kubernetes sidecar architecture which is pending a security review of the network mesh policy deployment.",
       },
@@ -453,7 +437,6 @@ export const templates: PromptTemplate[] = [
         id: "p1",
         placeholder: "{{CHALLENGE}}",
         name: "CHALLENGE",
-        value: "{{CHALLENGE}}",
       },
     ],
     context: "Output must be a numbered list of solutions, with each solution explicitly linked to one of the SCAMPER actions (e.g., 'S - Substitute: Replace X with Y'). Focus on process or conceptual challenges.",
@@ -461,7 +444,7 @@ export const templates: PromptTemplate[] = [
       {
         name: "Challenge",
         placeholder: "{{CHALLENGE}}",
-        type: "RICH_TEXT",
+        type: PromptVariableType.RICH_TEXT,
         description: "The process or conceptual problem you are stuck on (e.g., 'I cannot find a way to make daily reports engaging' or 'My new design concept feels stale').",
         defaultValue: "My workflow for creating proposals is too linear and takes too long to gather initial data, resulting in missed deadlines.",
       },
@@ -484,7 +467,6 @@ export const templates: PromptTemplate[] = [
         id: "p1",
         placeholder: "{{LANGUAGE}}",
         name: "LANGUAGE",
-        value: "{{LANGUAGE}}",
       },
       {
         type: "text",
@@ -496,7 +478,6 @@ export const templates: PromptTemplate[] = [
         id: "p2",
         placeholder: "{{CODE_SNIPPET}}",
         name: "CODE_SNIPPET",
-        value: "{{CODE_SNIPPET}}",
       },
     ],
     context: "Use the standard testing framework for the specified language (e.g., Jest for JavaScript, Pytest for Python). Ensure tests are well-documented and easy to understand. Provide a mix of positive and negative test cases.",
@@ -504,14 +485,14 @@ export const templates: PromptTemplate[] = [
       {
         name: "Language",
         placeholder: "{{LANGUAGE}}",
-        type: "STRING",
+        type: PromptVariableType.STRING,
         description: "The programming language of the code snippet (e.g., JavaScript, Python, Go).",
         defaultValue: "Python",
       },
       {
         name: "Code Snippet",
         placeholder: "{{CODE_SNIPPET}}",
-        type: "RICH_TEXT",
+        type: PromptVariableType.RICH_TEXT,
         description: "Paste the function code you want to test.",
         defaultValue: "def add(a, b):\n    return a + b",
       },

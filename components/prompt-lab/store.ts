@@ -79,27 +79,27 @@ export interface PromptVariableSource {
 
 
 export type PromptVariable = {
-  id: string;
-  name: string;
-  placeholder: string;
+  id?: string;
+  name?: string;
+  placeholder?: string;
   defaultValue?: string;
   description?: string;
-  type: PromptVariableType;
+  type?: PromptVariableType;
   source?: PromptVariableSource | null;
 };
 
 export type Block =
-  | { type: 'text'; id: string; value: string; __typename?: 'ContentBlock' }
-  | { type: 'variable'; id: string; varId: string; placeholder: string; name: string; __typename?: 'ContentBlock' }
+  | { type: 'text'; id: string; value?: string; __typename?: 'ContentBlock' }
+  | { type: 'variable'; id: string; varId?: string; placeholder?: string; name?: string; __typename?: 'ContentBlock' }
 
 export type Version = {
-  id: string;
-  content: Block[];
-  context: string;
-  notes: string;
-  description: string;
-  createdAt: string;
-  variables: PromptVariable[];
+  id?: string;
+  content?: Block[];
+  context?: string;
+  notes?: string;
+  description?: string;
+  createdAt?: string;
+  variables?: PromptVariable[];
 };
 
 export type Prompt = {
@@ -109,7 +109,7 @@ export type Prompt = {
   category?: string;
   tags: string[];
   isPublic: boolean;
-  model: string;
+  model?: string;
   content: Block[];
   context: string;
   createdAt: string;
@@ -234,12 +234,12 @@ const usePromptLabStore = create<PromptLabState>()(
               const versionToRestore = p.versions.find((v) => v.id === versionId);
               if (versionToRestore) {
                 const now = new Date().toISOString();
-                const restoredContentWithTypename: Block[] = versionToRestore.content.map(block => ({ ...block, __typename: block.__typename || 'ContentBlock' }));
+                const restoredContentWithTypename: Block[] = versionToRestore.content?.map(block => ({ ...block, __typename: block.__typename || 'ContentBlock' })) || [];
                 return {
                   ...p,
                   content: restoredContentWithTypename,
-                  context: versionToRestore.context,
-                  variables: versionToRestore.variables.map(v => ({...v})),
+                  context: versionToRestore.context || '',
+                  variables: versionToRestore.variables?.map(v => ({...v})) || [],
                   updatedAt: now,
                 };
               }

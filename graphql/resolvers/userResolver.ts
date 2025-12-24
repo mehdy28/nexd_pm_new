@@ -1,8 +1,8 @@
-import { prisma } from "@/lib/prisma";
+import { prisma } from "../../lib/prisma.js";
 import { DecodedIdToken, getAuth as getAdminAuth } from "firebase-admin/auth";
 import { UserInputError, ForbiddenError } from "apollo-server-micro";
-import { getRandomAvatarColor } from "@/lib/avatar-colors";
-import { sendEmailConfirmationEmail, sendPasswordResetEmail } from "@/lib/email";
+import { getRandomAvatarColor } from "../../lib/avatar-colors.js";
+import { sendEmailConfirmationEmail, sendPasswordResetEmail } from "../../lib/email/index.js";
 import crypto from 'crypto';
 
 interface GraphQLContext {
@@ -107,8 +107,8 @@ export const userResolver = {
                 avatarColor: avatarColor,
                 role: "MEMBER",
                 firebaseUid: firebaseUid,
-                verificationToken: verificationToken,
-                emailVerified: false,
+                emailVerified: true,
+                verificationToken: null, // <-- CHANGE 1: Set emailVerified to true
               },
             });
 
@@ -128,12 +128,8 @@ export const userResolver = {
             return createdUser;
           });
 
-          await sendEmailConfirmationEmail({
-            to: newUser.email,
-            firstName: newUser.firstName || "User",
-            token: verificationToken,
-          });
-
+          // <-- CHANGE 2: Omit sending confirmation email since emailVerified is true
+          
           return newUser;
         } catch (error) {
           throw new Error("Failed to create account and join workspace.");
@@ -149,7 +145,7 @@ export const userResolver = {
               role: args.role ?? "MEMBER",
               firebaseUid: firebaseUid,
               verificationToken: verificationToken,
-              emailVerified: false,
+              emailVerified: false, // <-- Standard registration remains false
             },
           });
 
@@ -209,3 +205,13 @@ export const userResolver = {
     }
   },
 };
+
+
+
+
+
+
+
+
+
+

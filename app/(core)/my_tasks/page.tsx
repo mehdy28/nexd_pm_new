@@ -1,16 +1,18 @@
+//app/(core)/my_tasks/page.tsx
 "use client"
 
 import { useSearchParams } from "next/navigation"
+import dynamic from "next/dynamic"
 import { useTopbar, useTopbarSetup } from "@/components/layout/topbar-store"
-import { PersonalBoardView } from "@/components/personal/personal-board-view"
-import { PersonalListView } from "@/components/personal/personal-list-view"
-import { PersonalDocumentsView } from "@/components/personal/personal-documents-view"
-import { PersonalPromptLabContainer } from "@/components/personal/personal-prompt-lab-container"
-import { PersonalWhiteboardsView } from "@/components/personal/PersonalwhiteboardsView"
 import { ListChecks, SquareKanban, CalendarDays, FileText, Layers3, Gauge, Wand2, BarChart3 } from "lucide-react"
-import PersonalGanttView from "@/components/personal/personal-gantt-view"
-import { MyDashboardView } from "@/components/personal/MyDashboardView"
 
+const PersonalListView = dynamic(() => import("@/components/personal/personal-list-view").then(mod => mod.PersonalListView), { ssr: false })
+const PersonalBoardView = dynamic(() => import("@/components/personal/personal-board-view").then(mod => mod.PersonalBoardView), { ssr: false })
+const PersonalDocumentsView = dynamic(() => import("@/components/personal/personal-documents-view").then(mod => mod.PersonalDocumentsView), { ssr: false })
+const PersonalPromptLabContainer = dynamic(() => import("@/components/personal/personal-prompt-lab-container").then(mod => mod.PersonalPromptLabContainer), { ssr: false })
+const PersonalWhiteboardsView = dynamic(() => import("@/components/personal/PersonalwhiteboardsView").then(mod => mod.PersonalWhiteboardsView), { ssr: false })
+const PersonalGanttView = dynamic(() => import("@/components/personal/personal-gantt-view"), { ssr: false })
+const MyDashboardView = dynamic(() => import("@/components/personal/MyDashboardView").then(mod => mod.MyDashboardView), { ssr: false })
 
 
 const TABS = [

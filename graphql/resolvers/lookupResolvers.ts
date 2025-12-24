@@ -1,5 +1,5 @@
 // src/graphql/resolvers/lookupResolvers.ts
-import { prisma } from "@/lib/prisma"; 
+import { prisma } from "../../lib/prisma.js"; 
 import { UserRole } from '@prisma/client';
 
 interface GraphQLContext {

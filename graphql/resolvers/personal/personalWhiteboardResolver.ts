@@ -1,5 +1,5 @@
 //graphql/resolvers/personal/personalWhiteboardResolver.ts
-import { prisma } from "@/lib/prisma"
+import { prisma } from "../../../lib/prisma.js"
 import { GraphQLError } from "graphql"
 import type { Prisma } from "@prisma/client"
 
@@ -40,18 +40,12 @@ interface WhiteboardsResponse {
   totalCount: number
 }
 
-
-
 const personalWhiteboardResolvers = {
   Query: {
     getMyWhiteboards: async (
       _parent: any,
-      {
-        search,
-        skip = 0,
-        take = 12,
-      }: { search?: string; skip?: number; take?: number },
-      context: GraphQLContext
+      { search, skip = 0, take = 12 }: { search?: string; skip?: number; take?: number },
+      context: GraphQLContext,
     ): Promise<WhiteboardsResponse> => {
       const operation = "getMyWhiteboards"
 
@@ -92,8 +86,7 @@ const personalWhiteboardResolvers = {
           prisma.whiteboard.count({ where }),
         ])
 
-
-        const mappedWhiteboards = Whiteboards.map(wf => ({
+        const mappedWhiteboards: WhiteboardListItemOutput[] = Whiteboards.map(wf => ({
           id: wf.id,
           title: wf.title,
           updatedAt: wf.updatedAt.toISOString(),
@@ -108,18 +101,13 @@ const personalWhiteboardResolvers = {
           totalCount,
         }
       } catch (error: any) {
-
         throw new GraphQLError(`Failed to retrieve Whiteboards: ${error.message}`, {
           extensions: { code: "DATABASE_ERROR" },
         })
       }
     },
     // getWhiteboardDetails is generic and can be used for both personal and project Whiteboards
-    getWhiteboardDetails: async (
-      _parent: any,
-      { id }: { id: string },
-      context: GraphQLContext
-    ) => {
+    getWhiteboardDetails: async (_parent: any, { id }: { id: string }, context: GraphQLContext) => {
       // This implementation is identical to the one in WhiteboardResolver as it handles both cases
       const operation = "getWhiteboardDetails"
 
@@ -168,7 +156,7 @@ const personalWhiteboardResolvers = {
     createPersonalWhiteboard: async (
       _parent: any,
       { input }: { input: CreatePersonalWhiteboardInput },
-      context: GraphQLContext
+      context: GraphQLContext,
     ): Promise<WhiteboardListItemOutput> => {
       const operation = "createPersonalWhiteboard"
 
@@ -200,7 +188,6 @@ const personalWhiteboardResolvers = {
           },
         })
 
-
         // NOTE: Activities are tied to projects in the schema, so we don't create one here.
 
         return {
@@ -213,7 +200,6 @@ const personalWhiteboardResolvers = {
           __typename: "WhiteboardListItem",
         }
       } catch (error: any) {
-
         throw new GraphQLError(`Failed to create personal Whiteboard: ${error.message}`, {
           extensions: { code: "DATABASE_ERROR" },
         })
@@ -225,7 +211,7 @@ const personalWhiteboardResolvers = {
     updateWhiteboard: async (
       _parent: any,
       { input }: { input: UpdateWhiteboardInput },
-      context: GraphQLContext
+      context: GraphQLContext,
     ): Promise<WhiteboardListItemOutput> => {
       const operation = "updateWhiteboard"
 
@@ -288,62 +274,71 @@ const personalWhiteboardResolvers = {
       { id }: { id: string },
       context: GraphQLContext,
     ): Promise<WhiteboardListItemOutput> => {
-      const operation = "deleteWhiteboard";
+      const operation = "deleteWhiteboard"
 
-      const { user } = context;
+      const { user } = context
       if (!user?.id) {
-        throw new GraphQLError("Authentication required", { extensions: { code: "UNAUTHENTICATED" } });
+        throw new GraphQLError("Authentication required", { extensions: { code: "UNAUTHENTICATED" } })
       }
 
-      let existingWhiteboard;
+      let existingWhiteboard
       try {
         existingWhiteboard = await prisma.whiteboard.findUnique({
           where: { id },
           select: {
-            id: true, title: true, projectId: true, userId: true, updatedAt: true, thumbnail: true,
+            id: true,
+            title: true,
+            projectId: true,
+            userId: true,
+            updatedAt: true,
+            thumbnail: true,
             project: { select: { workspaceId: true, members: { where: { userId: user.id } } } },
           },
-        });
+        })
       } catch (error: any) {
-        throw new GraphQLError(`Failed to authorize Whiteboard deletion: ${error.message}`, { extensions: { code: "DATABASE_ERROR" } });
+        throw new GraphQLError(`Failed to authorize Whiteboard deletion: ${error.message}`, {
+          extensions: { code: "DATABASE_ERROR" },
+        })
       }
 
       if (!existingWhiteboard) {
-        throw new GraphQLError("Whiteboard not found.", { extensions: { code: "NOT_FOUND" } });
+        throw new GraphQLError("Whiteboard not found.", { extensions: { code: "NOT_FOUND" } })
       }
 
-      let isAuthorized = false;
+      let isAuthorized = false
       if (existingWhiteboard.projectId) {
         if (!existingWhiteboard.project) {
-          throw new GraphQLError("Project data inconsistency for this Whiteboard.", { extensions: { code: "INTERNAL_SERVER_ERROR" } });
+          throw new GraphQLError("Project data inconsistency for this Whiteboard.", {
+            extensions: { code: "INTERNAL_SERVER_ERROR" },
+          })
         }
-        const isProjectMember = existingWhiteboard.project.members.length > 0;
+        const isProjectMember = existingWhiteboard.project.members.length > 0
         const isWorkspaceMember = await prisma.workspaceMember.findFirst({
           where: { workspaceId: existingWhiteboard.project.workspaceId, userId: user.id },
-        });
-        isAuthorized = isProjectMember || !!isWorkspaceMember;
+        })
+        isAuthorized = isProjectMember || !!isWorkspaceMember
       } else if (existingWhiteboard.userId) {
-        isAuthorized = existingWhiteboard.userId === user.id;
+        isAuthorized = existingWhiteboard.userId === user.id
       } else {
-        throw new GraphQLError("Whiteboard has no associated project or user.", { extensions: { code: "FORBIDDEN" } });
+        throw new GraphQLError("Whiteboard has no associated project or user.", { extensions: { code: "FORBIDDEN" } })
       }
 
       if (!isAuthorized) {
-        throw new GraphQLError("Forbidden: Not authorized to delete this Whiteboard", { extensions: { code: "FORBIDDEN" } });
+        throw new GraphQLError("Forbidden: Not authorized to delete this Whiteboard", {
+          extensions: { code: "FORBIDDEN" },
+        })
       }
 
-      // NOTE: Since the delete operation returns the item *before* deletion, 
-      // we must fetch the data field if the GraphQL schema requires it for the 
+      // NOTE: Since the delete operation returns the item *before* deletion,
+      // we must fetch the data field if the GraphQL schema requires it for the
       // return type (WhiteboardListItemOutput).
-      let WhiteboardBeforeDelete: { data: any | null } | null = null;
+      let WhiteboardBeforeDelete: { data: any | null } | null = null
       try {
-         WhiteboardBeforeDelete = await prisma.whiteboard.findUnique({
-             where: { id },
-             select: { data: true }
-         });
-      } catch (e) {
-      }
-
+        WhiteboardBeforeDelete = await prisma.whiteboard.findUnique({
+          where: { id },
+          select: { data: true },
+        })
+      } catch (e) {}
 
       const deletedWhiteboardInfo: WhiteboardListItemOutput = {
         id: existingWhiteboard.id,
@@ -353,16 +348,18 @@ const personalWhiteboardResolvers = {
         projectId: existingWhiteboard.projectId,
         data: WhiteboardBeforeDelete?.data ?? null, // Include data from the pre-fetch
         __typename: "WhiteboardListItem",
-      };
+      }
 
       try {
         await prisma.whiteboard.delete({
           where: { id },
-        });
+        })
 
-        return deletedWhiteboardInfo;
+        return deletedWhiteboardInfo
       } catch (error: any) {
-        throw new GraphQLError(`Failed to delete Whiteboard: ${error.message}`, { extensions: { code: "DATABASE_ERROR" } });
+        throw new GraphQLError(`Failed to delete Whiteboard: ${error.message}`, {
+          extensions: { code: "DATABASE_ERROR" },
+        })
       }
     },
   },

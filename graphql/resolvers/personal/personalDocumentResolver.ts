@@ -1,24 +1,25 @@
+//graphql/resolvers/personal/personalDocumentResolver.ts
 import { GraphQLError } from "graphql"
-import { prisma } from "@/lib/prisma"
-import type { Prisma } from "@prisma/client"
+import { prisma } from "../../../lib/prisma.js"
+import { Prisma } from "@prisma/client"
 import type { Block } from "@blocknote/core"
 
 interface DocumentListItem {
   id: string
-  title: string
-  updatedAt: string
-  type: "doc" | "pdf"
-  projectId: string | null
+  title?: string
+  updatedAt?: string
+  type?: "doc" | "pdf"
+  projectId?: string | null
 }
 
 interface DocumentsResponse {
-  documents: DocumentListItem[]
-  totalCount: number
+  documents?: DocumentListItem[]
+  totalCount?: number
 }
 
 interface CreatePersonalDocumentInput {
-  title: string
-  content: Block[] | null
+  title?: string
+  content?: Block[] | null
   dataUrl?: string | null
 }
 
@@ -72,7 +73,7 @@ const personalDocumentResolvers = {
           id: doc.id,
           title: doc.title,
           updatedAt: doc.updatedAt.toISOString(),
-          type: doc.dataUrl ? "pdf" : "doc",
+          type: doc.dataUrl ? ("pdf" as "pdf") : ("doc" as "doc"),
           projectId: doc.projectId,
         }))
 
@@ -111,7 +112,7 @@ const personalDocumentResolvers = {
             comments: {
               include: {
                 author: {
-                  select: { id: true, firstName: true, lastName: true, avatar: true ,avatarColor:true},
+                  select: { id: true, firstName: true, lastName: true, avatar: true, avatarColor: true },
                 },
               },
               orderBy: {
@@ -135,11 +136,9 @@ const personalDocumentResolvers = {
         } else if (isProjectDocument && document.projectId) {
           // A more robust check would verify project membership here.
           isAuthorized = true
-
         }
 
         if (!isAuthorized) {
-
           throw new GraphQLError("Authorization required: Not authorized to access this document", {
             extensions: { code: "FORBIDDEN" },
           })
@@ -168,7 +167,6 @@ const personalDocumentResolvers = {
       }
 
       if (content === null && dataUrl === null) {
-
         throw new GraphQLError("Document content or dataUrl is required.", {
           extensions: { code: "BAD_USER_INPUT" },
         })
@@ -177,19 +175,18 @@ const personalDocumentResolvers = {
       try {
         const newDocument = await prisma.document.create({
           data: {
-            title,
-            content: content,
+            title: title ?? "Untitled Document",
+            content: content === null ? Prisma.JsonNull : content,
             dataUrl: dataUrl,
             personalUser: { connect: { id: user.id } },
           },
         })
 
-
         const result = {
           id: newDocument.id,
           title: newDocument.title,
           updatedAt: newDocument.updatedAt.toISOString(),
-          type: newDocument.dataUrl ? "pdf" : "doc",
+          type: newDocument.dataUrl ? ("pdf" as "pdf") : ("doc" as "doc"),
           projectId: null,
         }
         return result
@@ -229,11 +226,9 @@ const personalDocumentResolvers = {
           isAuthorized = true
         } else if (existingDocument.projectId) {
           isAuthorized = true
-
         }
 
         if (!isAuthorized) {
-
           throw new GraphQLError("Authorization required: Not authorized to update this document", {
             extensions: { code: "FORBIDDEN" },
           })
@@ -243,17 +238,16 @@ const personalDocumentResolvers = {
           where: { id },
           data: {
             title: title ?? undefined,
-            content: content !== undefined ? content : undefined,
+            content: content !== undefined ? (content === null ? Prisma.JsonNull : content) : undefined,
             dataUrl: dataUrl !== undefined ? dataUrl : undefined,
           },
         })
-
 
         const result = {
           id: updatedDocument.id,
           title: updatedDocument.title,
           updatedAt: updatedDocument.updatedAt.toISOString(),
-          type: updatedDocument.dataUrl ? "pdf" : "doc",
+          type: updatedDocument.dataUrl ? ("pdf" as "pdf") : ("doc" as "doc"),
           projectId: updatedDocument.projectId,
         }
         return result
@@ -292,11 +286,9 @@ const personalDocumentResolvers = {
           isAuthorized = true
         } else if (existingDocument.projectId) {
           isAuthorized = true
-
         }
 
         if (!isAuthorized) {
-
           throw new GraphQLError("Authorization required: Not authorized to delete this document", {
             extensions: { code: "FORBIDDEN" },
           })
@@ -306,12 +298,11 @@ const personalDocumentResolvers = {
           where: { id },
         })
 
-
         const result = {
           id: deletedDocument.id,
           title: deletedDocument.title,
           updatedAt: deletedDocument.updatedAt.toISOString(),
-          type: deletedDocument.dataUrl ? "pdf" : "doc",
+          type: deletedDocument.dataUrl ? ("pdf" as "pdf") : ("doc" as "doc"),
           projectId: deletedDocument.projectId,
         }
         return result
@@ -326,7 +317,6 @@ const personalDocumentResolvers = {
       { documentId, content }: { documentId: string; content: string },
       context: GraphQLContext,
     ) => {
-
       const { user } = context
       if (!user?.id) {
         throw new GraphQLError("Authentication required", { extensions: { code: "UNAUTHENTICATED" } })
@@ -354,7 +344,7 @@ const personalDocumentResolvers = {
             authorId: user.id,
           },
           include: {
-            author: { select: { id: true, firstName: true, lastName: true, avatar: true ,avatarColor:true} },
+            author: { select: { id: true, firstName: true, lastName: true, avatar: true, avatarColor: true } },
           },
         })
         return newComment
@@ -388,7 +378,7 @@ const personalDocumentResolvers = {
         const deletedComment = await prisma.comment.delete({
           where: { id },
           include: {
-            author: { select: { id: true, firstName: true, lastName: true, avatar: true ,avatarColor:true} },
+            author: { select: { id: true, firstName: true, lastName: true, avatar: true, avatarColor: true } },
           },
         })
         return deletedComment

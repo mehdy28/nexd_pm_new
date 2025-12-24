@@ -1,14 +1,7 @@
 // graphql/queries/getPersonalTaskDetails.ts
 import { gql } from "@apollo/client";
+import { USER_AVATAR_FRAGMENT } from "../getTaskDetails";
 
-const USER_AVATAR_FRAGMENT = gql`
-  fragment UserAvatarPartial on User {
-    id
-    firstName
-    lastName
-    avatar
-  }
-`;
 
 export const GET_PERSONAL_TASK_DETAILS_QUERY = gql`
   query GetPersonalTaskDetails($id: ID!) {

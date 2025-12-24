@@ -1,7 +1,7 @@
 import { GraphQLError } from 'graphql';
 import { withFilter } from 'graphql-subscriptions';
-import { prisma } from '@/lib/prisma';
-import { pubsub, Topics } from '@/graphql/pubsub';
+import { prisma } from '../../lib/prisma.js';
+import { pubsub, Topics } from '../../graphql/pubsub.js';
 
 interface GraphQLContext {
   prisma: typeof prisma;
@@ -92,7 +92,7 @@ export const messagingResolvers = {
     getWorkspaceMembers: async (_: any, { workspaceId }: { workspaceId: string }, context: GraphQLContext) => {
       const source = 'Query: getWorkspaceMembers';
       try {
-        const userId = context.user?.id;
+        const userId = context?.user?.id;
         if (!userId) throw new GraphQLError('Not authenticated');
         
         const member = await prisma.workspaceMember.findFirst({ where: { workspaceId, userId } });
@@ -113,7 +113,7 @@ export const messagingResolvers = {
     getCommunicationList: async (_: any, { workspaceId }: { workspaceId: string }, context: GraphQLContext) => {
       const source = 'Query: getCommunicationList';
       try {
-        const userId = context.user?.id;
+        const userId = context?.user?.id;
         if (!userId) throw new GraphQLError('Not authenticated');
 
         const member = await prisma.workspaceMember.findFirst({ where: { userId, workspaceId } });
@@ -678,7 +678,8 @@ export const messagingResolvers = {
     participantRemoved: {
         subscribe: withFilter(
             () => pubsub.asyncIterableIterator(['PARTICIPANT_REMOVED']),
-            (payload, _, context: GraphQLContext) => {
+            (_payload, _, context?: GraphQLContext) => {
+                if (!context || !context.user) return false;
                 const userId = context.user?.id;
                 return !!userId;
             }
@@ -688,8 +689,8 @@ export const messagingResolvers = {
     communicationItemAdded: {
       subscribe: withFilter(
         () => pubsub.asyncIterableIterator([Topics.COMMUNICATION_ITEM_ADDED]),
-        async (payload, variables, context: GraphQLContext) => {
-          const userId = context.user?.id;
+        async (payload, variables, context?: GraphQLContext) => {
+          const userId = context?.user?.id;
           if (!userId) return false;
           
           const item = payload.communicationItemAdded;
@@ -711,8 +712,8 @@ export const messagingResolvers = {
     typingUser: {
       subscribe: withFilter(
         () => pubsub.asyncIterableIterator([Topics.USER_IS_TYPING]),
-        (payload, variables, context: GraphQLContext) => {
-          const loggedInUserId = context.user?.id;
+        (payload, variables, context?: GraphQLContext) => {
+          const loggedInUserId = context?.user?.id;
           if (!loggedInUserId) return false;
           if (loggedInUserId === payload.typingUser.id) return false;
           if (payload.typingUser.conversationId !== variables.conversationId) return false;
@@ -722,10 +723,10 @@ export const messagingResolvers = {
     },
 
     ticketMessageAdded: {
-      resolve: (payload) => payload.ticketMessageAdded,
+      resolve: (payload: { ticketMessageAdded: any; }) => payload.ticketMessageAdded,
       subscribe: withFilter(
         () => pubsub.asyncIterableIterator([Topics.TICKET_MESSAGE_ADDED]),
-        (payload, variables, context: GraphQLContext) => {
+        (payload, variables, context: GraphQLContext = { prisma }) => {
             const isAdmin = context.user?.role === 'ADMIN';
 
             if (isAdmin) {
@@ -745,11 +746,11 @@ export const messagingResolvers = {
     },
 
     messageAdded: {
-      resolve: (payload) => payload.messageAdded,
+      resolve: (payload: { messageAdded: any; }) => payload.messageAdded,
       subscribe: withFilter(
         () => pubsub.asyncIterableIterator([Topics.MESSAGE_ADDED]),
-        async (payload, variables, context: GraphQLContext) => {
-          const userId = context.user?.id;
+        async (payload, variables, context?: GraphQLContext) => {
+          const userId = context?.user?.id;
           if (!userId) return false;
 
           const participant = await prisma.conversationParticipant.findFirst({

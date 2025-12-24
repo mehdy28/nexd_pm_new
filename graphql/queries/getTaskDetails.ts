@@ -2,7 +2,7 @@
 import { gql } from "@apollo/client";
 
 // THE FIX IS HERE: The fragment is now defined on the 'User' type, which matches the schema.
-const USER_AVATAR_FRAGMENT = gql`
+export const USER_AVATAR_FRAGMENT = gql`
   fragment UserAvatarPartial on User {
     id
     firstName

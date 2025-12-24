@@ -163,7 +163,7 @@ export function UserCommunication() {
     }
 
     if (selectedItem && activeItemDetails) {
-$      return (
+      return (
         <CommunicationWindow
           key={selectedItem.id}
           communicationItem={selectedItem}

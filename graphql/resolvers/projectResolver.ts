@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/prisma";
+import { prisma } from "../../lib/prisma.js";
 import { TaskStatus, Priority, SprintStatus, ProjectStatus, ProjectRole } from "@prisma/client";
 import { GraphQLError } from "graphql";
 
@@ -248,7 +248,7 @@ export const projectResolver = {
         let currentDisplayOrder = 1;
 
         const sprintsToProcess = sprintId
-          ? projectSprints.filter(s => s.id === sprintId)
+          ? (projectSprints.length > 0 ? [projectSprints[0]] : [])
           : projectSprints;
 
         for (const sprint of sprintsToProcess) {

@@ -49,7 +49,7 @@ export function middleware(request: NextRequest) {
   // 2. AUTHENTICATED ACCESS
   if (user) {
     // A. Email Verification Check
-    if (!user.emailVerified && pathname !== "/check-email" && !pathname.startsWith("/verify-email")) {
+    if (!user.emailVerified && pathname !== "/check-email" && !pathname.startsWith("/verify-email") && pathname !== "/accept-invitation") {
       return NextResponse.redirect(new URL("/check-email", request.url));
     }
 

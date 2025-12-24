@@ -1,11 +1,11 @@
 // src/graphql/resolvers/promptVariableResolver.ts
-import { prisma } from "@/lib/prisma";
+import { prisma } from "../../lib/prisma.js";
 import {
   PromptVariableSource,
   FormatType,
   FilterOperator,
   SpecialFilterValue
-} from "../../components/prompt-lab/store"; 
+} from "../../components/prompt-lab/store.js"; 
 import { UserRole } from "@prisma/client";
 
 interface GraphQLContext {

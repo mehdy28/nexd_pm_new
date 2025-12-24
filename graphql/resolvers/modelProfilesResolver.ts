@@ -1,5 +1,5 @@
 //graphql/resolvers/modelProfilesResolver.ts
-import { prisma } from "@/lib/prisma";
+import { prisma } from "../../lib/prisma.js";
 
 // -----------------------------------
 // Interfaces

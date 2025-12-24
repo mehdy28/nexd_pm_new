@@ -1,15 +1,8 @@
 "use client"
 
 import { useParams, useSearchParams } from "next/navigation"
+import dynamic from "next/dynamic"
 import { useTopbar, useTopbarSetup } from "@/components/layout/topbar-store"
-import { BoardView } from "@/components/tasks/board-view"
-import { ListView } from "@/components/tasks/list-view"
-import { DocumentsView } from "@/components/documents/documents-view"
-//import { CalendarView } from "@/components/tasks/calendar-view"
-import { DashboardView } from "@/components/tasks/dashboard-view"
-import { ProjectPromptLabContainer } from "@/components/prompt-lab/project-prompt-lab-container"
-import { WhiteboardsView } from "@/components/Whiteboards/whiteboards-view"
-import { ProjectOverview } from "@/components/project/project-overview"
 import {
   ListChecks,
   SquareKanban,
@@ -21,7 +14,17 @@ import {
   LayoutGrid,
   BarChart3,
 } from "lucide-react"
-import GanttView  from "@/components/tasks/gantt-view"
+
+// Dynamic imports with SSR disabled
+const BoardView = dynamic(() => import("@/components/tasks/board-view").then(mod => mod.BoardView), { ssr: false })
+const ListView = dynamic(() => import("@/components/tasks/list-view").then(mod => mod.ListView), { ssr: false })
+const DocumentsView = dynamic(() => import("@/components/documents/documents-view").then(mod => mod.DocumentsView), { ssr: false })
+const DashboardView = dynamic(() => import("@/components/tasks/dashboard-view").then(mod => mod.DashboardView), { ssr: false })
+const ProjectPromptLabContainer = dynamic(() => import("@/components/prompt-lab/project-prompt-lab-container").then(mod => mod.ProjectPromptLabContainer), { ssr: false })
+const WhiteboardsView = dynamic(() => import("@/components/Whiteboards/whiteboards-view").then(mod => mod.WhiteboardsView), { ssr: false })
+const ProjectOverview = dynamic(() => import("@/components/project/project-overview").then(mod => mod.ProjectOverview), { ssr: false })
+const GanttView = dynamic(() => import("@/components/tasks/gantt-view"), { ssr: false })
+
 
 // Mock project data - in real app this would come from API
 const getProjectData = (id: string) => {

@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/prisma"
+import { prisma } from "../../lib/prisma.js"
 import { Plan, SubscriptionStatus } from "@prisma/client" // For type safety
 
 

@@ -1,5 +1,5 @@
 import { db } from "@/lib/firebase";
-import { prisma } from "@/lib/prisma";
+import { prisma } from "./prisma.js";
 import { getAuth } from "firebase-admin/auth";
 
 // Define the context type. It's useful to have this shared.

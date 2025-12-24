@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/prisma"
+import { prisma } from "../../../lib/prisma.js"
 import { TaskStatus, Priority, ActivityType } from "@prisma/client"
 import { v2 as cloudinary } from "cloudinary"
 import { GraphQLError } from "graphql"
@@ -10,7 +10,6 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
   secure: true,
 })
-
 
 interface GraphQLContext {
   prisma: typeof prisma
@@ -273,7 +272,7 @@ export const personalTaskResolver = {
     createPersonalTask: async (
       _parent: unknown,
       { input }: { input: CreatePersonalTaskInput },
-      context: GraphQLContext
+      context: GraphQLContext,
     ) => {
       if (!context.user?.id)
         throw new GraphQLError("Authentication required.", { extensions: { code: "UNAUTHENTICATED" } })
@@ -317,7 +316,7 @@ export const personalTaskResolver = {
     updatePersonalTask: async (
       _parent: unknown,
       args: { input: UpdatePersonalTaskInput },
-      context: GraphQLContext
+      context: GraphQLContext,
     ) => {
       if (!context.user?.id)
         throw new GraphQLError("Authentication required.", { extensions: { code: "UNAUTHENTICATED" } })
@@ -372,7 +371,11 @@ export const personalTaskResolver = {
           ...commonActivityData,
         })
       }
-      if (updates.dueDate !== undefined && toISODateString(updates.dueDate ? new Date(updates.dueDate) : null) !== toISODateString(existingTask.dueDate)) {
+      if (
+        updates.dueDate !== undefined &&
+        toISODateString(updates.dueDate ? new Date(updates.dueDate) : null) !==
+          toISODateString(existingTask.dueDate)
+      ) {
         activitiesToCreate.push({
           type: "DUE_DATE_UPDATED",
           data: {
@@ -394,20 +397,22 @@ export const personalTaskResolver = {
         activitiesToCreate.push({ type: "TASK_COMPLETED", data: { title: existingTask.title }, ...commonActivityData })
       }
       if (updates.personalSectionId !== undefined && updates.personalSectionId !== existingTask.personalSectionId) {
-        const newSection = updates.personalSectionId ? await prisma.personalSection.findUnique({ where: { id: updates.personalSectionId } }) : null
+        const newSection = updates.personalSectionId
+          ? await prisma.personalSection.findUnique({ where: { id: updates.personalSectionId } })
+          : null
         activitiesToCreate.push({
           type: "TASK_UPDATED",
           data: { change: "section", old: existingTask.personalSection?.name ?? null, new: newSection?.name ?? null },
           ...commonActivityData,
         })
       }
-      
+
       const [, updatedTask] = await prisma.$transaction([
         prisma.activity.createMany({ data: activitiesToCreate }),
         prisma.task.update({
           where: { id: taskId },
           data: {
-            title: updates.title,
+            title: updates.title ?? undefined,
             description: updates.description,
             status: updates.status,
             priority: updates.priority,
@@ -419,7 +424,7 @@ export const personalTaskResolver = {
             completed: newCompletedState,
           },
         }),
-      ]);
+      ])
 
       return updatedTask
     },
@@ -453,7 +458,7 @@ export const personalTaskResolver = {
           `Tasks not found or you are not authorized to delete them: ${notFoundOrUnauthorizedIds.join(", ")}`,
           {
             extensions: { code: "FORBIDDEN" },
-          }
+          },
         )
       }
 
@@ -470,7 +475,7 @@ export const personalTaskResolver = {
     createPersonalGanttTask: async (
       _parent: unknown,
       { input }: { input: CreatePersonalGanttTaskInput },
-      context: GraphQLContext
+      context: GraphQLContext,
     ) => {
       if (!context.user?.id) throw new GraphQLError("Authentication required.")
       const userId = context.user.id
@@ -513,7 +518,7 @@ export const personalTaskResolver = {
     updatePersonalGanttTask: async (
       _parent: unknown,
       { input }: { input: UpdatePersonalGanttTaskInput },
-      context: GraphQLContext
+      context: GraphQLContext,
     ) => {
       if (!context.user?.id) throw new GraphQLError("Authentication required.")
       await checkTaskAuthorization(context.user.id, input.id)
@@ -521,7 +526,7 @@ export const personalTaskResolver = {
       const updatedTask = await prisma.task.update({
         where: { id: input.id },
         data: {
-          title: input.name,
+          title: input.name ?? undefined,
           description: input.description,
           startDate: input.startDate ? new Date(input.startDate) : undefined,
           endDate: input.endDate ? new Date(input.endDate) : undefined,
@@ -542,8 +547,6 @@ export const personalTaskResolver = {
         displayOrder: input.displayOrder ?? null, // <-- ECHO THE displayOrder BACK
       }
     },
-
-    
   },
 }
 
