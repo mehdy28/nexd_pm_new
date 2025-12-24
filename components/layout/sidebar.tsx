@@ -60,7 +60,7 @@ export function Sidebar() {
     try {
       await logout()
     } catch (err) {
-      console.error("Logout failed:", err)
+      console.error("[Sidebar] Logout failed:", err)
     }
   }
 

@@ -8,13 +8,20 @@ export function LoadingOverlay() {
   const [isLoading, setIsLoading] = useState(false)
   const pathname = usePathname()
 
+
   useEffect(() => {
     setIsLoading(true)
-    const timer = setTimeout(() => setIsLoading(false), 300)
-    return () => clearTimeout(timer)
+    const timer = setTimeout(() => {
+        setIsLoading(false);
+    }, 300)
+    return () => {
+        clearTimeout(timer);
+    }
   }, [pathname])
 
-  if (!isLoading) return null
+  if (!isLoading) {
+    return null
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/80 backdrop-blur-sm">

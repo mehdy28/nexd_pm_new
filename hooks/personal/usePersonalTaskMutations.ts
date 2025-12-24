@@ -259,8 +259,6 @@ export function usePersonalTaskmutations() {
           },
         })
       } catch (error) {
-        // LOG 6: Catch and log any errors from the mutation call itself.
-        console.error(`❌ [updateTask] Error during mutation for task ${taskId}:`, error)
         throw error
       }
     },

@@ -69,7 +69,7 @@ const [resendEmailMutation] = useMutation(RESEND_VERIFICATION_EMAIL);
 const fetchMe = useCallback(async (): Promise<User | null> => {
 const user = auth.currentUser;
 if (!user) {
-return null;
+  return null;
 }
 
 try {
@@ -77,9 +77,9 @@ try {
   const { data } = await client.query({
     query: ME_QUERY,
     context: { headers: { Authorization: `Bearer ${token}` } },
-    fetchPolicy: "network-only",
+    fetchPolicy: "network-only", 
   });
-
+  
   const me = data?.me ?? null;
   if (me) {
     const hasWorkspace = (me.ownedWorkspaces?.length ?? 0) > 0 || (me.workspaceMembers?.length ?? 0) > 0;
@@ -88,11 +88,12 @@ try {
     setCurrentUser(enrichedUser); // Update state here
     return enrichedUser;
   }
-
+  
   setAuthCookies(token, null);
   setCurrentUser(null); // Update state here
   return null;
 } catch (err) {
+  console.error("[useAuth][fetchMe] Error fetching ME_QUERY:", err);
   return null;
 }
 
@@ -115,10 +116,10 @@ const firebaseIdToken = await firebaseUser.getIdToken();
     });
 
     const me = await fetchMe();
-
+    
     if (me) {
       setCurrentUser(me);
-
+      
       if (me.emailVerified) {
           const dest = me.role === "ADMIN" ? "/admin-dashboard" : (me.hasWorkspace ? "/workspace" : "/setup");
           router.push(dest);
@@ -127,13 +128,13 @@ const firebaseIdToken = await firebaseUser.getIdToken();
       }
     } else {
       setCurrentUser({ email: firebaseUser.email, emailVerified: false, role } as any);
-
+      
       // Fallback redirect for standard registration if ME fails
       if (!invitationToken) {
           router.push("/check-email");
       }
     }
-
+    
   } catch (err: any) {
     await signOut(auth);
     setAuthCookies(null, null);
@@ -174,60 +175,25 @@ setLoading(false);
 [fetchMe, router]
 );
 
-
-
-  /* -------------------------------- LOGOUT -------------------------------- */
-
-  const logout = useCallback(async () => {
-    setError(null);
-
-    try {
-      // ✅ 1. IMMEDIATE navigation (unmounts protected routes)
-      router.replace("/login");
-
-      // ✅ 2. Kill Apollo queries instantly
-      await client.clearStore();
-
-      // ✅ 3. Clear auth
-      await signOut(auth);
-      document.cookie = "session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
-      document.cookie = "user-metadata=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
-
-      setCurrentUser(null);
-    } catch (err: any) {
-      console.error("[useAuth][logout]", err.message);
-      setError(err.message);
-    }
-  }, [router, client]);
-
-  /* ---------------------------- AUTH LISTENER ----------------------------- */
-
-  // useEffect(() => {
-  //   const unsubscribe = onAuthStateChanged(auth, async (user: FirebaseUser | null) => {
-  //     setLoading(true);
-
-  //     try {
-  //       if (!user) {
-  //         setCurrentUser(null);
-  //         await client.clearStore();
-  //       }
-  //     } catch (err: any) {
-  //       setError(err.message);
-  //     } finally {
-  //       setLoading(false);
-  //     }
-  //   });
-
-  //   return () => unsubscribe();
-  // }, [client]);
-
-
-
-
-
-
-
-
+const logout = useCallback(async () => {
+setLoading(true);
+setError(null);
+try {
+// 1. Perform sign out from Firebase
+await signOut(auth);
+// 2. Reset Apollo cache to remove all user-specific data *before* clearing state
+await client.resetStore(); 
+// 3. Clear local cookies/state immediately (This triggers the component re-render)
+setAuthCookies(null, null);
+setCurrentUser(null);
+// 4. Navigate immediately
+router.push("/login");
+} catch (err: any) {
+setError(err.message);
+setLoading(false); // Only set loading false on error path
+} finally {
+}
+}, [router, client]);
 
 const resetPassword = useCallback(async (email: string) => {
 setLoading(true);
@@ -291,19 +257,20 @@ const unsubscribe = onAuthStateChanged(auth, async (user: FirebaseUser | null) =
 setLoading(true);
 try {
 if (user) {
-const me = await fetchMe();
-if (me) {
-setCurrentUser(me);
+  const me = await fetchMe();
+  if (me) {
+    setCurrentUser(me);
+  } else {
+    const token = await user.getIdToken();
+    setAuthCookies(token, null);
+    setCurrentUser(null);
+  }
 } else {
-const token = await user.getIdToken();
-setAuthCookies(token, null);
-setCurrentUser(null);
-}
-} else {
-setCurrentUser(null);
-setAuthCookies(null, null);
-client.resetStore();
-// Note: We don't call router.push here because this hook runs on every page load/auth change.
+  // Scenario: Token expired or logout detected asynchronously.
+  setCurrentUser(null);
+  setAuthCookies(null, null);
+  // NOTE: We do not reset the store here, as the explicit logout function handles this immediately
+  // before navigation, preventing a duplicate reset which might compete with navigation.
 }
 } catch (err: any) {
 setError(err.message);

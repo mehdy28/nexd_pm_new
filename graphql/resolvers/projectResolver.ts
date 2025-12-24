@@ -223,11 +223,13 @@ export const projectResolver = {
     getGanttData: async (_parent: unknown, args: GetGanttDataArgs, context: GraphQLContext) => {
 
       if (!context.user?.id) {
+        console.error("LOG: Authentication failed. No user ID found in context.");
         throw new Error("Authentication required: No user ID found in context.");
       }
 
       const { projectId, sprintId } = args;
       const userId = context.user.id;
+
 
       try {
         const projectMember = await prisma.projectMember.findFirst({
@@ -235,6 +237,7 @@ export const projectResolver = {
         });
 
         if (!projectMember) {
+          console.error(`LOG: Access Denied. User ${userId} is not a member of project ${projectId}.`);
           throw new Error("Access Denied: You are not a member of this project.");
         }
 
@@ -244,14 +247,27 @@ export const projectResolver = {
           orderBy: { createdAt: 'desc' },
         });
 
+
         const ganttTasks: any[] = [];
         let currentDisplayOrder = 1;
 
-        const sprintsToProcess = sprintId
-          ? (projectSprints.length > 0 ? [projectSprints[0]] : [])
-          : projectSprints;
+        let sprintsToProcess: { name: string; id: string; createdAt: Date; description: string | null; startDate: Date; endDate: Date; isCompleted: boolean; }[];
+
+        if (sprintId) {
+          // If sprintId is provided, filter for that specific sprint
+          const specificSprint = projectSprints.find(s => s.id === sprintId);
+          sprintsToProcess = specificSprint ? [specificSprint] : [];
+        } else if (projectSprints.length > 0) {
+          // If no sprintId is provided, use the latest created sprint (which is the first one due to orderBy: createdAt: 'desc')
+          sprintsToProcess = [projectSprints[0]];
+        } else {
+          // No sprints found at all
+          sprintsToProcess = [];
+        }
+
 
         for (const sprint of sprintsToProcess) {
+
           ganttTasks.push({
             id: sprint.id,
             name: sprint.name,
@@ -275,6 +291,7 @@ export const projectResolver = {
             },
             orderBy: { startDate: 'asc' },
           });
+
 
           for (const task of tasks) {
             ganttTasks.push({
@@ -302,6 +319,7 @@ export const projectResolver = {
             where: { sprintId: sprint.id },
             orderBy: { dueDate: 'asc' },
           });
+
 
           for (const milestone of milestones) {
             ganttTasks.push({
@@ -332,7 +350,6 @@ export const projectResolver = {
         throw error;
       }
     },
-
 
 
         getProjectTasksAndSections: async (_parent: unknown, args: GetProjectTasksAndSectionsArgs, context: GraphQLContext) => {

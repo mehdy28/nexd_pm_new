@@ -1,4 +1,3 @@
-// app/(core)/layout.tsx
 "use client";
 
 import type { ReactNode } from "react";
@@ -14,9 +13,18 @@ import "@/styles/theme.css";
 export function AppLayout({ children }: { children: ReactNode }) {
   const { currentUser, loading } = useAuthContext();
 
+
   // While auth is resolving
   if (loading) {
     return <LoadingOverlay />;
+  }
+  
+  // If the user is explicitly null and not loading, we should ideally not render core content
+  // if the router middleware hasn't redirected yet. 
+  // Since the old logic was commented out, we must handle the null state defensively here, 
+  // although router.push should be immediate.
+  if (!currentUser) {
+      return <LoadingOverlay />; 
   }
 
 

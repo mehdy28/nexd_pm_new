@@ -134,7 +134,7 @@ export const projectResolver = {
                 const ganttTasks = [];
                 let currentDisplayOrder = 1;
                 const sprintsToProcess = sprintId
-                    ? projectSprints.filter(s => s.id === sprintId)
+                    ? (projectSprints.length > 0 ? [projectSprints[0]] : [])
                     : projectSprints;
                 for (const sprint of sprintsToProcess) {
                     ganttTasks.push({

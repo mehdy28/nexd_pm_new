@@ -1,4 +1,3 @@
-// components/auth/AuthContextProvider.tsx
 "use client";
 
 import React, { createContext, useContext, useMemo } from "react";
@@ -21,6 +20,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthContextProvider({ children }: { children: React.ReactNode }) {
   // Use your useAuth hook here
   const authState = useAuth();
+
 
   // Memoize the context value to prevent unnecessary re-renders
   const contextValue = useMemo(() => authState, [authState]);

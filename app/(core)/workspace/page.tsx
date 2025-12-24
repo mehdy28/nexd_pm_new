@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import { useTopbar } from "@/components/layout/topbar-store";
 import { Users, Settings, Plus, MoreHorizontal, Trash2, Loader2, Edit } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -34,8 +35,12 @@ import { useAuth } from "@/hooks/useAuth";
 import { WorkspaceRole } from "@/types/workspace";
 
 export default function WorkspacePage() {
+  const pathname = usePathname();
   const { setConfig, setActiveKey } = useTopbar();
   const { currentUser } = useAuth();
+  
+
+  // --- Data Hooks ---
   const { workspaceData, loading, error, refetchWorkspaceData } = useWorkspaceData();
   const { updateWorkspace, loading: workspaceUpdateLoading } = useWorkspaceMutations();
   const { 
@@ -45,6 +50,7 @@ export default function WorkspacePage() {
     updateWorkspaceRoleLoading 
   } = useMemberManagement(workspaceData?.id || "");
   const { deleteProject, loading: deleteLoading } = useProjectMutations();
+  // ------------------
 
   const [isCreateProjectModalOpen, setIsCreateProjectModalOpen] = useState(false);
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
@@ -109,13 +115,21 @@ export default function WorkspacePage() {
     }
   };
 
+  // --- Error/Loading Gates ---
   if (loading) {
     return <LoadingPlaceholder message="Loading workspace data..." />;
   }
 
   if (error) {
+    console.error("[WorkspacePage] Rendering ErrorPlaceholder.", error);
     return <ErrorPlaceholder error={error} onRetry={refetchWorkspaceData} />;
   }
+  
+  if (!workspaceData) {
+      // This state shouldn't be reached if auth worked, but defensively returning an error state.
+      return <ErrorPlaceholder error={"Workspace data missing."} onRetry={refetchWorkspaceData} />;
+  }
+  // ---------------------------
 
   const handleConfirmRemoveMember = async () => {
     if (!memberToRemove) return;

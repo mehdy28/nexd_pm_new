@@ -113,25 +113,19 @@ export const memberManagementResolvers = {
     },
 
     acceptWorkspaceInvitation: async (_: any, { token }: { token: string }, context: GraphQLContext) => {
-      console.log("--- START AcceptWorkspaceInvitation Resolver ---");
-      console.log(`Received Token: ${token}`);
       
       const userId = context.user?.id;
       const userEmail = context.user?.email;
       
       if (!userId || !userEmail) {
-        console.log("Authentication Failed: User ID or Email missing in context.");
         throw new ForbiddenError("Authentication required. Please log in or register.");
       }
       
-      console.log(`Authenticated User ID: ${userId}, Email: ${userEmail}`);
 
       const invitation = await prisma.workspaceInvitation.findUnique({ where: { token } });
       
-      console.log(`Invitation Lookup Result: ${invitation ? 'Found' : 'Not Found'}`);
       
       if (!invitation) {
-        console.log(`Failure: Invitation not found for token: ${token}`);
         throw new UserInputError("This invitation is invalid or has expired.");
       }
       
@@ -139,23 +133,16 @@ export const memberManagementResolvers = {
       const isExpired = now > invitation.expiresAt;
       const isPending = invitation.status === 'PENDING';
 
-      console.log(`Invitation Status: ${invitation.status}, Expires At: ${invitation.expiresAt.toISOString()}, Current Time: ${now.toISOString()}`);
-      console.log(`Checks: Is Pending: ${isPending}, Is Expired: ${isExpired}`);
 
       if (!isPending || isExpired) {
-        console.log(`Failure: Invitation status is ${invitation.status} or is expired (${isExpired}).`);
         throw new UserInputError("This invitation is invalid or has expired.");
       }
       
-      console.log(`Invitation Email: ${invitation.email}, Context Email: ${userEmail}`);
       
       if (invitation.email !== userEmail) {
-        console.log("Failure: Email mismatch.");
-        console.log(`Expected Email: ${invitation.email}, Provided Email: ${userEmail}`);
         throw new ForbiddenError("This invitation is intended for another email address.");
       }
       
-      console.log("Validation Successful. Starting Transaction...");
 
       return prisma.$transaction(async (tx) => {
         const newMember = await tx.workspaceMember.create({
@@ -165,15 +152,12 @@ export const memberManagementResolvers = {
             role: invitation.role,
           },
         });
-        console.log(`Workspace Member Created (ID: ${newMember.id})`);
 
         await tx.workspaceInvitation.update({
           where: { id: invitation.id },
           data: { status: 'ACCEPTED' },
         });
-        console.log(`Invitation (ID: ${invitation.id}) set to ACCEPTED.`);
 
-        console.log("--- END AcceptWorkspaceInvitation Resolver (Success) ---");
         return newMember;
       });
     },
