@@ -30,6 +30,7 @@ export interface BlogMetadata {
 
 const blogsDirectory = path.join(process.cwd(), "blogs");
 
+
 export const getAllBlogPosts = cache(async (): Promise<BlogPost[]> => {
   if (typeof window !== "undefined") {
     console.warn(
