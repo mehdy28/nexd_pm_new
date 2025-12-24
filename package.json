@@ -83,7 +83,7 @@
     "jsonwebtoken": "latest",
     "lucide-react": "^0.454.0",
     "micro": "latest",
-    "next": "15.2.4",
+    "next": "15.2.8",
     "next-themes": "latest",
     "nodemailer": "latest",
     "path": "latest",
