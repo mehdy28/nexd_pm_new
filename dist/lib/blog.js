@@ -1,7 +1,8 @@
+//lib/blog.ts
 import path from "path";
 import matter from "gray-matter";
 import { cache } from "react";
-const blogsDirectory = path.join(process.cwd(), "public/blogs");
+const blogsDirectory = path.join(process.cwd(), "blogs");
 export const getAllBlogPosts = cache(async () => {
     if (typeof window !== "undefined") {
         console.warn("getAllBlogPosts should not be called from the client; returning an empty array.");
