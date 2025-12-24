@@ -41,7 +41,11 @@ export default function LoginPage() {
   return (
     <div className="flex min-h-screen">
       <div className="hidden lg:flex flex-col justify-center items-center w-1/2 bg-slate-800 p-8">
-        <Image src="/logo1.png" alt="NEXD.PM" width={350} height={180} className="object-contain" />
+        <Link href="/" passHref>
+          <div className="cursor-pointer">
+            <Image src="/logo1.png" alt="NEXD.PM" width={350} height={180} className="object-contain" />
+          </div>
+        </Link>
         <h2 className="mt-6 text-xl font-medium text-white text-center">Your all-in-one project management solution.</h2>
       </div>
 

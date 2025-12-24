@@ -115,6 +115,7 @@ export const projectResolver = {
         },
         getGanttData: async (_parent, args, context) => {
             if (!context.user?.id) {
+                console.error("LOG: Authentication failed. No user ID found in context.");
                 throw new Error("Authentication required: No user ID found in context.");
             }
             const { projectId, sprintId } = args;
@@ -124,6 +125,7 @@ export const projectResolver = {
                     where: { projectId: projectId, userId: userId },
                 });
                 if (!projectMember) {
+                    console.error(`LOG: Access Denied. User ${userId} is not a member of project ${projectId}.`);
                     throw new Error("Access Denied: You are not a member of this project.");
                 }
                 const projectSprints = await prisma.sprint.findMany({
@@ -133,9 +135,20 @@ export const projectResolver = {
                 });
                 const ganttTasks = [];
                 let currentDisplayOrder = 1;
-                const sprintsToProcess = sprintId
-                    ? (projectSprints.length > 0 ? [projectSprints[0]] : [])
-                    : projectSprints;
+                let sprintsToProcess;
+                if (sprintId) {
+                    // If sprintId is provided, filter for that specific sprint
+                    const specificSprint = projectSprints.find(s => s.id === sprintId);
+                    sprintsToProcess = specificSprint ? [specificSprint] : [];
+                }
+                else if (projectSprints.length > 0) {
+                    // If no sprintId is provided, use the latest created sprint (which is the first one due to orderBy: createdAt: 'desc')
+                    sprintsToProcess = [projectSprints[0]];
+                }
+                else {
+                    // No sprints found at all
+                    sprintsToProcess = [];
+                }
                 for (const sprint of sprintsToProcess) {
                     ganttTasks.push({
                         id: sprint.id,

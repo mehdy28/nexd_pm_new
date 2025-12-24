@@ -33,6 +33,7 @@ export const earlyAccessResolver = {
         });
         return users;
       } catch (error) {
+        console.error("Error fetching early access users:", error);
         throw new Error("Failed to fetch early access user list.");
       }
     },
@@ -58,6 +59,8 @@ export const earlyAccessResolver = {
       }
 
       try {
+        console.log(`Attempting to create early access user: ${email}`);
+        
         const newUser = await prisma.earlyAccessUser.create({
           data: {
             name: name.trim(),
@@ -65,6 +68,7 @@ export const earlyAccessResolver = {
           },
         });
 
+        console.log(`User created in DB: ${newUser.email}. Attempting to send confirmation email.`);
 
         // Send confirmation email after successfully creating the user
         await sendEarlyAccessConfirmationEmail({
@@ -72,14 +76,20 @@ export const earlyAccessResolver = {
           name: newUser.name,
         });
 
+        console.log(`Confirmation email function executed for user: ${newUser.email}`);
+
 
         return newUser;
       } catch (error: any) {
+        console.error("Error in createEarlyAccessUser mutation:", error);
+        
         // Handle unique constraint violation for the email field
         if (error.code === 'P2002' && error.meta?.target?.includes('email')) {
           throw new UserInputError("This email is already on the waitlist.");
         }
         
+        // Note: If the error originated from sendEarlyAccessConfirmationEmail, the error log in lib/email/index.ts
+        // should capture the nodemailer specific error (e.g., Auth, DNS, or attachment path error).
         throw new Error("Could not add to the waitlist. Please try again later.");
       }
     },

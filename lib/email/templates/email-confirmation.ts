@@ -2,10 +2,9 @@
 interface TemplateParams {
   firstName: string;
   confirmationLink: string;
-  logoUrl: string;
 }
 
-export const emailConfirmationTemplate = ({ firstName, confirmationLink, logoUrl }: TemplateParams): string => `
+export const emailConfirmationTemplate = ({ firstName, confirmationLink }: TemplateParams): string => `
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -28,7 +27,7 @@ export const emailConfirmationTemplate = ({ firstName, confirmationLink, logoUrl
 <body>
   <div class="container">
     <div class="header">
-      <img src="${logoUrl}" alt="Nexd.PM Logo" style="max-width: 150px; margin: 0 auto; display: block;">
+      <img src="cid:logo.png" alt="nexd.pm Logo" style="max-width: 150px; margin: 0 auto; display: block;">
     </div>
     <div class="content">
       <p>Hello <strong>${firstName}</strong>,</p>
@@ -39,7 +38,7 @@ export const emailConfirmationTemplate = ({ firstName, confirmationLink, logoUrl
       <p>If you're having trouble with the button, you can copy and paste this link into your browser:</p>
       <p><a href="${confirmationLink}" style="color: #184B84;">${confirmationLink}</a></p>
       <p>This link will expire in 24 hours.</p>
-      <p>Thanks,<br>The Nexd.PM Team</p>
+      <p>Thanks,<br>The nexd.pm Team</p>
     </div>
     <div class="footer">
       <p>If you did not create an account, you can safely ignore this email.</p>

@@ -1,10 +1,9 @@
 //lib/email/templates/early-access-confirmation.ts
 interface TemplateParams {
   name: string;
-  logoUrl: string;
 }
 
-export const earlyAccessConfirmationTemplate = ({ name, logoUrl }: TemplateParams): string => `
+export const earlyAccessConfirmationTemplate = ({ name }: TemplateParams): string => `
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -27,16 +26,18 @@ export const earlyAccessConfirmationTemplate = ({ name, logoUrl }: TemplateParam
 <body>
   <div class="container">
     <div class="header">
-      <img src="${logoUrl}" alt="Nexd.PM Logo" style="max-width: 150px; margin: 0 auto; display: block;">
+      <img 
+       src="http://localhost:3000//landing/logo.png"
+       alt="nexd.pm Logo" style="max-width: 150px; margin: 0 auto; display: block;">
     </div>
     <div class="content">
       <p>Hello <strong>${name}</strong>,</p>
-      <p>Thank you for your interest in Nexd.PM. We've successfully added you to our early access waitlist.</p>
+      <p>Thank you for your interest in nexd.pm. We've successfully added you to our early access waitlist.</p>
       <div class="highlight">
         <strong>You're all set!</strong>
       </div>
       <p>We're working hard to put the finishing touches on the first AI-powered project management platform. We'll send you an email as soon as we're ready for you to join.</p>
-      <p>Stay tuned,<br>The Nexd.PM Team</p>
+      <p>Stay tuned,<br>The nexd.pm Team</p>
     </div>
     <div class="footer">
       <p>You received this email because you signed up for the waitlist at nexd.pm.</p>

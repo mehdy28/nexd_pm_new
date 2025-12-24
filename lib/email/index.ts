@@ -1,5 +1,6 @@
-//lib/email/index.ts
-import nodemailer from 'nodemailer';
+// lib/email/index.ts
+import nodemailer, { SendMailOptions } from 'nodemailer';
+// Removed 'path' import as we are using a direct relative string path
 import { workspaceInvitationTemplate } from './templates/workspace-invitation.js';
 import { emailConfirmationTemplate } from './templates/email-confirmation.js';
 import { passwordResetTemplate } from './templates/password-reset.js';
@@ -13,6 +14,10 @@ const transporter = nodemailer.createTransport({
   },
 });
 
+// --- Constants ---
+// LOGO_CID constant removed as the CID is hardcoded in the attachment and templates.
+
+// --- Interfaces (Removed logoUrl dependency from relevant interfaces, assuming other template interfaces were similar) ---
 interface SendInvitationEmailParams {
   to: string;
   inviterName: string;
@@ -37,6 +42,33 @@ interface SendEarlyAccessConfirmationEmailParams {
   name: string;
 }
 
+
+// --- Helper Function for Base Mail Options (Handles Embedding) ---
+const createBaseMailOptions = (
+  to: string,
+  subject: string,
+  htmlContent: string
+): SendMailOptions => {
+  return {
+    from: `"nexd.pm" <${process.env.GMAIL_USER}>`,
+    to,
+    subject,
+    html: htmlContent,
+    attachments: [
+      {
+        filename: 'nexdpm-logo.png',
+        path: './landing/logo.png', // Local path to the logo image (AS COMMANDED)
+        cid: 'logo.png', // The requested CID (AS COMMANDED)
+        contentDisposition: 'inline',
+        contentType: 'image/png',
+      },
+    ],
+  };
+};
+
+
+// --- Exported Functions (Calling templates without logoUrl) ---
+
 export const sendWorkspaceInvitationEmail = async ({
   to,
   inviterName,
@@ -44,14 +76,15 @@ export const sendWorkspaceInvitationEmail = async ({
   token,
 }: SendInvitationEmailParams) => {
   const invitationLink = `${process.env.NEXT_PUBLIC_APP_URL}/accept-invitation?token=${token}`;
-  const logoUrl = `${process.env.NEXT_PUBLIC_APP_URL}/landing/logo.png`;
+  
+  // Removed logoUrl usage
 
-  const mailOptions = {
-    from: `"nexd.pm" <${process.env.GMAIL_USER}>`,
+  const mailOptions = createBaseMailOptions(
     to,
-    subject: `You're invited to join ${workspaceName} on nexd.pm`,
-    html: workspaceInvitationTemplate({ inviterName, workspaceName, invitationLink, logoUrl }),
-  };
+    `You're invited to join ${workspaceName} on nexd.pm`,
+    // Assuming workspaceInvitationTemplate now takes only { inviterName, workspaceName, invitationLink }
+    workspaceInvitationTemplate({ inviterName, workspaceName, invitationLink })
+  );
 
   try {
     const info = await transporter.sendMail(mailOptions);
@@ -68,14 +101,15 @@ export const sendEmailConfirmationEmail = async ({
   token,
 }: SendConfirmationEmailParams) => {
   const confirmationLink = `${process.env.NEXT_PUBLIC_APP_URL}/verify-email?token=${token}`;
-  const logoUrl = `${process.env.NEXT_PUBLIC_APP_URL}/landing/logo.png`;
+  
+  // Removed logoUrl usage
 
-  const mailOptions = {
-    from: `"nexd.pm" <${process.env.GMAIL_USER}>`,
+  const mailOptions = createBaseMailOptions(
     to,
-    subject: 'Confirm your nexd.pm account',
-    html: emailConfirmationTemplate({ firstName, confirmationLink, logoUrl }),
-  };
+    'Confirm your nexd.pm account',
+    // Assuming emailConfirmationTemplate now takes only { firstName, confirmationLink }
+    emailConfirmationTemplate({ firstName, confirmationLink })
+  );
 
   try {
     const info = await transporter.sendMail(mailOptions);
@@ -91,14 +125,14 @@ export const sendPasswordResetEmail = async ({
   firstName,
   resetLink,
 }: SendPasswordResetEmailParams) => {
-  const logoUrl = `${process.env.NEXT_PUBLIC_APP_URL}/landing/logo.png`;
+  // Removed logoUrl usage
 
-  const mailOptions = {
-    from: `"nexd.pm" <${process.env.GMAIL_USER}>`,
+  const mailOptions = createBaseMailOptions(
     to,
-    subject: 'Reset your nexd.pm password',
-    html: passwordResetTemplate({ firstName, resetLink, logoUrl }),
-  };
+    'Reset your nexd.pm password',
+    // Assuming passwordResetTemplate now takes only { firstName, resetLink }
+    passwordResetTemplate({ firstName, resetLink })
+  );
 
   try {
     const info = await transporter.sendMail(mailOptions);
@@ -113,14 +147,14 @@ export const sendEarlyAccessConfirmationEmail = async ({
   to,
   name,
 }: SendEarlyAccessConfirmationEmailParams) => {
-  const logoUrl = `${process.env.NEXT_PUBLIC_APP_URL}/landing/logo.png`;
+  // Removed logoUrl usage
 
-  const mailOptions = {
-    from: `"nexd.pm" <${process.env.GMAIL_USER}>`,
+  const mailOptions = createBaseMailOptions(
     to,
-    subject: "You're on the list for nexd.pm.PM!",
-    html: earlyAccessConfirmationTemplate({ name, logoUrl }),
-  };
+    "You're on the list for nexd.pm!",
+    // Using the updated template function signature
+    earlyAccessConfirmationTemplate({ name })
+  );
 
   try {
     const info = await transporter.sendMail(mailOptions);

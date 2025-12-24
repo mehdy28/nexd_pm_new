@@ -3,10 +3,9 @@ interface TemplateParams {
   inviterName: string;
   workspaceName: string;
   invitationLink: string;
-  logoUrl: string;
 }
 
-export const workspaceInvitationTemplate = ({ inviterName, workspaceName, invitationLink, logoUrl }: TemplateParams): string => `
+export const workspaceInvitationTemplate = ({ inviterName, workspaceName, invitationLink }: TemplateParams): string => `
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -29,11 +28,11 @@ export const workspaceInvitationTemplate = ({ inviterName, workspaceName, invita
 <body>
   <div class="container">
     <div class="header">
-      <img src="${logoUrl}" alt="Nexd.PM Logo" style="max-width: 150px; margin: 0 auto; display: block;">
+      <img src="cid:logo.png" alt="nexd.pm Logo" style="max-width: 150px; margin: 0 auto; display: block;">
     </div>
     <div class="content">
       <p>Hello,</p>
-      <p><strong>${inviterName}</strong> has invited you to collaborate in the <strong>${workspaceName}</strong> workspace on Nexd.PM.</p>
+      <p><strong>${inviterName}</strong> has invited you to collaborate in the <strong>${workspaceName}</strong> workspace on nexd.pm.</p>
       <p>Click the button below to accept your invitation. If you don't have an account, you'll be redirected to create one first.</p>
       <div class="button-container">
         <a href="${invitationLink}" class="button">Accept Invitation & Join Workspace</a>
@@ -41,7 +40,7 @@ export const workspaceInvitationTemplate = ({ inviterName, workspaceName, invita
       <p>If you're having trouble with the button, you can copy and paste this link into your browser:</p>
       <p><a href="${invitationLink}" style="color: #184B84;">${invitationLink}</a></p>
       <p>This invitation will expire in 7 days.</p>
-      <p>Thanks,<br>The Nexd.PM Team</p>
+      <p>Thanks,<br>The nexd.pm Team</p>
     </div>
     <div class="footer">
       <p>If you did not expect this invitation, you can safely ignore this email.</p>
