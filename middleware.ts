@@ -13,6 +13,14 @@ const CORE_PATHS = [
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  // --- START FIX ---
+  // Immediately bypass middleware for all blog pages, including the index and individual posts.
+  if (pathname.startsWith('/blog')) {
+    return NextResponse.next();
+  }
+  // --- END FIX ---
+
   const requestId = Math.random().toString(36).substring(7);
 
   // Skip internal and static files
@@ -87,15 +95,5 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - api (API routes)
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - blog (all blog pages)
-     */
-    '/((?!api|_next/static|_next/image|favicon.ico|blog).*)',
-  ],
+  matcher: ['/((?!api|_next/static|_next/image|favicon.ico).*)'],
 };
