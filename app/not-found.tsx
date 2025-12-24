@@ -23,7 +23,7 @@ export default function NotFound() {
           Sorry, the page you are looking for does not exist or has been moved.
         </p>
         <Link
-          href="/home"
+          href="/"
           className="mt-8 inline-flex items-center justify-center rounded-lg bg-[#2563EB] px-5 py-3 text-base font-medium text-white shadow-sm transition-colors hover:bg-[#1D4ED8] focus:outline-none focus:ring-2 focus:ring-[#2563EB] focus:ring-offset-2"
         >
           Go back home
