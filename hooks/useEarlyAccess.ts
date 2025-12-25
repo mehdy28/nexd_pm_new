@@ -38,16 +38,13 @@ export function useEarlyAccess() {
 
   const joinWaitlist = useCallback(
     async ({ name, email }: EarlyAccessUserInput) => {
-      console.log(`[useEarlyAccess][joinWaitlist] Attempting mutation with variables:`, { name, email });
       try {
         const response = await createEarlyAccessUserMutation({
           variables: { name, email },
         });
 
-        console.log("[useEarlyAccess][joinWaitlist] Raw mutation response received from server:", response);
 
         if (response.data?.createEarlyAccessUser) {
-           console.log("[useEarlyAccess][joinWaitlist] SUCCESS: Mutation returned data.", response.data.createEarlyAccessUser);
           return { success: true, data: response.data.createEarlyAccessUser };
         }
 
@@ -66,7 +63,6 @@ export function useEarlyAccess() {
             ? err.graphQLErrors[0].message
             : err.message;
         
-        console.log("[useEarlyAccess][joinWaitlist] Extracted specific error message to be sent to UI:", specificErrorMessage);
 
         return { success: false, error: specificErrorMessage };
       }

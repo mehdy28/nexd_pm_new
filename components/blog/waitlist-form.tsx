@@ -1,3 +1,4 @@
+//components/forms/waitlist-form.tsx
 "use client"
 
 import type React from "react"
@@ -5,7 +6,14 @@ import type React from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
-import { ArrowRight, Sparkles, Users, Zap, Mail } from "lucide-react"
+import {
+  ArrowRight,
+  Sparkles,
+  Users,
+  Zap,
+  Mail,
+  AlertTriangle,
+} from "lucide-react"
 import { useState } from "react"
 import { isValidEmail, isValidName } from "@/lib/waitlist"
 import { useEarlyAccess } from "@/hooks/useEarlyAccess"
@@ -19,6 +27,7 @@ export function WaitlistForm({ variant = "full" }: WaitlistFormProps) {
   const [email, setEmail] = useState("")
   const [isSubmitted, setIsSubmitted] = useState(false)
   const [isDuplicate, setIsDuplicate] = useState(false)
+  const [isSubmissionError, setIsSubmissionError] = useState(false)
   const [error, setError] = useState("")
 
   const { joinWaitlist, mutationLoading, mutationError } = useEarlyAccess()
@@ -27,6 +36,7 @@ export function WaitlistForm({ variant = "full" }: WaitlistFormProps) {
     e.preventDefault()
     setError("")
     setIsDuplicate(false)
+    setIsSubmissionError(false)
 
     if (!isValidName(name)) {
       setError("Please enter a valid name")
@@ -51,7 +61,9 @@ export function WaitlistForm({ variant = "full" }: WaitlistFormProps) {
         setName("")
         setEmail("")
       } else {
-        setError(errorMessage || "Something went wrong. Please try again.")
+        setIsSubmissionError(true)
+        setName("")
+        setEmail("")
       }
     }
   }
@@ -86,6 +98,16 @@ export function WaitlistForm({ variant = "full" }: WaitlistFormProps) {
               </p>
               <p className="text-yellow-600 text-xs mt-1">
                 You're on the list. We'll be in touch.
+              </p>
+            </div>
+          ) : isSubmissionError ? (
+            <div className="text-center">
+              <p className="text-red-800 font-medium text-sm">
+                <AlertTriangle className="w-4 h-4 inline-block mr-1.5" />
+                Oops! An error occurred.
+              </p>
+              <p className="text-red-600 text-xs mt-1">
+                Please try again later.
               </p>
             </div>
           ) : (
@@ -153,6 +175,16 @@ export function WaitlistForm({ variant = "full" }: WaitlistFormProps) {
             </p>
             <p className="text-yellow-600 text-sm mt-1">
               Thanks for your enthusiasm.
+            </p>
+          </div>
+        ) : isSubmissionError ? (
+          <div className="text-center">
+            <p className="text-red-800 font-medium">
+              <AlertTriangle className="w-5 h-5 inline-block mr-2" />
+              Oops! An error occurred.
+            </p>
+            <p className="text-red-600 text-sm mt-1">
+              Something went wrong. Please refresh and try again.
             </p>
           </div>
         ) : (
@@ -224,6 +256,16 @@ export function WaitlistForm({ variant = "full" }: WaitlistFormProps) {
               </p>
               <p className="text-blue-100 mt-1">
                 Thanks for your enthusiasm. We'll be in touch soon.
+              </p>
+            </div>
+          ) : isSubmissionError ? (
+            <div className="mb-6">
+              <p className="text-red-200 font-medium text-lg">
+                <AlertTriangle className="w-6 h-6 inline-block mr-2" />
+                Oops! An error occurred.
+              </p>
+              <p className="text-blue-100 mt-1">
+                Something went wrong. Please try again later.
               </p>
             </div>
           ) : (

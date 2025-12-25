@@ -1,10 +1,11 @@
+//components/sections/cta.tsx
 "use client"
 
 import type React from "react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { ArrowRight, Mail, Users, Zap } from "lucide-react"
+import { ArrowRight, Mail, Users, Zap, AlertTriangle } from "lucide-react"
 import { useState } from "react"
 import { isValidEmail, isValidName } from "@/lib/waitlist"
 import { useEarlyAccess } from "@/hooks/useEarlyAccess"
@@ -14,6 +15,7 @@ export function WaitlistCTA() {
   const [email, setEmail] = useState("")
   const [isSubmitted, setIsSubmitted] = useState(false)
   const [isDuplicate, setIsDuplicate] = useState(false)
+  const [isSubmissionError, setIsSubmissionError] = useState(false)
   const [error, setError] = useState("")
   const { joinWaitlist, mutationLoading, mutationError } = useEarlyAccess()
 
@@ -21,6 +23,7 @@ export function WaitlistCTA() {
     e.preventDefault()
     setError("")
     setIsDuplicate(false)
+    setIsSubmissionError(false)
 
     // Validation
     if (!isValidName(name)) {
@@ -47,8 +50,10 @@ export function WaitlistCTA() {
         setName("")
         setEmail("")
       } else {
-        // Handle all other errors
-        setError(errorMessage || "Something went wrong. Please try again.")
+        // Handle all other submission errors by showing a dedicated UI block
+        setIsSubmissionError(true)
+        setName("")
+        setEmail("")
       }
     }
   }
@@ -60,7 +65,7 @@ export function WaitlistCTA() {
       // Focus on the name input after scrolling
       setTimeout(() => {
         const nameInput = document.querySelector(
-          'input[type="text"]',
+          'input[type="text"]'
         ) as HTMLInputElement
         if (nameInput) {
           nameInput.focus()
@@ -111,6 +116,18 @@ export function WaitlistCTA() {
                     Thanks for your enthusiasm. We'll be in touch soon.
                   </p>
                 </div>
+              </div>
+            ) : isSubmissionError ? (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-left">
+                <div className="flex items-center">
+                  <AlertTriangle className="w-5 h-5 text-red-700 mr-3" />
+                  <h3 className="text-lg font-semibold text-red-800">
+                    Oops! An error occurred.
+                  </h3>
+                </div>
+                <p className="text-red-700 mt-2 ml-8">
+                  Something went wrong. Please refresh the page and try again.
+                </p>
               </div>
             ) : (
               <form onSubmit={handleSubmit} className="space-y-4">
