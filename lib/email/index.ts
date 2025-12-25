@@ -1,10 +1,10 @@
 // lib/email/index.ts
 import nodemailer, { SendMailOptions } from 'nodemailer';
 // Removed 'path' import as we are using a direct relative string path
-import { workspaceInvitationTemplate } from './templates/workspace-invitation.js';
-import { emailConfirmationTemplate } from './templates/email-confirmation.js';
-import { passwordResetTemplate } from './templates/password-reset.js';
-import { earlyAccessConfirmationTemplate } from './templates/early-access-confirmation.js';
+import { workspaceInvitationTemplate } from './templates/workspace-invitation';
+import { emailConfirmationTemplate } from './templates/email-confirmation';
+import { passwordResetTemplate } from './templates/password-reset';
+import { earlyAccessConfirmationTemplate } from './templates/early-access-confirmation';
 
 const transporter = nodemailer.createTransport({
   service: 'gmail',
