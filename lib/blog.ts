@@ -1,7 +1,6 @@
 //lib/blog.ts
 import path from "path";
 import matter from "gray-matter";
-import { cache } from "react";
 
 export interface BlogPost {
   slug: string;
@@ -30,7 +29,7 @@ export interface BlogMetadata {
 
 const blogsDirectory = path.join(process.cwd(), "blogs");
 
-export const getAllBlogPosts = cache(async (): Promise<BlogPost[]> => {
+export async function getAllBlogPosts(): Promise<BlogPost[]> {
   if (typeof window !== "undefined") {
     console.warn(
       "getAllBlogPosts should not be called from the client; returning an empty array."
@@ -72,7 +71,7 @@ export const getAllBlogPosts = cache(async (): Promise<BlogPost[]> => {
     console.error("Error reading blog posts:", error);
     return [];
   }
-});
+};
 
 export async function getBlogPost(slug: string): Promise<BlogPost | null> {
   const allPosts = await getAllBlogPosts();

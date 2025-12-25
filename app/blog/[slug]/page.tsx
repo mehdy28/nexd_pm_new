@@ -15,10 +15,11 @@ import ReactMarkdown from "react-markdown";
 import { WaitlistForm } from "@/components/blog/waitlist-form";
 
 interface BlogPostPageProps {
-  params: {
+  params: Promise<{
     slug: string;
-  };
+  }>;
 }
+
 
 export async function generateStaticParams() {
   const posts = await getAllBlogPosts();
@@ -27,12 +28,18 @@ export async function generateStaticParams() {
   }));
 }
 
-export default async function BlogPostPage({ params }: BlogPostPageProps) {
-  const post = await getBlogPost(params.slug);
+export default async function BlogPostPage({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}) {
+  const { slug } = await params;
+  const post = await getBlogPost(slug);
 
   if (!post) {
     notFound();
   }
+
 
   const relatedPosts = await getRelatedPosts(post.slug, post.tags);
 
