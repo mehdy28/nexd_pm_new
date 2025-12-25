@@ -5,7 +5,7 @@ author: "David Chen"
 date: "2024-02-25"
 readTime: "8 min read"
 tags: ["Future", "Project Management", "Predictions", "Innovation"]
-image: "/placeholder.svg?height=400&width=800"
+image: "/blogs/future-of-project-management.png"
 mostPopular: false
 ---
 
