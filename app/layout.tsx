@@ -1,6 +1,7 @@
 // app/layout.tsx
 "use client";
 
+import type { Metadata } from "next";
 import type React from "react";
 import { Geist, Manrope } from "next/font/google";
 import { ApolloProvider } from "@apollo/client";
@@ -19,6 +20,14 @@ const manrope = Manrope({
   display: "swap",
   variable: "--font-manrope",
 });
+
+
+export const metadata: Metadata = {
+  title: "nexdpm",
+  description: "The First Ai-Powered Project Management Solution"
+};
+
+
 
 export default function RootLayout({
   children,
