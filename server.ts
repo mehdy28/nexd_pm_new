@@ -11,8 +11,8 @@ import { Context, SubscribeMessage, SubscribePayload } from 'graphql-ws';
 import { GraphQLError } from 'graphql';
 import { typeDefs } from './graphql/schema/index.js'; // ADJUSTED to match file structure (graphql/schema/index.ts)
 import { resolvers } from './graphql/resolvers/index.js'; // RESOLVED TO INDEX FILE
-import { prisma } from './lib/prisma.js'; 
-import { pubsub } from './graphql/pubsub.js'; 
+import { prisma } from './lib/prisma.js';
+import { pubsub } from './graphql/pubsub.js';
 import { getAuth, DecodedIdToken } from 'firebase-admin/auth';
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
 
@@ -163,10 +163,14 @@ async function startServer() {
       return handle(req, res, parse(req.url!, true));
     });
 
-    httpServer.listen(3000, () => {
-      log(`🚀 Server ready at: http://localhost:3000`);
-      log(`📡 GraphQL HTTP endpoint: http://localhost:3000/api/graphql`);
-      log(`🔄 GraphQL WebSocket endpoint: ws://localhost:3000/api/graphql`);
+    // *** THIS IS THE FIX ***
+    // Use the PORT from environment variables for production, fallback to 3000 for local dev
+    const PORT = process.env.PORT || 3000;
+
+    httpServer.listen(PORT, () => {
+      log(`🚀 Server ready at: http://localhost:${PORT}`);
+      log(`📡 GraphQL HTTP endpoint: http://localhost:${PORT}/api/graphql`);
+      log(`🔄 GraphQL WebSocket endpoint: ws://localhost:${PORT}/api/graphql`);
     });
   } catch (err) {
     logError('Fatal error starting server:', err);
@@ -186,17 +190,3 @@ async function startServer() {
 }
 
 startServer();
-
-
-
-
-
-
-
-
-
-
-
-
-
-
