@@ -65,4 +65,3 @@ Imagine writing a prompt like this:
 ---
 
 *Stop running your sprints on guesswork. It's time to build a more predictable, efficient, and data-driven Agile process. [Join the NEXD.PM waitlist](https://nexdpm.com) and be the first to build the future of project management.*
-```

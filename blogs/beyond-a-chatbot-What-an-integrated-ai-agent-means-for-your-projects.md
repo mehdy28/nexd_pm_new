@@ -75,4 +75,3 @@ A chatbot can't do this. A simple AI add-on can't do this. Only a deeply integra
 ---
 
 *It's time to demand more from your tools. Stop chatting with AI and start collaborating with it. [Join the NEXD.PM waitlist](https://nexdpm.com) and put a true AI agent to work on your next project.*
-```

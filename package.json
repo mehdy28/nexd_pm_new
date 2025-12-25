@@ -6,12 +6,12 @@
   "resolutions": {
     "ws": "^8.18.3"
   },
-  "scripts": {
-    "build": "prisma generate && tsc -p tsconfig.server.json && next build --webpack",
-    "dev": "tsx --no-cache server.ts",
-    "lint": "next lint",
-    "start": "NODE_ENV=production node dist/server.js"
-  },
+    "scripts": {
+      "dev": "next dev",
+      "build": "prisma generate && next build",
+      "start": "next start",
+      "lint": "next lint"
+    },
   "dependencies": {
     "@apollo/client": "^3.9.0",
     "@apollo/server": "^4.10.0",

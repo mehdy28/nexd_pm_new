@@ -72,4 +72,3 @@ Suddenly, your drawing isn't just a picture; it's the direct input for your enti
 ---
 
 *Stop letting your best ideas die in static documents and forgotten screenshots. It's time to work in a system where visual creativity seamlessly transforms into project velocity. [Join the NEXD.PM waitlist](https://nexdpm.com) and build your next great idea in a truly integrated visual workspace.*
-```

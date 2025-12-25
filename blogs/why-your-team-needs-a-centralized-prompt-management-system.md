@@ -75,4 +75,3 @@ Our system goes beyond simple templates. We offer **intelligent variables** that
 ---
 
 *Stop the prompt chaos. Start building a consistent, efficient, and secure AI-powered team. [Join the NEXD.PM waitlist](https://nexdpm.com) to see how an integrated prompt management system can transform your projects.*
-```
