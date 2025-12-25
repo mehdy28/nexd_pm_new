@@ -88,9 +88,7 @@ export const earlyAccessResolver = {
           throw new UserInputError("This email is already on the waitlist.");
         }
         
-        // Note: If the error originated from sendEarlyAccessConfirmationEmail, the error log in lib/email/index.ts
-        // should capture the nodemailer specific error (e.g., Auth, DNS, or attachment path error).
-        throw new Error("Could not add to the waitlist. Please try again later.");
+        
       }
     },
   },
