@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { UserInputError } from "apollo-server-micro";
-import { sendEarlyAccessConfirmationEmail } from "../../lib/email/index.js";
+import { sendEarlyAccessConfirmationEmail } from "@/lib/email";
 import { DecodedIdToken } from "firebase-admin/auth";
 
 interface GraphQLContext {
