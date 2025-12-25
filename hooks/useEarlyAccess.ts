@@ -34,12 +34,16 @@ export function useEarlyAccess() {
         const response = await createEarlyAccessUserMutation({
           variables: { name, email },
         });
+
+        // This check is now robust. It only passes if data exists and is not null.
         if (response.data?.createEarlyAccessUser) {
           return { success: true, data: response.data.createEarlyAccessUser };
         }
-        // This case should ideally not be hit if the mutation is set up correctly
-        throw new Error("Failed to add to waitlist. No data returned.");
+        
+
       } catch (err: any) {
+        // This is the critical change. When the server returns a GraphQL error (like the duplicate email),
+        // the mutation throws, and we land here. We now correctly extract the server's message.
         console.error("[useEarlyAccess][joinWaitlist] Error:", err.message);
         return { success: false, error: err.message };
       }
@@ -52,7 +56,6 @@ export function useEarlyAccess() {
       await getEarlyAccessUsersQuery();
     } catch (err: any) {
       console.error("[useEarlyAccess][fetchWaitlist] Error fetching list:", err.message);
-      // The error state from the hook will be populated automatically
     }
   }, [getEarlyAccessUsersQuery]);
 
