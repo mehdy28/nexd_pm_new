@@ -1084,6 +1084,15 @@ type EarlyAccessUser {
   email: String!
   createdAt: DateTime!
 }
+type ProjectHeaderData {
+  id: ID!
+  name: String!
+  description: String
+  color: String!
+  status: ProjectStatus!
+  workspace: WorkspacePartial!
+}
+
 
 
 # ----------------------------------
@@ -1528,6 +1537,12 @@ input UpdateNotificationSettingsInput {
 # Root Queries
 # ----------------------------------
 type Query {
+
+
+  
+  getProjectHeaderData(projectId: ID!): ProjectHeaderData
+
+
   # Early Access (Admin Only)
   earlyAccessUsers: [EarlyAccessUser!]!
 

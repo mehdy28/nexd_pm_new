@@ -54,9 +54,76 @@ interface UpdateSprintInput {
   status?: SprintStatus;
 }
 
+interface GetProjectHeaderDataArgs {
+  projectId: string;
+}
+
+
 
 export const projectResolver = {
   Query: {
+
+    getProjectHeaderData: async (_parent: unknown, args: GetProjectHeaderDataArgs, context: GraphQLContext) => {
+      // 1. Authentication: Ensure user is logged in
+      if (!context.user?.id) {
+        throw new GraphQLError("Authentication required: No user ID found in context.", {
+          extensions: { code: 'UNAUTHENTICATED' },
+        });
+      }
+
+      const { projectId } = args;
+      const userId = context.user.id;
+
+      try {
+        // 2. Fetch project and check membership in a single query for efficiency
+        const project = await prisma.project.findFirst({
+          where: {
+            id: projectId,
+            members: {
+              some: {
+                userId: userId,
+              },
+            },
+          },
+          select: {
+            id: true,
+            name: true,
+            description: true,
+            color: true,
+            status: true,
+            workspaceId: true,
+          },
+        });
+
+        // 3. Authorization: If project is null, user is not a member or project doesn't exist
+        if (!project) {
+          throw new GraphQLError("Project not found or you do not have permission to access it.", {
+            extensions: { code: 'FORBIDDEN' },
+          });
+        }
+
+        // 4. Return data in the shape defined by the GraphQL schema
+        return {
+          ...project,
+          workspace: {
+            id: project.workspaceId,
+          },
+        };
+
+      } catch (error) {
+        // Re-throw known GraphQL errors, or wrap others
+        if (error instanceof GraphQLError) {
+          throw error;
+        }
+        console.error("Error in getProjectHeaderData resolver:", error);
+        throw new GraphQLError("An unexpected error occurred while fetching project data.", {
+          extensions: { code: 'INTERNAL_SERVER_ERROR' },
+        });
+      }
+    },
+
+
+
     getProjectDetails: async (_parent: unknown, args: GetProjectDetailsArgs, context: GraphQLContext) => {
 
       if (!context.user?.id) {
@@ -189,35 +256,6 @@ export const projectResolver = {
         throw new GraphQLError(error.message || 'An error occurred fetching assignable project members.');
       }
     },
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
     getGanttData: async (_parent: unknown, args: GetGanttDataArgs, context: GraphQLContext) => {

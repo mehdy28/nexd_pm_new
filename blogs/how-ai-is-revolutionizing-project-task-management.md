@@ -5,7 +5,7 @@ author: "Alex Thompson"
 date: "2024-05-15"
 readTime: "8 min read"
 tags: ["AI", "Task Management", "Project Management", "Productivity", "Future of Work"]
-image: "/blogs/future-of-project-management.png"
+image: "/blogs/how-ai-is-revolutionizing-project-task-management.png"
 mostPopular: true
 ---
 
