@@ -5,7 +5,7 @@ author: "Alex Thompson"
 date: "2024-07-10"
 readTime: "8 min read"
 tags: ["Visual Collaboration", "Remote Work", "Whiteboards", "Documents", "Productivity", "Project Management"]
-image: "/blogsthe-power-of-visual-collaboration-in-remote-project-management.png"
+image: "/blogs/the-power-of-visual-collaboration-in-remote-project-management.png"
 mostPopular: false
 ---
 
