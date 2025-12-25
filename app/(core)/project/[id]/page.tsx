@@ -52,7 +52,7 @@ export default function ProjectPage() {
 
   // Set topbar with loading state or actual project name
   useTopbarSetup({
-    title: loading ? "Loading project..." : project?.name ?? "Project",
+    title: project?.name ?? "",
     tabs: TABS,
     activeKey: initialTab,
     showShare: true,

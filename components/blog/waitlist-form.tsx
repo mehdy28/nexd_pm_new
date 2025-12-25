@@ -5,7 +5,7 @@ import type React from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
-import { ArrowRight, Mail, Sparkles, Users, Zap } from "lucide-react"
+import { ArrowRight, Sparkles, Users, Zap, Mail } from "lucide-react"
 import { useState } from "react"
 import { isValidEmail, isValidName } from "@/lib/waitlist"
 import { useEarlyAccess } from "@/hooks/useEarlyAccess"
@@ -18,6 +18,7 @@ export function WaitlistForm({ variant = "full" }: WaitlistFormProps) {
   const [name, setName] = useState("")
   const [email, setEmail] = useState("")
   const [isSubmitted, setIsSubmitted] = useState(false)
+  const [isDuplicate, setIsDuplicate] = useState(false)
   const [error, setError] = useState("")
 
   const { joinWaitlist, mutationLoading, mutationError } = useEarlyAccess()
@@ -25,6 +26,7 @@ export function WaitlistForm({ variant = "full" }: WaitlistFormProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
+    setIsDuplicate(false)
 
     if (!isValidName(name)) {
       setError("Please enter a valid name")
@@ -43,11 +45,14 @@ export function WaitlistForm({ variant = "full" }: WaitlistFormProps) {
       setName("")
       setEmail("")
     } else {
-      setError(
-        response.error ||
-          mutationError?.message ||
-          "Something went wrong. Please try again.",
-      )
+      const errorMessage = response.error || mutationError?.message || ""
+      if (errorMessage.includes("already on the waitlist")) {
+        setIsDuplicate(true)
+        setName("")
+        setEmail("")
+      } else {
+        setError(errorMessage || "Something went wrong. Please try again.")
+      }
     }
   }
 
@@ -65,7 +70,25 @@ export function WaitlistForm({ variant = "full" }: WaitlistFormProps) {
             </p>
           </div>
 
-          {!isSubmitted ? (
+          {isSubmitted ? (
+            <div className="text-center">
+              <p className="text-green-800 font-medium text-sm">
+                🎉 You're in!
+              </p>
+              <p className="text-green-600 text-xs mt-1">
+                We'll notify you when we launch.
+              </p>
+            </div>
+          ) : isDuplicate ? (
+            <div className="text-center">
+              <p className="text-yellow-800 font-medium text-sm">
+                👋 Already in!
+              </p>
+              <p className="text-yellow-600 text-xs mt-1">
+                You're on the list. We'll be in touch.
+              </p>
+            </div>
+          ) : (
             <form onSubmit={handleSubmit} className="space-y-3">
               <Input
                 type="text"
@@ -95,15 +118,6 @@ export function WaitlistForm({ variant = "full" }: WaitlistFormProps) {
                 {mutationLoading ? "Joining..." : "Join Waitlist"}
               </Button>
             </form>
-          ) : (
-            <div className="text-center">
-              <p className="text-green-800 font-medium text-sm">
-                🎉 You're in!
-              </p>
-              <p className="text-green-600 text-xs mt-1">
-                We'll notify you when we launch.
-              </p>
-            </div>
           )}
         </CardContent>
       </Card>
@@ -123,7 +137,25 @@ export function WaitlistForm({ variant = "full" }: WaitlistFormProps) {
           </p>
         </div>
 
-        {!isSubmitted ? (
+        {isSubmitted ? (
+          <div className="text-center">
+            <p className="text-green-800 font-medium">
+              🎉 Welcome to the future!
+            </p>
+            <p className="text-green-600 text-sm mt-1">
+              You're now on our exclusive waitlist.
+            </p>
+          </div>
+        ) : isDuplicate ? (
+          <div className="text-center">
+            <p className="text-yellow-800 font-medium">
+              👋 You're already on the list!
+            </p>
+            <p className="text-yellow-600 text-sm mt-1">
+              Thanks for your enthusiasm.
+            </p>
+          </div>
+        ) : (
           <form onSubmit={handleSubmit} className="max-w-md mx-auto">
             <div className="flex flex-col sm:flex-row gap-3 mb-4">
               <Input
@@ -158,15 +190,6 @@ export function WaitlistForm({ variant = "full" }: WaitlistFormProps) {
               {!mutationLoading && <ArrowRight className="w-4 h-4 ml-2" />}
             </Button>
           </form>
-        ) : (
-          <div className="text-center">
-            <p className="text-green-800 font-medium">
-              🎉 Welcome to the future!
-            </p>
-            <p className="text-green-600 text-sm mt-1">
-              You're now on our exclusive waitlist.
-            </p>
-          </div>
         )}
       </div>
     )
@@ -185,7 +208,25 @@ export function WaitlistForm({ variant = "full" }: WaitlistFormProps) {
             AI-powered project management.
           </p>
 
-          {!isSubmitted ? (
+          {isSubmitted ? (
+            <div className="mb-6">
+              <p className="text-white font-medium text-lg">
+                🎉 Welcome to the Future!
+              </p>
+              <p className="text-blue-100 mt-1">
+                You're now on our exclusive waitlist.
+              </p>
+            </div>
+          ) : isDuplicate ? (
+            <div className="mb-6">
+              <p className="text-white font-medium text-lg">
+                👋 You're already on the list!
+              </p>
+              <p className="text-blue-100 mt-1">
+                Thanks for your enthusiasm. We'll be in touch soon.
+              </p>
+            </div>
+          ) : (
             <form onSubmit={handleSubmit} className="max-w-md mx-auto mb-6">
               <div className="flex flex-col sm:flex-row gap-3 mb-4">
                 <div className="relative flex-1">
@@ -222,15 +263,6 @@ export function WaitlistForm({ variant = "full" }: WaitlistFormProps) {
                 {!mutationLoading && <ArrowRight className="w-4 h-4 ml-2" />}
               </Button>
             </form>
-          ) : (
-            <div className="mb-6">
-              <p className="text-white font-medium text-lg">
-                🎉 Welcome to the Future!
-              </p>
-              <p className="text-blue-100 mt-1">
-                You're now on our exclusive waitlist.
-              </p>
-            </div>
           )}
 
           <div className="grid md:grid-cols-3 gap-6 text-blue-100">

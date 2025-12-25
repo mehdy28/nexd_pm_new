@@ -14,6 +14,7 @@ export function Hero() {
   const [name, setName] = useState("")
   const [email, setEmail] = useState("")
   const [isSubmitted, setIsSubmitted] = useState(false)
+  const [isDuplicate, setIsDuplicate] = useState(false)
   const [error, setError] = useState("")
 
   const { joinWaitlist, mutationLoading, mutationError } = useEarlyAccess()
@@ -21,6 +22,7 @@ export function Hero() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
+    setIsDuplicate(false)
 
     // Validation
     if (!isValidName(name)) {
@@ -40,11 +42,16 @@ export function Hero() {
       setName("")
       setEmail("")
     } else {
-      setError(
-        response.error ||
-          mutationError?.message ||
-          "Something went wrong. Please try again.",
-      )
+      const errorMessage = response.error || mutationError?.message || ""
+      // Check for the specific duplicate email error message
+      if (errorMessage.includes("already on the waitlist")) {
+        setIsDuplicate(true)
+        setName("")
+        setEmail("")
+      } else {
+        // Handle all other errors
+        setError(errorMessage || "Something went wrong. Please try again.")
+      }
     }
   }
 
@@ -58,12 +65,6 @@ bg-[#f0f2f7]
         <div className="grid lg:grid-cols-2 gap-3 items-center  ">
           {/* Left Content */}
           <div className="space-y-8  ">
-            {/* Launch Badge */}
-            {/* <Badge variant="secondary" className="bg-teal-50 text-teal-700 border-teal-200 px-4 py-2 w-fit">
-              <Sparkles className="w-4 h-4 mr-2" />
-              Coming Soon: Revolutionary Ai Project Management
-            </Badge> */}
-
             {/* Enhanced Headline */}
             <div className="space-y-4">
               <h1 className="text-4xl font-bold tracking-tight text-gray-900 sm:text-5xl md:text-6xl">
@@ -99,7 +100,25 @@ bg-[#f0f2f7]
             {/* Waitlist Form */}
             <div className="space-y-4">
               <div className="min-h-48 sm:min-h-36">
-                {!isSubmitted ? (
+                {isSubmitted ? (
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-4 max-w-sm">
+                    <p className="text-green-800 font-medium">
+                      🎉 You're on the list!
+                    </p>
+                    <p className="text-green-600 text-sm mt-1">
+                      We'll notify you when NEXD.PM launches.
+                    </p>
+                  </div>
+                ) : isDuplicate ? (
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 max-w-sm">
+                    <p className="text-yellow-800 font-medium">
+                      👋 You're already on the list!
+                    </p>
+                    <p className="text-yellow-600 text-sm mt-1">
+                      Thanks for your enthusiasm. We'll be in touch soon.
+                    </p>
+                  </div>
+                ) : (
                   <form onSubmit={handleSubmit} className="space-y-4 max-w-md">
                     <div className="flex flex-col sm:flex-row gap-3">
                       <Input
@@ -134,15 +153,6 @@ bg-[#f0f2f7]
                       )}
                     </Button>
                   </form>
-                ) : (
-                  <div className="bg-green-50 border border-green-200 rounded-lg p-4 max-w-sm">
-                    <p className="text-green-800 font-medium">
-                      🎉 You're on the list!
-                    </p>
-                    <p className="text-green-600 text-sm mt-1">
-                      We'll notify you when NEXD.PM launches.
-                    </p>
-                  </div>
                 )}
               </div>
             </div>

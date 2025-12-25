@@ -13,12 +13,14 @@ export function WaitlistCTA() {
   const [name, setName] = useState("")
   const [email, setEmail] = useState("")
   const [isSubmitted, setIsSubmitted] = useState(false)
+  const [isDuplicate, setIsDuplicate] = useState(false)
   const [error, setError] = useState("")
   const { joinWaitlist, mutationLoading, mutationError } = useEarlyAccess()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
+    setIsDuplicate(false)
 
     // Validation
     if (!isValidName(name)) {
@@ -38,11 +40,16 @@ export function WaitlistCTA() {
       setName("")
       setEmail("")
     } else {
-      setError(
-        response.error ||
-          mutationError?.message ||
-          "Something went wrong. Please try again.",
-      )
+      const errorMessage = response.error || mutationError?.message || ""
+      // Check for the specific duplicate email error message
+      if (errorMessage.includes("already on the waitlist")) {
+        setIsDuplicate(true)
+        setName("")
+        setEmail("")
+      } else {
+        // Handle all other errors
+        setError(errorMessage || "Something went wrong. Please try again.")
+      }
     }
   }
 
@@ -82,11 +89,34 @@ export function WaitlistCTA() {
 
           {/* Waitlist Form */}
           <div className="max-w-md mx-auto">
-            {!isSubmitted ? (
+            {isSubmitted ? (
+              <div className="bg-green-50 border border-green-200 rounded-lg p-6">
+                <div className="text-green-800">
+                  <h3 className="text-lg font-semibold mb-2">
+                    🎉 Welcome to the Future!
+                  </h3>
+                  <p className="text-green-700">
+                    You're now on our exclusive waitlist. We'll keep you updated
+                    on our progress and notify you the moment NEXD.PM launches.
+                  </p>
+                </div>
+              </div>
+            ) : isDuplicate ? (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
+                <div className="text-yellow-800">
+                  <h3 className="text-lg font-semibold mb-2">
+                    👋 You're already on the list!
+                  </h3>
+                  <p className="text-yellow-700">
+                    Thanks for your enthusiasm. We'll be in touch soon.
+                  </p>
+                </div>
+              </div>
+            ) : (
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="flex flex-col gap-3">
                   <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <Users className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
                     <Input
                       type="text"
                       placeholder="Your name"
@@ -122,18 +152,6 @@ export function WaitlistCTA() {
                   {!mutationLoading && <ArrowRight className="w-4 h-4 ml-2" />}
                 </Button>
               </form>
-            ) : (
-              <div className="bg-green-50 border border-green-200 rounded-lg p-6">
-                <div className="text-green-800">
-                  <h3 className="text-lg font-semibold mb-2">
-                    🎉 Welcome to the Future!
-                  </h3>
-                  <p className="text-green-700">
-                    You're now on our exclusive waitlist. We'll keep you updated
-                    on our progress and notify you the moment NEXD.PM launches.
-                  </p>
-                </div>
-              </div>
             )}
           </div>
 
