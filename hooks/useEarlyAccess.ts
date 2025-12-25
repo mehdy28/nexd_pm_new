@@ -34,28 +34,40 @@ export function useEarlyAccess() {
 
   const joinWaitlist = useCallback(
     async ({ name, email }: EarlyAccessUserInput) => {
+      console.log(`[useEarlyAccess][joinWaitlist] Attempting mutation with variables:`, { name, email });
       try {
         const response = await createEarlyAccessUserMutation({
           variables: { name, email },
         });
 
+        console.log("[useEarlyAccess][joinWaitlist] Raw mutation response received from server:", response);
+
         if (response.data?.createEarlyAccessUser) {
+           console.log("[useEarlyAccess][joinWaitlist] SUCCESS: Mutation returned data.", response.data.createEarlyAccessUser);
           return { success: true, data: response.data.createEarlyAccessUser };
         }
 
-        // Handle cases where the mutation technically succeeds but returns no data,
-        // preventing an implicit 'undefined' return which would crash the component.
-        const errorMessage =
-          mutationError?.message || "An unexpected error occurred.";
+        const errorMessage = mutationError?.message || "An unexpected error occurred.";
         console.error(
-          "[useEarlyAccess][joinWaitlist] Mutation succeeded but returned no data.",
+          "[useEarlyAccess][joinWaitlist] LOGICAL ERROR: Mutation succeeded but returned no data.",
           response
         );
         return { success: false, error: errorMessage };
+
       } catch (err: any) {
-        // This correctly catches GraphQL errors (like duplicate email) and network errors.
-        console.error("[useEarlyAccess][joinWaitlist] Error:", err.message);
-        return { success: false, error: err.message };
+        console.error("[useEarlyAccess][joinWaitlist] CATCH BLOCK: Full error object caught:", JSON.stringify(err, null, 2));
+
+        // FIX: Extract the specific GraphQL error message.
+        // Apollo Client places server-side GraphQL errors in the `graphQLErrors` array.
+        // The top-level `err.message` is often generic (e.g., "Response not successful").
+        const specificErrorMessage =
+          err.graphQLErrors && err.graphQLErrors.length > 0
+            ? err.graphQLErrors[0].message
+            : err.message;
+        
+        console.log("[useEarlyAccess][joinWaitlist] Extracted specific error message to be sent to UI:", specificErrorMessage);
+
+        return { success: false, error: specificErrorMessage };
       }
     },
     [createEarlyAccessUserMutation, mutationError]
