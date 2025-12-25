@@ -1,10 +1,11 @@
+//components/sections/hero.tsx
 "use client"
 
 import type React from "react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { ArrowRight, CheckCircle } from "lucide-react"
+import { ArrowRight, CheckCircle, AlertTriangle } from "lucide-react"
 import Image from "next/image"
 import { useState } from "react"
 import { isValidEmail, isValidName } from "@/lib/waitlist"
@@ -15,6 +16,7 @@ export function Hero() {
   const [email, setEmail] = useState("")
   const [isSubmitted, setIsSubmitted] = useState(false)
   const [isDuplicate, setIsDuplicate] = useState(false)
+  const [isSubmissionError, setIsSubmissionError] = useState(false)
   const [error, setError] = useState("")
 
   const { joinWaitlist, mutationLoading, mutationError } = useEarlyAccess()
@@ -23,6 +25,7 @@ export function Hero() {
     e.preventDefault()
     setError("")
     setIsDuplicate(false)
+    setIsSubmissionError(false)
 
     // Validation
     if (!isValidName(name)) {
@@ -49,8 +52,10 @@ export function Hero() {
         setName("")
         setEmail("")
       } else {
-        // Handle all other errors
-        setError(errorMessage || "Something went wrong. Please try again.")
+        // Handle all other submission errors
+        setIsSubmissionError(true)
+        setName("")
+        setEmail("")
       }
     }
   }
@@ -116,6 +121,19 @@ bg-[#f0f2f7]
                     </p>
                     <p className="text-yellow-600 text-sm mt-1">
                       Thanks for your enthusiasm. We'll be in touch soon.
+                    </p>
+                  </div>
+                ) : isSubmissionError ? (
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-4 max-w-sm">
+                    <div className="flex items-center">
+                      <AlertTriangle className="w-5 h-5 text-red-700 mr-2" />
+                      <p className="text-red-800 font-medium">
+                        Oops! An error occurred.
+                      </p>
+                    </div>
+                    <p className="text-red-600 text-sm mt-1 pl-7">
+                      Something went wrong. Please refresh the page and try
+                      again.
                     </p>
                   </div>
                 ) : (
