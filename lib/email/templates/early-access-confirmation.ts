@@ -26,7 +26,7 @@ export const earlyAccessConfirmationTemplate = ({ name }: TemplateParams): strin
   <div class="container">
     <div class="header">
       <img 
-       src="https://nexdpm.com/logo.png"
+       src="https://nexdpm.com/landing/logo.png"
        alt="nexd.pm Logo" style="max-width: 150px; margin: 0 auto; display: block;">
     </div>
     <div class="content">
