@@ -20,7 +20,11 @@ export function useEarlyAccess() {
   const [
     createEarlyAccessUserMutation,
     { loading: mutationLoading, error: mutationError },
-  ] = useMutation(CREATE_EARLY_ACCESS_USER);
+  ] = useMutation(CREATE_EARLY_ACCESS_USER, {
+    // FIX: This policy ensures that if the server returns GraphQL errors,
+    // the mutation promise will be rejected, forcing execution into the catch block.
+    errorPolicy: 'none',
+  });
 
   const [
     getEarlyAccessUsersQuery,
@@ -28,7 +32,7 @@ export function useEarlyAccess() {
   ] = useLazyQuery<{ earlyAccessUsers: EarlyAccessUser[] }>(
     GET_EARLY_ACCESS_USERS,
     {
-      fetchPolicy: "network-only", // Always fetch the latest list from the server
+      fetchPolicy: 'network-only', // Always fetch the latest list from the server
     }
   );
 
@@ -57,9 +61,6 @@ export function useEarlyAccess() {
       } catch (err: any) {
         console.error("[useEarlyAccess][joinWaitlist] CATCH BLOCK: Full error object caught:", JSON.stringify(err, null, 2));
 
-        // FIX: Extract the specific GraphQL error message.
-        // Apollo Client places server-side GraphQL errors in the `graphQLErrors` array.
-        // The top-level `err.message` is often generic (e.g., "Response not successful").
         const specificErrorMessage =
           err.graphQLErrors && err.graphQLErrors.length > 0
             ? err.graphQLErrors[0].message
