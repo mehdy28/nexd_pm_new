@@ -14,8 +14,6 @@ interface GraphQLContext {
   decodedToken?: DecodedIdToken | null;
 }
 
-
-
 export const earlyAccessResolver = {
   Query: {
     earlyAccessUsers: async (_parent: unknown, _args: unknown, context: GraphQLContext) => {
@@ -47,7 +45,6 @@ export const earlyAccessResolver = {
         email: string;
       }
     ) => {
-
       const { name, email } = args;
 
       if (!name || name.trim().length < 2) {
@@ -60,7 +57,7 @@ export const earlyAccessResolver = {
 
       try {
         console.log(`Attempting to create early access user: ${email}`);
-        
+
         const newUser = await prisma.earlyAccessUser.create({
           data: {
             name: name.trim(),
@@ -78,17 +75,17 @@ export const earlyAccessResolver = {
 
         console.log(`Confirmation email function executed for user: ${newUser.email}`);
 
-
         return newUser;
       } catch (error: any) {
         console.error("Error in createEarlyAccessUser mutation:", error);
-        
+
         // Handle unique constraint violation for the email field
-        if (error.code === 'P2002' && error.meta?.target?.includes('email')) {
+        if (error.code === "P2002" && error.meta?.target?.includes("email")) {
           throw new UserInputError("This email is already on the waitlist.");
         }
-        
-        
+
+        // For any other error, throw a generic error to prevent returning null
+        throw new Error("An unexpected error occurred while creating the user.");
       }
     },
   },
