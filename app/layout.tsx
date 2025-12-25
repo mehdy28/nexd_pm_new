@@ -1,5 +1,4 @@
 // app/layout.tsx
-"use client";
 
 import type { Metadata } from "next";
 import type React from "react";
