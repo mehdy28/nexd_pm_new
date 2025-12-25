@@ -1,6 +1,5 @@
-// lib/email/index.ts
 import nodemailer, { SendMailOptions } from 'nodemailer';
-// Removed 'path' import as we are using a direct relative string path
+// Removed 'path' import as it's no longer needed
 import { workspaceInvitationTemplate } from './templates/workspace-invitation';
 import { emailConfirmationTemplate } from './templates/email-confirmation';
 import { passwordResetTemplate } from './templates/password-reset';
@@ -14,10 +13,7 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-// --- Constants ---
-// LOGO_CID constant removed as the CID is hardcoded in the attachment and templates.
-
-// --- Interfaces (Removed logoUrl dependency from relevant interfaces, assuming other template interfaces were similar) ---
+// --- Interfaces ---
 interface SendInvitationEmailParams {
   to: string;
   inviterName: string;
@@ -43,7 +39,7 @@ interface SendEarlyAccessConfirmationEmailParams {
 }
 
 
-// --- Helper Function for Base Mail Options (Handles Embedding) ---
+// --- Helper Function for Base Mail Options (No longer handles attachments) ---
 const createBaseMailOptions = (
   to: string,
   subject: string,
@@ -54,20 +50,12 @@ const createBaseMailOptions = (
     to,
     subject,
     html: htmlContent,
-    attachments: [
-      {
-        filename: 'nexdpm-logo.png',
-        path: './landing/logo.png', // Local path to the logo image (AS COMMANDED)
-        cid: 'logo.png', // The requested CID (AS COMMANDED)
-        contentDisposition: 'inline',
-        contentType: 'image/png',
-      },
-    ],
+    // FIX: Removed the attachments array entirely to prevent file system errors.
   };
 };
 
 
-// --- Exported Functions (Calling templates without logoUrl) ---
+// --- Exported Functions ---
 
 export const sendWorkspaceInvitationEmail = async ({
   to,
@@ -77,12 +65,9 @@ export const sendWorkspaceInvitationEmail = async ({
 }: SendInvitationEmailParams) => {
   const invitationLink = `${process.env.NEXT_PUBLIC_APP_URL}/accept-invitation?token=${token}`;
   
-  // Removed logoUrl usage
-
   const mailOptions = createBaseMailOptions(
     to,
     `You're invited to join ${workspaceName} on nexd.pm`,
-    // Assuming workspaceInvitationTemplate now takes only { inviterName, workspaceName, invitationLink }
     workspaceInvitationTemplate({ inviterName, workspaceName, invitationLink })
   );
 
@@ -102,12 +87,9 @@ export const sendEmailConfirmationEmail = async ({
 }: SendConfirmationEmailParams) => {
   const confirmationLink = `${process.env.NEXT_PUBLIC_APP_URL}/verify-email?token=${token}`;
   
-  // Removed logoUrl usage
-
   const mailOptions = createBaseMailOptions(
     to,
     'Confirm your nexd.pm account',
-    // Assuming emailConfirmationTemplate now takes only { firstName, confirmationLink }
     emailConfirmationTemplate({ firstName, confirmationLink })
   );
 
@@ -125,12 +107,9 @@ export const sendPasswordResetEmail = async ({
   firstName,
   resetLink,
 }: SendPasswordResetEmailParams) => {
-  // Removed logoUrl usage
-
   const mailOptions = createBaseMailOptions(
     to,
     'Reset your nexd.pm password',
-    // Assuming passwordResetTemplate now takes only { firstName, resetLink }
     passwordResetTemplate({ firstName, resetLink })
   );
 
@@ -147,12 +126,9 @@ export const sendEarlyAccessConfirmationEmail = async ({
   to,
   name,
 }: SendEarlyAccessConfirmationEmailParams) => {
-  // Removed logoUrl usage
-
   const mailOptions = createBaseMailOptions(
     to,
     "You're on the list for nexd.pm!",
-    // Using the updated template function signature
     earlyAccessConfirmationTemplate({ name })
   );
 

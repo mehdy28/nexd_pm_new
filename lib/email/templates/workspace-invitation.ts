@@ -28,8 +28,9 @@ export const workspaceInvitationTemplate = ({ inviterName, workspaceName, invita
 <body>
   <div class="container">
     <div class="header">
-      <img src="cid:logo.png" alt="nexd.pm Logo" style="max-width: 150px; margin: 0 auto; display: block;">
-    </div>
+      <img 
+       src="https://nexdpm.com/logo.png"
+       alt="nexd.pm Logo" style="max-width: 150px; margin: 0 auto; display: block;">    </div>
     <div class="content">
       <p>Hello,</p>
       <p><strong>${inviterName}</strong> has invited you to collaborate in the <strong>${workspaceName}</strong> workspace on nexd.pm.</p>

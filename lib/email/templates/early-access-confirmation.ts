@@ -1,4 +1,3 @@
-//lib/email/templates/early-access-confirmation.ts
 interface TemplateParams {
   name: string;
 }
@@ -27,7 +26,7 @@ export const earlyAccessConfirmationTemplate = ({ name }: TemplateParams): strin
   <div class="container">
     <div class="header">
       <img 
-       src="http://localhost:3000//landing/logo.png"
+       src="https://nexdpm.com/logo.png"
        alt="nexd.pm Logo" style="max-width: 150px; margin: 0 auto; display: block;">
     </div>
     <div class="content">

@@ -27,8 +27,9 @@ export const passwordResetTemplate = ({ firstName, resetLink }: TemplateParams):
 <body>
   <div class="container">
     <div class="header">
-      <img src="cid:logo.png" alt="nexd.pm Logo" style="max-width: 150px; margin: 0 auto; display: block;">
-    </div>
+      <img 
+       src="https://nexdpm.com/logo.png"
+       alt="nexd.pm Logo" style="max-width: 150px; margin: 0 auto; display: block;">    </div>
     <div class="content">
       <p>Hello <strong>${firstName}</strong>,</p>
       <p>We received a request to reset your password for your nexd.pm account. Click the button below to set a new password:</p>

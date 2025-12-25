@@ -27,8 +27,9 @@ export const emailConfirmationTemplate = ({ firstName, confirmationLink }: Templ
 <body>
   <div class="container">
     <div class="header">
-      <img src="cid:logo.png" alt="nexd.pm Logo" style="max-width: 150px; margin: 0 auto; display: block;">
-    </div>
+      <img 
+       src="https://nexdpm.com/logo.png"
+       alt="nexd.pm Logo" style="max-width: 150px; margin: 0 auto; display: block;">    </div>
     <div class="content">
       <p>Hello <strong>${firstName}</strong>,</p>
       <p>Thank you for signing up. Please confirm your email address to activate your account and start managing your projects.</p>
