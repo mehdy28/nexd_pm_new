@@ -1,4 +1,4 @@
-// pages/api/graphql.ts
+// app/api/graphql/route.ts
 
 import { ApolloServer } from '@apollo/server';
 import { startServerAndCreateNextHandler } from '@as-integrations/next';
@@ -7,10 +7,10 @@ import { makeExecutableSchema } from '@graphql-tools/schema';
 import { getAuth, DecodedIdToken } from 'firebase-admin/auth';
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
 
-import { typeDefs } from '../../graphql/schema';
-import { resolvers } from '../../graphql/resolvers';
-import { prisma } from '../../lib/prisma';
-import { pubsub } from '../../graphql/pubsub';
+import { typeDefs } from '../../../graphql/schema';
+import { resolvers } from '../../../graphql/resolvers';
+import { prisma } from '../../../lib/prisma';
+import { pubsub } from '../../../graphql/pubsub';
 
 // --- FIREBASE ADMIN INITIALIZATION ---
 if (!getApps().length) {
@@ -43,7 +43,7 @@ export interface MyContext {
   decodedToken?: DecodedIdToken | null;
 }
 
-export default startServerAndCreateNextHandler<NextRequest, MyContext>(server, {
+const handler = startServerAndCreateNextHandler<NextRequest, MyContext>(server, {
   context: async (req) => {
     const rawAuth = req.headers.get('authorization') || null;
     const token = typeof rawAuth === 'string' ? rawAuth.replace('Bearer ', '') : null;
@@ -74,3 +74,5 @@ export default startServerAndCreateNextHandler<NextRequest, MyContext>(server, {
     return { prisma, user, pubsub, decodedToken };
   },
 });
+
+export { handler as GET, handler as POST };
