@@ -1,7 +1,7 @@
 import { TaskStatus, Priority, ActivityType, $Enums } from "@prisma/client"
 import { v2 as cloudinary } from "cloudinary"
 import { GraphQLError } from "graphql"
-import { prisma } from "../../lib/prisma.js"
+import { prisma } from "@/lib/prisma"
 
 // Configure Cloudinary with environment variables
 cloudinary.config({

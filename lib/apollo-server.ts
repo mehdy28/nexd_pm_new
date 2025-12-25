@@ -7,7 +7,7 @@ import { resolvers } from "@/graphql/resolvers"
 import { db } from "@/lib/firebase"
 import { initializeApp, getApps, cert } from "firebase-admin/app"
 import { getAuth, DecodedIdToken } from "firebase-admin/auth"
-import { prisma } from "./prisma.js"
+import { prisma } from "@/lib/prisma"
 import { NextApiRequest } from "next"
 
 // Ensure Context is defined as before

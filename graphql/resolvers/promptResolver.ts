@@ -1,5 +1,5 @@
 import { GraphQLResolveInfo } from "graphql"
-import { prisma } from "../../lib/prisma.js"
+import { prisma } from "@/lib/prisma"
 import { type Prompt, type PromptVariable, type Version, Block } from "../../components/prompt-lab/store.js"
 import { Prisma } from "@prisma/client"
 

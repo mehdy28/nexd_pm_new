@@ -1,4 +1,4 @@
-import { prisma } from "../../../lib/prisma.js"
+import { prisma } from"@/lib/prisma"
 import { GraphQLError } from "graphql"
 import { Priority, TaskStatus } from "@prisma/client"
 

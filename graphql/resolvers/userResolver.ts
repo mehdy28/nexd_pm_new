@@ -1,8 +1,8 @@
-import { prisma } from "../../lib/prisma.js";
+import { prisma } from "@/lib/prisma";
 import { DecodedIdToken, getAuth as getAdminAuth } from "firebase-admin/auth";
 import { UserInputError, ForbiddenError } from "apollo-server-micro";
-import { getRandomAvatarColor } from "../../lib/avatar-colors.js";
-import { sendEmailConfirmationEmail, sendPasswordResetEmail } from "../../lib/email/index.js";
+import { getRandomAvatarColor } from "@/lib/avatar-colors";
+import { sendEmailConfirmationEmail, sendPasswordResetEmail } from "@/lib/email";
 import crypto from 'crypto';
 
 interface GraphQLContext {

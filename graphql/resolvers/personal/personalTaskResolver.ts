@@ -1,4 +1,4 @@
-import { prisma } from "../../../lib/prisma.js"
+import { prisma } from"@/lib/prisma"
 import { TaskStatus, Priority, ActivityType } from "@prisma/client"
 import { v2 as cloudinary } from "cloudinary"
 import { GraphQLError } from "graphql"

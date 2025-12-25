@@ -1,4 +1,4 @@
-import { prisma } from "../../lib/prisma.js";
+import { prisma } from "@/lib/prisma";
 import { TaskStatus, Priority, SprintStatus, ProjectStatus, ProjectRole } from "@prisma/client";
 import { GraphQLError } from "graphql";
 

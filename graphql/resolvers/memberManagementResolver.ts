@@ -1,6 +1,6 @@
-import { prisma } from "../../lib/prisma.js";
+import { prisma } from "@/lib/prisma";
 import { UserInputError, ForbiddenError } from 'apollo-server-micro';
-import { sendWorkspaceInvitationEmail } from "../../lib/email/index.js";
+import { sendWorkspaceInvitationEmail } from "@/lib/email";
 import crypto from 'crypto';
 import { WorkspaceRole, ProjectRole } from "@prisma/client";
 

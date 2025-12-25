@@ -1,14 +1,14 @@
 import { GraphQLError } from 'graphql';
 import { withFilter } from 'graphql-subscriptions';
-import { prisma } from '../../lib/prisma.js';
-import { pubsub, Topics } from '../../graphql/pubsub.js';
+import { prisma } from "@/lib/prisma";
+import { pubsub, Topics } from '@/graphql/pubsub';
 
 interface GraphQLContext {
   prisma: typeof prisma;
   user?: { id: string; email: string; role: string };
 }
 
-const MESSAGES_PAGE_SIZE = 30;
+const MESSAGES_PAGE_SIZE = 6;
 
 
 // Helper to check for admin privileges

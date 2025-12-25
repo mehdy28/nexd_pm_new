@@ -1,4 +1,4 @@
-import { prisma } from "../../lib/prisma.js";
+import { prisma } from "@/lib/prisma";
 import { UserInputError } from "apollo-server-micro";
 import { sendEarlyAccessConfirmationEmail } from "../../lib/email/index.js";
 import { DecodedIdToken } from "firebase-admin/auth";

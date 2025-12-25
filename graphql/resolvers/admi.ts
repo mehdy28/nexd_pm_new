@@ -15,7 +15,9 @@ import {
   startOfMonth,
   isValid,
 } from "date-fns"
-import { prisma } from "../../lib/prisma.js"
+import { prisma } from "@/lib/prisma";
+
+
 
 // ... (Helper functions like calculatePercentageChange, getPlanPrice remain the same) ...
 const calculatePercentageChange = (current: number, previous: number): { change: string; trend: "up" | "down" } => {

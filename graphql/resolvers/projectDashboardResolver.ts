@@ -1,6 +1,6 @@
 // graphql/resolvers/projectDashboardResolver.ts
 
-import { prisma } from "../../lib/prisma.js"
+import { prisma } from "@/lib/prisma"
 import { type TaskStatus, type Priority } from "@prisma/client"
 import { addDays, differenceInDays, format, isBefore, startOfDay } from "date-fns"
 

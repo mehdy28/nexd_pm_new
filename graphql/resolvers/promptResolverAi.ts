@@ -1,7 +1,7 @@
 import { GoogleGenerativeAI } from "@google/generative-ai"
 import { GraphQLError } from "graphql"
-import { prisma } from "../../lib/prisma.js"
-import { WHITEBOARD_TO_PROMPT_INSTRUCTIONS } from "../../lib/ai/instructions.js"
+import { prisma } from "@/lib/prisma"
+import { WHITEBOARD_TO_PROMPT_INSTRUCTIONS } from "@/lib/ai/instructions"
 
 // Define context shape based on your setup
 interface GraphQLContext {

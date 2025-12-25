@@ -1,7 +1,7 @@
 // graphql/resolvers/documentResolver.ts
 
 import { GraphQLError } from "graphql"
-import { prisma } from "../../lib/prisma.js"
+import { prisma } from "@/lib/prisma"
 import { Prisma } from "@prisma/client"
 import type { Block } from "@blocknote/core"
 

@@ -1,6 +1,6 @@
 // graphql/resolvers/sprintResolver.ts
-import { prisma } from "../../lib/prisma.js" // Using your specified import path
-import { SprintStatus, SprintUi } from "../../types/sprint.js" // Ensure this is present in your file
+import { prisma } from "@/lib/prisma" // Using your specified import path
+import { SprintStatus, SprintUi } from "@/types/sprint" // Ensure this is present in your file
 import { GraphQLError } from "graphql"
 
 // No longer need GraphQLContext as prisma is directly imported
