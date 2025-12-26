@@ -1,0 +1,63 @@
+# See https://www.robotstxt.org/robotstxt.html for documentation on how to use the robots.txt file
+#
+# Allow all crawlers access to public pages
+User-agent: *
+Allow: /
+Allow: /blog/
+Allow: /playbook-download/
+
+# Disallow crawlers from accessing private or sensitive routes
+Disallow: /account/
+Disallow: /admin-dashboard/
+Disallow: /admin-register/
+Disallow: /admin-support/
+Disallow: /early-access/
+Disallow: /home/
+Disallow: /messaging/
+Disallow: /model-profiles/
+Disallow: /my_tasks/
+Disallow: /project/
+Disallow: /setup/
+Disallow: /users/
+Disallow: /wireframes/
+Disallow: /workspace/
+Disallow: /accept-invitation/
+Disallow: /check-email/
+Disallow: /forgot-password/
+Disallow: /reset-password/
+Disallow: /verify-email/
+
+
+# Sitemap location
+Sitemap: https://nexdpm.com/sitemap.xml# See https://www.robotstxt.org/robotstxt.html for documentation on how to use the robots.txt file
+#
+# Allow all crawlers access to public pages
+User-agent: *
+Allow: /
+Allow: /blog/
+Allow: /playbook-download/
+
+# Disallow crawlers from accessing private or sensitive routes
+Disallow: /account/
+Disallow: /admin-dashboard/
+Disallow: /admin-register/
+Disallow: /admin-support/
+Disallow: /early-access/
+Disallow: /home/
+Disallow: /messaging/
+Disallow: /model-profiles/
+Disallow: /my_tasks/
+Disallow: /project/
+Disallow: /setup/
+Disallow: /users/
+Disallow: /wireframes/
+Disallow: /workspace/
+Disallow: /accept-invitation/
+Disallow: /check-email/
+Disallow: /forgot-password/
+Disallow: /reset-password/
+Disallow: /verify-email/
+
+
+# Sitemap location
+Sitemap: https://nexdpm.com/sitemap.xml
