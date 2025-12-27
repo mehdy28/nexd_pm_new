@@ -66,7 +66,7 @@ export function Hero() {
 bg-[#f0f2f7]
     "
     >
-      <div className="container px-1 md:px-1 mx-auto overflow-visible   ">
+      <div className="container px-1 py-3 md:px-1 mx-auto overflow-visible   ">
         <div className="grid lg:grid-cols-2 gap-3 items-center  ">
           {/* Left Content */}
           <div className="space-y-8  ">
