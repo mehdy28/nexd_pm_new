@@ -62,7 +62,7 @@ export function Hero() {
 
   return (
     <section
-      className="w-full pt-4 pb-8 md:pt-6 md:pb-16 lg:pt-8 lg:pb-20 
+      className="w-full pt-6 pb-6 md:pt-6 md:pb-16 lg:pt-8 lg:pb-20 
 bg-[#f0f2f7]
     "
     >
@@ -73,7 +73,8 @@ bg-[#f0f2f7]
             {/* Enhanced Headline */}
             <div className="space-y-4">
               <h1 className="text-4xl font-bold tracking-tight text-gray-900 sm:text-5xl md:text-6xl">
-              Where Your Project Becomes{" "}
+              Where Your{" "}
+              Project Becomes{" "}
                 <span className="bg-blue-600  bg-clip-text text-transparent">
                 The Prompt.
                 </span>{" "}
