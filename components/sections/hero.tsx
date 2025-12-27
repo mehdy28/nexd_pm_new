@@ -73,16 +73,16 @@ bg-[#f0f2f7]
             {/* Enhanced Headline */}
             <div className="space-y-4">
               <h1 className="text-4xl font-bold tracking-tight text-gray-900 sm:text-5xl md:text-6xl">
-                The First Ai-Powered{" "}
+              Where Your Project Becomes{" "}
                 <span className="bg-blue-600  bg-clip-text text-transparent">
-                  Project Management
+                The Prompt.
                 </span>{" "}
-                Solution
               </h1>
               <p className="text-xl text-gray-600 leading-relaxed max-w-2xl">
-                Be among the first to experience project management with{" "}
-                <strong>built-in Ai prompt management</strong>. Join our
-                exclusive waitlist and get early access when we launch.
+              The first project management solution that turns your live tasks, documents, and whiteboards into intelligent, data-driven AI prompts.
+              </p>
+              <p className="text-xl text-gray-600 leading-relaxed max-w-2xl">
+              <strong>Join our exclusive waitlist and get early access when we launch.</strong>.
               </p>
             </div>
 
@@ -90,15 +90,11 @@ bg-[#f0f2f7]
             <div className="flex flex-wrap gap-6 text-sm">
               <div className="flex items-center gap-2 text-gray-600">
                 <CheckCircle className="w-4 h-4 text-teal-600" />
-                Context-aware Ai prompts
+                Prompts that use live project data
               </div>
               <div className="flex items-center gap-2 text-gray-600">
                 <CheckCircle className="w-4 h-4 text-teal-600" />
-                Complete project suite
-              </div>
-              <div className="flex items-center gap-2 text-gray-600">
-                <CheckCircle className="w-4 h-4 text-teal-600" />
-                Team collaboration
+                All-in-one: Tasks, Docs, & Whiteboards
               </div>
             </div>
 
