@@ -62,28 +62,27 @@ export function Hero() {
 
   return (
     <section
-      className="w-full pt-6 pb-6 md:pt-6 md:pb-16 lg:pt-8 lg:pb-20 
+      className="w-full pt-4 pb-8 md:pt-6 md:pb-16 lg:pt-8 lg:pb-20 
 bg-[#f0f2f7]
     "
     >
-      <div className="container px-1 py-3 md:px-1 mx-auto overflow-visible   ">
+      <div className="container px-1 md:px-1 mx-auto overflow-visible   ">
         <div className="grid lg:grid-cols-2 gap-3 items-center  ">
           {/* Left Content */}
           <div className="space-y-8  ">
             {/* Enhanced Headline */}
             <div className="space-y-4">
               <h1 className="text-4xl font-bold tracking-tight text-gray-900 sm:text-5xl md:text-6xl">
-              Where Your{" "}
-              Project Becomes{" "}
+                The First Ai-Powered{" "}
                 <span className="bg-blue-600  bg-clip-text text-transparent">
-                The Prompt.
+                  Project Management
                 </span>{" "}
+                Solution
               </h1>
               <p className="text-xl text-gray-600 leading-relaxed max-w-2xl">
-              The first project management solution that turns your live tasks, documents, and whiteboards into intelligent, data-driven AI prompts.
-              </p>
-              <p className="text-xl text-gray-600 leading-relaxed max-w-2xl">
-              <strong>Join our exclusive waitlist and get early access when we launch.</strong>.
+                Be among the first to experience project management with{" "}
+                <strong>built-in Ai prompt management</strong>. Join our
+                exclusive waitlist and get early access when we launch.
               </p>
             </div>
 
@@ -91,11 +90,15 @@ bg-[#f0f2f7]
             <div className="flex flex-wrap gap-6 text-sm">
               <div className="flex items-center gap-2 text-gray-600">
                 <CheckCircle className="w-4 h-4 text-teal-600" />
-                Prompts that use live project data
+                Context-aware Ai prompts
               </div>
               <div className="flex items-center gap-2 text-gray-600">
                 <CheckCircle className="w-4 h-4 text-teal-600" />
-                All-in-one: Tasks, Docs, & Whiteboards
+                Complete project suite
+              </div>
+              <div className="flex items-center gap-2 text-gray-600">
+                <CheckCircle className="w-4 h-4 text-teal-600" />
+                Team collaboration
               </div>
             </div>
 
