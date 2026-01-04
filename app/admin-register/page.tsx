@@ -10,7 +10,8 @@ import { Label } from "@/components/ui/label";
 import { Eye, EyeOff, Check } from "lucide-react";
 import Image from "next/image";
 import { useToast } from "@/components/ui/use-toast";
-import { useAdminRegistration } from "@/hooks/useAuth"; // <-- Using the new hook
+import { useAdminRegistration } from "@/hooks/useAuth";
+import { cn } from "@/lib/utils";
 
 export default function AdminRegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
@@ -23,15 +24,16 @@ export default function AdminRegisterPage() {
     confirmPassword: "",
     agreeToTerms: false,
   });
+  const [emailError, setEmailError] = useState(false);
+  const [passwordError, setPasswordError] = useState(false);
 
-  // Use the dedicated admin registration hook
-  const { registerAdmin, loading, error: authError } = useAdminRegistration();
+  const { registerAdmin, loading } = useAdminRegistration();
   const { toast } = useToast();
-  // useRouter is not strictly needed here as the hook handles redirection, but kept for context consistency.
-  // const router = useRouter(); 
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setEmailError(false);
+    setPasswordError(false);
 
     if (formData.password !== formData.confirmPassword) {
       toast({
@@ -50,7 +52,6 @@ export default function AdminRegisterPage() {
     }
 
     try {
-      // Call the specialized function which hardcodes the 'ADMIN' role
       await registerAdmin(
         formData.email,
         formData.password,
@@ -59,11 +60,18 @@ export default function AdminRegisterPage() {
       );
 
     } catch (err: any) {
-      toast({
-        variant: "destructive",
-        title: "Admin Registration failed",
-        description: err.message || "An unexpected error occurred.",
-      });
+      const errorCode = err.code;
+      if (errorCode === 'auth/email-already-in-use') {
+        setEmailError(true);
+      } else if (errorCode === 'auth/weak-password') {
+        setPasswordError(true);
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Admin Registration failed",
+          description: "something went wrong pls try again later .",
+        });
+      }
     }
   };
 
@@ -73,7 +81,6 @@ export default function AdminRegisterPage() {
 
   return (
     <div className="flex min-h-screen">
-      {/* Left side: Background with Logo */}
       <div className="hidden lg:flex flex-col justify-center items-center w-1/2 bg-slate-800 p-8">
         <Link href="/" passHref>
           <div className="cursor-pointer">
@@ -83,7 +90,6 @@ export default function AdminRegisterPage() {
         <h2 className="mt-6 text-xl font-medium text-white text-center">Your all-in-one project management solution.</h2>
       </div>
 
-      {/* Right side: Register Form */}
       <div className="flex items-center justify-center w-full lg:w-1/2 bg-white p-2">
         <div className="w-full max-w-lg rounded-lg bg-white p-8 shadow-sm">
           <div className="flex flex-col items-center mb-8">
@@ -92,8 +98,6 @@ export default function AdminRegisterPage() {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {authError && <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-md">{authError}</div>}
-
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="firstName">First name</Label>
@@ -128,6 +132,7 @@ export default function AdminRegisterPage() {
                 value={formData.email}
                 onChange={(e) => handleInputChange("email", e.target.value)}
                 required
+                className={cn(emailError && "border-red-500 focus-visible:ring-red-500")}
                 //disabled={loading}
               />
             </div>
@@ -142,6 +147,7 @@ export default function AdminRegisterPage() {
                   value={formData.password}
                   onChange={(e) => handleInputChange("password", e.target.value)}
                   required
+                  className={cn(passwordError && "border-red-500 focus-visible:ring-red-500")}
                   //disabled={loading}
                 />
                 <Button
@@ -167,6 +173,7 @@ export default function AdminRegisterPage() {
                   value={formData.confirmPassword}
                   onChange={(e) => handleInputChange("confirmPassword", e.target.value)}
                   required
+                  className={cn(passwordError && "border-red-500 focus-visible:ring-red-500")}
                   //disabled={loading}
                 />
                 <Button

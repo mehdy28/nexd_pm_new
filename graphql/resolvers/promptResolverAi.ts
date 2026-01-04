@@ -4,11 +4,11 @@ import { prisma } from "@/lib/prisma"
 import { WHITEBOARD_TO_PROMPT_INSTRUCTIONS } from "@/lib/ai/instructions"
 
 // Define context shape based on your setup
-interface GraphQLContext {
-  prisma: typeof prisma
-  user?: { id: string; email: string; role: string }
-}
 
+interface GraphQLContext {
+  prisma: typeof prisma;
+  user?: { id: string; email: string; role: string };
+}
 // Ensure the API key is available
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GENAI_API_KEY || "")
 
@@ -77,11 +77,11 @@ const promptResolversAi = {
       context: GraphQLContext,
     ) => {
       // 1. Authentication Check
-      if (!context.user) {
-        throw new GraphQLError("You must be logged in to perform this action.", {
-          extensions: { code: "UNAUTHENTICATED" },
-        })
-      }
+      // if (!context.user) {
+      //   throw new GraphQLError("You must be logged in to perform this action.", {
+      //     extensions: { code: "UNAUTHENTICATED" },
+      //   })
+      // }
 
       const { imageBase64, context: userContext } = input
 
@@ -142,11 +142,11 @@ const promptResolversAi = {
       context: GraphQLContext,
     ) => {
       // 1. Authentication Check
-      if (!context.user) {
-        throw new GraphQLError("You must be logged in to perform this action.", {
-          extensions: { code: "UNAUTHENTICATED" },
-        })
-      }
+      // if (!context.user) {
+      //   throw new GraphQLError("You must be logged in to perform this action.", {
+      //     extensions: { code: "UNAUTHENTICATED" },
+      //   })
+      // }
 
       const { WhiteboardId, content, context: versionContext, variables: versionVariables, ...promptData } = input
 
@@ -313,11 +313,11 @@ const promptResolversAi = {
       context: GraphQLContext,
     ) => {
       // 1. Authentication Check
-      if (!context.user) {
-        throw new GraphQLError("You must be logged in to perform this action.", {
-          extensions: { code: "UNAUTHENTICATED" },
-        })
+      if (!context.user?.id) {
+        throw new Error("Authentication required: No user ID found in context.");
       }
+
+      const userId = context.user.id;
 
       const { promptId, versionId, content, modelProfileId } = input
 

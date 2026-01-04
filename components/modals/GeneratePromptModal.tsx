@@ -37,13 +37,11 @@ export const GeneratePromptModal: React.FC<GeneratePromptModalProps> = ({
   const { 
     generate, 
     loading: isGenerating, 
-    error: generateError 
   } = useGeneratePromptContent();
 
   const { 
     createPrompt, 
     loading: isCreating, 
-    error: createError 
   } = useCreatePrompt();
   
   const generationPhases = useMemo(() => ['Thinking', 'Analyzing Whiteboard', 'Generating Content'], []);
@@ -89,7 +87,7 @@ export const GeneratePromptModal: React.FC<GeneratePromptModalProps> = ({
       }
     } catch (err) {
       console.error("Failed to generate content:", err);
-      onShowToast("Failed to generate content", "error");
+      onShowToast("something went wrong pls try again later .", "error");
     }
   };
 
@@ -115,7 +113,7 @@ export const GeneratePromptModal: React.FC<GeneratePromptModalProps> = ({
       handleClose();
     } catch (e) {
       console.error("Failed to create prompt:", e);
-      onShowToast("Failed to create prompt", "error");
+      onShowToast("something went wrong pls try again later .", "error");
     }
   };
 
@@ -127,8 +125,6 @@ export const GeneratePromptModal: React.FC<GeneratePromptModalProps> = ({
   };
 
   if (!isOpen) return null;
-
-  const combinedError = generateError || createError;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm" onClick={handleClose}>
@@ -240,12 +236,6 @@ export const GeneratePromptModal: React.FC<GeneratePromptModalProps> = ({
             </div>
           </div>
         </div>
-
-        {combinedError && 
-          <div className="px-6 py-2 border-t">
-            <p className="text-red-600 text-sm">{combinedError.message}</p>
-          </div>
-        }
 
         <div className="p-4 bg-gray-50 border-t flex justify-end space-x-3">
           <button onClick={handleClose} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-100">

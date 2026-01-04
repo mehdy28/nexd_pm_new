@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -10,6 +11,7 @@ import { CheckCircle, Building, Rocket, Users, Globe, Settings, Loader2 } from "
 import { motion, AnimatePresence } from "framer-motion";
 import { useSetupFlow, industries, teamSizes, workFieldsOptions } from "@/hooks/useSetupFlow";
 import { useAuth } from "@/hooks/useAuth";
+import { useToast } from "@/components/ui/use-toast";
 
 const stepsData = [
   {
@@ -58,6 +60,7 @@ const cardVariants = {
 
 export default function SetupFlow() {
   const { currentUser, loading: authLoading, fetchMe } = useAuth();
+  const { toast } = useToast();
 
   const {
     currentStep,
@@ -71,6 +74,16 @@ export default function SetupFlow() {
     isSubmitting,
     submitError,
   } = useSetupFlow(currentUser?.id, fetchMe);
+
+  useEffect(() => {
+    if (submitError) {
+      toast({
+        variant: "destructive",
+        title: "Uh oh! Something went wrong.",
+        description: "something went wrong pls try again later .",
+      });
+    }
+  }, [submitError, toast]);
 
   const currentStepData = stepsData[currentStep - 1];
   const IconComponent = currentStepData.icon;
@@ -161,7 +174,7 @@ export default function SetupFlow() {
                     <CardTitle className="text-2xl text-balance">{currentStepData.title}</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-8 px-12 pb-12 flex-grow flex flex-col justify-between">
-                    <div>
+                    <div className={currentStep === 6 ? "flex-grow flex" : ""}>
                       {currentStep === 1 && (
                         <div className="space-y-6">
                           <div className="space-y-2">
@@ -292,7 +305,8 @@ export default function SetupFlow() {
                       )}
 
                       {currentStep === 6 && (
-                        <div className="text-center space-y-6">
+                        <div className="m-auto text-center space-y-6">
+                           <Image src="/logo1.png" alt="NEXD.PM" width={250} height={125} className="mx-auto object-contain mb-4" />
                           <div>
                             <h3 className="text-xl font-semibold mb-2">Welcome to {data.workspaceName}!</h3>
                             <p className="text-slate-600 text-pretty">
@@ -300,9 +314,6 @@ export default function SetupFlow() {
                               {data.projectName}.
                             </p>
                           </div>
-                          {submitError && (
-                            <p className="text-red-600 text-sm mt-4">{submitError}</p>
-                          )}
                         </div>
                       )}
                     </div>

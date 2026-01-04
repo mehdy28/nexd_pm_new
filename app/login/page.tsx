@@ -12,13 +12,16 @@ import Image from "next/image"
 import { useToast } from "@/components/ui/use-toast"
 import { useAuth } from "@/hooks/useAuth";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { cn } from "@/lib/utils"
 
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
+  const [emailError, setEmailError] = useState(false);
+  const [passwordError, setPasswordError] = useState(false);
   
-  const { login, loading: isLoading, error } = useAuth();
+  const { login, loading: isLoading } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
@@ -27,14 +30,23 @@ export default function LoginPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setEmailError(false);
+    setPasswordError(false);
     try {
       await login(email, password, invitationToken);
     } catch (err: any) {
-      toast({
-        variant: "destructive",
-        title: "Uh oh! Something went wrong.",
-        description: err.message || "Login failed.",
-      });
+      const errorCode = err.code;
+      if (errorCode === 'auth/email-already-in-use') {
+        setEmailError(true);
+      } else if (errorCode === 'auth/weak-password') {
+        setPasswordError(true);
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Uh oh! Something went wrong.",
+          description: "something went wrong pls try again later .",
+        });
+      }
     }
   };
   
@@ -67,8 +79,6 @@ export default function LoginPage() {
               </Alert>
             )}
 
-            {error && <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-md">{error}</div>}
-
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input
@@ -78,6 +88,7 @@ export default function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
+                className={cn(emailError && "border-red-500 focus-visible:ring-red-500")}
                 //disabled={isLoading}
               />
             </div>
@@ -92,6 +103,7 @@ export default function LoginPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
+                  className={cn(passwordError && "border-red-500 focus-visible:ring-red-500")}
                   //disabled={isLoading}
                 />
                 <Button

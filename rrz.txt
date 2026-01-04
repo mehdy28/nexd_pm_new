@@ -79,6 +79,3 @@ Start with image + clear directives using ### delimiters: "Analyze spatial layou
 Llama 3.1 Vision	
 Meta	
 Use for local deployment: "Step-by-step visual reasoning on images, extract entities/relations for SaaS prompts." Balances accuracy/portability for private vision tasks.
-
-
-
