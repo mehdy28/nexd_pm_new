@@ -24,7 +24,7 @@ export const earlyAccessConfirmationTemplate = ({ name }: TemplateParams): strin
       padding: 20px; 
       border: 1px solid #D8DDE1; /* Light Gray for borders */
       border-radius: 8px; 
-      background-color: #ffffff; /* White for the main content area */
+      background-color: #eeeff3; /* White for the main content area */
     }
     .header { 
       text-align: center; 
