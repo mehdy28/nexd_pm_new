@@ -11,7 +11,6 @@ export const workspaceInvitationTemplate = ({ inviterName, workspaceName, invita
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>You're invited to join ${workspaceName}</title>
   <style>
     /* Applied the nexd.pm color palette */
     body { 

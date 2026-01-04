@@ -10,7 +10,6 @@ export const emailConfirmationTemplate = ({ firstName, confirmationLink }: Templ
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Confirm your email</title>
   <style>
     /* Applied the nexd.pm color palette */
     body { 
