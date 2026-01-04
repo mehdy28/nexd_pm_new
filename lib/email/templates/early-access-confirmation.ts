@@ -9,7 +9,7 @@ export const earlyAccessConfirmationTemplate = ({ name }: TemplateParams): strin
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
-    /* Applied the nexd.pm color palette */
+    /* Applied the nexdpm color palette */
     body { 
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; 
       line-height: 1.6; 
@@ -24,7 +24,7 @@ export const earlyAccessConfirmationTemplate = ({ name }: TemplateParams): strin
       padding: 20px; 
       border: 1px solid #D8DDE1; /* Light Gray for borders */
       border-radius: 8px; 
-      background-color: #eeeff3; /* White for the main content area */
+      background-color: #ffffff; /* White for the main content area */
     }
     .header { 
       text-align: center; 
@@ -69,21 +69,23 @@ export const earlyAccessConfirmationTemplate = ({ name }: TemplateParams): strin
 <body>
   <div class="container">
     <div class="header">
-      <img 
-       src="https://nexdpm.com/landing/logo.png"
-       alt="nexd.pm Logo" style="max-width: 150px; margin: 0 auto; display: block;">
+      <a href="https://nexdpm.com" target="_blank" rel="noopener noreferrer">
+        <img 
+         src="https://nexdpm.com/landing/logo.png"
+         alt="nexdpm Logo" style="max-width: 150px; margin: 0 auto; display: block; border: 0;">
+      </a>
     </div>
     <div class="content">
       <p>Hello <strong>${name}</strong>,</p>
-      <p>Thank you for your interest in nexd.pm. We've successfully added you to our early access waitlist.</p>
+      <p>Thank you for your interest in <a href="https://nexdpm.com" target="_blank" rel="noopener noreferrer">nexdpm</a>. We've successfully added you to our early access waitlist.</p>
       <div class="highlight">
         <strong>You're all set!</strong>
       </div>
       <p>We're working hard to put the finishing touches on the first AI-powered project management platform. We'll send you an email as soon as we're ready for you to join.</p>
-      <p>Stay tuned,<br>The nexd.pm Team</p>
+      <p>Stay tuned,<br>The <a href="https://nexdpm.com" target="_blank" rel="noopener noreferrer">nexdpm</a> Team</p>
     </div>
     <div class="footer">
-      <p>You received this email because you signed up for the waitlist at nexd.pm.</p>
+      <p>You received this email because you signed up for the waitlist at <a href="https://nexdpm.com" target="_blank" rel="noopener noreferrer">nexdpm</a>.</p>
     </div>
   </div>
 </body>

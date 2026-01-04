@@ -11,7 +11,7 @@ export const passwordResetTemplate = ({ firstName, resetLink }: TemplateParams):
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
-    /* Applied the nexd.pm color palette */
+    /* Applied the nexdpm color palette */
     body { 
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; 
       line-height: 1.6; 
@@ -72,19 +72,22 @@ export const passwordResetTemplate = ({ firstName, resetLink }: TemplateParams):
 <body>
   <div class="container">
     <div class="header">
-      <img 
-       src="https://nexdpm.com/landing/logo.png"
-       alt="nexd.pm Logo" style="max-width: 150px; margin: 0 auto; display: block;">    </div>
+      <a href="https://nexdpm.com" target="_blank" rel="noopener noreferrer">
+        <img 
+         src="https://nexdpm.com/landing/logo.png"
+         alt="nexdpm Logo" style="max-width: 150px; margin: 0 auto; display: block; border: 0;">
+      </a>
+    </div>
     <div class="content">
       <p>Hello <strong>${firstName}</strong>,</p>
-      <p>We received a request to reset your password for your nexd.pm account. Click the button below to set a new password:</p>
+      <p>We received a request to reset your password for your nexdpm account. Click the button below to set a new password:</p>
       <div class="button-container">
-        <a href="${resetLink}" class="button">Reset Password</a>
+        <a href="${resetLink}" target="_blank" rel="noopener noreferrer" class="button">Reset Password</a>
       </div>
       <p>If you're having trouble with the button, copy and paste this link into your browser:</p>
-      <p><a href="${resetLink}" style="color: #678B99; text-decoration: underline; word-break: break-all;">${resetLink}</a></p>
+      <p><a href="${resetLink}" target="_blank" rel="noopener noreferrer" style="color: #678B99; text-decoration: underline; word-break: break-all;">${resetLink}</a></p>
       <p>This link will expire in 1 hour.</p>
-      <p>Thanks,<br>The nexd.pm Team</p>
+      <p>Thanks,<br>The <a href="https://nexdpm.com" target="_blank" rel="noopener noreferrer">nexdpm</a> Team</p>
     </div>
     <div class="footer">
       <p>If you did not request this, you can safely ignore this email.</p>

@@ -11,7 +11,7 @@ export const emailConfirmationTemplate = ({ firstName, confirmationLink }: Templ
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
-    /* Applied the nexd.pm color palette */
+    /* Applied the nexdpm color palette */
     body { 
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; 
       line-height: 1.6; 
@@ -72,19 +72,22 @@ export const emailConfirmationTemplate = ({ firstName, confirmationLink }: Templ
 <body>
   <div class="container">
     <div class="header">
-      <img 
-       src="https://nexdpm.com/landing/logo.png"
-       alt="nexd.pm Logo" style="max-width: 150px; margin: 0 auto; display: block;">    </div>
+      <a href="https://nexdpm.com" target="_blank" rel="noopener noreferrer">
+        <img 
+         src="https://nexdpm.com/landing/logo.png"
+         alt="nexdpm Logo" style="max-width: 150px; margin: 0 auto; display: block; border: 0;">
+      </a>
+    </div>
     <div class="content">
       <p>Hello <strong>${firstName}</strong>,</p>
       <p>Thank you for signing up. Please confirm your email address to activate your account and start managing your projects.</p>
       <div class="button-container">
-        <a href="${confirmationLink}" class="button">Confirm Email Address</a>
+        <a href="${confirmationLink}" target="_blank" rel="noopener noreferrer" class="button">Confirm Email Address</a>
       </div>
       <p>If you're having trouble with the button, you can copy and paste this link into your browser:</p>
-      <p><a href="${confirmationLink}" style="color: #678B99; text-decoration: underline; word-break: break-all;">${confirmationLink}</a></p>
+      <p><a href="${confirmationLink}" target="_blank" rel="noopener noreferrer" style="color: #678B99; text-decoration: underline; word-break: break-all;">${confirmationLink}</a></p>
       <p>This link will expire in 24 hours.</p>
-      <p>Thanks,<br>The nexd.pm Team</p>
+      <p>Thanks,<br>The <a href="https://nexdpm.com" target="_blank" rel="noopener noreferrer">nexdpm</a> Team</p>
     </div>
     <div class="footer">
       <p>If you did not create an account, you can safely ignore this email.</p>

@@ -12,7 +12,7 @@ export const workspaceInvitationTemplate = ({ inviterName, workspaceName, invita
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
-    /* Applied the nexd.pm color palette */
+    /* Applied the nexdpm color palette */
     body { 
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; 
       line-height: 1.6; 
@@ -73,21 +73,23 @@ export const workspaceInvitationTemplate = ({ inviterName, workspaceName, invita
 <body>
   <div class="container">
     <div class="header">
-      <img 
-       src="https://nexdpm.com/landing/logo.png"
-       alt="nexd.pm Logo" style="max-width: 150px; margin: 0 auto; display: block;">    
+      <a href="https://nexdpm.com" target="_blank" rel="noopener noreferrer">
+        <img 
+         src="https://nexdpm.com/landing/logo.png"
+         alt="nexdpm Logo" style="max-width: 150px; margin: 0 auto; display: block; border: 0;">
+      </a>
     </div>
     <div class="content">
       <p>Hello,</p>
-      <p><strong>${inviterName}</strong> has invited you to collaborate in the <strong>${workspaceName}</strong> workspace on nexd.pm.</p>
+      <p><strong>${inviterName}</strong> has invited you to collaborate in the <strong>${workspaceName}</strong> workspace on <a href="https://nexdpm.com" target="_blank" rel="noopener noreferrer">nexdpm</a>.</p>
       <p>Click the button below to accept your invitation. If you don't have an account, you'll be redirected to create one first.</p>
       <div class="button-container">
-        <a href="${invitationLink}" class="button">Accept Invitation & Join Workspace</a>
+        <a href="${invitationLink}" target="_blank" rel="noopener noreferrer" class="button">Accept Invitation & Join Workspace</a>
       </div>
       <p>If you're having trouble with the button, you can copy and paste this link into your browser:</p>
-      <p><a href="${invitationLink}" style="color: #678B99; text-decoration: underline; word-break: break-all;">${invitationLink}</a></p>
+      <p><a href="${invitationLink}" target="_blank" rel="noopener noreferrer" style="color: #678B99; text-decoration: underline; word-break: break-all;">${invitationLink}</a></p>
       <p>This invitation will expire in 7 days.</p>
-      <p>Thanks,<br>The nexd.pm Team</p>
+      <p>Thanks,<br>The <a href="https://nexdpm.com" target="_blank" rel="noopener noreferrer">nexdpm</a> Team</p>
     </div>
     <div class="footer">
       <p>If you did not expect this invitation, you can safely ignore this email.</p>
