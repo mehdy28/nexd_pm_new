@@ -18,7 +18,7 @@ export const workspaceInvitationTemplate = ({ inviterName, workspaceName, invita
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; 
       line-height: 1.6; 
       color: #222222; /* Dark Gray for main text */
-      background-color: #EFF1F3; /* Light Gray background */
+      background-color: #eeeff3; /* Light Gray background */
       margin: 0; 
       padding: 20px; /* Padding for mobile-friendliness */
     }
@@ -28,7 +28,7 @@ export const workspaceInvitationTemplate = ({ inviterName, workspaceName, invita
       padding: 20px; 
       border: 1px solid #D8DDE1; /* Light Gray for borders */
       border-radius: 8px; 
-      background-color: #FFFFFF; /* White for the main content area */
+      background-color: #eeeff3; /* White for the main content area */
     }
     .header { 
       text-align: center; 
@@ -75,7 +75,7 @@ export const workspaceInvitationTemplate = ({ inviterName, workspaceName, invita
   <div class="container">
     <div class="header">
       <img 
-       src="https://i.imgur.com/uG9xP1n.png"
+       src="https://nexdpm.com/landing/logo.png"
        alt="nexd.pm Logo" style="max-width: 150px; margin: 0 auto; display: block;">    
     </div>
     <div class="content">

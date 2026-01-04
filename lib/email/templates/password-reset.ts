@@ -17,7 +17,7 @@ export const passwordResetTemplate = ({ firstName, resetLink }: TemplateParams):
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; 
       line-height: 1.6; 
       color: #222222; /* Dark Gray for main text */
-      background-color: #EFF1F3; /* Light Gray background */
+      background-color: #eeeff3; /* Light Gray background */
       margin: 0; 
       padding: 20px; /* Padding for mobile-friendliness */
     }
@@ -27,7 +27,7 @@ export const passwordResetTemplate = ({ firstName, resetLink }: TemplateParams):
       padding: 20px; 
       border: 1px solid #D8DDE1; /* Light Gray for borders */
       border-radius: 8px; 
-      background-color: #FFFFFF; /* White for the main content area */
+      background-color: #eeeff3; /* White for the main content area */
     }
     .header { 
       text-align: center; 
