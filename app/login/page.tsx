@@ -36,9 +36,21 @@ export default function LoginPage() {
       await login(email, password, invitationToken);
     } catch (err: any) {
       const errorCode = err.code;
-      if (errorCode === 'auth/email-already-in-use') {
+      const errorMessage = err.message || "";
+
+      if (
+        errorCode === 'auth/user-not-found' ||
+        errorCode === 'auth/invalid-email' ||
+        errorMessage.includes('EMAIL_NOT_FOUND')
+      ) {
         setEmailError(true);
-      } else if (errorCode === 'auth/weak-password') {
+      } else if (
+        errorCode === 'auth/wrong-password' ||
+        errorMessage.includes('INVALID_PASSWORD')
+      ) {
+        setPasswordError(true);
+      } else if (errorCode === 'auth/invalid-credential') {
+        setEmailError(true);
         setPasswordError(true);
       } else {
         toast({

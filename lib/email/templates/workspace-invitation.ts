@@ -13,24 +13,71 @@ export const workspaceInvitationTemplate = ({ inviterName, workspaceName, invita
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>You're invited to join ${workspaceName}</title>
   <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #FCFBE5; background-color: #1E293B; margin: 0; padding: 0; }
-    .container { max-width: 600px; margin: 20px auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px; background-color: #1E293B; }
-    .header { text-align: center; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 1px solid #184B84; }
-    .content { text-align: left; }
-    .content p { margin-bottom: 1em; color: #FCFBE5; }
-    .content p strong { color: #184B84; } /* Important text */
-    .button-container { text-align: center; }
-    .button { display: inline-block; padding: 12px 24px; margin: 20px 0; background-color: #5F7C8A; color: #FCFBE5 !important; text-decoration: none; border-radius: 5px; font-weight: bold; }
-    .footer { text-align: center; margin-top: 20px; font-size: 0.8em; color: #FCFBE5; }
-    a { color: #184B84; } /* Links that are not buttons, considered important text */
+    /* Applied the nexd.pm color palette */
+    body { 
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; 
+      line-height: 1.6; 
+      color: #222222; /* Dark Gray for main text */
+      background-color: #EFF1F3; /* Light Gray background */
+      margin: 0; 
+      padding: 20px; /* Padding for mobile-friendliness */
+    }
+    .container { 
+      max-width: 600px; 
+      margin: 0 auto; 
+      padding: 20px; 
+      border: 1px solid #D8DDE1; /* Light Gray for borders */
+      border-radius: 8px; 
+      background-color: #FFFFFF; /* White for the main content area */
+    }
+    .header { 
+      text-align: center; 
+      margin-bottom: 20px; 
+      padding-bottom: 20px; 
+      border-bottom: 1px solid #D8DDE1; /* Light Gray divider */
+    }
+    .content { 
+      text-align: left; 
+    }
+    .content p { 
+      margin-bottom: 1em; 
+      color: #222222; 
+    }
+    .content p strong { 
+      color: #678B99; /* Slate Blue-Gray accent */
+    } 
+    .button-container { 
+      text-align: center; 
+    }
+    .button { 
+      display: inline-block; 
+      padding: 12px 24px; 
+      margin: 20px 0; 
+      background-color: #678B99; /* Slate Blue-Gray accent for button */
+      color: #FFFFFF !important; /* White text for button */
+      text-decoration: none; 
+      border-radius: 5px; 
+      font-weight: bold; 
+    }
+    .footer { 
+      text-align: center; 
+      margin-top: 20px; 
+      font-size: 0.8em; 
+      color: #6F6F6F; /* Medium Gray for less important text */
+    }
+    a { 
+      color: #678B99; /* Slate Blue-Gray for links */
+      text-decoration: none;
+    }
   </style>
 </head>
 <body>
   <div class="container">
     <div class="header">
       <img 
-       src="https://nexdpm.com/landing/logo.png"
-       alt="nexd.pm Logo" style="max-width: 150px; margin: 0 auto; display: block;">    </div>
+       src="https://i.imgur.com/uG9xP1n.png"
+       alt="nexd.pm Logo" style="max-width: 150px; margin: 0 auto; display: block;">    
+    </div>
     <div class="content">
       <p>Hello,</p>
       <p><strong>${inviterName}</strong> has invited you to collaborate in the <strong>${workspaceName}</strong> workspace on nexd.pm.</p>
@@ -39,7 +86,7 @@ export const workspaceInvitationTemplate = ({ inviterName, workspaceName, invita
         <a href="${invitationLink}" class="button">Accept Invitation & Join Workspace</a>
       </div>
       <p>If you're having trouble with the button, you can copy and paste this link into your browser:</p>
-      <p><a href="${invitationLink}" style="color: #184B84;">${invitationLink}</a></p>
+      <p><a href="${invitationLink}" style="color: #678B99; text-decoration: underline; word-break: break-all;">${invitationLink}</a></p>
       <p>This invitation will expire in 7 days.</p>
       <p>Thanks,<br>The nexd.pm Team</p>
     </div>

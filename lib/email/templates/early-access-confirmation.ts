@@ -10,16 +10,61 @@ export const earlyAccessConfirmationTemplate = ({ name }: TemplateParams): strin
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>You're on the list!</title>
   <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #FCFBE5; background-color: #1E293B; margin: 0; padding: 0; }
-    .container { max-width: 600px; margin: 20px auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px; background-color: #1E293B; }
-    .header { text-align: center; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 1px solid #184B84; }
-    .content { text-align: left; }
-    .content p { margin-bottom: 1em; color: #FCFBE5; }
-    .content p strong { color: #184B84; } /* Important text */
-    .highlight { font-size: 1.2em; text-align: center; margin: 25px 0; padding: 15px; background-color: #1E293B; border-left: 4px solid #184B84; color: #FCFBE5; }
-    .highlight strong { color: #184B84; }
-    .footer { text-align: center; margin-top: 20px; font-size: 0.8em; color: #FCFBE5; }
-    a { color: #184B84; }
+    /* Applied the nexd.pm color palette */
+    body { 
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; 
+      line-height: 1.6; 
+      color: #222222; /* Dark Gray for main text */
+      background-color: #EFF1F3; /* Light Gray background */
+      margin: 0; 
+      padding: 20px; /* Padding for mobile-friendliness */
+    }
+    .container { 
+      max-width: 600px; 
+      margin: 0 auto; 
+      padding: 20px; 
+      border: 1px solid #D8DDE1; /* Light Gray for borders */
+      border-radius: 8px; 
+      background-color: #FFFFFF; /* White for the main content area */
+    }
+    .header { 
+      text-align: center; 
+      margin-bottom: 20px; 
+      padding-bottom: 20px; 
+      border-bottom: 1px solid #D8DDE1; /* Light Gray divider */
+    }
+    .content { 
+      text-align: left; 
+    }
+    .content p { 
+      margin-bottom: 1em;
+      color: #222222; 
+    }
+    .content p strong { 
+      color: #678B99; /* Slate Blue-Gray accent */
+    } 
+    .highlight { 
+      font-size: 1.2em; 
+      text-align: center; 
+      margin: 25px 0; 
+      padding: 15px; 
+      background-color: #EFF1F3; /* Background color to match the body */
+      border-left: 4px solid #678B99; /* Slate Blue-Gray accent */
+      color: #222222; 
+    }
+    .highlight strong { 
+      color: #678B99; /* Slate Blue-Gray accent */
+    }
+    .footer { 
+      text-align: center; 
+      margin-top: 20px; 
+      font-size: 0.8em; 
+      color: #6F6F6F; /* Medium Gray for less important text */
+    }
+    a { 
+      color: #678B99; /* Slate Blue-Gray for links */
+      text-decoration: none;
+    }
   </style>
 </head>
 <body>

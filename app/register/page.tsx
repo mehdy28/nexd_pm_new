@@ -58,9 +58,11 @@ export default function RegisterPage() {
       );
     } catch (err: any) {
       const errorCode = err.code;
-      if (errorCode === 'auth/email-already-in-use') {
+      const errorMessage = err.message || "";
+
+      if (errorCode === 'auth/email-already-in-use' || errorMessage.includes('EMAIL_EXISTS')) {
         setEmailError(true);
-      } else if (errorCode === 'auth/weak-password') {
+      } else if (errorCode === 'auth/weak-password' || errorMessage.includes('WEAK_PASSWORD')) {
         setPasswordError(true);
       } else {
         toast({
