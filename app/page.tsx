@@ -227,9 +227,9 @@ export default function Page() {
               <Image
                 src="/landingpage/logo.png"
                 alt="nexd.pm"
-                width={200}
-                height={60}
-                className="h-12 w-auto animate-fade-in-scale"
+                width={267}
+                height={80}
+                className="h-20 w-auto animate-fade-in-scale"
                 priority
               />
               <div className="absolute inset-0 bg-gradient-to-r from-teal-400/30 to-cyan-400/30 blur-2xl animate-pulse-glow" />
