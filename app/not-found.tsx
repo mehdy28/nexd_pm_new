@@ -24,7 +24,15 @@ export default function NotFound() {
         </p>
         <Link
           href="/"
-          className="mt-8 inline-flex items-center justify-center rounded-lg bg-[#2563EB] px-5 py-3 text-base font-medium text-white shadow-sm transition-colors hover:bg-[#1D4ED8] focus:outline-none focus:ring-2 focus:ring-[#2563EB] focus:ring-offset-2"
+          className="mt-8 
+          inline-flex items-center 
+          justify-center rounded-lg 
+          bg-teal-600 hover:bg-teal-700 text-white px-5 py-3  
+           shadow-sm 
+          transition-colors 
+          focus:outline-none focus:ring-2 
+          font-semibold
+          focus:ring-[#2563EB] focus:ring-offset-2"
         >
           Go back home
         </Link>
@@ -32,3 +40,4 @@ export default function NotFound() {
     </main>
   );
 }
+
