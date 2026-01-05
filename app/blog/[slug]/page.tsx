@@ -1,30 +1,48 @@
-import { getBlogPost, getRelatedPosts, getAllBlogPosts } from "@/lib/blog"
-import { Badge } from "@/components/ui/badge"
-import { Card, CardContent } from "@/components/ui/card"
-import { Calendar, Clock, User, ArrowLeft } from "lucide-react"
-import Image from "next/image"
-import Link from "next/link"
-import { notFound } from "next/navigation"
-import ReactMarkdown from "react-markdown"
-import { WaitlistForm } from "@/components/blog/waitlist-form"
+//app/blog/[slug]/page.tsx
+import {
+  getBlogPost,
+  getRelatedPosts,
+  getAllBlogPosts,
+} from "@/lib/blog";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Calendar, Clock, User, ArrowLeft } from "lucide-react";
+import Image from "next/image";
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import ReactMarkdown from "react-markdown";
+import { WaitlistForm } from "@/components/blog/waitlist-form";
 import { Header } from "@/components/sections/header"
 
-export async function generateStaticParams() {
-  const posts = await getAllBlogPosts()
-  return posts.map((post) => ({
-    slug: post.slug,
-  }))
+interface BlogPostPageProps {
+  params: Promise<{
+    slug: string;
+  }>;
 }
 
-export default async function BlogPostPage({ params }: { params: { slug: string } }) {
-  const { slug } = params
-  const post = await getBlogPost(slug)
+
+export async function generateStaticParams() {
+  const posts = await getAllBlogPosts();
+  return posts.map((post) => ({
+    slug: post.slug,
+  }));
+}
+
+export default async function BlogPostPage({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}) {
+  const { slug } = await params;
+  const post = await getBlogPost(slug);
 
   if (!post) {
-    notFound()
+    notFound();
   }
 
-  const relatedPosts = await getRelatedPosts(post.slug, post.tags)
+
+  const relatedPosts = await getRelatedPosts(post.slug, post.tags);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-teal-50/30">
