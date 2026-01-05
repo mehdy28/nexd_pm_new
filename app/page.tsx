@@ -246,8 +246,7 @@ export default function Page() {
           </h1>
 
           <p className="text-lg md:text-xl text-slate-600 mb-12 max-w-3xl mx-auto leading-relaxed animate-fade-up animation-delay-200">
-            Transform your project management into intelligent AI prompts. Seamlessly blend task orchestration with
-            prompt engineering to unlock unprecedented collaboration and productivity.
+          The first PM platform where your live project data powers your AI. Automate reports, generate tasks, and unlock insights in seconds.
           </p>
 
           <div className="flex justify-center animate-bounce-slow animation-delay-1000">
@@ -391,7 +390,7 @@ export default function Page() {
               The First Prompt Engine Powered by Your Live Work.
             </h2>
             <p className="text-xl text-slate-600 max-w-3xl mx-auto leading-relaxed">
-              Stop copy-pasting context. Our intelligent variables query your project data in real-time.
+            Our intelligent engine connects directly to your tasks, documents, and diagrams, giving your prompts perfect, real-time context.
             </p>
           </div>
 
@@ -424,11 +423,10 @@ export default function Page() {
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-20">
             <h2 className="text-5xl md:text-6xl font-bold text-slate-900 mb-6">
-              Turn Strategy into Action, Instantly.
+              From Visual Idea to Actionable Prompt.
             </h2>
             <p className="text-xl text-slate-600 max-w-3xl mx-auto leading-relaxed">
-              Don't let your best ideas get lost in translation. Convert entire whiteboard sessions into perfectly
-              structured, context-aware AI directives with a single click.
+            Turn your whiteboard sessions, system diagrams, and user flows directly into intelligent prompts. Stop translating; start generating.
             </p>
           </div>
 
