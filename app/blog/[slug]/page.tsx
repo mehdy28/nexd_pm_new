@@ -145,7 +145,7 @@ export default async function BlogPostPage({
 
           {/* Waitlist CTA */}
           <div className="mt-16" id="waitlist-form">
-            <WaitlistForm variant="full" />
+            <WaitlistForm variant="cta" />
           </div>
 
           {/* Related Posts */}
