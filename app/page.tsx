@@ -50,23 +50,23 @@ import { ArrowRight, CheckCircle2, ChevronDown } from "lucide-react"
 
 const viewContent = {
   "prompt-lab": {
-    src: "/landing/prompt-lab-clean.png",
+    src: "/landingpage/prompt--lab.png",
     alt: "Prompt Lab Interface",
   },
   "whiteboard": {
-    src: "/landing/whiteboard-clean.png",
+    src: "/landingpage/whiteboard-view.png",
     alt: "Whiteboard Interface",
   },
   "kanban": {
-    src: "/landing/kanban-view.png",
+    src: "/landingpage/kanban-view.png",
     alt: "Kanban Board View",
   },
   "list": {
-    src: "/landing/list-view.png",
+    src: "/landingpage/list-view.png",
     alt: "List View",
   },
   "document": {
-    src: "/landing/document-view.png",
+    src: "/landingpage/document-view.png",
     alt: "Document View",
   },
 }
@@ -208,7 +208,7 @@ export default function Page() {
           }}
         >
           <div className="flex items-center gap-2">
-            <Image src="/landing/logo1.png" alt="nexd.pm" width={100} height={30} className="h-6 w-auto" />
+            <Image src="/landingpage/logo.png" alt="nexd.pm" width={100} height={30} className="h-6 w-auto" />
           </div>
 
           {scrollY <= 100 && (
@@ -430,7 +430,7 @@ export default function Page() {
               style={{ transitionDelay: liveDataVisible ? "200ms" : "0ms" }}
             >
               <Image
-                src="/landing/prompt-lab-full.png"
+                src="/landingpage/prompt-lab-full.png"
                 alt="Prompt Lab with Variable Builder"
                 width={1600}
                 height={900}
@@ -467,7 +467,7 @@ export default function Page() {
               style={{ transitionDelay: liveDataVisible ? "200ms" : "0ms" }}
             >
               <Image
-                src="/landing/whiteboard-prompt.png"
+                src="/landingpage/whiteboard-prompt.png"
                 alt="Whiteboard Feature Request Funnel"
                 width={1600}
                 height={900}
@@ -612,7 +612,7 @@ export default function Page() {
           <div className="mb-12 flex justify-center">
             <div className="relative">
               <Image
-                src="/landing/logo1.png"
+                src="/landingpage/logo.png"
                 alt="nexd.pm"
                 width={200}
                 height={60}
@@ -668,7 +668,7 @@ export default function Page() {
       <footer className="border-t border-slate-200 py-12 px-4">
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="flex items-center gap-2">
-            <Image src="/landing/logo1.png" alt="nexd.pm" width={100} height={30} className="h-6 w-auto" />
+            <Image src="/landingpage/logo.png" alt="nexd.pm" width={100} height={30} className="h-6 w-auto" />
             <span className="text-slate-600 text-sm">© 2025 nexd.pm. All rights reserved.</span>
           </div>
           <div className="flex items-center gap-8">
