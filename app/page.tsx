@@ -47,7 +47,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import Image from "next/image"
 import { ArrowRight, CheckCircle2, ChevronDown } from "lucide-react"
-
+import { WaitlistForm } from "@/components/blog/waitlist-form"
 const viewContent = {
   "prompt-lab": {
     src: "/landingpage/prompt--lab.png",
@@ -601,68 +601,10 @@ export default function Page() {
         </div>
       </section>
 
-      {/* Section 5: Final Call to Action */}
-      <section id="waitlist" className="py-32 px-4 relative overflow-hidden">
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[900px] h-[900px] bg-gradient-to-r from-teal-400/30 to-cyan-400/30 rounded-full blur-[120px] animate-pulse-slow" />
-        </div>
 
-        <div className="max-w-4xl mx-auto text-center relative z-10">
-          {/* Logo */}
-          <div className="mb-12 flex justify-center">
-            <div className="relative">
-              <Image
-                src="/landingpage/logo.png"
-                alt="nexd.pm"
-                width={200}
-                height={60}
-                className="h-16 w-auto animate-fade-in-scale"
-              />
-              <div className="absolute inset-0 bg-gradient-to-r from-teal-400/30 to-cyan-400/30 blur-2xl animate-pulse-glow" />
-            </div>
-          </div>
+            <WaitlistForm variant="cta" />
 
-          <h2 className="text-5xl md:text-6xl lg:text-7xl font-black text-slate-900 mb-6 text-balance">
-            This is the Nexd-Level Prompt Management.
-          </h2>
-
-          <p className="text-xl md:text-2xl text-slate-600 mb-12 max-w-2xl mx-auto leading-relaxed">
-            The waitlist is now open for teams who want to build, not just prompt.
-          </p>
-
-          <form onSubmit={handleSubmit} className="max-w-lg mx-auto">
-            <div className="flex flex-col gap-4">
-              <div className="flex flex-col sm:flex-row gap-4">
-                <Input
-                  type="text"
-                  placeholder="Enter your name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  required
-                  className="flex-1 h-12 px-6 text-base border-2 border-slate-300 focus:border-teal-500 rounded-full"
-                />
-                <Button
-                  type="submit"
-                  size="lg"
-                  className="bg-teal-600 hover:bg-teal-700 text-white rounded-full px-8 h-12 font-semibold whitespace-nowrap"
-                >
-                  Join Waitlist
-                </Button>
-              </div>
-              <Input
-                type="email"
-                placeholder="Enter your email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                className="h-12 px-6 text-base border-2 border-slate-300 focus:border-teal-500 rounded-full"
-              />
-            </div>
-          </form>
-
-          <p className="text-sm text-slate-500 mt-6">No spam. We'll only reach out when we're ready to launch.</p>
-        </div>
-      </section>
+      
 
       {/* Footer */}
       <footer className="border-t border-slate-200 py-12 px-4">
