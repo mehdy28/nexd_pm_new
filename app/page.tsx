@@ -1,43 +1,3 @@
-// app/page.tsx
-// "use client"
-// import { Header } from "@/components/sections/header"
-// import { Hero } from "@/components/sections/hero"
-// import { EarlyAccess } from "@/components/sections/early-access"
-// import { WaitlistCTA } from "@/components/sections/waitlist-cta"
-// import { Footer } from "@/components/sections/footer"
-// import { NewAllInOneHub } from "@/components/sections/1all-in-one-hub"
-// import { TheSolution } from "@/components/sections/the-solution"
-
-
-
-// export default function WaitlistLandingPage() {
-//   return (
-//     <div className="flex flex-col min-h-screen bg-white">
-//       <Header />
-//       <main className="flex-1">
-//         <section id="hero">
-//           <Hero />
-//         </section>
-//         <section id="features">
-//           <NewAllInOneHub />
-//         </section>
-//         <section id="ai-prompts">
-//           <TheSolution />
-//         </section>
-//         <section id="community">
-//           <EarlyAccess />
-//         </section>
-//         <section id="join-waitlist">
-//           <WaitlistCTA />
-//         </section>
-//       </main>
-//       <Footer />
-//     </div>
-//   )
-// }
-
-
-
 "use client"
 
 import type React from "react"
@@ -262,6 +222,19 @@ export default function Page() {
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[600px] bg-gradient-to-r from-teal-400/30 to-cyan-400/30 rounded-full blur-[140px] animate-pulse-slow" />
 
         <div className="max-w-5xl mx-auto text-center relative z-10">
+          <div className="mb-8 flex justify-center">
+            <div className="relative">
+              <Image
+                src="/landingpage/logo.png"
+                alt="nexd.pm"
+                width={200}
+                height={60}
+                className="h-12 w-auto animate-fade-in-scale"
+                priority
+              />
+              <div className="absolute inset-0 bg-gradient-to-r from-teal-400/30 to-cyan-400/30 blur-2xl animate-pulse-glow" />
+            </div>
+          </div>
           <h1 className="text-6xl md:text-7xl lg:text-8xl font-black tracking-tight mb-6 text-slate-900 text-balance leading-[1.1] animate-fade-up">
             Where Your Project <br />
             <span className="relative inline-block">
@@ -601,8 +574,8 @@ export default function Page() {
         </div>
       </section>
 
-
-            <WaitlistForm variant="cta" />
+      {/* Section 5: Final Call to Action */}
+       <WaitlistForm variant="cta" />
 
       
 
