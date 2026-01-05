@@ -430,7 +430,7 @@ export default function Page() {
               style={{ transitionDelay: liveDataVisible ? "200ms" : "0ms" }}
             >
               <Image
-                src="/landingpage/prompt-lab-full.png"
+                src="/landingpage/prompt-lab.png"
                 alt="Prompt Lab with Variable Builder"
                 width={1600}
                 height={900}
