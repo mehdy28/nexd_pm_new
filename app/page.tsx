@@ -218,7 +218,7 @@ export default function Page() {
       </nav>
 
       {/* Section 1: Hero */}
-      <section className="pt-40 pb-32 px-4 relative overflow-hidden">
+      <section className="pt-32 pb-40 px-4 relative overflow-hidden">
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[600px] bg-gradient-to-r from-teal-400/30 to-cyan-400/30 rounded-full blur-[140px] animate-pulse-slow" />
 
         <div className="max-w-5xl mx-auto text-center relative z-10">
