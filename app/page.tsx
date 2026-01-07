@@ -168,7 +168,7 @@ export default function Page() {
           }}
         >
           <div className="flex items-center gap-2">
-            <Image src="/landingpage/logo.png" alt="nexd.pm" width={100} height={30} className="h-6 w-auto" />
+            <Image src="/landingpage/logo.png" alt="nexd.pm" width={120} height={60} className="h-6 w-auto" />
           </div>
 
           {scrollY <= 100 && (
@@ -227,8 +227,8 @@ export default function Page() {
               <Image
                 src="/landingpage/logo.png"
                 alt="nexd.pm"
-                width={267}
-                height={80}
+                width={350}
+                height={100}
                 className="h-20 w-auto animate-fade-in-scale"
                 priority
               />
