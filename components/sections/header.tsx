@@ -74,7 +74,6 @@
 
 
 
-
 "use client"
 
 import type React from "react"
@@ -116,7 +115,13 @@ export function Header() {
       >
         <div className="flex items-center gap-2">
           <Link href="/">
-            <Image src="/landingpage/logo.png" alt="nexd.pm" width={160} height={68} className="h-8 w-auto" />
+            <Image
+              src="/landingpage/logo.png"
+              alt="nexd.pm"
+              width={160}
+              height={68}
+              className="h-8 w-[75.3px]"
+            />
           </Link>
         </div>
 
