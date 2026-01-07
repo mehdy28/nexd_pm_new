@@ -229,7 +229,7 @@ export default function Page() {
                 alt="nexd.pm"
                 width={500}
                 height={220}
-                className="h-37 w-auto animate-fade-in-scale"
+                className="h-30 w-auto animate-fade-in-scale"
                 priority
               />
               <div className="absolute inset-0 bg-gradient-to-r from-teal-400/30 to-cyan-400/30 blur-2xl animate-pulse-glow" />
