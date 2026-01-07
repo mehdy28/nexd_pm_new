@@ -116,7 +116,7 @@ export function Header() {
       >
         <div className="flex items-center gap-2">
           <Link href="/">
-            <Image src="/landingpage/logo.png" alt="nexd.pm" width={100} height={30} className="h-6 w-auto" />
+            <Image src="/landingpage/logo.png" alt="nexd.pm" width={160} height={68} className="h-8 w-auto" />
           </Link>
         </div>
 

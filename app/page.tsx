@@ -1,4 +1,4 @@
-"use client"
+ "use client"
 
 import type React from "react"
 
@@ -168,7 +168,7 @@ export default function Page() {
           }}
         >
           <div className="flex items-center gap-2">
-            <Image src="/landingpage/logo.png" alt="nexd.pm" width={120} height={60} className="h-6 w-auto" />
+            <Image src="/landingpage/logo.png" alt="nexd.pm" width={160} height={68} className="h-8 w-auto" />
           </div>
 
           {scrollY <= 100 && (
@@ -227,9 +227,9 @@ export default function Page() {
               <Image
                 src="/landingpage/logo.png"
                 alt="nexd.pm"
-                width={350}
-                height={100}
-                className="h-20 w-auto animate-fade-in-scale"
+                width={470}
+                height={200}
+                className="h-28 w-auto animate-fade-in-scale"
                 priority
               />
               <div className="absolute inset-0 bg-gradient-to-r from-teal-400/30 to-cyan-400/30 blur-2xl animate-pulse-glow" />
