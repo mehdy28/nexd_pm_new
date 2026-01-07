@@ -1,4 +1,4 @@
- "use client"
+"use client"
 
 import type React from "react"
 
@@ -227,9 +227,9 @@ export default function Page() {
               <Image
                 src="/landingpage/logo.png"
                 alt="nexd.pm"
-                width={500}
-                height={220}
-                className="h-23 w-auto animate-fade-in-scale"
+                width={470}
+                height={200}
+                className="h-28 w-auto animate-fade-in-scale"
                 priority
               />
               <div className="absolute inset-0 bg-gradient-to-r from-teal-400/30 to-cyan-400/30 blur-2xl animate-pulse-glow" />
@@ -581,8 +581,8 @@ export default function Page() {
       <footer className="border-t border-slate-200 py-12 px-4">
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="flex items-center gap-2">
-          <Image src="/landingpage/logo.png" alt="nexd.pm" width={160} height={68} className="h-8 w-auto" />
-          <span className="text-slate-600 text-sm">© 2026 nexd.pm. All rights reserved.</span>
+            <Image src="/landingpage/logo.png" alt="nexd.pm" width={100} height={30} className="h-6 w-auto" />
+            <span className="text-slate-600 text-sm">© 2025 nexd.pm. All rights reserved.</span>
           </div>
           <div className="flex items-center gap-8">
             <a href="#" className="text-sm text-slate-600 hover:text-teal-600 transition-colors">
