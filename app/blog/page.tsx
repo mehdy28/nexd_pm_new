@@ -1,3 +1,5 @@
+// app/blog/page.tsx
+import { Metadata } from 'next';
 import { getAllBlogPosts, getMostPopularPosts } from "@/lib/blog"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
@@ -6,6 +8,16 @@ import Image from "next/image"
 import Link from "next/link"
 import { WaitlistForm } from "@/components/blog/waitlist-form"
 import { Header } from "@/components/sections/header"
+
+// Add this metadata object for the blog index page
+export const metadata: Metadata = {
+  title: 'Blog',
+  description: 'Read the latest articles, insights, and updates on project management from the Nexdpm team.',
+  alternates: {
+    // This resolves to https://nexdpm.com/blog
+    canonical: '/blog',
+  },
+};
 
 export default async function BlogPage() {
   const posts = await getAllBlogPosts()
