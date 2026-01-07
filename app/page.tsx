@@ -6,7 +6,7 @@ import HomeClient from '@/components/landing/home-client';
 // This metadata object provides the canonical URL for the homepage
 export const metadata: Metadata = {
   // You can set a more specific title for the homepage here if you wish
-  title: 'Nexdpm | Where Your Project Becomes the Prompt',
+  title: 'Nexdpm',
   alternates: {
     // This resolves to https://nexdpm.com/
     canonical: '/', 
