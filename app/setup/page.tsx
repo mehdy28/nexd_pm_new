@@ -306,7 +306,7 @@ export default function SetupFlow() {
 
                       {currentStep === 6 && (
                         <div className="m-auto text-center space-y-6">
-                           <Image src="/logo1.png" alt="NEXD.PM" width={250} height={125} className="mx-auto object-contain mb-4" />
+                           <Image src="/landingpage/logo.png" alt="NEXD.PM" width={250} height={125} className="mx-auto object-contain mb-4" />
                           <div>
                             <h3 className="text-xl font-semibold mb-2">Welcome to {data.workspaceName}!</h3>
                             <p className="text-slate-600 text-pretty">

@@ -71,7 +71,7 @@ export const earlyAccessConfirmationTemplate = ({ name }: TemplateParams): strin
     <div class="header">
       <a href="https://nexdpm.com" target="_blank" rel="noopener noreferrer">
         <img 
-         src="https://nexdpm.com/landing/logo.png"
+         src="https://nexdpm.com/landingpage/logo.png"
          alt="nexdpm Logo" style="max-width: 150px; margin: 0 auto; display: block; border: 0;">
       </a>
     </div>

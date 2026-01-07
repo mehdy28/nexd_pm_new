@@ -8,7 +8,7 @@ export default function NotFound() {
     <main className="flex min-h-screen flex-col items-center justify-center bg-[#F7F9FC] p-6 text-center">
       <div className="max-w-md">
         <Image
-          src="/landing/logo.png"
+          src="/landingpage/logo.png"
           alt="Nexd.pm Logo"
           width={128}
           height={32}
