@@ -71,19 +71,19 @@ function buildMonthMatrix(current: Date) {
 }
 
 const seed: Task[] = [
-  { id: "t-1", title: "Create a new card design", date: "2025-06-19", priority: "MEDIUM" },
-  { id: "t-2", title: "This", date: "2025-06-06", priority: "LOW" }, // Adjusted date to match image
-  { id: "t-3", title: "Is", date: "2025-06-05", priority: "HIGH" }, // Adjusted date to match image
-  { id: "t-4", title: "Random", date: "2025-06-20", priority: "LOW" },
-  { id: "t-5", title: "The TASK", date: "2025-06-21", priority: "MEDIUM" },
-  { id: "t-6", title: "Random task", date: "2025-06-22", priority: "HIGH" },
-  { id: "t-7", title: "Another random task", date: "2025-06-23", priority: "LOW" },
-  { id: "t-8", title: "Create a new feed page", date: "2025-06-30", priority: "MEDIUM" },
-  { id: "t-9", title: "TASK", date: "2025-06-24", priority: "HIGH" },
-  { id: "t-10", title: ":D", date: "2025-06-24", priority: "LOW" },
-  { id: "t-11", title: "Create Whiteboard system", date: "2025-06-24", priority: "MEDIUM" },
-  { id: "t-12", title: "Create the kanban board", date: "2025-06-24", priority: "HIGH" },
-  { id: "t-13", title: "Invitation system", date: "2025-06-24", priority: "LOW" },
+  { id: "t-1", title: "Create a new card design", date: "2026-06-19", priority: "MEDIUM" },
+  { id: "t-2", title: "This", date: "2026-06-06", priority: "LOW" }, // Adjusted date to match image
+  { id: "t-3", title: "Is", date: "2026-06-05", priority: "HIGH" }, // Adjusted date to match image
+  { id: "t-4", title: "Random", date: "2026-06-20", priority: "LOW" },
+  { id: "t-5", title: "The TASK", date: "2026-06-21", priority: "MEDIUM" },
+  { id: "t-6", title: "Random task", date: "2026-06-22", priority: "HIGH" },
+  { id: "t-7", title: "Another random task", date: "2026-06-23", priority: "LOW" },
+  { id: "t-8", title: "Create a new feed page", date: "2026-06-30", priority: "MEDIUM" },
+  { id: "t-9", title: "TASK", date: "2026-06-24", priority: "HIGH" },
+  { id: "t-10", title: ":D", date: "2026-06-24", priority: "LOW" },
+  { id: "t-11", title: "Create Whiteboard system", date: "2026-06-24", priority: "MEDIUM" },
+  { id: "t-12", title: "Create the kanban board", date: "2026-06-24", priority: "HIGH" },
+  { id: "t-13", title: "Invitation system", date: "2026-06-24", priority: "LOW" },
 ]
 
 interface CalendarViewProps {
@@ -91,8 +91,8 @@ interface CalendarViewProps {
 }
 
 export function CalendarView({ projectId }: CalendarViewProps) {
-  // Use a specific date for initial load that matches the screenshot, e.g., June 2025
-  const [anchor, setAnchor] = useState<Date>(new Date(2025, 5, 1)) // June 1, 2025
+  // Use a specific date for initial load that matches the screenshot, e.g., June 2026
+  const [anchor, setAnchor] = useState<Date>(new Date(2026, 5, 1)) // June 1, 2026
   const [view, setView] = useState<ViewMode>("month")
   const [tasks, setTasks] = useState<Task[]>(seed)
   const [daySheetDate, setDaySheetDate] = useState<string | null>(null)

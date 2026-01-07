@@ -45,11 +45,11 @@ export function WorkspacePreview({ workspaceTitle, projectTitle, viewType, templ
                   <div className="space-y-2">
                     <div className="bg-white p-2 rounded border text-xs">
                       <div className="font-medium">Create a new feed page</div>
-                      <div className="text-gray-500 mt-1">Due: 05/31/2025</div>
+                      <div className="text-gray-500 mt-1">Due: 05/31/2026</div>
                     </div>
                     <div className="bg-white p-2 rounded border text-xs">
                       <div className="font-medium">Create a new card design</div>
-                      <div className="text-gray-500 mt-1">Due: 05/19/2025</div>
+                      <div className="text-gray-500 mt-1">Due: 05/19/2026</div>
                     </div>
                   </div>
                 </div>
@@ -60,7 +60,7 @@ export function WorkspacePreview({ workspaceTitle, projectTitle, viewType, templ
                   <div className="space-y-2">
                     <div className="bg-white p-2 rounded border text-xs">
                       <div className="font-medium">Setup project structure</div>
-                      <div className="text-gray-500 mt-1">Due: 05/25/2025</div>
+                      <div className="text-gray-500 mt-1">Due: 05/25/2026</div>
                     </div>
                   </div>
                 </div>
@@ -156,7 +156,7 @@ export function WorkspacePreview({ workspaceTitle, projectTitle, viewType, templ
                       <span>Farah Farouk</span>
                     </div>
                   </div>
-                  <div className="col-span-3 text-center text-xs text-gray-600">05/31/2025</div>
+                  <div className="col-span-3 text-center text-xs text-gray-600">05/31/2026</div>
                 </div>
 
                 <div className="grid grid-cols-12 gap-3 items-center py-2 hover:bg-gray-50 rounded">
@@ -175,7 +175,7 @@ export function WorkspacePreview({ workspaceTitle, projectTitle, viewType, templ
                       <span>Farah Farouk</span>
                     </div>
                   </div>
-                  <div className="col-span-3 text-center text-xs text-gray-600">05/19/2025</div>
+                  <div className="col-span-3 text-center text-xs text-gray-600">05/19/2026</div>
                 </div>
               </div>
             </div>

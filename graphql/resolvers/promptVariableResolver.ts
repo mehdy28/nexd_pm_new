@@ -183,7 +183,7 @@ const promptVariableResolver = {
                  value = context.user!.id;
              } else if (condition.specialValue === SpecialFilterValue.TODAY || condition.specialValue === SpecialFilterValue.NOW) {
                  // Use ISO string to ensure consistent comparison across Date and String fields in DB
-                 // and prevent implicit string conversion issues (e.g. "Fri Nov..." > "2025...")
+                 // and prevent implicit string conversion issues (e.g. "Fri Nov..." > "2026...")
                  value = new Date().toISOString();
              } else if (condition.specialValue === SpecialFilterValue.ACTIVE_SPRINT) {
                  // Future: Async lookup for active sprint ID
