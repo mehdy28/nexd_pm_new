@@ -69,7 +69,7 @@ export function Sidebar() {
   return (
     <aside className="fixed inset-y-0 left-0 w-20 bg-[#19222d] border-r border-gray-700 shadow-strong z-30 flex flex-col items-center justify-between py-6">
       <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-transparent shadow-medium hover:shadow-strong transition-all duration-200 hover:scale-105 overflow-hidden">
-        <Image src="/square_logo.png" alt="NEXD.PM" width={62} height={62} className="object-contain" />
+        <Image src="/square_logo.jpg" alt="NEXD.PM" width={62} height={62} className="object-contain" />
       </div>
 
       <nav className="flex flex-col gap-4">
