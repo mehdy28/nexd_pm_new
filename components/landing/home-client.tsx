@@ -33,8 +33,6 @@ const viewContent = {
 }
 
 export default function HomeClient() {
-  console.log("HomeClient component is rendering.")
-
   const [scrollY, setScrollY] = useState(0)
   const [email, setEmail] = useState("")
   const [name, setName] = useState("")
@@ -48,17 +46,6 @@ export default function HomeClient() {
   const liveDataRef = useRef<HTMLDivElement>(null)
   const whiteboardRef = useRef<HTMLDivElement>(null)
   const viewsRef = useRef<HTMLDivElement>(null)
-  const logoContainerRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    console.log("HomeClient component has mounted.")
-    if (logoContainerRef.current) {
-      console.log(
-        "Initial logo container dimensions on mount:",
-        logoContainerRef.current.getBoundingClientRect(),
-      )
-    }
-  }, [])
 
   useEffect(() => {
     const handleScroll = () => {
@@ -164,20 +151,6 @@ export default function HomeClient() {
     setActiveView(newView)
   }
 
-  const handleImageLoad = (img: HTMLImageElement) => {
-    console.log("Logo image has finished loading.")
-    console.log("Image natural dimensions:", {
-      width: img.naturalWidth,
-      height: img.naturalHeight,
-    })
-    if (logoContainerRef.current) {
-      console.log(
-        "Logo container dimensions after image load:",
-        logoContainerRef.current.getBoundingClientRect(),
-      )
-    }
-  }
-
   const [problemVisible, setProblemVisible] = useState(false)
   const [liveDataVisible, setLiveDataVisible] = useState(false)
   const [whiteboardVisible, setWhiteboardVisible] = useState(false)
@@ -194,15 +167,14 @@ export default function HomeClient() {
 
         <div className="max-w-5xl mx-auto text-center relative z-10">
           <div className="mb-8 flex justify-center">
-            <div className="relative" ref={logoContainerRef}>
+            <div className="relative">
               <Image
                 src="/landingpage/logo.png"
                 alt="nexd.pm"
-                width={470}
-                height={200}
+                width={1584}
+                height={392}
                 className="h-28 w-auto animate-fade-in-scale"
                 priority
-                onLoadingComplete={handleImageLoad}
               />
               <div className="absolute inset-0 bg-gradient-to-r from-teal-400/30 to-cyan-400/30 blur-2xl animate-pulse-glow" />
             </div>
