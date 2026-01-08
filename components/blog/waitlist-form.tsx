@@ -82,8 +82,8 @@ export function WaitlistForm({ variant = "full" }: WaitlistFormProps) {
               <Image
                 src="/landingpage/logo.png"
                 alt="nexd.pm"
-                width={500}
-                height={220}
+                width={1584}
+                height={392}
                 className="h-32 w-auto animate-fade-in-scale"
               />
               <div className="absolute inset-0 bg-gradient-to-r from-teal-400/30 to-cyan-400/30 blur-2xl animate-pulse-glow" />

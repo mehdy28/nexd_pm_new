@@ -10,8 +10,8 @@ export default function NotFound() {
         <Image
           src="/landingpage/logo.png"
           alt="Nexd.pm Logo"
-          width={128}
-          height={32}
+          width={1584}
+          height={392}
           className="mx-auto mb-10"
           priority
         />

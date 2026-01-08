@@ -527,7 +527,7 @@ export default function HomeClient() {
       <footer className="border-t border-slate-200 py-12 px-4">
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="flex items-center gap-2">
-            <Image src="/landingpage/logo.png" alt="nexd.pm" width={100} height={30} className="h-6 w-auto" />
+            <Image src="/landingpage/logo.png" alt="nexd.pm" width={1584} height={392} className="h-6 w-auto" />
             <span className="text-slate-600 text-sm">© 2026 nexd.pm. All rights reserved.</span>
           </div>
           <div className="flex items-center gap-8">
