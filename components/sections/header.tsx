@@ -70,26 +70,52 @@
 
 
 
-
-
 "use client"
 
 import type React from "react"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 
 export function Header() {
   const [scrollY, setScrollY] = useState(0)
+  const [showLinks, setShowLinks] = useState(true)
+
+  const isCompact = scrollY > 100
+  const hasMounted = useRef(false)
 
   useEffect(() => {
     const handleScroll = () => {
       setScrollY(window.scrollY)
     }
+    // Set initial scroll position on mount
+    handleScroll()
     window.addEventListener("scroll", handleScroll)
     return () => window.removeEventListener("scroll", handleScroll)
   }, [])
+
+  useEffect(() => {
+    // On initial mount, sync the link visibility without a delay
+    if (!hasMounted.current) {
+      setShowLinks(!isCompact)
+      hasMounted.current = true
+      return
+    }
+
+    // When becoming compact, hide links immediately
+    if (isCompact) {
+      setShowLinks(false)
+    } else {
+      // When becoming expanded, show links after the container's animation
+      const timer = setTimeout(() => {
+        setShowLinks(true)
+      }, 500) // This must match the `duration-500` class
+
+      // Clean up the timer if the user scrolls back down before it fires
+      return () => clearTimeout(timer)
+    }
+  }, [isCompact])
 
   const scrollToSection = (id: string) => {
     const element = document.getElementById(id)
@@ -113,11 +139,11 @@ export function Header() {
       >
         <div className="flex items-center gap-2">
           <Link href="/">
-            <Image src="/landingpage/logo.png" alt="nexd.pm" width={160} height={68} className="h-8 w-20" />
+            <Image src="/landingpage/logo.png" alt="nexd.pm" width={160} height={68} className="h-8 w-auto" />
           </Link>
         </div>
 
-        {scrollY <= 100 && (
+        {showLinks && (
           <div className="hidden md:flex items-center gap-8">
             <Link href="/#problem" className="text-sm font-medium text-slate-700 hover:text-teal-600 transition-colors">
               Problem
