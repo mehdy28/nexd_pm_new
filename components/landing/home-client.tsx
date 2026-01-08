@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input"
 import Image from "next/image"
 import { ArrowRight, CheckCircle2, ChevronDown } from "lucide-react"
 import { WaitlistForm } from "@/components/blog/waitlist-form"
+import { Header } from "../sections/header"
 const viewContent = {
   "prompt-lab": {
     src: "/landingpage/prompt--lab.png",
@@ -159,64 +160,7 @@ export default function HomeClient() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-teal-50/30">
       {/* Floating Navigation */}
-      <nav className="fixed top-0 left-1/2 -translate-x-1/2 z-50 pt-4 px-4 w-full max-w-full">
-        <div
-          className={`rounded-full border border-teal-200/60 bg-white/95 backdrop-blur-2xl shadow-xl transition-all duration-500 mx-auto px-6 py-3 flex items-center justify-between animate-fade-down ${
-            scrollY > 100 ? "max-w-md" : "max-w-4xl"
-          }`}
-          style={{
-            boxShadow: "0 8px 32px rgba(20, 184, 166, 0.15)",
-          }}
-        >
-          <div className="flex items-center gap-2">
-            <Image src="/landingpage/logo.png" alt="nexd.pm" width={160} height={68} className="h-8 w-auto" />
-          </div>
-
-          {scrollY <= 100 && (
-            <div className="hidden md:flex items-center gap-8">
-              <button
-                onClick={() => scrollToSection("problem")}
-                className="text-sm font-medium text-slate-700 hover:text-teal-600 transition-colors"
-              >
-                Problem
-              </button>
-              <button
-                onClick={() => scrollToSection("solution")}
-                className="text-sm font-medium text-slate-700 hover:text-teal-600 transition-colors"
-              >
-                Solution
-              </button>
-              <button
-                onClick={() => scrollToSection("features")}
-                className="text-sm font-medium text-slate-700 hover:text-teal-600 transition-colors"
-              >
-                Features
-              </button>
-              <button
-                onClick={() => scrollToSection("views")}
-                className="text-sm font-medium text-slate-700 hover:text-teal-600 transition-colors"
-              >
-                Views
-              </button>
-              <a
-                href="/blog"
-                className="text-sm font-medium text-slate-700 hover:text-teal-600 transition-colors"
-              >
-                Blog
-              </a>
-            </div>
-          )}
-
-          <Button
-            size="sm"
-            onClick={() => scrollToSection("waitlist")}
-            className="bg-teal-600 hover:bg-teal-700 text-white rounded-full px-6 h-9"
-          >
-            <span className="hidden sm:inline">Join Our Waitlist</span>
-            <span className="sm:hidden">Join</span>
-          </Button>
-        </div>
-      </nav>
+<Header />
 
       {/* Section 1: Hero */}
       <section className="pt-32 pb-40 px-4 relative overflow-hidden">
