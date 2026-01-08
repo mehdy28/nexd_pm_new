@@ -1,4 +1,3 @@
-// app/home-client.tsx
 "use client"
 
 import type React from "react"
@@ -34,6 +33,8 @@ const viewContent = {
 }
 
 export default function HomeClient() {
+  console.log("HomeClient component is rendering.")
+
   const [scrollY, setScrollY] = useState(0)
   const [email, setEmail] = useState("")
   const [name, setName] = useState("")
@@ -47,6 +48,17 @@ export default function HomeClient() {
   const liveDataRef = useRef<HTMLDivElement>(null)
   const whiteboardRef = useRef<HTMLDivElement>(null)
   const viewsRef = useRef<HTMLDivElement>(null)
+  const logoContainerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    console.log("HomeClient component has mounted.")
+    if (logoContainerRef.current) {
+      console.log(
+        "Initial logo container dimensions on mount:",
+        logoContainerRef.current.getBoundingClientRect(),
+      )
+    }
+  }, [])
 
   useEffect(() => {
     const handleScroll = () => {
@@ -152,6 +164,20 @@ export default function HomeClient() {
     setActiveView(newView)
   }
 
+  const handleImageLoad = (img: HTMLImageElement) => {
+    console.log("Logo image has finished loading.")
+    console.log("Image natural dimensions:", {
+      width: img.naturalWidth,
+      height: img.naturalHeight,
+    })
+    if (logoContainerRef.current) {
+      console.log(
+        "Logo container dimensions after image load:",
+        logoContainerRef.current.getBoundingClientRect(),
+      )
+    }
+  }
+
   const [problemVisible, setProblemVisible] = useState(false)
   const [liveDataVisible, setLiveDataVisible] = useState(false)
   const [whiteboardVisible, setWhiteboardVisible] = useState(false)
@@ -160,7 +186,7 @@ export default function HomeClient() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-teal-50/30">
       {/* Floating Navigation */}
-<Header />
+      <Header />
 
       {/* Section 1: Hero */}
       <section className="pt-32 pb-40 px-4 relative overflow-hidden">
@@ -168,7 +194,7 @@ export default function HomeClient() {
 
         <div className="max-w-5xl mx-auto text-center relative z-10">
           <div className="mb-8 flex justify-center">
-            <div className="relative">
+            <div className="relative" ref={logoContainerRef}>
               <Image
                 src="/landingpage/logo.png"
                 alt="nexd.pm"
@@ -176,6 +202,7 @@ export default function HomeClient() {
                 height={200}
                 className="h-28 w-auto animate-fade-in-scale"
                 priority
+                onLoadingComplete={handleImageLoad}
               />
               <div className="absolute inset-0 bg-gradient-to-r from-teal-400/30 to-cyan-400/30 blur-2xl animate-pulse-glow" />
             </div>
@@ -191,7 +218,8 @@ export default function HomeClient() {
           </h1>
 
           <p className="text-lg md:text-xl text-slate-600 mb-12 max-w-3xl mx-auto leading-relaxed animate-fade-up animation-delay-200">
-          The first PM platform where your live project data powers your AI. Automate reports, generate tasks, and unlock insights in seconds.
+            The first PM platform where your live project data powers your AI. Automate reports, generate tasks, and
+            unlock insights in seconds.
           </p>
 
           <div className="flex justify-center animate-bounce-slow animation-delay-1000">
@@ -335,7 +363,8 @@ export default function HomeClient() {
               The First Prompt Engine Powered by Your Live Work.
             </h2>
             <p className="text-xl text-slate-600 max-w-3xl mx-auto leading-relaxed">
-            Our intelligent engine connects directly to your tasks, documents, and diagrams, giving your prompts perfect, real-time context.
+              Our intelligent engine connects directly to your tasks, documents, and diagrams, giving your prompts
+              perfect, real-time context.
             </p>
           </div>
 
@@ -371,7 +400,8 @@ export default function HomeClient() {
               From Visual Idea to Actionable Prompt.
             </h2>
             <p className="text-xl text-slate-600 max-w-3xl mx-auto leading-relaxed">
-            Turn your whiteboard sessions, system diagrams, and user flows directly into intelligent prompts. Stop translating; start generating.
+              Turn your whiteboard sessions, system diagrams, and user flows directly into intelligent prompts. Stop
+              translating; start generating.
             </p>
           </div>
 
@@ -391,7 +421,6 @@ export default function HomeClient() {
               />
             </div>
           </div>
-
 
           <p className="text-lg text-slate-600 max-w-3xl mx-auto text-center leading-relaxed mt-16">
             Go from brainstorming to execution in seconds. Your visual plan becomes a text-based command instantly.
@@ -452,7 +481,9 @@ export default function HomeClient() {
               <button
                 onClick={() => changeView("document")}
                 className={`px-6 py-3 rounded-full font-medium transition-all text-base whitespace-nowrap ${
-                  activeView === "document" ? "bg-teal-600 text-white shadow-lg" : "text-slate-600 hover:text-slate-900"
+                  activeView === "document"
+                    ? "bg-teal-600 text-white shadow-lg"
+                    : "text-slate-600 hover:text-slate-900"
                 }`}
               >
                 Document
@@ -518,9 +549,7 @@ export default function HomeClient() {
       </section>
 
       {/* Section 5: Final Call to Action */}
-       <WaitlistForm variant="cta" />
-
-      
+      <WaitlistForm variant="cta" />
 
       {/* Footer */}
       <footer className="border-t border-slate-200 py-12 px-4">
