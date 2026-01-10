@@ -1,4 +1,4 @@
-// app/page.tsx (or any other page you want to test from)
+// 15/page.tsx (or any other page you want to test from)
 import ErrorTrigger from '@/components/ErrorTrigger'; // Adjust the import path if needed
 
 export default function HomePage() {
