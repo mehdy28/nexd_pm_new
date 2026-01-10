@@ -24,7 +24,7 @@ export default function Error({
           alt="Nexd.pm Logo"
           width={1584}
           height={392}
-          className="mx-auto mb-10 w-48" // Adjusted width for display
+          className="mx-auto mb-10"
           priority
         />
         <h1 className="text-6xl font-bold text-[#b91c1c]">Oops!</h1> {/* Red color for error */}
