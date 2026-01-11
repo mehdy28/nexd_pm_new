@@ -31,7 +31,7 @@ export function Navigation() {
         }}
       >
         <div className="flex items-center gap-2">
-          <Image src="/landingpage/logo.png" alt="nexd.pm" width={1584} height={392} className="h-6 w-auto" />
+          <Image src="/landingpage/logo.png" alt="nexd.pm" width={1584} height={424} className="h-6 w-auto" />
         </div>
 
         {scrollY <= 100 && (
