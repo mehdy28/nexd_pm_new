@@ -14,7 +14,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Pencil,
   Trash2,
@@ -27,14 +26,7 @@ import {
   ActivityIcon,
   X,
   PlusCircle,
-  Bold,
-  Italic,
-  Underline,
-  List,
   ListOrdered,
-  AlignLeft,
-  AlignCenter,
-  AlignRight,
   Paperclip,
   FileText,
   FileCode,
@@ -59,6 +51,7 @@ import { UserAvatarPartial } from "@/types/useProjectTasksAndSections";
 import { useTaskDetails } from "@/hooks/useTaskDetails";
 import { ActivityUI, CommentUI } from "@/types/taskDetails";
 import type { TaskStatus } from "@prisma/client";
+import { SimpleEditor } from "@/components/tiptap-templates/simple/simple-editor";
 
 // Define generic types that work for both personal and project tasks
 type PriorityUI = "LOW" | "MEDIUM" | "HIGH";
@@ -135,7 +128,6 @@ const formatDateForInput = (isoDateString: string | null | undefined): string =>
   try {
     const date = new Date(isoDateString);
     if (isNaN(date.getTime())) return "";
-    // Extracts the YYYY-MM-DD part from the ISO string
     return date.toISOString().slice(0, 10);
   } catch (error) {
     return ""; // Return empty string on error
@@ -147,13 +139,11 @@ const getDownloadableUrl = (url: string) => {
       if (url.includes('/raw/') || url.toLowerCase().endsWith('.pdf')) {
         return url;
     }
-
     const parts = url.split('/upload/');
     if (parts.length === 2) {
-        // fl_attachment flag tells Cloudinary to send Content-Disposition header
         return `${parts[0]}/upload/fl_attachment/${parts[1]}`;
     }
-    return url; // Return original URL if format is unexpected
+    return url;
 };
 
 interface TaskDetailSheetProps {
@@ -180,7 +170,6 @@ export function TaskDetailSheet({
   const [commentToDelete, setCommentToDelete] = useState<CommentUI | null>(null);
   const [deleteTaskModalOpen, setDeleteTaskModalOpen] = useState(false);
 
-  const descriptionContentEditableRef = useRef<HTMLDivElement>(null);
   const customCommentModalRef = useRef<HTMLDivElement>(null);
   const customTaskModalRef = useRef<HTMLDivElement>(null);
   const loadedTaskIdRef = useRef<string | null>(null);
@@ -196,32 +185,27 @@ export function TaskDetailSheet({
     isMutating: isTaskDetailsMutating,
   } = useTaskDetails(sheetTask?.taskId || null);
 
-  // Sync local state with taskDetails, but only reset fully when the task ID changes to avoid overwriting user edits.
   useEffect(() => {
     if (taskDetails && loadedTaskIdRef.current !== taskDetails.id) {
         setEditingTaskLocal(taskDetails);
         setActiveTab("description");
         loadedTaskIdRef.current = taskDetails.id;
-    } else if (!sheetTask) { // When sheet is closed
+    } else if (!sheetTask) { 
         setEditingTaskLocal(null);
         loadedTaskIdRef.current = null;
     }
   }, [sheetTask, taskDetails]);
 
 
-  // Debounced auto-save effect for title, description, and sidebar fields
   useEffect(() => {
-    // Prevent auto-saving on initial load or if data is not ready
     if (!editingTaskLocal || !taskDetails || loadedTaskIdRef.current !== editingTaskLocal.id) {
       return;
     }
 
     const handler = setTimeout(() => {
         const updates: Partial<TaskUI> = {};
-        
-        // Compare current local state with the last fetched state to find differences
         if (editingTaskLocal.title !== taskDetails.title) updates.title = editingTaskLocal.title;
-        if (editingTaskLocal.description !== taskDetails.description) updates.description = editingTaskLocal.description;
+        // Description updates are no longer tracked here as the imported editor is uncontrolled
         if (editingTaskLocal.priority !== taskDetails.priority) updates.priority = editingTaskLocal.priority;
         if (editingTaskLocal.points !== taskDetails.points) updates.points = editingTaskLocal.points;
         if (editingTaskLocal.startDate !== taskDetails.startDate) updates.startDate = editingTaskLocal.startDate;
@@ -231,39 +215,19 @@ export function TaskDetailSheet({
         if (Object.keys(updates).length > 0) {
             onUpdateTask(editingTaskLocal.sectionId, editingTaskLocal.id, updates);
         }
-    }, 1500); // 1.5-second debounce delay
+    }, 1500);
 
     return () => {
         clearTimeout(handler);
     };
   }, [editingTaskLocal, taskDetails, onUpdateTask]);
 
-
-  useEffect(() => {
-    if (descriptionContentEditableRef.current && activeTab === "description" && taskDetails && editingTaskLocal) {
-      const div = descriptionContentEditableRef.current;
-      if (!editingTaskLocal.description?.trim()) {
-        if (div.textContent?.trim() !== 'Add a detailed description...') {
-          div.classList.add('text-muted-foreground', 'italic');
-          div.textContent = 'Add a detailed description...';
-        }
-      } else {
-        if (div.classList.contains('text-muted-foreground')) {
-          div.classList.remove('text-muted-foreground', 'italic');
-        }
-        if (div.innerHTML !== editingTaskLocal.description) {
-          div.innerHTML = editingTaskLocal.description;
-        }
-      }
-    }
-  }, [editingTaskLocal?.description, taskDetails, activeTab]);
-
   const handleSheetSave = useCallback(async () => {
     if (!sheetTask || !editingTaskLocal || !taskDetails) return;
     const originalTask = taskDetails;
     const updates: Partial<TaskUI> = {};
     if (editingTaskLocal.title !== originalTask.title) updates.title = editingTaskLocal.title;
-    if (editingTaskLocal.description !== originalTask.description) updates.description = editingTaskLocal.description;
+    // Description updates are no longer tracked here
     if (editingTaskLocal.priority !== originalTask.priority) updates.priority = editingTaskLocal.priority;
     if (editingTaskLocal.points !== originalTask.points) updates.points = editingTaskLocal.points;
     if (editingTaskLocal.startDate !== originalTask.startDate) updates.startDate = editingTaskLocal.startDate;
@@ -273,16 +237,6 @@ export function TaskDetailSheet({
       await onUpdateTask(sheetTask.sectionId, sheetTask.taskId, updates);
     }
   }, [sheetTask, editingTaskLocal, taskDetails, onUpdateTask]);
-
-  const handleEditorCommand = useCallback((command: string, value?: string) => {
-    if (descriptionContentEditableRef.current) {
-      descriptionContentEditableRef.current.focus();
-      document.execCommand(command, false, value);
-      if (descriptionContentEditableRef.current) {
-        setEditingTaskLocal(prev => prev ? { ...prev, description: descriptionContentEditableRef.current?.innerHTML || '' } : null);
-      }
-    }
-  }, []);
   
   const handleAddComment = useCallback(async () => {
     if (!newComment.trim()) return;
@@ -321,7 +275,7 @@ export function TaskDetailSheet({
     } finally {
       setDeleteTaskModalOpen(false);
     }
-  }, [taskDetails, onRequestDelete]);
+  }, [taskDetails, onRequestDelete, onClose]);
 
   const handleFileUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -351,15 +305,7 @@ export function TaskDetailSheet({
     <Sheet open={!!sheetTask} onOpenChange={(open) => (!open ? onClose() : null)}>
       <SheetContent side="right" className="w-full sm:max-w-[800px] bg-gray-100 border-l p-0 flex flex-col h-full max-h-screen">
         {taskDetailsLoading ? (
-            <>
-              <SheetHeader className="p-6 pb-0 sr-only">
-                <SheetTitle>Loading Task</SheetTitle>
-                <SheetDescription>Please wait while the task details are being loaded.</SheetDescription>
-              </SheetHeader>
-              <div className="flex items-center justify-center p-6 text-muted-foreground flex-1">
-                <Loader2 className="h-6 w-6 animate-spin text-teal-500" />
-              </div>
-            </>
+            <div className="flex items-center justify-center p-6 text-muted-foreground flex-1"><Loader2 className="h-6 w-6 animate-spin text-teal-500" /></div>
         ) : taskDetails && editingTaskLocal ? (
           <>
             <SheetHeader className="p-6 pt-0 pb-0 border-b bg-white flex-shrink-0 sticky top-0 z-20">
@@ -386,20 +332,8 @@ export function TaskDetailSheet({
                 <div className="flex-1 h-full min-h-0">
                   {taskDetailsError ? ( <div className="p-6 text-red-600">Error: {taskDetailsError.message}</div> ) : ( <>
                   {activeTab === "description" && (
-                    <div className="px-6 py-4  h-full overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
-                      <div className="mb-2 p-1 rounded-md bg-white border border-gray-200 flex gap-1 flex-wrap">
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-700 hover:bg-gray-100" onMouseDown={(e) => e.preventDefault()} onClick={() => handleEditorCommand('bold')} title="Bold"><Bold className="h-4 w-4" /></Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-700 hover:bg-gray-100" onMouseDown={(e) => e.preventDefault()} onClick={() => handleEditorCommand('italic')} title="Italic"><Italic className="h-4 w-4" /></Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-700 hover:bg-gray-100" onMouseDown={(e) => e.preventDefault()} onClick={() => handleEditorCommand('underline')} title="Underline"><Underline className="h-4 w-4" /></Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-700 hover:bg-gray-100" onMouseDown={(e) => e.preventDefault()} onClick={() => handleEditorCommand('insertUnorderedList')} title="Unordered List"><List className="h-4 w-4" /></Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-700 hover:bg-gray-100" onMouseDown={(e) => e.preventDefault()} onClick={() => handleEditorCommand('insertOrderedList')} title="Ordered List"><ListOrdered className="h-4 w-4" /></Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-700 hover:bg-gray-100" onMouseDown={(e) => e.preventDefault()} onClick={() => handleEditorCommand('justifyLeft')} title="Align Left"><AlignLeft className="h-4 w-4" /></Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-700 hover:bg-gray-100" onMouseDown={(e) => e.preventDefault()} onClick={() => handleEditorCommand('justifyCenter')} title="Align Center"><AlignCenter className="h-4 w-4" /></Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-700 hover:bg-gray-100" onMouseDown={(e) => e.preventDefault()} onClick={() => handleEditorCommand('justifyRight')} title="Align Right"><AlignRight className="h-4 w-4" /></Button>
-                      </div>
-                      <div>
-                        <div dir="ltr" ref={descriptionContentEditableRef} contentEditable="true" onInput={(e) => { const target = e.target as HTMLDivElement; setEditingTaskLocal(prev => prev ? { ...prev, description: target.innerHTML || '' } : null);}} onFocus={(e) => { const target = e.target as HTMLDivElement; if (target.classList.contains('text-muted-foreground') && target.textContent === 'Add a detailed description...') { target.textContent = ''; target.classList.remove('text-muted-foreground', 'italic');}}} onBlur={(e) => { const target = e.target as HTMLDivElement; if (!target.textContent?.trim() && target.innerHTML?.trim() === '') { target.classList.add('text-muted-foreground', 'italic'); target.textContent = 'Add a detailed description...'; setEditingTaskLocal(prev => prev ? { ...prev, description: '' } : null); } else { setEditingTaskLocal(prev => prev ? { ...prev, description: target.innerHTML || '' } : null);}}} onKeyDown={(e) => { if (e.key === 'Enter' && descriptionContentEditableRef.current) { e.preventDefault(); if (e.shiftKey) { document.execCommand('insertHTML', false, '<br>'); } else { document.execCommand('insertParagraph', false, ''); }}}} dangerouslySetInnerHTML={{ __html: (editingTaskLocal.description && editingTaskLocal.description.trim() !== '') ? editingTaskLocal.description : 'Add a detailed description...' }} className={cn("text-base w-full p-2 border border-gray-200 rounded-md bg-white text-gray-700", "focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500", "resize-none break-words", "min-h-[100px]", !editingTaskLocal.description && "text-muted-foreground italic", "text-left")} style={{ whiteSpace: 'pre-wrap' }}></div>
-                      </div>
+                    <div className="px-6 py-4 h-full overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
+                       <SimpleEditor />
                     </div>
                   )}
                   {activeTab === "comments" && (
@@ -407,81 +341,28 @@ export function TaskDetailSheet({
                       <div className="flex-1 overflow-y-auto space-y-4 px-6 py-4 pr-2 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100 min-h-0">
                         {taskDetails.comments.map((comment: CommentUI) => (
                           <div key={comment.id} className="group flex items-start gap-3 bg-white p-3 rounded-md shadow-sm border border-gray-200">
-                            <Avatar className="h-8 w-8">
-                              <AvatarImage src={comment.author.avatar || undefined} />
-                              <AvatarFallback 
-                                className="text-xs text-white" 
-                                style={{ backgroundColor: (comment.author as any)?.avatarColor   }}
-                              >
-                                {`${comment.author.firstName?.[0] || ''}${comment.author.lastName?.[0] || ''}`}
-                              </AvatarFallback>
-                            </Avatar>
-                            <div className="flex-1">
-                              <p className="text-sm font-semibold text-gray-800">{comment.author.firstName} {comment.author.lastName} <span className="text-xs text-muted-foreground font-normal">{safeFormatDistanceToNow(comment.createdAt)}</span></p>
-                              <p className="text-sm text-gray-700 whitespace-pre-wrap">{comment.content}</p>
-                            </div>
+                            <Avatar className="h-8 w-8"><AvatarImage src={comment.author.avatar || undefined} /><AvatarFallback className="text-xs text-white" style={{ backgroundColor: (comment.author as any)?.avatarColor }}>{`${comment.author.firstName?.[0] || ''}${comment.author.lastName?.[0] || ''}`}</AvatarFallback></Avatar>
+                            <div className="flex-1"><p className="text-sm font-semibold text-gray-800">{comment.author.firstName} {comment.author.lastName} <span className="text-xs text-muted-foreground font-normal">{safeFormatDistanceToNow(comment.createdAt)}</span></p><p className="text-sm text-gray-700 whitespace-pre-wrap">{comment.content}</p></div>
                             <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => handleOpenDeleteCommentModal(comment)} disabled={isTaskDetailsMutating}><Trash2 className="h-3 w-3 text-red-500"/></Button>
                           </div>
                         ))}
                       </div>
                       <div className="mt-4 bg-white p-4 border-t border-gray-200 flex-shrink-0">
                         <div className="flex items-end gap-2">
-                          <Avatar className="h-8 w-8 flex-shrink-0">
-                            <AvatarFallback className="text-xs text-white" style={{ backgroundColor: "#6366f1" }}>You</AvatarFallback>
-                          </Avatar>
+                          <Avatar className="h-8 w-8 flex-shrink-0"><AvatarFallback className="text-xs text-white" style={{ backgroundColor: "#6366f1" }}>You</AvatarFallback></Avatar>
                           <Textarea placeholder="Add a comment..." rows={1} value={newComment} onChange={(e) => setNewComment(e.target.value)} className="flex-1 bg-gray-50 border border-gray-200 rounded-md p-2 focus-visible:ring-0 focus-visible:ring-offset-0 focus:border-blue-500 resize-none overflow-hidden" style={{ minHeight: '38px' }}/>
                           <Button size="sm" onClick={handleAddComment} className="h-9 bg-blue-600 hover:bg-blue-700 text-white flex-shrink-0" disabled={isTaskDetailsMutating || !newComment.trim()}>{isTaskDetailsMutating ? <Loader2 className="h-4 w-4 animate-spin"/> : 'Send'}</Button>
                         </div>
                       </div>
-
-                      {commentToDelete && deleteCommentModalOpen && (
-                          <div ref={customCommentModalRef} role="alertdialog" aria-labelledby="delete-comment-title" aria-describedby="delete-comment-description" tabIndex={-1} className="absolute inset-0 z-20 flex items-center justify-center bg-black/50" onClick={(e) => { if (e.target === e.currentTarget) setDeleteCommentModalOpen(false);}} onKeyDown={(e) => { if (e.key === "Escape") setDeleteCommentModalOpen(false);}}>
-                          <div className="w-full max-w-sm rounded-lg border bg-white p-6 shadow-lg sm:rounded-xl">
-                              <div className="flex flex-col space-y-2 text-center sm:text-left">
-                              <h2 id="delete-comment-title" className="text-lg font-semibold text-foreground">Delete Comment?</h2>
-                              <p id="delete-comment-description" className="text-sm text-muted-foreground">Are you sure you want to delete this comment? This action cannot be undone.</p>
-                              </div>
-                              <div className="mt-4 flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2">
-                              <Button variant="outline" className="mt-2 sm:mt-0" onClick={() => setDeleteCommentModalOpen(false)} disabled={isTaskDetailsMutating}>Cancel</Button>
-                              <Button className="bg-red-600 hover:bg-red-700 text-white" onClick={handleConfirmCommentDelete} disabled={isTaskDetailsMutating}>{isTaskDetailsMutating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Delete Comment"}</Button>
-                              </div>
-                          </div>
-                          </div>
-                      )}
+                      {commentToDelete && deleteCommentModalOpen && (<div ref={customCommentModalRef} role="alertdialog" aria-labelledby="delete-comment-title" aria-describedby="delete-comment-description" tabIndex={-1} className="absolute inset-0 z-20 flex items-center justify-center bg-black/50" onClick={(e) => { if (e.target === e.currentTarget) setDeleteCommentModalOpen(false);}} onKeyDown={(e) => { if (e.key === "Escape") setDeleteCommentModalOpen(false);}}><div className="w-full max-w-sm rounded-lg border bg-white p-6 shadow-lg sm:rounded-xl"><div className="flex flex-col space-y-2 text-center sm:text-left"><h2 id="delete-comment-title" className="text-lg font-semibold text-foreground">Delete Comment?</h2><p id="delete-comment-description" className="text-sm text-muted-foreground">Are you sure you want to delete this comment? This action cannot be undone.</p></div><div className="mt-4 flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2"><Button variant="outline" className="mt-2 sm:mt-0" onClick={() => setDeleteCommentModalOpen(false)} disabled={isTaskDetailsMutating}>Cancel</Button><Button className="bg-red-600 hover:bg-red-700 text-white" onClick={handleConfirmCommentDelete} disabled={isTaskDetailsMutating}>{isTaskDetailsMutating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Delete Comment"}</Button></div></div></div>)}
                     </div>
                   )}
-                  {activeTab === "activity" && (
-                    <div className="px-6 py-4 h-full overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
-                      <div className="space-y-4 text-sm text-muted-foreground">
-                          {taskDetails.activities.map((activity) => (
-                              <ParsedActivityLogItem key={activity.id} activity={activity} />
-                          ))}
-                      </div>
-                    </div>
-                  )}
+                  {activeTab === "activity" && (<div className="px-6 py-4 h-full overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100"><div className="space-y-4 text-sm text-muted-foreground">{taskDetails.activities.map((activity) => (<ParsedActivityLogItem key={activity.id} activity={activity} />))}</div></div>)}
                   {activeTab === "attachments" && (
                     <div className="px-6 py-4 h-full flex flex-col overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
                       <h3 className="text-lg font-semibold mb-4 text-gray-800">Attachments</h3>
-                      <div className="mb-6 border-2 border-dashed border-gray-300 rounded-md p-6 text-center text-gray-600 hover:border-blue-500 hover:text-blue-700 transition-colors cursor-pointer">
-                        <label htmlFor="file-upload" className="block cursor-pointer">
-                          <Paperclip className="h-8 w-8 mx-auto mb-2 text-gray-400" />
-                          <span>Drag and drop files here or <span className="font-semibold text-blue-600">browse</span></span>
-                          <input id="file-upload" type="file" multiple className="hidden" onChange={handleFileUpload} disabled={isTaskDetailsMutating}/>
-                        </label>
-                      </div>
-                      <div className="flex-1 space-y-3">
-                          {taskDetails.attachments.map(attachment => (
-                              <div key={attachment.id} className="flex items-center justify-between p-3 bg-white rounded-md shadow-sm border border-gray-200">
-                                  <div className="flex items-center gap-3 min-w-0">
-                                      {getFileIcon(attachment.fileType)}
-                                      <a href={getDownloadableUrl(attachment.url)}
-                                       target="_blank"
-                                       download={attachment.fileName} rel="noopener noreferrer" className="text-sm font-medium text-gray-800 hover:underline truncate">{attachment.fileName}</a>
-                                  </div>
-                                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0" title="Remove attachment" onClick={() => deleteAttachment(attachment.id)} disabled={isTaskDetailsMutating}><X className="h-4 w-4 text-gray-500" /></Button>
-                              </div>
-                          ))}
-                      </div>
+                      <div className="mb-6 border-2 border-dashed border-gray-300 rounded-md p-6 text-center text-gray-600 hover:border-blue-500 hover:text-blue-700 transition-colors cursor-pointer"><label htmlFor="file-upload" className="block cursor-pointer"><Paperclip className="h-8 w-8 mx-auto mb-2 text-gray-400" /><span>Drag and drop files here or <span className="font-semibold text-blue-600">browse</span></span><input id="file-upload" type="file" multiple className="hidden" onChange={handleFileUpload} disabled={isTaskDetailsMutating}/></label></div>
+                      <div className="flex-1 space-y-3">{taskDetails.attachments.map(attachment => (<div key={attachment.id} className="flex items-center justify-between p-3 bg-white rounded-md shadow-sm border border-gray-200"><div className="flex items-center gap-3 min-w-0">{getFileIcon(attachment.fileType)}<a href={getDownloadableUrl(attachment.url)} target="_blank" download={attachment.fileName} rel="noopener noreferrer" className="text-sm font-medium text-gray-800 hover:underline truncate">{attachment.fileName}</a></div><Button variant="ghost" size="sm" className="h-7 w-7 p-0" title="Remove attachment" onClick={() => deleteAttachment(attachment.id)} disabled={isTaskDetailsMutating}><X className="h-4 w-4 text-gray-500" /></Button></div>))}</div>
                     </div>
                   )}
                   </>)}
@@ -491,285 +372,80 @@ export function TaskDetailSheet({
               <div className="lg:col-span-1 border-l border-gray-200 bg-white pl-6 pr-6 mb-2 mr-2  py-6 flex flex-col flex-shrink-0 min-h-0 rounded-lg">
                 <div className="space-y-6 flex-grow overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100 min-h-0">
                   <div>
-                    <Label htmlFor="assignee-select" className="text-sm font-medium text-gray-700 flex items-center gap-2 mb-1">
-                      <UserRoundIcon className="h-4 w-4 text-gray-500" /> Assignee
-                    </Label>
+                    <Label htmlFor="assignee-select" className="text-sm font-medium text-gray-700 flex items-center gap-2 mb-1"><UserRoundIcon className="h-4 w-4 text-gray-500" /> Assignee</Label>
                     <Select value={editingTaskLocal.assignee?.id || "null"} onValueChange={(v) => setEditingTaskLocal(prev => prev ? { ...prev, assignee: availableAssignees.find(a => a.id === v) || null } : null)}>
                       <SelectTrigger id="assignee-select" className={cn("w-full text-gray-700 hover:bg-gray-50 rounded-md py-2 px-3 transition-colors border", jiraSelectTriggerStyle)}>
-                        <SelectValue placeholder="Unassigned">
-                          <div className="flex items-center gap-2">
-                            {editingTaskLocal.assignee ? (
-                                <Avatar className="h-6 w-6">
-                                    <AvatarImage src={editingTaskLocal.assignee.avatar || undefined} />
-                                    <AvatarFallback 
-                                        className="text-xs text-white"
-                                        style={{ backgroundColor: (editingTaskLocal.assignee as any)?.avatarColor   }}
-                                    >
-                                        {`${editingTaskLocal.assignee.firstName?.[0] || ''}${editingTaskLocal.assignee.lastName?.[0] || ''}`}
-                                    </AvatarFallback>
-                                </Avatar>
-                            ) : (
-                                <Avatar className="h-6 w-6 border bg-gray-100">
-                                    <AvatarImage src={undefined} />
-                                    <AvatarFallback className="text-xs text-gray-700">?</AvatarFallback>
-                                </Avatar>
-                            )}
-                            <span className="truncate">
-                                {editingTaskLocal.assignee
-                                    ? `${editingTaskLocal.assignee.firstName} ${editingTaskLocal.assignee.lastName}`.length > 15
-                                    ? `${`${editingTaskLocal.assignee.firstName} ${editingTaskLocal.assignee.lastName}`.substring(0, 15)}...`
-                                    : `${editingTaskLocal.assignee.firstName} ${editingTaskLocal.assignee.lastName}`
-                                    : 'Unassigned'}
-                            </span>
-                          </div>
-                        </SelectValue>
+                        <SelectValue placeholder="Unassigned"><div className="flex items-center gap-2">{editingTaskLocal.assignee ? (<Avatar className="h-6 w-6"><AvatarImage src={editingTaskLocal.assignee.avatar || undefined} /><AvatarFallback className="text-xs text-white" style={{ backgroundColor: (editingTaskLocal.assignee as any)?.avatarColor }}>{`${editingTaskLocal.assignee.firstName?.[0] || ''}${editingTaskLocal.assignee.lastName?.[0] || ''}`}</AvatarFallback></Avatar>) : (<Avatar className="h-6 w-6 border bg-gray-100"><AvatarImage src={undefined} /><AvatarFallback className="text-xs text-gray-700">?</AvatarFallback></Avatar>)}<span className="truncate">{editingTaskLocal.assignee ? `${editingTaskLocal.assignee.firstName} ${editingTaskLocal.assignee.lastName}`.length > 15 ? `${`${editingTaskLocal.assignee.firstName} ${editingTaskLocal.assignee.lastName}`.substring(0, 15)}...` : `${editingTaskLocal.assignee.firstName} ${editingTaskLocal.assignee.lastName}`: 'Unassigned'}</span></div></SelectValue>
                       </SelectTrigger>
-                      <SelectContent className="bg-white border-border">
-                        <div className="max-h-48 overflow-y-auto overflow-x-hidden">
-                          <SelectItem value="null"><div className="flex items-center gap-2"><Avatar className="h-6 w-6 border bg-gray-100"><AvatarImage src={undefined} /><AvatarFallback className="text-xs text-gray-700">?</AvatarFallback></Avatar><span>Unassigned</span></div></SelectItem>
-                          <DropdownMenuSeparator />
-                          {availableAssignees.map((a) => {
-                              const fullName = `${a.firstName} ${a.lastName}`;
-                              return (
-                                  <SelectItem key={a.id} value={a.id}>
-                                      <div className="flex items-center gap-2">
-                                          <Avatar className="h-6 w-6">
-                                              <AvatarImage src={a.avatar || undefined} />
-                                              <AvatarFallback 
-                                                  className="text-xs text-white" 
-                                                  style={{ backgroundColor: (a as any).avatarColor   }}
-                                              >
-                                                  {`${a.firstName?.[0] || ''}${a.lastName?.[0] || ''}` || '?'}
-                                              </AvatarFallback>
-                                          </Avatar>
-                                          <span className="truncate">
-                                            {fullName.length > 15 ? `${fullName.substring(0, 15)}...` : fullName}
-                                          </span>
-                                      </div>
-                                  </SelectItem>
-                              )
-                          })}
-                        </div>
-                      </SelectContent>
+                      <SelectContent className="bg-white border-border"><div className="max-h-48 overflow-y-auto overflow-x-hidden"><SelectItem value="null"><div className="flex items-center gap-2"><Avatar className="h-6 w-6 border bg-gray-100"><AvatarImage src={undefined} /><AvatarFallback className="text-xs text-gray-700">?</AvatarFallback></Avatar><span>Unassigned</span></div></SelectItem><DropdownMenuSeparator />{availableAssignees.map((a) => {const fullName = `${a.firstName} ${a.lastName}`;return (<SelectItem key={a.id} value={a.id}><div className="flex items-center gap-2"><Avatar className="h-6 w-6"><AvatarImage src={a.avatar || undefined} /><AvatarFallback className="text-xs text-white" style={{ backgroundColor: (a as any).avatarColor }}>{`${a.firstName?.[0] || ''}${a.lastName?.[0] || ''}` || '?'}</AvatarFallback></Avatar><span className="truncate">{fullName.length > 15 ? `${fullName.substring(0, 15)}...` : fullName}</span></div></SelectItem>)})}</div></SelectContent>
                     </Select>
                   </div>
                   <div>
-                    <Label htmlFor="priority-select" className="text-sm font-medium text-gray-700 flex items-center gap-2 mb-1">
-                      <TagIcon className="h-4 w-4 text-gray-500" /> Priority
-                    </Label>
+                    <Label htmlFor="priority-select" className="text-sm font-medium text-gray-700 flex items-center gap-2 mb-1"><TagIcon className="h-4 w-4 text-gray-500" /> Priority</Label>
                     <Select value={editingTaskLocal.priority} onValueChange={(v: PriorityUI) => setEditingTaskLocal(prev => prev ? { ...prev, priority: v } : null)}>
-                      <SelectTrigger id="priority-select" className={cn("w-full text-gray-700 hover:bg-gray-50 rounded-md py-2 px-3 transition-colors border", jiraSelectTriggerStyle)}>
-                        <SelectValue><div className="inline-flex items-center gap-2"><span className={cn("h-2 w-2 rounded-full", priorityDot[editingTaskLocal.priority])} /><span>{editingTaskLocal.priority}</span></div></SelectValue>
-                      </SelectTrigger>
+                      <SelectTrigger id="priority-select" className={cn("w-full text-gray-700 hover:bg-gray-50 rounded-md py-2 px-3 transition-colors border", jiraSelectTriggerStyle)}><SelectValue><div className="inline-flex items-center gap-2"><span className={cn("h-2 w-2 rounded-full", priorityDot[editingTaskLocal.priority])} /><span>{editingTaskLocal.priority}</span></div></SelectValue></SelectTrigger>
                       <SelectContent className="bg-white border-border">{(["LOW", "MEDIUM", "HIGH"] as PriorityUI[]).map((p) => (<SelectItem key={p} value={p}><div className="flex items-center gap-2"><span className={cn("h-2 w-2 rounded-full", priorityDot[p])} />{p}</div></SelectItem>))}</SelectContent>
                     </Select>
                   </div>
                   <div>
-                    <Label htmlFor="story-points-input" className="text-sm font-medium text-gray-700 flex items-center gap-2 mb-1">
-                        <ListOrdered className="h-4 w-4 text-gray-500" /> Story Points
-                    </Label>
+                    <Label htmlFor="story-points-input" className="text-sm font-medium text-gray-700 flex items-center gap-2 mb-1"><ListOrdered className="h-4 w-4 text-gray-500" /> Story Points</Label>
                     <Input id="story-points-input" type="number" value={editingTaskLocal.points ?? ""} onChange={(e) => setEditingTaskLocal(prev => prev ? { ...prev, points: Number.isNaN(Number.parseInt(e.target.value)) ? 0 : Number.parseInt(e.target.value) } : null)} className="w-full text-gray-700 border bg-gray-50 p-2 rounded-md hover:bg-gray-100 transition-colors" min={0} placeholder="Add points" />
                   </div>
                   <div>
-                    <Label htmlFor="start-date-input" className="text-sm font-medium text-gray-700 flex items-center gap-2 mb-1">
-                        <CalendarIcon className="h-4 w-4 text-gray-500" /> Start Date
-                    </Label>
+                    <Label htmlFor="start-date-input" className="text-sm font-medium text-gray-700 flex items-center gap-2 mb-1"><CalendarIcon className="h-4 w-4 text-gray-500" /> Start Date</Label>
                     <Input id="start-date-input" type="date" value={formatDateForInput(editingTaskLocal.startDate)} onChange={(e) => setEditingTaskLocal(prev => prev ? { ...prev, startDate: e.target.value } : null)} className="w-full text-gray-700 border bg-gray-50 p-2 rounded-md hover:bg-gray-100 transition-colors" placeholder="Set start date" />
                   </div>
                   <div>
-                    <Label htmlFor="end-date-input" className="text-sm font-medium text-gray-700 flex items-center gap-2 mb-1">
-                        <ClockIcon className="h-4 w-4 text-gray-500" /> End Date
-                    </Label>
+                    <Label htmlFor="end-date-input" className="text-sm font-medium text-gray-700 flex items-center gap-2 mb-1"><ClockIcon className="h-4 w-4 text-gray-500" /> End Date</Label>
                     <Input id="end-date-input" type="date" value={formatDateForInput(editingTaskLocal.endDate)} onChange={(e) => setEditingTaskLocal(prev => prev ? { ...prev, endDate: e.target.value } : null)} className="w-full text-gray-700 border bg-gray-50 p-2 rounded-md hover:bg-gray-100 transition-colors" placeholder="Set end date" />
                   </div>
                 </div>
                 <div className="mt-8 flex flex-col gap-2 flex-shrink-0">
-                  <Button className="bg-[#4ab5ae] text-white hover:bg-[#419d97]" onClick={handleSheetSave} disabled={isTaskMutating}>
-                    {isTaskMutating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null} 
-                   Save Changes</Button>
+                  <Button className="bg-[#4ab5ae] text-white hover:bg-[#419d97]" onClick={handleSheetSave} disabled={isTaskMutating}>{isTaskMutating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}Save Changes</Button>
                   <SheetClose asChild><Button variant="outline" className="bg-red-500 hover:bg-red-600 text-white" disabled={isTaskMutating}>Cancel</Button></SheetClose>
                 </div>
               </div>
             </div>
-
-            {deleteTaskModalOpen && (
-              <div
-                ref={customTaskModalRef}
-                role="alertdialog"
-                aria-labelledby="delete-task-title"
-                aria-describedby="delete-task-description"
-                tabIndex={-1}
-                className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50"
-                onClick={e => {
-                  if (e.target === e.currentTarget) setDeleteTaskModalOpen(false)
-                }}
-                onKeyDown={e => {
-                  if (e.key === "Escape") setDeleteTaskModalOpen(false)
-                }}
-              >
-                <div className="w-full max-w-sm rounded-lg border bg-white p-6 shadow-lg sm:rounded-xl">
-                  <div className="flex flex-col space-y-2 text-center sm:text-left">
-                    <h2 id="delete-task-title" className="text-lg font-semibold text-foreground">
-                      Delete Task "{taskDetails.title}"?
-                    </h2>
-                    <p id="delete-task-description" className="text-sm text-muted-foreground">
-                      Are you sure you want to delete this task? This action cannot be undone.
-                    </p>
-                  </div>
-                  <div className="mt-4 flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2">
-                    <Button
-                      variant="outline"
-                      className="mt-2 sm:mt-0"
-                      onClick={() => setDeleteTaskModalOpen(false)}
-                    >
-                      Cancel
-                    </Button>
-                    <Button
-                      className="bg-red-600 hover:bg-red-700 text-white"
-                      onClick={handleConfirmTaskDelete}
-                      disabled={isTaskMutating}
-                    >
-                      {isTaskMutating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Delete Task"}
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            )}
+            {deleteTaskModalOpen && (<div ref={customTaskModalRef} role="alertdialog" aria-labelledby="delete-task-title" aria-describedby="delete-task-description" tabIndex={-1} className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50" onClick={e => {if (e.target === e.currentTarget) setDeleteTaskModalOpen(false)}} onKeyDown={e => {if (e.key === "Escape") setDeleteTaskModalOpen(false)}}><div className="w-full max-w-sm rounded-lg border bg-white p-6 shadow-lg sm:rounded-xl"><div className="flex flex-col space-y-2 text-center sm:text-left"><h2 id="delete-task-title" className="text-lg font-semibold text-foreground">Delete Task "{taskDetails.title}"?</h2><p id="delete-task-description" className="text-sm text-muted-foreground">Are you sure you want to delete this task? This action cannot be undone.</p></div><div className="mt-4 flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2"><Button variant="outline" className="mt-2 sm:mt-0" onClick={() => setDeleteTaskModalOpen(false)}>Cancel</Button><Button className="bg-red-600 hover:bg-red-700 text-white" onClick={handleConfirmTaskDelete} disabled={isTaskMutating}>{isTaskMutating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Delete Task"}</Button></div></div></div>)}
           </>
         ) : (
-          <>
-            <SheetHeader className="p-6 pb-0 sr-only">
-              <SheetTitle>Task Details</SheetTitle>
-              <SheetDescription>No task is currently selected or its data could not be loaded.</SheetDescription>
-            </SheetHeader>
-            <div className="flex items-center justify-center p-6 text-muted-foreground flex-1">
-              No task selected or data could not be loaded.
-            </div>
-          </>
+            <div className="flex items-center justify-center p-6 text-muted-foreground flex-1">No task selected or data could not be loaded.</div>
         )}
       </SheetContent>
     </Sheet>
   );
 }
 
-// Helper component to parse and render activity logs
 function ParsedActivityLogItem({ activity }: { activity: ActivityUI }) {
     let action = "performed an action";
     let details: React.ReactNode | undefined = undefined;
     let icon = <ActivityIcon className="h-4 w-4 text-gray-500" />;
     let accentColor = "bg-gray-50";
-
     try {
         const data = activity.data as any;
-
-        if (!data || typeof data !== 'object') {
-            throw new Error("Activity data is missing or not an object.");
-        }
-        
+        if (!data || typeof data !== 'object') { throw new Error("Activity data is missing or not an object."); }
         switch (activity.type) {
-            case 'TASK_CREATED':
-                action = "created the task";
-                details = `with title "${data.title}"`;
-                icon = <PlusCircle className="h-4 w-4 text-green-600" />;
-                accentColor = "bg-green-50";
-                break;
-            case 'DESCRIPTION_UPDATED':
-                action = "updated the description";
-                icon = <Pencil className="h-4 w-4 text-blue-500" />;
-                accentColor = "bg-blue-50";
-                break;
-            case 'TASK_ASSIGNED':
-                action = "changed the assignee";
-                details = <><b className="font-semibold not-italic text-gray-700">{data.old || 'Unassigned'}</b> → <b className="font-semibold not-italic text-gray-700">{data.new || 'Unassigned'}</b></>;
-                icon = <UserRoundIcon className="h-4 w-4 text-emerald-500" />;
-                accentColor = "bg-emerald-50";
-                break;
-            case 'PRIORITY_UPDATED':
-                action = "changed the priority";
-                details = <><b className="font-semibold not-italic text-gray-700">{data.old}</b> → <b className="font-semibold not-italic text-gray-700">{data.new}</b></>;
-                icon = <TagIcon className="h-4 w-4 text-orange-500" />;
-                accentColor = "bg-orange-50";
-                break;
-            case 'POINTS_UPDATED':
-                action = "updated story points";
-                details = <><b className="font-semibold not-italic text-gray-700">{data.old ?? 'No'} points</b> → <b className="font-semibold not-italic text-gray-700">{data.new ?? 'No'} points</b></>;
-                icon = <ListOrdered className="h-4 w-4 text-purple-500" />;
-                accentColor = "bg-purple-50";
-                break;
-            case 'STATUS_UPDATED':
-                 action = "changed the status";
-                 details = <><b className="font-semibold not-italic text-gray-700">{data.old}</b> → <b className="font-semibold not-italic text-gray-700">{data.new}</b></>;
-                 icon = <CheckCircle2 className="h-4 w-4 text-green-600" />;
-                 accentColor = "bg-green-50";
-                 break;
-            case 'DUE_DATE_UPDATED':
-                action = "updated the due date";
-                details = <><b className="font-semibold not-italic text-gray-700">{formatDateForDisplay(data.old)}</b> → <b className="font-semibold not-italic text-gray-700">{formatDateForDisplay(data.new)}</b></>;
-                icon = <CalendarIcon className="h-4 w-4 text-red-500" />;
-                accentColor = "bg-red-50";
-                break;
-            case 'TASK_UPDATED':
-                action = `updated the ${data.change}`;
-                details = <>from "<b className="font-semibold not-italic text-gray-700">{data.old}</b>" to "<b className="font-semibold not-italic text-gray-700">{data.new}</b>"</>;
-                icon = <Pencil className="h-4 w-4 text-blue-500" />;
-                accentColor = "bg-blue-50";
-                break;
-             case 'COMMENT_ADDED':
-                 action = "added a new comment";
-                 details = `"${data.content}"`;
-                 icon = <MessageSquareIcon className="h-4 w-4 text-gray-500" />;
-                 accentColor = "bg-gray-50";
-                 break;
-            case 'ATTACHMENT_ADDED':
-                 action = "added an attachment";
-                 details = `File: ${data.fileName}`;
-                 icon = <Paperclip className="h-4 w-4 text-indigo-500" />;
-                 accentColor = "bg-indigo-50";
-                 break;
-            case 'ATTACHMENT_REMOVED':
-                 action = "removed an attachment";
-                 details = `File: ${data.fileName}`;
-                 icon = <Trash2 className="h-4 w-4 text-red-500" />;
-                 accentColor = "bg-red-50";
-                 break;
-            default:
-                action = `performed an action: ${activity.type}`;
+            case 'TASK_CREATED': action = "created the task"; details = `with title "${data.title}"`; icon = <PlusCircle className="h-4 w-4 text-green-600" />; accentColor = "bg-green-50"; break;
+            case 'DESCRIPTION_UPDATED': action = "updated the description"; icon = <Pencil className="h-4 w-4 text-blue-500" />; accentColor = "bg-blue-50"; break;
+            case 'TASK_ASSIGNED': action = "changed the assignee"; details = <><b className="font-semibold not-italic text-gray-700">{data.old || 'Unassigned'}</b> → <b className="font-semibold not-italic text-gray-700">{data.new || 'Unassigned'}</b></>; icon = <UserRoundIcon className="h-4 w-4 text-emerald-500" />; accentColor = "bg-emerald-50"; break;
+            case 'PRIORITY_UPDATED': action = "changed the priority"; details = <><b className="font-semibold not-italic text-gray-700">{data.old}</b> → <b className="font-semibold not-italic text-gray-700">{data.new}</b></>; icon = <TagIcon className="h-4 w-4 text-orange-500" />; accentColor = "bg-orange-50"; break;
+            case 'POINTS_UPDATED': action = "updated story points"; details = <><b className="font-semibold not-italic text-gray-700">{data.old ?? 'No'} points</b> → <b className="font-semibold not-italic text-gray-700">{data.new ?? 'No'} points</b></>; icon = <ListOrdered className="h-4 w-4 text-purple-500" />; accentColor = "bg-purple-50"; break;
+            case 'STATUS_UPDATED': action = "changed the status"; details = <><b className="font-semibold not-italic text-gray-700">{data.old}</b> → <b className="font-semibold not-italic text-gray-700">{data.new}</b></>; icon = <CheckCircle2 className="h-4 w-4 text-green-600" />; accentColor = "bg-green-50"; break;
+            case 'DUE_DATE_UPDATED': action = "updated the due date"; details = <><b className="font-semibold not-italic text-gray-700">{formatDateForDisplay(data.old)}</b> → <b className="font-semibold not-italic text-gray-700">{formatDateForDisplay(data.new)}</b></>; icon = <CalendarIcon className="h-4 w-4 text-red-500" />; accentColor = "bg-red-50"; break;
+            case 'TASK_UPDATED': action = `updated the ${data.change}`; details = <>from "<b className="font-semibold not-italic text-gray-700">{data.old}</b>" to "<b className="font-semibold not-italic text-gray-700">{data.new}</b>"</>; icon = <Pencil className="h-4 w-4 text-blue-500" />; accentColor = "bg-blue-50"; break;
+            case 'COMMENT_ADDED': action = "added a new comment"; details = `"${data.content}"`; icon = <MessageSquareIcon className="h-4 w-4 text-gray-500" />; accentColor = "bg-gray-50"; break;
+            case 'ATTACHMENT_ADDED': action = "added an attachment"; details = `File: ${data.fileName}`; icon = <Paperclip className="h-4 w-4 text-indigo-500" />; accentColor = "bg-indigo-50"; break;
+            case 'ATTACHMENT_REMOVED': action = "removed an attachment"; details = `File: ${data.fileName}`; icon = <Trash2 className="h-4 w-4 text-red-500" />; accentColor = "bg-red-50"; break;
+            default: action = `performed an action: ${activity.type}`;
         }
     } catch (e) {
         console.error("Failed to process activity data", activity.data, e);
-        if (typeof activity.data === 'string') {
-             details = activity.data;
-        } else {
-            details = "Could not display activity details.";
-        }
+        details = typeof activity.data === 'string' ? activity.data : "Could not display activity details.";
     }
-    
-    return (
-        <ActivityLogItem
-            user={activity.user}
-            action={action}
-            details={details}
-            time={safeFormatDistanceToNow(activity.createdAt)}
-            icon={icon}
-            accentColor={accentColor}
-        />
-    )
+    return (<ActivityLogItem user={activity.user} action={action} details={details} time={safeFormatDistanceToNow(activity.createdAt)} icon={icon} accentColor={accentColor} />)
 }
 
-// Helper component for Activity Log Items styling
-interface ActivityLogItemProps {
-  user: {
-    firstName: string;
-    lastName: string;
-    avatar?: string;
-    avatarColor?: string; // Added avatarColor
-  };
-  action: string;
-  details?: React.ReactNode;
-  time: string;
-  icon: React.ReactNode;
-  accentColor: string;
-}
+interface ActivityLogItemProps { user: { firstName: string; lastName: string; avatar?: string; avatarColor?: string; }; action: string; details?: React.ReactNode; time: string; icon: React.ReactNode; accentColor: string; }
 
 function ActivityLogItem({ user, action, details, time, icon, accentColor }: ActivityLogItemProps) {
   const userInitials = `${user.firstName?.[0] || ''}${user.lastName?.[0] || ''}`.trim() || '?';
@@ -779,18 +455,10 @@ function ActivityLogItem({ user, action, details, time, icon, accentColor }: Act
     <div className={cn("flex items-start gap-3 p-3 rounded-md shadow-sm border border-gray-200", accentColor)}>
       <Avatar className="h-8 w-8">
         {user.avatar && <AvatarImage src={user.avatar} />}
-        <AvatarFallback 
-            className="text-white text-xs" 
-            style={{ backgroundColor: (user as any).avatarColor   }}
-        >
-            {userInitials}
-        </AvatarFallback>
+        <AvatarFallback className="text-white text-xs" style={{ backgroundColor: (user as any).avatarColor }}>{userInitials}</AvatarFallback>
       </Avatar>
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          {icon}
-          <p className="font-semibold text-gray-800 break-words">{userName} <span className="text-sm text-muted-foreground font-normal">{action}</span></p>
-        </div>
+        <div className="flex items-center gap-2">{icon}<p className="font-semibold text-gray-800 break-words">{userName} <span className="text-sm text-muted-foreground font-normal">{action}</span></p></div>
         {details && <p className="text-xs text-gray-600 italic mt-1 break-words">{details}</p>}
         <span className="text-xs text-muted-foreground block mt-1">{time}</span>
       </div>
