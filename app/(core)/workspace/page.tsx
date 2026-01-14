@@ -70,7 +70,7 @@ export default function WorkspacePage() {
 
   useEffect(() => {
     setConfig({
-      title: workspaceData?.name ? `${workspaceData?.name} Overview` : "Workspace Overview",
+      title: workspaceData?.name ? `${workspaceData?.name} Overview` : "",
       tabs: [{ key: "overview", label: "Overview", icon: <Settings className="h-4 w-4" /> }],
       showShare: true,
     });
