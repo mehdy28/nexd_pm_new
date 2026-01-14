@@ -332,7 +332,7 @@ export function TaskDetailSheet({
                 <div className="flex-1 h-full min-h-0">
                   {taskDetailsError ? ( <div className="p-6 text-red-600">Error: {taskDetailsError.message}</div> ) : ( <>
                   {activeTab === "description" && (
-                    <div className="px-6 py-4 h-full overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
+                    <div className="bg-white px-6 py-4 h-full overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
                        <SimpleEditor />
                     </div>
                   )}

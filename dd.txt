@@ -1,76 +1,85 @@
-"use client";
 
-import "@blocknote/core/fonts/inter.css";
-import { useCreateBlockNote } from "@blocknote/react";
-import { BlockNoteView } from "@blocknote/shadcn";
-import "@blocknote/shadcn/style.css";
+```
 
-import { generateContentBlock } from "@/ai/flows/ai-assisted-content-creation";
-import { suggestTextImprovements } from "@/ai/flows/ai-suggest-text-improvements";
+### `components/tiptap-templates/simple/simple-editor.scss`
 
-// Imports for custom ShadCN components
-import * as Badge from "@/components/ui/badge";
-import * as Button from "@/components/ui/button";
-import * as Card from "@/components/ui/card";
-import * as DropdownMenu from "@/components/ui/dropdown-menu";
-import * as Form from "@/components/ui/form";
-import * as Input from "@/components/ui/input";
-import * as Label from "@/components/ui/label";
-import * as Popover from "@/components/ui/popover";
-import * as Select from "@/components/ui/select";
-import * as Tabs from "@/components/ui/tabs";
-import * as Toggle from "@/components/ui/toggle";
-import * as Tooltip from "@/components/ui/tooltip";
-import {
-  bugReportTemplate,
-  meetingNotesTemplate,
-  productRoadmapTemplate,
-  projectBriefTemplate,
-  projectKickoffTemplate,
-  projectStatusReportTemplate,
-  retrospectiveTemplate,
-  riskRegisterTemplate,
-  sprintPlanningTemplate,
-  taskListTemplate,
-} from "./templates";
+```scss
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap");
 
-const shadCNComponents = {
-  Badge,
-  Button,
-  Card,
-  DropdownMenu,
-  Form,
-  Input,
-  Label,
-  Popover,
-  Select,
-  Tabs,
-  Toggle,
-  Tooltip,
-};
+body {
+  --tt-toolbar-height: 44px;
+  --tt-theme-text: var(--tt-gray-light-900);
 
-export default function Editor() {
-  const editor = useCreateBlockNote({
-    ai: {
-      generateContent: async (prompt) => {
-        const { content } = await generateContentBlock({ prompt });
-        return content;
-      },
-      improveText: async (text) => {
-        const { improvedText } = await suggestTextImprovements({ text });
-        return improvedText;
-      },
-    },
-    // You can swap `meetingNotesTemplate` with any other imported template
-    // e.g., projectBriefTemplate, bugReportTemplate, projectStatusReportTemplate, etc.
-    initialContent: meetingNotesTemplate,
-  });
-
-  return (
-    <BlockNoteView
-      editor={editor}
-      shadCNComponents={shadCNComponents}
-      theme={"light"}
-    />
-  );
 }
+
+body {
+  font-family: "Inter", sans-serif;
+  color: var(--tt-theme-text);
+  font-optical-sizing: auto;
+  font-weight: 400;
+  font-style: normal;
+  padding: 0;
+  overscroll-behavior-y: none;
+}
+
+html,
+body {
+  overscroll-behavior-x: none;
+}
+
+html,
+body,
+#root,
+#app {
+  height: 100%;
+  background-color: var(--tt-bg-color);
+}
+
+::-webkit-scrollbar {
+  width: 0.25rem;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--tt-scrollbar-color) transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: var(--tt-scrollbar-color);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.tiptap.ProseMirror {
+  font-family: "DM Sans", sans-serif;
+}
+
+.simple-editor-wrapper {
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+}
+
+.simple-editor-content {
+  width: 100%;
+  margin: 0 auto;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.simple-editor-content .tiptap.ProseMirror.simple-editor {
+  flex: 1;
+  padding: 1.5rem 0 15vh;
+}
+
+@media screen and (max-width: 480px) {
+  .simple-editor-content .tiptap.ProseMirror.simple-editor {
+    padding: 1rem 0 15vh;
+  }
+}
+```
