@@ -60,14 +60,6 @@ import { useTaskDetails } from "@/hooks/useTaskDetails";
 import { ActivityUI, CommentUI } from "@/types/taskDetails";
 import type { TaskStatus } from "@prisma/client";
 
-// TipTap Imports
-import { useEditor, EditorContent } from '@tiptap/react';
-import StarterKit from '@tiptap/starter-kit';
-import Placeholder from '@tiptap/extension-placeholder';
-import UnderlineExtension from '@tiptap/extension-underline';
-import TextAlign from '@tiptap/extension-text-align';
-
-
 // Define generic types that work for both personal and project tasks
 type PriorityUI = "LOW" | "MEDIUM" | "HIGH";
 type TaskStatusUI = TaskStatus; // "TODO" | "IN_PROGRESS" | "DONE"
@@ -188,6 +180,7 @@ export function TaskDetailSheet({
   const [commentToDelete, setCommentToDelete] = useState<CommentUI | null>(null);
   const [deleteTaskModalOpen, setDeleteTaskModalOpen] = useState(false);
 
+  const descriptionContentEditableRef = useRef<HTMLDivElement>(null);
   const customCommentModalRef = useRef<HTMLDivElement>(null);
   const customTaskModalRef = useRef<HTMLDivElement>(null);
   const loadedTaskIdRef = useRef<string | null>(null);
@@ -203,49 +196,17 @@ export function TaskDetailSheet({
     isMutating: isTaskDetailsMutating,
   } = useTaskDetails(sheetTask?.taskId || null);
 
-  const editor = useEditor({
-    extensions: [
-      StarterKit.configure({
-        bulletList: { HTMLAttributes: { class: 'list-disc pl-4' } },
-        orderedList: { HTMLAttributes: { class: 'list-decimal pl-4' } },
-      }),
-      UnderlineExtension,
-      TextAlign.configure({ types: ['heading', 'paragraph'] }),
-      Placeholder.configure({ placeholder: 'Add a detailed description...' }),
-    ],
-    editorProps: {
-      attributes: {
-        class: cn(
-          "text-base w-full p-2 border border-gray-200 rounded-md bg-white text-gray-700",
-          "focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500",
-          "prose prose-sm max-w-none",
-          "min-h-[100px] break-words text-left",
-        ),
-      },
-    },
-    onUpdate: ({ editor }) => {
-      const content = editor.getText().trim() === '' ? '' : editor.getHTML();
-      setEditingTaskLocal(prev => prev ? { ...prev, description: content } : null);
-    },
-  });
-
   // Sync local state with taskDetails, but only reset fully when the task ID changes to avoid overwriting user edits.
   useEffect(() => {
     if (taskDetails && loadedTaskIdRef.current !== taskDetails.id) {
         setEditingTaskLocal(taskDetails);
         setActiveTab("description");
         loadedTaskIdRef.current = taskDetails.id;
-        if (editor && editor.isEditable) {
-          editor.commands.setContent(taskDetails.description || '', false);
-        }
     } else if (!sheetTask) { // When sheet is closed
         setEditingTaskLocal(null);
         loadedTaskIdRef.current = null;
-        if (editor && editor.isEditable) {
-            editor.commands.clearContent(false);
-        }
     }
-  }, [sheetTask, taskDetails, editor]);
+  }, [sheetTask, taskDetails]);
 
 
   // Debounced auto-save effect for title, description, and sidebar fields
@@ -277,6 +238,26 @@ export function TaskDetailSheet({
     };
   }, [editingTaskLocal, taskDetails, onUpdateTask]);
 
+
+  useEffect(() => {
+    if (descriptionContentEditableRef.current && activeTab === "description" && taskDetails && editingTaskLocal) {
+      const div = descriptionContentEditableRef.current;
+      if (!editingTaskLocal.description?.trim()) {
+        if (div.textContent?.trim() !== 'Add a detailed description...') {
+          div.classList.add('text-muted-foreground', 'italic');
+          div.textContent = 'Add a detailed description...';
+        }
+      } else {
+        if (div.classList.contains('text-muted-foreground')) {
+          div.classList.remove('text-muted-foreground', 'italic');
+        }
+        if (div.innerHTML !== editingTaskLocal.description) {
+          div.innerHTML = editingTaskLocal.description;
+        }
+      }
+    }
+  }, [editingTaskLocal?.description, taskDetails, activeTab]);
+
   const handleSheetSave = useCallback(async () => {
     if (!sheetTask || !editingTaskLocal || !taskDetails) return;
     const originalTask = taskDetails;
@@ -292,6 +273,16 @@ export function TaskDetailSheet({
       await onUpdateTask(sheetTask.sectionId, sheetTask.taskId, updates);
     }
   }, [sheetTask, editingTaskLocal, taskDetails, onUpdateTask]);
+
+  const handleEditorCommand = useCallback((command: string, value?: string) => {
+    if (descriptionContentEditableRef.current) {
+      descriptionContentEditableRef.current.focus();
+      document.execCommand(command, false, value);
+      if (descriptionContentEditableRef.current) {
+        setEditingTaskLocal(prev => prev ? { ...prev, description: descriptionContentEditableRef.current?.innerHTML || '' } : null);
+      }
+    }
+  }, []);
   
   const handleAddComment = useCallback(async () => {
     if (!newComment.trim()) return;
@@ -330,7 +321,7 @@ export function TaskDetailSheet({
     } finally {
       setDeleteTaskModalOpen(false);
     }
-  }, [taskDetails, onRequestDelete, onClose]);
+  }, [taskDetails, onRequestDelete]);
 
   const handleFileUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -395,19 +386,19 @@ export function TaskDetailSheet({
                 <div className="flex-1 h-full min-h-0">
                   {taskDetailsError ? ( <div className="p-6 text-red-600">Error: {taskDetailsError.message}</div> ) : ( <>
                   {activeTab === "description" && (
-                    <div className="px-6 py-4 h-full overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100 flex flex-col">
-                      <div className="mb-2 p-1 rounded-md bg-white border border-gray-200 flex gap-1 flex-wrap flex-shrink-0">
-                        <Button variant="ghost" size="icon" className={cn("h-8 w-8 text-gray-700 hover:bg-gray-100", editor?.isActive('bold') && 'bg-gray-200')} disabled={!editor} onClick={() => editor?.chain().focus().toggleBold().run()} title="Bold"><Bold className="h-4 w-4" /></Button>
-                        <Button variant="ghost" size="icon" className={cn("h-8 w-8 text-gray-700 hover:bg-gray-100", editor?.isActive('italic') && 'bg-gray-200')} disabled={!editor} onClick={() => editor?.chain().focus().toggleItalic().run()} title="Italic"><Italic className="h-4 w-4" /></Button>
-                        <Button variant="ghost" size="icon" className={cn("h-8 w-8 text-gray-700 hover:bg-gray-100", editor?.isActive('underline') && 'bg-gray-200')} disabled={!editor} onClick={() => editor?.chain().focus().toggleUnderline().run()} title="Underline"><Underline className="h-4 w-4" /></Button>
-                        <Button variant="ghost" size="icon" className={cn("h-8 w-8 text-gray-700 hover:bg-gray-100", editor?.isActive('bulletList') && 'bg-gray-200')} disabled={!editor} onClick={() => editor?.chain().focus().toggleBulletList().run()} title="Unordered List"><List className="h-4 w-4" /></Button>
-                        <Button variant="ghost" size="icon" className={cn("h-8 w-8 text-gray-700 hover:bg-gray-100", editor?.isActive('orderedList') && 'bg-gray-200')} disabled={!editor} onClick={() => editor?.chain().focus().toggleOrderedList().run()} title="Ordered List"><ListOrdered className="h-4 w-4" /></Button>
-                        <Button variant="ghost" size="icon" className={cn("h-8 w-8 text-gray-700 hover:bg-gray-100", editor?.isActive({ textAlign: 'left' }) && 'bg-gray-200')} disabled={!editor} onClick={() => editor?.chain().focus().setTextAlign('left').run()} title="Align Left"><AlignLeft className="h-4 w-4" /></Button>
-                        <Button variant="ghost" size="icon" className={cn("h-8 w-8 text-gray-700 hover:bg-gray-100", editor?.isActive({ textAlign: 'center' }) && 'bg-gray-200')} disabled={!editor} onClick={() => editor?.chain().focus().setTextAlign('center').run()} title="Align Center"><AlignCenter className="h-4 w-4" /></Button>
-                        <Button variant="ghost" size="icon" className={cn("h-8 w-8 text-gray-700 hover:bg-gray-100", editor?.isActive({ textAlign: 'right' }) && 'bg-gray-200')} disabled={!editor} onClick={() => editor?.chain().focus().setTextAlign('right').run()} title="Align Right"><AlignRight className="h-4 w-4" /></Button>
+                    <div className="px-6 py-4  h-full overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
+                      <div className="mb-2 p-1 rounded-md bg-white border border-gray-200 flex gap-1 flex-wrap">
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-700 hover:bg-gray-100" onMouseDown={(e) => e.preventDefault()} onClick={() => handleEditorCommand('bold')} title="Bold"><Bold className="h-4 w-4" /></Button>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-700 hover:bg-gray-100" onMouseDown={(e) => e.preventDefault()} onClick={() => handleEditorCommand('italic')} title="Italic"><Italic className="h-4 w-4" /></Button>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-700 hover:bg-gray-100" onMouseDown={(e) => e.preventDefault()} onClick={() => handleEditorCommand('underline')} title="Underline"><Underline className="h-4 w-4" /></Button>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-700 hover:bg-gray-100" onMouseDown={(e) => e.preventDefault()} onClick={() => handleEditorCommand('insertUnorderedList')} title="Unordered List"><List className="h-4 w-4" /></Button>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-700 hover:bg-gray-100" onMouseDown={(e) => e.preventDefault()} onClick={() => handleEditorCommand('insertOrderedList')} title="Ordered List"><ListOrdered className="h-4 w-4" /></Button>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-700 hover:bg-gray-100" onMouseDown={(e) => e.preventDefault()} onClick={() => handleEditorCommand('justifyLeft')} title="Align Left"><AlignLeft className="h-4 w-4" /></Button>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-700 hover:bg-gray-100" onMouseDown={(e) => e.preventDefault()} onClick={() => handleEditorCommand('justifyCenter')} title="Align Center"><AlignCenter className="h-4 w-4" /></Button>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-700 hover:bg-gray-100" onMouseDown={(e) => e.preventDefault()} onClick={() => handleEditorCommand('justifyRight')} title="Align Right"><AlignRight className="h-4 w-4" /></Button>
                       </div>
-                      <div className="flex-1 mt-2">
-                        <EditorContent editor={editor} />
+                      <div>
+                        <div dir="ltr" ref={descriptionContentEditableRef} contentEditable="true" onInput={(e) => { const target = e.target as HTMLDivElement; setEditingTaskLocal(prev => prev ? { ...prev, description: target.innerHTML || '' } : null);}} onFocus={(e) => { const target = e.target as HTMLDivElement; if (target.classList.contains('text-muted-foreground') && target.textContent === 'Add a detailed description...') { target.textContent = ''; target.classList.remove('text-muted-foreground', 'italic');}}} onBlur={(e) => { const target = e.target as HTMLDivElement; if (!target.textContent?.trim() && target.innerHTML?.trim() === '') { target.classList.add('text-muted-foreground', 'italic'); target.textContent = 'Add a detailed description...'; setEditingTaskLocal(prev => prev ? { ...prev, description: '' } : null); } else { setEditingTaskLocal(prev => prev ? { ...prev, description: target.innerHTML || '' } : null);}}} onKeyDown={(e) => { if (e.key === 'Enter' && descriptionContentEditableRef.current) { e.preventDefault(); if (e.shiftKey) { document.execCommand('insertHTML', false, '<br>'); } else { document.execCommand('insertParagraph', false, ''); }}}} dangerouslySetInnerHTML={{ __html: (editingTaskLocal.description && editingTaskLocal.description.trim() !== '') ? editingTaskLocal.description : 'Add a detailed description...' }} className={cn("text-base w-full p-2 border border-gray-200 rounded-md bg-white text-gray-700", "focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500", "resize-none break-words", "min-h-[100px]", !editingTaskLocal.description && "text-muted-foreground italic", "text-left")} style={{ whiteSpace: 'pre-wrap' }}></div>
                       </div>
                     </div>
                   )}
