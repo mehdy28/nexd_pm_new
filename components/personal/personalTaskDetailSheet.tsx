@@ -175,6 +175,7 @@ export function TaskDetailSheet({
   const descriptionContentEditableRef = useRef<HTMLDivElement>(null);
   const customCommentModalRef = useRef<HTMLDivElement>(null);
   const customTaskModalRef = useRef<HTMLDivElement>(null);
+  const loadedTaskIdRef = useRef<string | null>(null);
 
   const {
     taskDetails,
@@ -187,22 +188,46 @@ export function TaskDetailSheet({
     isMutating: isTaskDetailsMutating,
   } = useTaskDetails(sheetTask?.taskId || null);
 
-  // SEPARATED EFFECT 1: Handle Tab Reset only when the Task ID changes (User opens a different task)
+  // Sync local state with taskDetails, but only reset fully when the task ID changes to avoid overwriting user edits.
   useEffect(() => {
-    if (sheetTask?.taskId) {
-      setActiveTab("description");
+    if (taskDetails && loadedTaskIdRef.current !== taskDetails.id) {
+        setEditingTaskLocal(taskDetails);
+        setActiveTab("description");
+        loadedTaskIdRef.current = taskDetails.id;
+    } else if (!sheetTask) { // When sheet is closed
+        setEditingTaskLocal(null);
+        loadedTaskIdRef.current = null;
     }
-  }, [sheetTask?.taskId]);
+  }, [sheetTask, taskDetails]);
 
-  // SEPARATED EFFECT 2: Sync data when taskDetails updates (Save, Comment added, etc) without resetting the Tab
+
+  // Debounced auto-save effect for title, description, and sidebar fields
   useEffect(() => {
-    if (taskDetails) {
-      setEditingTaskLocal(taskDetails);
-      // Removed setActiveTab("description") from here to prevent view reset on updates
-    } else {
-      setEditingTaskLocal(null);
+    // Prevent auto-saving on initial load or if data is not ready
+    if (!editingTaskLocal || !taskDetails || loadedTaskIdRef.current !== editingTaskLocal.id) {
+      return;
     }
-  }, [taskDetails]);
+
+    const handler = setTimeout(() => {
+        const updates: Partial<TaskUI> = {};
+        
+        // Compare current local state with the last fetched state to find differences
+        if (editingTaskLocal.title !== taskDetails.title) updates.title = editingTaskLocal.title;
+        if (editingTaskLocal.description !== taskDetails.description) updates.description = editingTaskLocal.description;
+        if (editingTaskLocal.priority !== taskDetails.priority) updates.priority = editingTaskLocal.priority;
+        if (editingTaskLocal.points !== taskDetails.points) updates.points = editingTaskLocal.points;
+        if (editingTaskLocal.startDate !== taskDetails.startDate) updates.startDate = editingTaskLocal.startDate;
+        if (editingTaskLocal.endDate !== taskDetails.endDate) updates.endDate = editingTaskLocal.endDate;
+        
+        if (Object.keys(updates).length > 0) {
+            onUpdateTask(editingTaskLocal.sectionId, editingTaskLocal.id, updates);
+        }
+    }, 1500); // 1.5-second debounce delay
+
+    return () => {
+        clearTimeout(handler);
+    };
+  }, [editingTaskLocal, taskDetails, onUpdateTask]);
 
   useEffect(() => {
     if (descriptionContentEditableRef.current && activeTab === "description" && taskDetails && editingTaskLocal) {
@@ -368,7 +393,7 @@ export function TaskDetailSheet({
                         <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-700 hover:bg-gray-100" onMouseDown={(e) => e.preventDefault()} onClick={() => handleEditorCommand('justifyRight')} title="Align Right"><AlignRight className="h-4 w-4" /></Button>
                       </div>
                       <div>
-                        <div ref={descriptionContentEditableRef} contentEditable="true" onInput={(e) => { const target = e.target as HTMLDivElement; setEditingTaskLocal(prev => prev ? { ...prev, description: target.innerHTML || '' } : null);}} onFocus={(e) => { const target = e.target as HTMLDivElement; if (target.classList.contains('text-muted-foreground') && target.textContent === 'Add a detailed description...') { target.textContent = ''; target.classList.remove('text-muted-foreground', 'italic');}}} onBlur={(e) => { const target = e.target as HTMLDivElement; if (!target.textContent?.trim() && target.innerHTML?.trim() === '') { target.classList.add('text-muted-foreground', 'italic'); target.textContent = 'Add a detailed description...'; setEditingTaskLocal(prev => prev ? { ...prev, description: '' } : null); } else { setEditingTaskLocal(prev => prev ? { ...prev, description: target.innerHTML || '' } : null);}}} onKeyDown={(e) => { if (e.key === 'Enter' && descriptionContentEditableRef.current) { e.preventDefault(); if (e.shiftKey) { document.execCommand('insertHTML', false, '<br>'); } else { document.execCommand('insertParagraph', false, ''); }}}} dangerouslySetInnerHTML={{ __html: (editingTaskLocal.description && editingTaskLocal.description.trim() !== '') ? editingTaskLocal.description : 'Add a detailed description...' }} className={cn("text-base w-full p-2 border border-gray-200 rounded-md bg-white text-gray-700", "focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500", "resize-none break-words", "min-h-[100px]", !editingTaskLocal.description && "text-muted-foreground italic")} style={{ whiteSpace: 'pre-wrap' }}></div>
+                        <div ref={descriptionContentEditableRef} contentEditable="true" onInput={(e) => { const target = e.target as HTMLDivElement; setEditingTaskLocal(prev => prev ? { ...prev, description: target.innerHTML || '' } : null);}} onFocus={(e) => { const target = e.target as HTMLDivElement; if (target.classList.contains('text-muted-foreground') && target.textContent === 'Add a detailed description...') { target.textContent = ''; target.classList.remove('text-muted-foreground', 'italic');}}} onBlur={(e) => { const target = e.target as HTMLDivElement; if (!target.textContent?.trim() && target.innerHTML?.trim() === '') { target.classList.add('text-muted-foreground', 'italic'); target.textContent = 'Add a detailed description...'; setEditingTaskLocal(prev => prev ? { ...prev, description: '' } : null); } else { setEditingTaskLocal(prev => prev ? { ...prev, description: target.innerHTML || '' } : null);}}} onKeyDown={(e) => { if (e.key === 'Enter' && descriptionContentEditableRef.current) { e.preventDefault(); if (e.shiftKey) { document.execCommand('insertHTML', false, '<br>'); } else { document.execCommand('insertParagraph', false, ''); }}}} dangerouslySetInnerHTML={{ __html: (editingTaskLocal.description && editingTaskLocal.description.trim() !== '') ? editingTaskLocal.description : 'Add a detailed description...' }} className={cn("text-base w-full p-2 border border-gray-200 rounded-md bg-white text-gray-700", "focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500", "resize-none break-words", "min-h-[100px]", !editingTaskLocal.description && "text-muted-foreground italic", "text-left")} style={{ whiteSpace: 'pre-wrap' }}></div>
                       </div>
                     </div>
                   )}

@@ -30,15 +30,19 @@ const viewContent = {
     src: "/landingpage/document-view.png",
     alt: "Document View",
   },
+  "timeline": {
+    src: "/landingpage/timeline-view.png",
+    alt: "Timeline View",
+  },
 }
 
 export default function HomeClient() {
   const [scrollY, setScrollY] = useState(0)
   const [email, setEmail] = useState("")
   const [name, setName] = useState("")
-  const [activeView, setActiveView] = useState<"prompt-lab" | "whiteboard" | "kanban" | "list" | "document">(
-    "prompt-lab",
-  )
+  const [activeView, setActiveView] = useState<
+    "prompt-lab" | "whiteboard" | "kanban" | "list" | "document" | "timeline"
+  >("prompt-lab")
   const [touchStart, setTouchStart] = useState(0)
   const [touchEnd, setTouchEnd] = useState(0)
 
@@ -116,7 +120,7 @@ export default function HomeClient() {
     console.log("Email submitted:", email)
   }
 
-  const views = ["prompt-lab", "whiteboard", "kanban", "list", "document"] as const
+  const views = ["prompt-lab", "whiteboard", "kanban", "list", "document", "timeline"] as const
 
   const handleTouchStart = (e: React.TouchEvent) => {
     setTouchStart(e.targetTouches[0].clientX)
@@ -459,6 +463,16 @@ export default function HomeClient() {
                 }`}
               >
                 Document
+              </button>
+              <button
+                onClick={() => changeView("timeline")}
+                className={`px-6 py-3 rounded-full font-medium transition-all text-base whitespace-nowrap ${
+                  activeView === "timeline"
+                    ? "bg-teal-600 text-white shadow-lg"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                Timeline
               </button>
             </div>
           </div>
