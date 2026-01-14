@@ -2,7 +2,7 @@ import type React from "react";
 import { Geist, Manrope } from "next/font/google";
 import { metadata } from "./metadata"; // Import metadata
 import { Providers } from "./providers"; // Import the new client component
-import "./globals.css";
+import "./globals.scss";
 
 const geist = Geist({
   subsets: ["latin"],
