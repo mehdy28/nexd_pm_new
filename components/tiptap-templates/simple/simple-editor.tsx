@@ -84,11 +84,6 @@ const MainToolbarContent = ({
     <>
       <Spacer />
       <ToolbarGroup>
-        <UndoRedoButton action="undo" />
-        <UndoRedoButton action="redo" />
-      </ToolbarGroup>
-      <ToolbarSeparator />
-      <ToolbarGroup>
         <HeadingDropdownMenu levels={[1, 2, 3, 4]} portal={isMobile} />
         <ListDropdownMenu
           types={["bulletList", "orderedList", "taskList"]}
@@ -250,11 +245,13 @@ export const SimpleEditor = forwardRef<SimpleEditorRef, SimpleEditorProps>(({ in
             />
           )}
         </Toolbar>
+        <div className="bg-white">
         <EditorContent
           editor={editor}
           role="presentation"
           className="simple-editor-content"
         />
+        </div>
       </EditorContext.Provider>
     </div>
   )
