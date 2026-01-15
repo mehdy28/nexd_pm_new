@@ -36,7 +36,7 @@ type NewTaskForm = {
   endDate?: string | null
   priority: PriorityUI
   points?: number | null
-  description?: string | null
+  description?: any
 }
 
 const priorityStyles: Record<PriorityUI, string> = {
@@ -966,4 +966,3 @@ function TaskRow({ task, selected, onSelect, onToggleCompleted, onUpdate, onOpen
     </div>
   )
 }
-

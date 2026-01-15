@@ -1,4 +1,3 @@
-//hooks/personal/usePersonalTaskMutations.ts
 import { useMutation, useApolloClient, gql } from "@apollo/client"
 import { useCallback } from "react"
 import { CREATE_PERSONAL_TASK_MUTATION } from "@/graphql/mutations/personal/createPersonalTask"
@@ -13,7 +12,7 @@ interface CreatePersonalTaskVariables {
   input: {
     personalSectionId?: string
     title?: string
-    description?: string | null
+    description?: any
     status?: "TODO" | "DONE"
     priority?: Priority
     endDate?: string | null
@@ -25,7 +24,7 @@ interface UpdatePersonalTaskVariables {
   input: {
     id: string
     title?: string | null
-    description?: string | null
+    description?: any
     status?: "TODO" | "DONE"
     priority?: Priority
     endDate?: string | null

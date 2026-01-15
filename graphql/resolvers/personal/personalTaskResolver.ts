@@ -20,7 +20,7 @@ interface GraphQLContext {
 interface CreatePersonalTaskInput {
   personalSectionId: string
   title: string
-  description?: string | null
+  description?: any
   status?: TaskStatus
   priority?: Priority
   dueDate?: string | null
@@ -33,7 +33,7 @@ interface CreatePersonalTaskInput {
 interface UpdatePersonalTaskInput {
   id: string
   title?: string | null
-  description?: string | null
+  description?: any
   status?: TaskStatus
   priority?: Priority
   dueDate?: string | null
@@ -57,7 +57,7 @@ interface ConfirmAttachmentInput {
 interface CreatePersonalGanttTaskInput {
   personalSectionId: string
   name: string
-  description?: string | null
+  description?: any
   startDate: string
   endDate: string
   progress?: number | null
@@ -68,7 +68,7 @@ interface UpdatePersonalGanttTaskInput {
   id: string
   type: "TASK" // Prisma model name
   name?: string | null
-  description?: string | null
+  description?: any
   startDate?: string | null
   endDate?: string | null
   progress?: number | null

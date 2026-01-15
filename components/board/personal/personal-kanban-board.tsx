@@ -51,7 +51,7 @@ type OverlayState =
 type SheetTaskUI = {
   id: string
   title: string
-  description: string | null
+  description?: any
   priority: "LOW" | "MEDIUM" | "HIGH"
   startDate: string | null
   endDate: string | null

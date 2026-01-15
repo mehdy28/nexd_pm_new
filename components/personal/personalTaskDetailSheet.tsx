@@ -18,14 +18,7 @@ import {
   ActivityIcon,
   X,
   PlusCircle,
-  Bold,
-  Italic,
-  Underline,
-  List,
   ListOrdered,
-  AlignLeft,
-  AlignCenter,
-  AlignRight,
   Paperclip,
   FileText,
   FileCode,
@@ -49,6 +42,7 @@ import { Label } from "@/components/ui/label";
 import { useTaskDetails } from "@/hooks/useTaskDetails";
 import { ActivityUI, CommentUI } from "@/types/taskDetails";
 import type { TaskStatus } from "@prisma/client";
+import { SimpleEditor, SimpleEditorRef } from "@/components/tiptap-templates/simple/simple-editor";
 
 // Define generic types that work for both personal and project tasks
 type PriorityUI = "LOW" | "MEDIUM" | "HIGH";
@@ -57,7 +51,7 @@ type TaskStatusUI = TaskStatus; // "TODO" | "IN_PROGRESS" | "DONE"
 type TaskUI = {
   id: string;
   title: string;
-  description: string | null;
+  description: any;
   priority: PriorityUI;
   startDate: string | null;
   endDate: string | null;
@@ -76,7 +70,6 @@ const priorityDot: Record<PriorityUI, string> = {
 
 // Styling for inputs without border, like Jira
 const jiraInputStyle = "focus-visible:ring-0 focus-visible:ring-offset-0 border-none px-0 py-1 shadow-none bg-transparent";
-const jiraTextareaStyle = "focus-visible:ring-0 focus-visible:ring-offset-0 border-none px-0 py-1 shadow-none resize-y bg-transparent";
 const jiraSelectTriggerStyle = "focus:ring-0 focus:ring-offset-0 border-none h-auto px-0 py-1 shadow-none bg-transparent";
 
 // Helper to get file icon based on file type
@@ -124,7 +117,6 @@ const formatDateForInput = (isoDateString: string | null | undefined): string =>
   try {
     const date = new Date(isoDateString);
     if (isNaN(date.getTime())) return "";
-    // Extracts the YYYY-MM-DD part from the ISO string
     return date.toISOString().slice(0, 10);
   } catch (error) {
     return ""; // Return empty string on error
@@ -133,16 +125,9 @@ const formatDateForInput = (isoDateString: string | null | undefined): string =>
 
 // Helper to transform a Cloudinary URL to force download
 const getDownloadableUrl = (url: string) => {
-    // 1. Raw Files: Cloudinary 'raw' files (zips, etc) do not support image transformations.
-    // 2. PDFs: If a PDF is stored as an 'image' (default), applying 'fl_attachment' attempts to 
-    //    process it, which often fails or crashes if the account isn't configured for it.
-    // Return original URL for these cases to let the browser handle the download/view.
     if (url.includes('/raw/') || url.toLowerCase().endsWith('.pdf')) {
         return url;
     }
-
-    // Only apply the attachment flag for standard images (jpg, png) to force download
-    // instead of opening in a new tab.
     const parts = url.split('/upload/');
     if (parts.length === 2) {
         return `${parts[0]}/upload/fl_attachment/${parts[1]}`;
@@ -172,7 +157,7 @@ export function TaskDetailSheet({
   const [commentToDelete, setCommentToDelete] = useState<CommentUI | null>(null);
   const [deleteTaskModalOpen, setDeleteTaskModalOpen] = useState(false);
 
-  const descriptionContentEditableRef = useRef<HTMLDivElement>(null);
+  const editorRef = useRef<SimpleEditorRef>(null);
   const customCommentModalRef = useRef<HTMLDivElement>(null);
   const customTaskModalRef = useRef<HTMLDivElement>(null);
   const loadedTaskIdRef = useRef<string | null>(null);
@@ -188,22 +173,18 @@ export function TaskDetailSheet({
     isMutating: isTaskDetailsMutating,
   } = useTaskDetails(sheetTask?.taskId || null);
 
-  // Sync local state with taskDetails, but only reset fully when the task ID changes to avoid overwriting user edits.
   useEffect(() => {
     if (taskDetails && loadedTaskIdRef.current !== taskDetails.id) {
         setEditingTaskLocal(taskDetails);
         setActiveTab("description");
         loadedTaskIdRef.current = taskDetails.id;
-    } else if (!sheetTask) { // When sheet is closed
+    } else if (!sheetTask) { 
         setEditingTaskLocal(null);
         loadedTaskIdRef.current = null;
     }
   }, [sheetTask, taskDetails]);
 
-
-  // Debounced auto-save effect for title, description, and sidebar fields
   useEffect(() => {
-    // Prevent auto-saving on initial load or if data is not ready
     if (!editingTaskLocal || !taskDetails || loadedTaskIdRef.current !== editingTaskLocal.id) {
       return;
     }
@@ -211,9 +192,7 @@ export function TaskDetailSheet({
     const handler = setTimeout(() => {
         const updates: Partial<TaskUI> = {};
         
-        // Compare current local state with the last fetched state to find differences
         if (editingTaskLocal.title !== taskDetails.title) updates.title = editingTaskLocal.title;
-        if (editingTaskLocal.description !== taskDetails.description) updates.description = editingTaskLocal.description;
         if (editingTaskLocal.priority !== taskDetails.priority) updates.priority = editingTaskLocal.priority;
         if (editingTaskLocal.points !== taskDetails.points) updates.points = editingTaskLocal.points;
         if (editingTaskLocal.startDate !== taskDetails.startDate) updates.startDate = editingTaskLocal.startDate;
@@ -222,57 +201,32 @@ export function TaskDetailSheet({
         if (Object.keys(updates).length > 0) {
             onUpdateTask(editingTaskLocal.sectionId, editingTaskLocal.id, updates);
         }
-    }, 1500); // 1.5-second debounce delay
+    }, 1500);
 
     return () => {
         clearTimeout(handler);
     };
   }, [editingTaskLocal, taskDetails, onUpdateTask]);
 
-  useEffect(() => {
-    if (descriptionContentEditableRef.current && activeTab === "description" && taskDetails && editingTaskLocal) {
-      const div = descriptionContentEditableRef.current;
-      if (!editingTaskLocal.description?.trim()) {
-        if (div.textContent?.trim() !== 'Add a detailed description...') {
-          div.classList.add('text-muted-foreground', 'italic');
-          div.textContent = 'Add a detailed description...';
-        }
-      } else {
-        if (div.classList.contains('text-muted-foreground')) {
-          div.classList.remove('text-muted-foreground', 'italic');
-        }
-        if (div.innerHTML !== editingTaskLocal.description) {
-          div.innerHTML = editingTaskLocal.description;
-        }
-      }
-    }
-  }, [editingTaskLocal?.description, taskDetails, activeTab]);
-
   const handleSheetSave = useCallback(async () => {
     if (!sheetTask || !editingTaskLocal || !taskDetails) return;
     const originalTask = taskDetails;
     const updates: Partial<TaskUI> = {};
     if (editingTaskLocal.title !== originalTask.title) updates.title = editingTaskLocal.title;
-    if (editingTaskLocal.description !== originalTask.description) updates.description = editingTaskLocal.description;
     if (editingTaskLocal.priority !== originalTask.priority) updates.priority = editingTaskLocal.priority;
     if (editingTaskLocal.points !== originalTask.points) updates.points = editingTaskLocal.points;
     if (editingTaskLocal.startDate !== originalTask.startDate) updates.startDate = editingTaskLocal.startDate;
     if (editingTaskLocal.endDate !== originalTask.endDate) updates.endDate = editingTaskLocal.endDate;
     
+    const newDescription = editorRef.current?.getJSON();
+    if (newDescription && JSON.stringify(newDescription) !== JSON.stringify(originalTask.description)) {
+        updates.description = newDescription;
+    }
+
     if (Object.keys(updates).length > 0) {
       await onUpdateTask(sheetTask.sectionId, sheetTask.taskId, updates);
     }
   }, [sheetTask, editingTaskLocal, taskDetails, onUpdateTask]);
-
-  const handleEditorCommand = useCallback((command: string, value?: string) => {
-    if (descriptionContentEditableRef.current) {
-      descriptionContentEditableRef.current.focus();
-      document.execCommand(command, false, value);
-      if (descriptionContentEditableRef.current) {
-        setEditingTaskLocal(prev => prev ? { ...prev, description: descriptionContentEditableRef.current?.innerHTML || '' } : null);
-      }
-    }
-  }, []);
   
   const handleAddComment = useCallback(async () => {
     if (!newComment.trim()) return;
@@ -305,16 +259,13 @@ export function TaskDetailSheet({
     if (!taskDetails) return;
     try {
       await onRequestDelete(taskDetails.sectionId, taskDetails);
-      // After a successful deletion request, call onClose to close the sheet.
       onClose(); 
     } catch (err) {
       console.error("Failed to delete task:", err);
-      // On error, the sheet remains open, but the modal will still close.
     } finally {
-      // This ensures the confirmation modal always closes after an attempt.
       setDeleteTaskModalOpen(false);
     }
-  }, [taskDetails, onRequestDelete, onClose]); // Added onClose to dependencies
+  }, [taskDetails, onRequestDelete, onClose]);
 
   const handleFileUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -359,7 +310,6 @@ export function TaskDetailSheet({
               <SheetTitle className="sr-only">Edit Task</SheetTitle><SheetDescription className="sr-only">View and modify task details.</SheetDescription>
               <div className="flex justify-between items-center">
               <Input value={editingTaskLocal.title} onChange={(e) => setEditingTaskLocal(prev => prev ? { ...prev, title: e.target.value } : null)} className={cn("text-2xl font-bold mt-2", jiraInputStyle, "text-gray-800")} 
-              //disabled={isTaskMutating}
               />
                 <div className="flex gap-2">
                   <Button variant="ghost" size="icon" className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50" onClick={() => setDeleteTaskModalOpen(true)} title="Delete task"><Trash2 className="h-4 w-4" /></Button>
@@ -381,20 +331,8 @@ export function TaskDetailSheet({
                 <div className="flex-1 h-full min-h-0">
                   {taskDetailsError ? ( <div className="p-6 text-red-600">Error: {taskDetailsError.message}</div> ) : ( <>
                   {activeTab === "description" && (
-                    <div className="px-6 py-4  h-full overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
-                      <div className="mb-2 p-1 rounded-md bg-white border border-gray-200 flex gap-1 flex-wrap">
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-700 hover:bg-gray-100" onMouseDown={(e) => e.preventDefault()} onClick={() => handleEditorCommand('bold')} title="Bold"><Bold className="h-4 w-4" /></Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-700 hover:bg-gray-100" onMouseDown={(e) => e.preventDefault()} onClick={() => handleEditorCommand('italic')} title="Italic"><Italic className="h-4 w-4" /></Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-700 hover:bg-gray-100" onMouseDown={(e) => e.preventDefault()} onClick={() => handleEditorCommand('underline')} title="Underline"><Underline className="h-4 w-4" /></Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-700 hover:bg-gray-100" onMouseDown={(e) => e.preventDefault()} onClick={() => handleEditorCommand('insertUnorderedList')} title="Unordered List"><List className="h-4 w-4" /></Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-700 hover:bg-gray-100" onMouseDown={(e) => e.preventDefault()} onClick={() => handleEditorCommand('insertOrderedList')} title="Ordered List"><ListOrdered className="h-4 w-4" /></Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-700 hover:bg-gray-100" onMouseDown={(e) => e.preventDefault()} onClick={() => handleEditorCommand('justifyLeft')} title="Align Left"><AlignLeft className="h-4 w-4" /></Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-700 hover:bg-gray-100" onMouseDown={(e) => e.preventDefault()} onClick={() => handleEditorCommand('justifyCenter')} title="Align Center"><AlignCenter className="h-4 w-4" /></Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-700 hover:bg-gray-100" onMouseDown={(e) => e.preventDefault()} onClick={() => handleEditorCommand('justifyRight')} title="Align Right"><AlignRight className="h-4 w-4" /></Button>
-                      </div>
-                      <div>
-                        <div ref={descriptionContentEditableRef} contentEditable="true" onInput={(e) => { const target = e.target as HTMLDivElement; setEditingTaskLocal(prev => prev ? { ...prev, description: target.innerHTML || '' } : null);}} onFocus={(e) => { const target = e.target as HTMLDivElement; if (target.classList.contains('text-muted-foreground') && target.textContent === 'Add a detailed description...') { target.textContent = ''; target.classList.remove('text-muted-foreground', 'italic');}}} onBlur={(e) => { const target = e.target as HTMLDivElement; if (!target.textContent?.trim() && target.innerHTML?.trim() === '') { target.classList.add('text-muted-foreground', 'italic'); target.textContent = 'Add a detailed description...'; setEditingTaskLocal(prev => prev ? { ...prev, description: '' } : null); } else { setEditingTaskLocal(prev => prev ? { ...prev, description: target.innerHTML || '' } : null);}}} onKeyDown={(e) => { if (e.key === 'Enter' && descriptionContentEditableRef.current) { e.preventDefault(); if (e.shiftKey) { document.execCommand('insertHTML', false, '<br>'); } else { document.execCommand('insertParagraph', false, ''); }}}} dangerouslySetInnerHTML={{ __html: (editingTaskLocal.description && editingTaskLocal.description.trim() !== '') ? editingTaskLocal.description : 'Add a detailed description...' }} className={cn("text-base w-full p-2 border border-gray-200 rounded-md bg-white text-gray-700", "focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500", "resize-none break-words", "min-h-[100px]", !editingTaskLocal.description && "text-muted-foreground italic", "text-left")} style={{ whiteSpace: 'pre-wrap' }}></div>
-                      </div>
+                    <div className="bg-white px-6 py-4 h-full overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
+                       <SimpleEditor ref={editorRef} initialContent={editingTaskLocal.description} />
                     </div>
                   )}
                   {activeTab === "comments" && (
@@ -491,7 +429,6 @@ export function TaskDetailSheet({
                       <TagIcon className="h-4 w-4 text-gray-500" /> Priority
                     </Label>
                     <Select value={editingTaskLocal.priority} onValueChange={(v: PriorityUI) => setEditingTaskLocal(prev => prev ? { ...prev, priority: v } : null)} 
-                    //disabled={isTaskMutating}
                     >
                       <SelectTrigger id="priority-select" className={cn("w-full text-gray-700 hover:bg-gray-50 rounded-md py-2 px-3 transition-colors border", jiraSelectTriggerStyle)}>
                         <SelectValue><div className="inline-flex items-center gap-2"><span className={cn("h-2 w-2 rounded-full", priorityDot[editingTaskLocal.priority])} /><span>{editingTaskLocal.priority}</span></div></SelectValue>
@@ -504,7 +441,6 @@ export function TaskDetailSheet({
                         <ListOrdered className="h-4 w-4 text-gray-500" /> Story Points
                     </Label>
                     <Input id="story-points-input" type="number" value={editingTaskLocal.points ?? ""} onChange={(e) => setEditingTaskLocal(prev => prev ? { ...prev, points: Number.isNaN(Number.parseInt(e.target.value)) ? 0 : Number.parseInt(e.target.value) } : null)} className="w-full text-gray-700 border bg-gray-50 p-2 rounded-md hover:bg-gray-100 transition-colors" min={0} placeholder="Add points" 
-                    //disabled={isTaskMutating}
                     />
                   </div>
                   <div>
@@ -512,7 +448,6 @@ export function TaskDetailSheet({
                         <CalendarIcon className="h-4 w-4 text-gray-500" /> Start Date
                     </Label>
                     <Input id="start-date-input" type="date" value={formatDateForInput(editingTaskLocal.startDate)} onChange={(e) => setEditingTaskLocal(prev => prev ? { ...prev, startDate: e.target.value } : null)} className="w-full text-gray-700 border bg-gray-50 p-2 rounded-md hover:bg-gray-100 transition-colors" placeholder="Set start date" 
-                    //disabled={isTaskMutating}
                     />
                   </div>
                   <div>
@@ -520,7 +455,6 @@ export function TaskDetailSheet({
                         <ClockIcon className="h-4 w-4 text-gray-500" /> End Date
                     </Label>
                     <Input id="end-date-input" type="date" value={formatDateForInput(editingTaskLocal.endDate)} onChange={(e) => setEditingTaskLocal(prev => prev ? { ...prev, endDate: e.target.value } : null)} className="w-full text-gray-700 border bg-gray-50 p-2 rounded-md hover:bg-gray-100 transition-colors" placeholder="Set end date" 
-                    //disabled={isTaskMutating}
                     />
                   </div>
                 </div>
@@ -598,7 +532,6 @@ export function TaskDetailSheet({
   );
 }
 
-// Helper component to parse and render activity logs
 function ParsedActivityLogItem({ activity }: { activity: ActivityUI }) {
     let action = "performed an action";
     let details: React.ReactNode | undefined = undefined;
@@ -612,7 +545,6 @@ function ParsedActivityLogItem({ activity }: { activity: ActivityUI }) {
             throw new Error("Activity data is missing or not an object.");
         }
         
-        // --- FIX: Aligning component with the backend API data contract ---
         switch (activity.type) {
             case 'TASK_CREATED':
                 action = "created the task";
@@ -622,7 +554,6 @@ function ParsedActivityLogItem({ activity }: { activity: ActivityUI }) {
                 break;
             case 'DESCRIPTION_UPDATED':
                 action = "updated the description";
-                // No details for description changes to keep the log clean
                 icon = <Pencil className="h-4 w-4 text-blue-500" />;
                 accentColor = "bg-blue-50";
                 break;
@@ -638,7 +569,7 @@ function ParsedActivityLogItem({ activity }: { activity: ActivityUI }) {
                 icon = <ListOrdered className="h-4 w-4 text-purple-500" />;
                 accentColor = "bg-purple-50";
                 break;
-            case 'STATUS_UPDATED': // FIX: Corrected type name
+            case 'STATUS_UPDATED':
                  action = "changed the status";
                  details = <><b className="font-semibold not-italic text-gray-700">{data.old}</b> → <b className="font-semibold not-italic text-gray-700">{data.new}</b></>;
                  icon = <CheckCircle2 className="h-4 w-4 text-green-600" />;
@@ -651,7 +582,7 @@ function ParsedActivityLogItem({ activity }: { activity: ActivityUI }) {
                 accentColor = "bg-red-50";
                 break;
             case 'TASK_UPDATED':
-                action = `updated the ${data.change}`; // FIX: Use 'change' instead of 'field'
+                action = `updated the ${data.change}`;
                 details = <>from "<b className="font-semibold not-italic text-gray-700">{data.old}</b>" to "<b className="font-semibold not-italic text-gray-700">{data.new}</b>"</>;
                 icon = <Pencil className="h-4 w-4 text-blue-500" />;
                 accentColor = "bg-blue-50";
@@ -698,13 +629,12 @@ function ParsedActivityLogItem({ activity }: { activity: ActivityUI }) {
     )
 }
 
-// Helper component for Activity Log Items styling
 interface ActivityLogItemProps {
   user: {
     firstName: string;
     lastName: string;
     avatar?: string;
-    avatarColor?: string; // Added avatarColor
+    avatarColor?: string;
   };
   action: string;
   details?: React.ReactNode;
