@@ -21,7 +21,7 @@ interface CreateProjectTaskInput {
   projectId: string
   sectionId: string
   title: string
-  description?: string | null
+  description?: any
   status?: TaskStatus
   priority?: Priority
   dueDate?: string | null
@@ -36,7 +36,7 @@ interface CreateProjectTaskInput {
 interface UpdateProjectTaskInput {
   id: string
   title?: string | null
-  description?: string | null
+  description?: any
   status?: TaskStatus
   priority?: Priority
   dueDate?: string | null
@@ -63,7 +63,7 @@ interface CreateGanttTaskInput {
   projectId: string
   sprintId: string
   name: string
-  description?: string | null
+  description?: any
   startDate: string
   endDate: string
   assigneeId?: string | null
@@ -75,7 +75,7 @@ interface UpdateGanttTaskInput {
   id: string
   type: "TASK" | "MILESTONE"
   name?: string | null
-  description?: string | null
+  description?: any
   startDate?: string | null
   endDate?: string | null
   assigneeId?: string | null

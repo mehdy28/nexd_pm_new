@@ -381,7 +381,7 @@ model PersonalSection {
 model Task {
   id                   String           @id @default(cuid())
   title                String
-  description          String?
+  description          Json?
   status               TaskStatus       @default(TODO)
   priority             Priority         @default(MEDIUM)
   dueDate              DateTime?

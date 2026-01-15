@@ -1,4 +1,4 @@
-npx prisma migrate dev --name initial
+npx prisma migrate dev --name initial565+65
 npx prisma db push
 npx prisma migrate deploy
 npx prisma generate

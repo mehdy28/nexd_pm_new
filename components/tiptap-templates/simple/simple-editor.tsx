@@ -1,7 +1,8 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState, forwardRef, useImperativeHandle } from "react"
 import { EditorContent, EditorContext, useEditor } from "@tiptap/react"
+import { JSONContent } from "@tiptap/core"
 
 // --- Tiptap Core Extensions ---
 import { StarterKit } from "@tiptap/starter-kit"
@@ -70,8 +71,6 @@ import { handleImageUpload, MAX_FILE_SIZE } from "@/lib/tiptap-utils"
 // --- Styles ---
 import "@/components/tiptap-templates/simple/simple-editor.scss"
 
-import content from "@/components/tiptap-templates/simple/data/content.json"
-
 const MainToolbarContent = ({
   onHighlighterClick,
   onLinkClick,
@@ -84,14 +83,11 @@ const MainToolbarContent = ({
   return (
     <>
       <Spacer />
-
       <ToolbarGroup>
         <UndoRedoButton action="undo" />
         <UndoRedoButton action="redo" />
       </ToolbarGroup>
-
       <ToolbarSeparator />
-
       <ToolbarGroup>
         <HeadingDropdownMenu levels={[1, 2, 3, 4]} portal={isMobile} />
         <ListDropdownMenu
@@ -101,9 +97,7 @@ const MainToolbarContent = ({
         <BlockquoteButton />
         <CodeBlockButton />
       </ToolbarGroup>
-
       <ToolbarSeparator />
-
       <ToolbarGroup>
         <MarkButton type="bold" />
         <MarkButton type="italic" />
@@ -117,30 +111,22 @@ const MainToolbarContent = ({
         )}
         {!isMobile ? <LinkPopover /> : <LinkButton onClick={onLinkClick} />}
       </ToolbarGroup>
-
       <ToolbarSeparator />
-
       <ToolbarGroup>
         <MarkButton type="superscript" />
         <MarkButton type="subscript" />
       </ToolbarGroup>
-
       <ToolbarSeparator />
-
-
       <ToolbarGroup>
         <TextAlignButton align="left" />
         <TextAlignButton align="center" />
         <TextAlignButton align="right" />
         <TextAlignButton align="justify" />
       </ToolbarGroup>
-
       <ToolbarSeparator />
-
       <ToolbarGroup>
         <ImageUploadButton text="Add" />
       </ToolbarGroup>
-
       <Spacer />
     </>
   )
@@ -164,9 +150,7 @@ const MobileToolbarContent = ({
         )}
       </Button>
     </ToolbarGroup>
-
     <ToolbarSeparator />
-
     {type === "highlighter" ? (
       <ColorHighlightPopoverContent />
     ) : (
@@ -175,7 +159,15 @@ const MobileToolbarContent = ({
   </>
 )
 
-export function SimpleEditor() {
+export interface SimpleEditorProps {
+  initialContent?: JSONContent | string | null;
+}
+
+export interface SimpleEditorRef {
+  getJSON: () => JSONContent;
+}
+
+export const SimpleEditor = forwardRef<SimpleEditorRef, SimpleEditorProps>(({ initialContent }, ref) => {
   const isMobile = useIsBreakpoint()
   const { height } = useWindowSize()
   const [mobileView, setMobileView] = useState<"main" | "highlighter" | "link">(
@@ -220,8 +212,16 @@ export function SimpleEditor() {
         onError: (error) => console.error("Upload failed:", error),
       }),
     ],
-    content,
+    content: initialContent || "",
+    // Re-create the editor if the initial content changes (e.g., loading a different task)
+    deps: [initialContent], 
   })
+
+  useImperativeHandle(ref, () => ({
+    getJSON: () => {
+      return editor?.getJSON() || {};
+    },
+  }));
 
   const rect = useCursorVisibility({
     editor,
@@ -260,7 +260,6 @@ export function SimpleEditor() {
             />
           )}
         </Toolbar>
-
         <EditorContent
           editor={editor}
           role="presentation"
@@ -269,4 +268,6 @@ export function SimpleEditor() {
       </EditorContext.Provider>
     </div>
   )
-}
+})
+
+SimpleEditor.displayName = "SimpleEditor"

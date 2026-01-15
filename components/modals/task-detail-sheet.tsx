@@ -51,7 +51,7 @@ import { UserAvatarPartial } from "@/types/useProjectTasksAndSections";
 import { useTaskDetails } from "@/hooks/useTaskDetails";
 import { ActivityUI, CommentUI } from "@/types/taskDetails";
 import type { TaskStatus } from "@prisma/client";
-import { SimpleEditor } from "@/components/tiptap-templates/simple/simple-editor";
+import { SimpleEditor, SimpleEditorRef } from "@/components/tiptap-templates/simple/simple-editor";
 
 // Define generic types that work for both personal and project tasks
 type PriorityUI = "LOW" | "MEDIUM" | "HIGH";
@@ -60,7 +60,7 @@ type TaskStatusUI = TaskStatus; // "TODO" | "IN_PROGRESS" | "DONE"
 type TaskUI = {
   id: string;
   title: string;
-  description: string | null;
+  description: any;
   priority: PriorityUI;
   startDate: string | null;
   endDate: string | null;
@@ -170,6 +170,7 @@ export function TaskDetailSheet({
   const [commentToDelete, setCommentToDelete] = useState<CommentUI | null>(null);
   const [deleteTaskModalOpen, setDeleteTaskModalOpen] = useState(false);
 
+  const editorRef = useRef<SimpleEditorRef>(null);
   const customCommentModalRef = useRef<HTMLDivElement>(null);
   const customTaskModalRef = useRef<HTMLDivElement>(null);
   const loadedTaskIdRef = useRef<string | null>(null);
@@ -205,7 +206,6 @@ export function TaskDetailSheet({
     const handler = setTimeout(() => {
         const updates: Partial<TaskUI> = {};
         if (editingTaskLocal.title !== taskDetails.title) updates.title = editingTaskLocal.title;
-        // Description updates are no longer tracked here as the imported editor is uncontrolled
         if (editingTaskLocal.priority !== taskDetails.priority) updates.priority = editingTaskLocal.priority;
         if (editingTaskLocal.points !== taskDetails.points) updates.points = editingTaskLocal.points;
         if (editingTaskLocal.startDate !== taskDetails.startDate) updates.startDate = editingTaskLocal.startDate;
@@ -224,15 +224,22 @@ export function TaskDetailSheet({
 
   const handleSheetSave = useCallback(async () => {
     if (!sheetTask || !editingTaskLocal || !taskDetails) return;
+
     const originalTask = taskDetails;
     const updates: Partial<TaskUI> = {};
+
     if (editingTaskLocal.title !== originalTask.title) updates.title = editingTaskLocal.title;
-    // Description updates are no longer tracked here
     if (editingTaskLocal.priority !== originalTask.priority) updates.priority = editingTaskLocal.priority;
     if (editingTaskLocal.points !== originalTask.points) updates.points = editingTaskLocal.points;
     if (editingTaskLocal.startDate !== originalTask.startDate) updates.startDate = editingTaskLocal.startDate;
     if (editingTaskLocal.endDate !== originalTask.endDate) updates.endDate = editingTaskLocal.endDate;
     if (editingTaskLocal.assignee?.id !== originalTask.assignee?.id) updates.assignee = editingTaskLocal.assignee;
+
+    const newDescription = editorRef.current?.getJSON();
+    if (newDescription && JSON.stringify(newDescription) !== JSON.stringify(originalTask.description)) {
+        updates.description = newDescription;
+    }
+
     if (Object.keys(updates).length > 0) {
       await onUpdateTask(sheetTask.sectionId, sheetTask.taskId, updates);
     }
@@ -333,7 +340,7 @@ export function TaskDetailSheet({
                   {taskDetailsError ? ( <div className="p-6 text-red-600">Error: {taskDetailsError.message}</div> ) : ( <>
                   {activeTab === "description" && (
                     <div className="bg-white px-6 py-4 h-full overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
-                       <SimpleEditor />
+                       <SimpleEditor ref={editorRef} initialContent={editingTaskLocal.description} />
                     </div>
                   )}
                   {activeTab === "comments" && (

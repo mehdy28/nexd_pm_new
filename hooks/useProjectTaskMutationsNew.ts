@@ -1,4 +1,3 @@
-//hooks/useProjectTaskMutations.ts
 import { useMutation, useApolloClient, gql } from "@apollo/client"
 import { useCallback } from "react"
 import { CREATE_PROJECT_TASK_MUTATION } from "@/graphql/mutations/createProjectTask"
@@ -14,7 +13,7 @@ interface CreateProjectTaskVariables {
     projectId: string
     sectionId: string
     title: string
-    description?: string | null
+    description?: any
     status?: TaskStatus
     priority?: Priority
     endDate?: string | null
@@ -28,7 +27,7 @@ interface UpdateProjectTaskVariables {
   input: {
     id: string
     title?: string | null
-    description?: string | null
+    description?: any
     status?: TaskStatus
     priority?: Priority
     endDate?: string | null
@@ -219,24 +218,6 @@ export function useProjectTaskMutations(projectId: string, currentSprintId?: str
     },
     [updateTask]
   )
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
   const deleteTask = useCallback(
     async (taskId: string, sectionId: string) => {

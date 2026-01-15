@@ -45,7 +45,7 @@ type NewTaskForm = {
   endDate?: string | null
   priority: PriorityUI
   points?: number | null
-  description?: string | null
+  description?: any
   sprintId?: string | null
 }
 
