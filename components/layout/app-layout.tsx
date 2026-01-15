@@ -39,7 +39,6 @@ export function AppLayout({ children }: { children: ReactNode }) {
         </div>
       </div>
 
-      <LoadingOverlay />
     </TopbarProvider>
   );
 }
