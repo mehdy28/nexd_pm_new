@@ -310,7 +310,7 @@ export function TaskDetailSheet({
 
   return (
     <Sheet open={!!sheetTask} onOpenChange={(open) => (!open ? onClose() : null)}>
-      <SheetContent side="right" className="w-full sm:max-w-5xl bg-gray-100 border-l p-0 flex flex-col h-full max-h-screen">
+      <SheetContent side="right" className="w-full sm:max-w-[1000px] bg-gray-100 border-l p-0 flex flex-col h-full max-h-screen">
         {taskDetailsLoading ? (
             <div className="flex items-center justify-center p-6 text-muted-foreground flex-1"><Loader2 className="h-6 w-6 animate-spin text-teal-500" /></div>
         ) : taskDetails && editingTaskLocal ? (
@@ -326,8 +326,8 @@ export function TaskDetailSheet({
               </div>
             </SheetHeader>
 
-            <div className="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-5 h-full min-h-0">
-              <div className="lg:col-span-4 flex flex-col h-full min-h-0">
+            <div className="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-4 h-full min-h-0">
+              <div className="lg:col-span-3 flex flex-col h-full min-h-0">
                 <div className="sticky top-0 z-10 bg-gray-100 px-6 pt-2 pb-2 border-b border-gray-200 flex-shrink-0">
                   <div className="grid w-full grid-cols-4 h-10 bg-gray-200 rounded-md p-1">
                     <button type="button" className={cn("inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium transition-all", activeTab === "description" ? "bg-white shadow-sm text-foreground" : "text-muted-foreground hover:bg-gray-100")} onClick={() => setActiveTab("description")} aria-selected={activeTab === "description"}>Description</button>
