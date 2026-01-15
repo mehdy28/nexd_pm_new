@@ -245,7 +245,7 @@ export const SimpleEditor = forwardRef<SimpleEditorRef, SimpleEditorProps>(({ in
             />
           )}
         </Toolbar>
-        <div className="bg-white">
+        <div className="pt-2 bg-white">
         <EditorContent
           editor={editor}
           role="presentation"
