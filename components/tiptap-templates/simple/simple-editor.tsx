@@ -102,7 +102,6 @@ const MainToolbarContent = ({
         <MarkButton type="bold" />
         <MarkButton type="italic" />
         <MarkButton type="strike" />
-        <MarkButton type="code" />
         <MarkButton type="underline" />
         {!isMobile ? (
           <ColorHighlightPopover />
@@ -113,19 +112,10 @@ const MainToolbarContent = ({
       </ToolbarGroup>
       <ToolbarSeparator />
       <ToolbarGroup>
-        <MarkButton type="superscript" />
-        <MarkButton type="subscript" />
-      </ToolbarGroup>
-      <ToolbarSeparator />
-      <ToolbarGroup>
         <TextAlignButton align="left" />
         <TextAlignButton align="center" />
         <TextAlignButton align="right" />
         <TextAlignButton align="justify" />
-      </ToolbarGroup>
-      <ToolbarSeparator />
-      <ToolbarGroup>
-        <ImageUploadButton text="Add" />
       </ToolbarGroup>
       <Spacer />
     </>
