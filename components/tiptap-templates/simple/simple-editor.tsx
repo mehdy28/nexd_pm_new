@@ -113,19 +113,10 @@ const MainToolbarContent = ({
       </ToolbarGroup>
       <ToolbarSeparator />
       <ToolbarGroup>
-        <MarkButton type="superscript" />
-        <MarkButton type="subscript" />
-      </ToolbarGroup>
-      <ToolbarSeparator />
-      <ToolbarGroup>
         <TextAlignButton align="left" />
         <TextAlignButton align="center" />
         <TextAlignButton align="right" />
         <TextAlignButton align="justify" />
-      </ToolbarGroup>
-      <ToolbarSeparator />
-      <ToolbarGroup>
-        <ImageUploadButton text="Add" />
       </ToolbarGroup>
       <Spacer />
     </>
