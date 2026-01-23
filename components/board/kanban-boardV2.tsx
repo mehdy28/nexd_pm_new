@@ -36,6 +36,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { UserAvatarPartial } from "@/types/useProjectTasksAndSections"
+import { KanbanCard } from "./kanban-card"
 
 type OverlayState =
   | {
@@ -377,23 +378,7 @@ export function KanbanBoard({
                 height: overlay.height ? `${overlay.height}px` : undefined,
               }}
             >
-              <div className="flex items-start">
-                <span
-                  className={
-                    overlay.card.priority === "HIGH"
-                      ? "badge-high"
-                      : overlay.card.priority === "MEDIUM"
-                      ? "badge-medium"
-                      : "badge-low"
-                  }
-                >
-                  {overlay.card.priority || "LOW"}
-                </span>
-                <div className="ml-auto text-xs text-slate-500">
-                  {overlay.card.points ? `${overlay.card.points} SP` : ""}
-                </div>
-              </div>
-              <div className="mt-2 text-sm font-semibold">{overlay.card.title}</div>
+              <KanbanCard card={overlay.card} onOpen={() => {}} onFinishInline={() => {}} onStartInline={() => {}} />
             </div>
           ) : overlay?.kind === "column" ? (
             <div
