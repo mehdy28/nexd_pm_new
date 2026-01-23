@@ -19,7 +19,7 @@ export function KanbanCard({
   onStartInline: () => void
 }) {
   const [title, setTitle] = useState(card.title)
-  const [desc, setDesc] = useState(card.description ?? "")
+  const [desc, setDesc] = useState(typeof card.description === "string" ? card.description : "")
   const titleRef = useRef<HTMLInputElement | null>(null)
 
   useEffect(() => {

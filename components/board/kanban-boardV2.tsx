@@ -1,4 +1,3 @@
-//components/board/kanban-boardV2.tsx
 "use client"
 
 import { useMemo, useRef, useState, useCallback, useEffect } from "react"
@@ -395,9 +394,6 @@ export function KanbanBoard({
                 </div>
               </div>
               <div className="mt-2 text-sm font-semibold">{overlay.card.title}</div>
-              {overlay.card.description ? (
-                <div className="mt-1 line-clamp-2 text-xs text-slate-500">{overlay.card.description}</div>
-              ) : null}
             </div>
           ) : overlay?.kind === "column" ? (
             <div
