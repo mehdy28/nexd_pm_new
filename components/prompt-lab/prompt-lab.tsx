@@ -363,67 +363,43 @@ export function PromptLab({
     }, [variablesToDisplay, projectId, resolveVariable]);
 
 
-    // 3. Generate Preview
-    useEffect(() => {
-        const renderContextWithHighlights = (text: string, values: Record<string, string>, vars: PromptVariable[]): React.ReactNode[] => {
-            if (!text) return [];
-            
-            const placeholderPatterns = vars.map(v => v.placeholder.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&'));
-            if (placeholderPatterns.length === 0) return [text];
+// 3. Generate Preview
+useEffect(() => {
+    let strContent = contentToDisplay.map(block => {
+        if (block.type === 'text') return block.value ?? '';
+        if (block.type === 'variable') return previewVariableValues[block.placeholder] || block.placeholder;
+        return '';
+    }).join('\n'); 
 
-            const pattern = new RegExp(`(${placeholderPatterns.join('|')})`, 'g');
-            const parts = text.split(pattern);
+    setRenderedPreviewString(strContent);
 
-            return parts.map((part, index) => {
-                const matchingVar = vars.find(v => v.placeholder === part);
-                if (matchingVar) {
-                    const val = values[matchingVar.placeholder] || matchingVar.defaultValue || matchingVar.placeholder;
-                    return <span key={`${index}-${val.substring(0,10)}`} className="font-bold text-blue-600">{val}</span>;
-                }
-                return <span key={index}>{part}</span>;
-            });
-        };
-
-        let strContent = contentToDisplay.map(block => {
-            if (block.type === 'text') return block.value ?? '';
-            if (block.type === 'variable') return previewVariableValues[block.placeholder] || block.placeholder;
-            return '';
-        }).join('\n'); 
-
-        let strContext = contextToDisplay;
-        variablesToDisplay.forEach(v => {
-            const val = previewVariableValues[v.placeholder] || v.defaultValue || v.placeholder;
-            strContext = strContext.split(v.placeholder).join(val);
-        });
-
-        const fullString = [strContent, strContext].filter(Boolean).join('\n\n');
-        setRenderedPreviewString(fullString);
-
-        const nodes: React.ReactNode[] = [];
-        contentToDisplay.forEach((block, idx) => {
-            if (block.type === 'text') {
-                nodes.push(<span key={`blk-${idx}`}>{block.value ?? ''}</span>);
-            } else if (block.type === 'variable') {
-                const val = previewVariableValues[block.placeholder] || block.placeholder;
-                nodes.push(<span key={`blk-${idx}`} className="font-bold text-blue-600">{val}</span>);
-            }
-            if (idx < contentToDisplay.length - 1) {
-                nodes.push("\n");
-            }
-        });
-
-        if (contentToDisplay.length > 0 && contextToDisplay) {
-            nodes.push(<div key="sep" className="h-4"></div>); 
+    const nodes: React.ReactNode[] = [];
+    contentToDisplay.forEach((block, idx) => {
+        if (block.type === 'text') {
+            nodes.push(<span key={`blk-${idx}`}>{block.value ?? ''}</span>);
+        } else if (block.type === 'variable') {
+            const val = previewVariableValues[block.placeholder] || block.placeholder;
+            nodes.push(<span key={`blk-${idx}`} className="font-bold text-blue-600">{val}</span>);
         }
-
-        if (contextToDisplay) {
-           const contextNodes = renderContextWithHighlights(contextToDisplay, previewVariableValues, variablesToDisplay);
-           nodes.push(<div key="ctx">{contextNodes}</div>);
+        if (idx < contentToDisplay.length - 1) {
+            nodes.push("\n");
         }
+    });
 
-        setRenderedPreviewNodes(<>{nodes}</>);
+    setRenderedPreviewNodes(<>{nodes}</>);
 
-    }, [contentToDisplay, contextToDisplay, variablesToDisplay, previewVariableValues]);
+}, [contentToDisplay, variablesToDisplay, previewVariableValues]);
+
+
+
+
+
+
+
+
+
+
+
 
 
     useEffect(() => {
