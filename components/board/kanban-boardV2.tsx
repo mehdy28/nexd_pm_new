@@ -36,7 +36,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { UserAvatarPartial } from "@/types/useProjectTasksAndSections"
-import { KanbanCard } from "./kanban-card"
 
 type OverlayState =
   | {
@@ -359,8 +358,6 @@ export function KanbanBoard({
                           )
                         )
                       }}
-                      onDeleteCard={() => onDeleteCard(column.id, card.id)}
-                      isMutating={isMutating}
                     />
                   ))}
                 </SortableContext>
@@ -370,29 +367,36 @@ export function KanbanBoard({
         </div>
 
         <DragOverlay>
-          {overlay?.kind === "card" ? (
-            <div
-              className="card pointer-events-none shadow-[var(--shadow-lg)]"
-              style={{
-                width: overlay.width ? `${overlay.width}px` : undefined,
-                height: overlay.height ? `${overlay.height}px` : undefined,
-              }}
+          {overlay?.kind === "card" && overlay.card ? (
+            <KanbanSortableCard
+              card={overlay.card}
+              columnId={findColumnIdByCardId(overlay.card.id) || ""}
+              onOpen={() => {}}
+              onStartInline={() => {}}
+              onFinishInline={() => {}}
+            />
+          ) : overlay?.kind === "column" && overlay.column ? (
+            <KanbanSortableColumn
+              column={overlay.column}
+              onAddCard={() => {}}
+              onTitleChange={() => {}}
+              onDeleteColumn={() => {}}
+              onStartTitleEdit={() => {}}
+              onStopTitleEdit={() => {}}
             >
-              <KanbanCard card={overlay.card} onOpen={() => {}} onFinishInline={() => {}} onStartInline={() => {}} />
-            </div>
-          ) : overlay?.kind === "column" ? (
-            <div
-              className="column pointer-events-none"
-              style={{
-                width: overlay.width ? `${overlay.width}px` : undefined,
-                height: overlay.height ? `${overlay.height}px` : undefined,
-              }}
-            >
-              <div className="column-header">
-                <div className="text-sm font-semibold">{overlay.column.title}</div>
-              </div>
-              <div className="column-body"></div>
-            </div>
+              <SortableContext items={overlay.column.cards.map(c => c.id)} strategy={verticalListSortingStrategy}>
+                {overlay.column.cards.map(card => (
+                  <KanbanSortableCard
+                    key={card.id}
+                    columnId={overlay.column.id}
+                    card={card}
+                    onOpen={() => {}}
+                    onStartInline={() => {}}
+                    onFinishInline={() => {}}
+                  />
+                ))}
+              </SortableContext>
+            </KanbanSortableColumn>
           ) : null}
         </DragOverlay>
       </DndContext>
