@@ -1,7 +1,7 @@
-"use client"; // This directive marks the component as a Client Component
+"use client"; 
 
+import { useEffect } from 'react';
 import Link from 'next/link';
-import Script from 'next/script';
 import Image from 'next/image';
 
 // Extend the Window interface to include the Supademo property
@@ -12,21 +12,41 @@ declare global {
 }
 
 export default function DemoPage() {
-  const supademoId = 'cmkqiggun2hpecydywrdi63nh'; // Your specific Supademo ID
+  const supademoId = 'cmkqiggun2hpecydywrdi63nh'; 
 
-  const handleScriptLoad = () => {
-    console.log('Supademo script loaded successfully.');
-    // Check if the Supademo object is available on the window
-    if (window.Supademo) {
-      console.log('Supademo object is available on window.');
-    } else {
-      console.error('Supademo object is NOT available on window after script load.');
+  useEffect(() => {
+    console.log('Attempting to manually load Supademo script...');
+
+    // Check if the script is already added to avoid duplicates
+    if (document.querySelector('script[src="https://script.supademo.com/embed.js"]')) {
+      console.log('Supademo script tag already exists.');
+      return;
     }
-  };
 
-  const handleScriptError = (e: any) => {
-    console.error('Failed to load Supademo script:', e);
-  };
+    const script = document.createElement('script');
+    script.src = 'https://script.supademo.com/embed.js';
+    script.async = true;
+
+    script.onload = () => {
+      console.log('MANUAL: Supademo script loaded successfully.');
+      if (window.Supademo) {
+        console.log('MANUAL: Supademo object is available on window.');
+      } else {
+        console.error('MANUAL: Supademo object is NOT available on window after script load.');
+      }
+    };
+
+    script.onerror = (e) => {
+      console.error('MANUAL: Failed to load Supademo script:', e);
+    };
+
+    document.body.appendChild(script);
+
+    // Cleanup function to remove the script when the component unmounts
+    return () => {
+      document.body.removeChild(script);
+    };
+  }, []); // Empty dependency array ensures this runs only once on mount
 
   return (
     <>
@@ -64,6 +84,12 @@ export default function DemoPage() {
           }}>
             Interactive Demo
           </h1>
+          <p style={{
+            fontSize: '1.125rem',
+            color: '#6b7280'
+          }}>
+            Create Tasks and Generate AI-Powered User Stories
+          </p>
         </div>
 
         {/* Supademo Inline Embed Container */}
@@ -73,7 +99,7 @@ export default function DemoPage() {
           style={{
             width: '100%',
             maxWidth: '1100px',
-            height: '70vh', // Adjust height as needed
+            height: '70vh',
             border: '1px solid #e5e7eb',
             borderRadius: '0.5rem',
             boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)',
@@ -92,17 +118,7 @@ export default function DemoPage() {
             &larr; Back to Home
           </Link>
         </div>
-
       </main>
-
-      {/* This Script finds the div with the matching data-supademo-id and loads the embed */}
-      <Script 
-        src="https://script.supademo.com/embed.js" 
-        strategy="afterInteractive" 
-        onLoad={handleScriptLoad}
-        onError={handleScriptError}
-        async 
-      />
     </>
   );
 }
