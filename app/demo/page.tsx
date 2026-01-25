@@ -64,12 +64,6 @@ export default function DemoPage() {
           }}>
             Interactive Demo
           </h1>
-          <p style={{
-            fontSize: '1.125rem',
-            color: '#6b7280'
-          }}>
-            Create Tasks and Generate AI-Powered User Stories
-          </p>
         </div>
 
         {/* Supademo Inline Embed Container */}

@@ -17,6 +17,21 @@ const nextConfig = {
     unoptimized: true,
   },
   reactStrictMode: false,
+
+  async headers() {
+    return [
+      {
+        source: '/:path*',
+        headers: [
+          {
+            key: 'Content-Security-Policy',
+            // Allow scripts from self, Supademo, and unsafe inline/eval scripts which Next.js might use in dev mode.
+            value: "script-src 'self' 'unsafe-eval' 'unsafe-inline' *.supademo.com;",
+          },
+        ],
+      },
+    ];
+  },
   
   // This is the corrected configuration. The key is now at the top level.
   // This forces Vercel to include the 'blogs' directory in the serverless function.
