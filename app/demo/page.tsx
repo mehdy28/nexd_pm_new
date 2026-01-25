@@ -9,31 +9,54 @@ export default function DemoPage() {
     <>
       <main style={{
         backgroundColor: '#f9fafb',
-        minHeight: '100vh',
+        height: '100vh', // Set height to 100% of viewport height
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        padding: '1.5rem', // Adjusted padding for better fit on all screens
+        padding: '1.5rem',
         fontFamily: 'sans-serif',
-        boxSizing: 'border-box'
+        boxSizing: 'border-box',
+        overflow: 'hidden' // Prevent scrollbars
       }}>
         
-        {/* New Header: Title on the left, Logo on the right */}
+        {/* Header: Back button, Title, and Logo */}
         <header style={{
           width: '100%',
           maxWidth: '1100px',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          marginBottom: '2rem'
+          flexShrink: 0, // Prevent header from shrinking
+          marginBottom: '1rem' // Reduced space between header and iframe container
         }}>
-          <h1 style={{
-            fontSize: '1.5rem',
-            fontWeight: '600', // semi-bold
-            color: '#111827'
-          }}>
-            Interactive Demo
-          </h1>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <Link href="/" aria-label="Back to Home" style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#4b5563',
+              textDecoration: 'none',
+              fontSize: '1.5rem',
+              lineHeight: 1,
+              width: '2.5rem',
+              height: '2.5rem',
+              border: '1px solid #d1d5db',
+              borderRadius: '50%',
+              backgroundColor: '#ffffff',
+              boxShadow: '0 1px 2px 0 rgb(0 0 0 / 0.05)',
+              transition: 'background-color 0.2s',
+            }}>
+              &larr;
+            </Link>
+            <h1 style={{
+              fontSize: '1.5rem',
+              fontWeight: '600',
+              color: '#111827',
+              margin: 0
+            }}>
+              Interactive Demo
+            </h1>
+          </div>
           <Link href="/">
               <Image 
                 src="/landingpage/logo.png" 
@@ -45,12 +68,12 @@ export default function DemoPage() {
           </Link>
         </header>
         
-        {/* Supademo Iframe Embed Container - Made more responsive */}
+        {/* Supademo Iframe Embed Container */}
         <div style={{
           position: 'relative',
           width: '100%',
           maxWidth: '1100px',
-          aspectRatio: '16 / 9', // Common aspect ratio for embeds
+          flex: 1, // Make this container grow to fill remaining vertical space
           border: '1px solid #e5e7eb',
           borderRadius: '0.5rem',
           boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)',
@@ -62,6 +85,8 @@ export default function DemoPage() {
             title="Create Tasks and Generate AI-Powered User Stories" 
             allow="clipboard-write" 
             frameBorder="0" 
+            webkitallowfullscreen="true" 
+            mozallowfullscreen="true" 
             allowFullScreen 
             style={{ 
               position: 'absolute', 
