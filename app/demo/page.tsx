@@ -1,6 +1,15 @@
+"use client"; // This directive marks the component as a Client Component
+
 import Link from 'next/link';
 import Script from 'next/script';
 import Image from 'next/image';
+
+// Extend the Window interface to include the Supademo property
+declare global {
+  interface Window {
+    Supademo?: any;
+  }
+}
 
 export default function DemoPage() {
   const supademoId = 'cmkqiggun2hpecydywrdi63nh'; // Your specific Supademo ID
@@ -53,8 +62,14 @@ export default function DemoPage() {
             color: '#111827',
             marginBottom: '0.5rem'
           }}>
-Where Your Project
-Becomes the Prompt          </h1>
+            Interactive Demo
+          </h1>
+          <p style={{
+            fontSize: '1.125rem',
+            color: '#6b7280'
+          }}>
+            Create Tasks and Generate AI-Powered User Stories
+          </p>
         </div>
 
         {/* Supademo Inline Embed Container */}
