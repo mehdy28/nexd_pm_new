@@ -1,53 +1,9 @@
 "use client"; 
 
-import { useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 
-// Extend the Window interface to include the Supademo property
-declare global {
-  interface Window {
-    Supademo?: any;
-  }
-}
-
 export default function DemoPage() {
-  const supademoId = 'cmkqiggun2hpecydywrdi63nh'; 
-
-  useEffect(() => {
-    console.log('Attempting to manually load Supademo script...');
-
-    // Check if the script is already added to avoid duplicates
-    if (document.querySelector('script[src="https://script.supademo.com/embed.js"]')) {
-      console.log('Supademo script tag already exists.');
-      return;
-    }
-
-    const script = document.createElement('script');
-    script.src = 'https://script.supademo.com/embed.js';
-    script.async = true;
-
-    script.onload = () => {
-      console.log('MANUAL: Supademo script loaded successfully.');
-      if (window.Supademo) {
-        console.log('MANUAL: Supademo object is available on window.');
-      } else {
-        console.error('MANUAL: Supademo object is NOT available on window after script load.');
-      }
-    };
-
-    script.onerror = (e) => {
-      console.error('MANUAL: Failed to load Supademo script:', e);
-    };
-
-    document.body.appendChild(script);
-
-    // Cleanup function to remove the script when the component unmounts
-    return () => {
-      document.body.removeChild(script);
-    };
-  }, []); // Empty dependency array ensures this runs only once on mount
-
   return (
     <>
       <main style={{
@@ -92,21 +48,29 @@ export default function DemoPage() {
           </p>
         </div>
 
-        {/* Supademo Inline Embed Container */}
-        <div 
-          id="supademo-embed" 
-          data-supademo-id={supademoId}
-          style={{
-            width: '100%',
-            maxWidth: '1100px',
-            height: '70vh',
-            border: '1px solid #e5e7eb',
-            borderRadius: '0.5rem',
-            boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)',
-            overflow: 'hidden'
-          }}
-        >
-            <p style={{textAlign: 'center', color: '#9ca3af', paddingTop: '2rem'}}>Loading interactive demo...</p>
+        {/* Supademo Iframe Embed Container */}
+        <div style={{
+          position: 'relative',
+          boxSizing: 'content-box',
+          width: '100%',
+          maxWidth: '1100px',
+          aspectRatio: '2.09',
+          border: '1px solid #e5e7eb',
+          borderRadius: '0.5rem',
+          boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)',
+          overflow: 'hidden'
+        }}>
+          <iframe 
+            src="https://app.supademo.com/embed/cmkqiggun2hpecydywrdi63nh?embed_v=2&utm_source=embed" 
+            loading="lazy" 
+            title="Create Tasks and Generate AI-Powered User Stories" 
+            allow="clipboard-write" 
+            frameBorder="0" 
+            webkitallowfullscreen="true" 
+            mozallowfullscreen="true" 
+            allowFullScreen 
+            style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}
+          ></iframe>
         </div>
         
         <div style={{ width: '100%', maxWidth: '1100px', marginTop: '1.5rem' }}>
