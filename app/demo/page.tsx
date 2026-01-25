@@ -1,4 +1,5 @@
-"use client"; 
+//app/demo/page.tsx
+"use client";
 
 import Link from 'next/link';
 import Image from 'next/image';
@@ -12,49 +13,44 @@ export default function DemoPage() {
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        padding: '2rem 1rem',
-        fontFamily: 'sans-serif'
+        padding: '1.5rem', // Adjusted padding for better fit on all screens
+        fontFamily: 'sans-serif',
+        boxSizing: 'border-box'
       }}>
         
-        <div style={{
+        {/* New Header: Title on the left, Logo on the right */}
+        <header style={{
           width: '100%',
           maxWidth: '1100px',
           display: 'flex',
-          justifyContent: 'center',
-          marginBottom: '2rem'
-        }}>
-          <Link href="/">
-              <Image src="/landingpage/logo.png" alt="nexd.pm" width={1584} height={424} style={{ height: '2.5rem', width: 'auto' }} />
-          </Link>
-        </div>
-        
-        <div style={{
-          textAlign: 'center',
+          justifyContent: 'space-between',
+          alignItems: 'center',
           marginBottom: '2rem'
         }}>
           <h1 style={{
-            fontSize: '2.5rem',
-            fontWeight: 'bold',
-            color: '#111827',
-            marginBottom: '0.5rem'
+            fontSize: '1.5rem',
+            fontWeight: '600', // semi-bold
+            color: '#111827'
           }}>
             Interactive Demo
           </h1>
-          <p style={{
-            fontSize: '1.125rem',
-            color: '#6b7280'
-          }}>
-            Create Tasks and Generate AI-Powered User Stories
-          </p>
-        </div>
-
-        {/* Supademo Iframe Embed Container */}
+          <Link href="/">
+              <Image 
+                src="/landingpage/logo.png" 
+                alt="nexd.pm" 
+                width={1584} 
+                height={424} 
+                style={{ height: '2.5rem', width: 'auto' }} 
+              />
+          </Link>
+        </header>
+        
+        {/* Supademo Iframe Embed Container - Made more responsive */}
         <div style={{
           position: 'relative',
-          boxSizing: 'content-box',
           width: '100%',
           maxWidth: '1100px',
-          aspectRatio: '2.09',
+          aspectRatio: '16 / 9', // Common aspect ratio for embeds
           border: '1px solid #e5e7eb',
           borderRadius: '0.5rem',
           boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)',
@@ -66,22 +62,17 @@ export default function DemoPage() {
             title="Create Tasks and Generate AI-Powered User Stories" 
             allow="clipboard-write" 
             frameBorder="0" 
-            webkitallowfullscreen="true" 
-            mozallowfullscreen="true" 
             allowFullScreen 
-            style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}
+            style={{ 
+              position: 'absolute', 
+              top: 0, 
+              left: 0, 
+              width: '100%', 
+              height: '100%' 
+            }}
           ></iframe>
         </div>
         
-        <div style={{ width: '100%', maxWidth: '1100px', marginTop: '1.5rem' }}>
-          <Link href="/" style={{
-            color: '#4b5563',
-            textDecoration: 'none',
-            display: 'inline-block'
-          }}>
-            &larr; Back to Home
-          </Link>
-        </div>
       </main>
     </>
   );
