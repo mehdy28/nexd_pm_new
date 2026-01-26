@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 const GUEST_ONLY_PAGES = ["/login", "/admin-register", "/register"];
-const PUBLIC_ACCESSIBLE_PAGES = ["/forgot-password", "/blog", "/verify-email", "/check-email", "/reset-password" ,"/accept-invitation"];
+const PUBLIC_ACCESSIBLE_PAGES = ["/forgot-password", "/blog", "/verify-email", "/check-email", "/reset-password" ,"/accept-invitation" ,"/demo"];
 
 const CORE_PATHS = [
   "/dashboard", "/account", "/activity", "/feed", "/guests", 
