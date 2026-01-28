@@ -6,9 +6,11 @@ import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import Image from "next/image"
+import Link from "next/link"
 import { ArrowRight, CheckCircle2, ChevronDown } from "lucide-react"
 import { WaitlistForm } from "@/components/blog/waitlist-form"
 import { Header } from "../sections/header"
+
 const viewContent = {
   "prompt-lab": {
     src: "/landingpage/prompt--lab.png",
@@ -193,10 +195,28 @@ export default function HomeClient() {
             </span>
           </h1>
 
-          <p className="text-lg md:text-xl text-slate-600 mb-12 max-w-3xl mx-auto leading-relaxed animate-fade-up animation-delay-200">
+          <p className="text-lg md:text-xl text-slate-600 mb-10 max-w-3xl mx-auto leading-relaxed animate-fade-up animation-delay-200">
             The first PM platform where your live project data powers your AI. Automate reports, generate tasks, and
             unlock insights in seconds.
           </p>
+
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-12 animate-fade-up animation-delay-300">
+            <Button
+              asChild
+              size="lg"
+              className="bg-teal-600 hover:bg-teal-700 text-white px-8 h-12 text-lg rounded-full shadow-lg hover:shadow-xl hover:shadow-teal-500/20 transition-all duration-300"
+            >
+              <Link href="/demo">Try Demo</Link>
+            </Button>
+            <Button
+              variant="outline"
+              size="lg"
+              onClick={() => scrollToSection("waitlist")}
+              className="border-slate-300 text-slate-600 hover:border-teal-600 hover:text-teal-600 px-8 h-12 text-lg rounded-full bg-white/50 backdrop-blur-sm transition-all duration-300"
+            >
+              Join Waitlist
+            </Button>
+          </div>
 
           <div className="flex justify-center animate-bounce-slow animation-delay-1000">
             <ChevronDown size={32} className="text-teal-600" />
@@ -535,7 +555,9 @@ export default function HomeClient() {
       </section>
 
       {/* Section 5: Final Call to Action */}
-      <WaitlistForm variant="cta" />
+      <div id="waitlist">
+        <WaitlistForm variant="cta" />
+      </div>
 
       {/* Footer */}
       <footer className="border-t border-slate-200 py-12 px-4">

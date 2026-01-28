@@ -92,7 +92,7 @@ export function Header() {
               href="/demo"
               className="text-sm font-medium text-teal-600 hover:text-teal-700 transition-colors bg-teal-100/50 rounded-full px-4 py-1.5"
             >
-              Interactive Tour
+              Demo
             </Link>
             <Link href="/#views" className="text-sm font-medium text-slate-700 hover:text-teal-600 transition-colors">
               Views
