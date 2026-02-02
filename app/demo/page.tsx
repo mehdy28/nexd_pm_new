@@ -1,22 +1,34 @@
-//app/demo/page.tsx
 "use client";
 
+import { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import { WaitlistForm } from "@/components/blog/waitlist-form"
 
 export default function DemoPage() {
+  const [isModalOpen, setIsModalOpen] = useState(true);
+
+  const handleModalSubmit = () => {
+    setIsModalOpen(false);
+  };
+
   return (
     <>
+      {isModalOpen && (
+        <WaitlistForm variant="modal" onSubmitted={handleModalSubmit} />
+      )}
       <main style={{
         backgroundColor: '#f9fafb',
-        height: '100vh', // Set height to 100% of viewport height
+        height: '100vh',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
         padding: '1.5rem',
         fontFamily: 'sans-serif',
         boxSizing: 'border-box',
-        overflow: 'hidden' // Prevent scrollbars
+        overflow: 'hidden',
+        filter: isModalOpen ? 'blur(4px)' : 'none',
+        transition: 'filter 0.3s ease-out',
       }}>
         
         {/* Header: Back button, Title, and Logo */}
@@ -26,8 +38,8 @@ export default function DemoPage() {
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          flexShrink: 0, // Prevent header from shrinking
-          marginBottom: '1rem' // Reduced space between header and iframe container
+          flexShrink: 0,
+          marginBottom: '1rem'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
             <Link href="/" aria-label="Back to Home" style={{
@@ -73,7 +85,7 @@ export default function DemoPage() {
           position: 'relative',
           width: '100%',
           maxWidth: '1100px',
-          flex: 1, // Make this container grow to fill remaining vertical space
+          flex: 1,
           border: '1px solid #e5e7eb',
           borderRadius: '0.5rem',
           boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)',

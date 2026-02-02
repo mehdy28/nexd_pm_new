@@ -1,4 +1,3 @@
-//components/forms/waitlist-form.tsx
 "use client"
 
 import type React from "react"
@@ -20,10 +19,14 @@ import {
 } from "lucide-react"
 
 interface WaitlistFormProps {
-  variant?: "sidebar" | "full" | "inline" | "cta"
+  variant?: "sidebar" | "full" | "inline" | "cta" | "modal"
+  onSubmitted?: () => void
 }
 
-export function WaitlistForm({ variant = "full" }: WaitlistFormProps) {
+export function WaitlistForm({
+  variant = "full",
+  onSubmitted,
+}: WaitlistFormProps) {
   const [name, setName] = useState("")
   const [email, setEmail] = useState("")
   const [isSubmitted, setIsSubmitted] = useState(false)
@@ -55,18 +58,101 @@ export function WaitlistForm({ variant = "full" }: WaitlistFormProps) {
       setIsSubmitted(true)
       setName("")
       setEmail("")
+      if (onSubmitted) {
+        onSubmitted()
+      }
     } else {
       const errorMessage = response.error || mutationError?.message || ""
       if (errorMessage.includes("already on the waitlist")) {
         setIsDuplicate(true)
         setName("")
         setEmail("")
+        if (onSubmitted) {
+          onSubmitted()
+        }
       } else {
         setIsSubmissionError(true)
         setName("")
         setEmail("")
       }
     }
+  }
+
+  if (variant === "modal") {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+        <Card className="w-full max-w-md m-4 bg-white border-slate-200 rounded-2xl shadow-xl">
+          <CardContent className="p-8">
+            <div className="text-center mb-6">
+              <div className="flex justify-center mb-4">
+                <Image
+                  src="/landingpage/logo.png"
+                  alt="nexd.pm"
+                  width={1584}
+                  height={424}
+                  className="h-10 w-auto"
+                />
+              </div>
+              <h3 className="text-2xl font-bold text-slate-900 mb-2">
+                Get Early Access to the Demo
+              </h3>
+              <p className="text-slate-600">
+                Join the waitlist to unlock the interactive demo and be first
+                to know when we launch.
+              </p>
+            </div>
+
+            {isSubmissionError ? (
+              <div className="text-center">
+                <p className="text-red-800 font-medium">
+                  <AlertTriangle className="w-5 h-5 inline-block mr-2" />
+                  Oops! An error occurred.
+                </p>
+                <p className="text-red-600 text-sm mt-1">
+                  Something went wrong. Please refresh and try again.
+                </p>
+              </div>
+            ) : (
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <Input
+                  type="text"
+                  placeholder="Your name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  required
+                  disabled={mutationLoading}
+                  className="w-full rounded-full h-12 px-5 border-2 border-slate-300 focus:border-teal-500"
+                />
+                <Input
+                  type="email"
+                  placeholder="Your email address"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  disabled={mutationLoading}
+                  className="w-full rounded-full h-12 px-5 border-2 border-slate-300 focus:border-teal-500"
+                />
+
+                {error && (
+                  <p className="text-red-600 text-sm text-center !mt-3">
+                    {error}
+                  </p>
+                )}
+                <Button
+                  type="submit"
+                  size="lg"
+                  className="w-full bg-teal-600 hover:bg-teal-700 text-white rounded-full h-12 font-semibold"
+                  disabled={mutationLoading}
+                >
+                  {mutationLoading ? "Joining..." : "Unlock Demo"}
+                  {!mutationLoading && <ArrowRight className="w-5 h-5 ml-2" />}
+                </Button>
+              </form>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    )
   }
 
   if (variant === "cta") {
