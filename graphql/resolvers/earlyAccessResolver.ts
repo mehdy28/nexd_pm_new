@@ -56,7 +56,6 @@ export const earlyAccessResolver = {
       }
 
       try {
-        console.log(`Attempting to create early access user: ${email}`);
 
         const newUser = await prisma.earlyAccessUser.create({
           data: {
@@ -65,7 +64,6 @@ export const earlyAccessResolver = {
           },
         });
 
-        console.log(`User created in DB: ${newUser.email}. Attempting to send confirmation email.`);
 
         // Send confirmation email after successfully creating the user
         await sendEarlyAccessConfirmationEmail({
@@ -73,11 +71,9 @@ export const earlyAccessResolver = {
           name: newUser.name,
         });
 
-        console.log(`Confirmation email function executed for user: ${newUser.email}`);
 
         return newUser;
       } catch (error: any) {
-        console.error("Error in createEarlyAccessUser mutation:", error);
 
         // Handle unique constraint violation for the email field
         if (error.code === "P2002" && error.meta?.target?.includes("email")) {
@@ -85,7 +81,6 @@ export const earlyAccessResolver = {
         }
 
         // For any other error, throw a generic error to prevent returning null
-        throw new Error("An unexpected error occurred while creating the user.");
       }
     },
   },
