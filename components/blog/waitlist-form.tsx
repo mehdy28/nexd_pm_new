@@ -1,3 +1,5 @@
+//components/forms/waitlist-form.tsx
+
 "use client"
 
 import type React from "react"
@@ -54,22 +56,24 @@ export function WaitlistForm({
 
     const response = await joinWaitlist({ name, email })
 
-    if (response.success) {
-      setIsSubmitted(true)
+    const handleSuccess = () => {
       setName("")
       setEmail("")
       if (onSubmitted) {
-        onSubmitted()
+        setTimeout(() => {
+          onSubmitted()
+        }, 2000) // 2-second delay
       }
+    }
+
+    if (response.success) {
+      setIsSubmitted(true)
+      handleSuccess()
     } else {
       const errorMessage = response.error || mutationError?.message || ""
       if (errorMessage.includes("already on the waitlist")) {
         setIsDuplicate(true)
-        setName("")
-        setEmail("")
-        if (onSubmitted) {
-          onSubmitted()
-        }
+        handleSuccess()
       } else {
         setIsSubmissionError(true)
         setName("")
@@ -88,8 +92,8 @@ export function WaitlistForm({
                 <Image
                   src="/landingpage/logo.png"
                   alt="nexd.pm"
-                  width={1584}
-                  height={424}
+                  width={400}
+                  height={107}
                   className="h-10 w-auto"
                 />
               </div>
@@ -102,7 +106,25 @@ export function WaitlistForm({
               </p>
             </div>
 
-            {isSubmissionError ? (
+            {isSubmitted ? (
+              <div className="text-center py-8">
+                <p className="text-2xl font-bold text-teal-800">
+                  🎉 You're on the list!
+                </p>
+                <p className="text-lg text-slate-600 mt-2">
+                  Thanks for your excitement! The demo will now load.
+                </p>
+              </div>
+            ) : isDuplicate ? (
+              <div className="text-center py-8">
+                <p className="text-2xl font-bold text-yellow-800">
+                  👋 You're already in!
+                </p>
+                <p className="text-lg text-slate-600 mt-2">
+                  We've got your info. The demo will now load.
+                </p>
+              </div>
+            ) : isSubmissionError ? (
               <div className="text-center">
                 <p className="text-red-800 font-medium">
                   <AlertTriangle className="w-5 h-5 inline-block mr-2" />
