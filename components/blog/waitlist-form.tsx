@@ -1,5 +1,3 @@
-//components/forms/waitlist-form.tsx
-
 "use client"
 
 import type React from "react"
@@ -59,6 +57,8 @@ export function WaitlistForm({
     const handleSuccess = () => {
       setName("")
       setEmail("")
+      // Set flag in localStorage on success/duplicate
+      localStorage.setItem("nexd-early-access-submitted", "true")
       if (onSubmitted) {
         setTimeout(() => {
           onSubmitted()

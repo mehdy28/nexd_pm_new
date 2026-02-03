@@ -1,12 +1,19 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { WaitlistForm } from "@/components/blog/waitlist-form"
 
 export default function DemoPage() {
   const [isModalOpen, setIsModalOpen] = useState(true);
+
+  useEffect(() => {
+    const hasSignedUp = localStorage.getItem('nexd-early-access-submitted');
+    if (hasSignedUp === 'true') {
+      setIsModalOpen(false);
+    }
+  }, []);
 
   const handleModalSubmit = () => {
     setIsModalOpen(false);
