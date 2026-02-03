@@ -3,25 +3,29 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { WaitlistForm } from "@/components/blog/waitlist-form"
+import { WaitlistForm } from '@/components/blog/waitlist-form';
 
 export default function DemoPage() {
-  const [isModalOpen, setIsModalOpen] = useState(true);
+  const [isModalVisible, setIsModalVisible] = useState(false);
+  const [isCheckingStorage, setIsCheckingStorage] = useState(true);
 
   useEffect(() => {
     const hasSignedUp = localStorage.getItem('nexd-early-access-submitted');
-    if (hasSignedUp === 'true') {
-      setIsModalOpen(false);
+    if (hasSignedUp !== 'true') {
+      setIsModalVisible(true);
     }
+    setIsCheckingStorage(false);
   }, []);
 
   const handleModalSubmit = () => {
-    setIsModalOpen(false);
+    setIsModalVisible(false);
   };
+
+  const shouldShowModal = !isCheckingStorage && isModalVisible;
 
   return (
     <>
-      {isModalOpen && (
+      {shouldShowModal && (
         <WaitlistForm variant="modal" onSubmitted={handleModalSubmit} />
       )}
       <main style={{
@@ -34,7 +38,7 @@ export default function DemoPage() {
         fontFamily: 'sans-serif',
         boxSizing: 'border-box',
         overflow: 'hidden',
-        filter: isModalOpen ? 'blur(4px)' : 'none',
+        filter: shouldShowModal ? 'blur(4px)' : 'none',
         transition: 'filter 0.3s ease-out',
       }}>
         
@@ -120,4 +124,4 @@ export default function DemoPage() {
       </main>
     </>
   );
-}
+}```
