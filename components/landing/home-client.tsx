@@ -15,23 +15,23 @@ const viewContent = {
     src: "/landingpage/prompt--lab.png",
     alt: "Prompt Lab Interface",
   },
-  whiteboard: {
+  "whiteboard": {
     src: "/landingpage/whiteboard-view.png",
     alt: "Whiteboard Interface",
   },
-  kanban: {
+  "kanban": {
     src: "/landingpage/kanban-view.png",
     alt: "Kanban Board View",
   },
-  list: {
+  "list": {
     src: "/landingpage/list-view.png",
     alt: "List View",
   },
-  document: {
+  "document": {
     src: "/landingpage/document-view.png",
     alt: "Document View",
   },
-  timeline: {
+  "timeline": {
     src: "/landingpage/timeline-view.png",
     alt: "Timeline View",
   },
@@ -155,13 +155,13 @@ export default function HomeClient() {
   const [viewsVisible, setViewsVisible] = useState(false)
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-teal-50/30 dark:from-slate-950 dark:via-slate-900 dark:to-teal-950/20 transition-colors duration-300">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-teal-50/30 dark:from-slate-950 dark:via-slate-900 dark:to-teal-950/30 transition-colors duration-300">
       {/* Floating Navigation */}
       <Header />
 
       {/* Section 1: Hero */}
       <section className="pt-32 pb-40 px-4 relative overflow-hidden">
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[600px] bg-gradient-to-r from-teal-400/30 to-cyan-400/30 rounded-full blur-[140px] animate-pulse-slow pointer-events-none" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[600px] bg-gradient-to-r from-teal-400/30 to-cyan-400/30 rounded-full blur-[140px] animate-pulse-slow" />
 
         <div className="max-w-5xl mx-auto text-center relative z-10">
           <div className="mb-8 flex justify-center">
@@ -171,16 +171,16 @@ export default function HomeClient() {
                 alt="nexd.pm"
                 width={1584}
                 height={424}
-                className="h-28 w-auto animate-fade-in-scale dark:brightness-0 dark:invert"
+                className="h-28 w-auto animate-fade-in-scale"
                 priority
               />
               <div className="absolute inset-0 bg-gradient-to-r from-teal-400/30 to-cyan-400/30 blur-2xl animate-pulse-glow" />
             </div>
           </div>
-          <h1 className="text-6xl md:text-7xl lg:text-8xl font-black tracking-tight mb-6 text-slate-900 dark:text-slate-50 text-balance leading-[1.1] animate-fade-up">
+          <h1 className="text-6xl md:text-7xl lg:text-8xl font-black tracking-tight mb-6 text-slate-900 dark:text-white text-balance leading-[1.1] animate-fade-up">
             Where Your Project <br />
             <span className="relative inline-block">
-              <span className="relative z-10 bg-gradient-to-r from-teal-600 via-cyan-500 to-teal-600 dark:from-teal-400 dark:via-cyan-400 dark:to-teal-400 bg-clip-text text-transparent">
+              <span className="relative z-10 bg-gradient-to-r from-teal-600 via-cyan-500 to-teal-600 bg-clip-text text-transparent">
                 Becomes the Prompt
               </span>
               <div className="absolute inset-0 bg-gradient-to-r from-teal-600/40 via-cyan-500/40 to-teal-600/40 blur-3xl animate-pulse-glow" />
@@ -196,7 +196,7 @@ export default function HomeClient() {
             <Button
               asChild
               size="lg"
-              className="bg-teal-600 hover:bg-teal-700 text-white px-8 h-12 text-lg rounded-full shadow-lg hover:shadow-xl hover:shadow-teal-500/20 dark:hover:shadow-teal-900/40 transition-all duration-300"
+              className="bg-teal-600 hover:bg-teal-700 text-white px-8 h-12 text-lg rounded-full shadow-lg hover:shadow-xl hover:shadow-teal-500/20 transition-all duration-300"
             >
               <Link href="/demo">Try Demo</Link>
             </Button>
@@ -204,26 +204,26 @@ export default function HomeClient() {
               variant="outline"
               size="lg"
               onClick={() => scrollToSection("waitlist")}
-              className="border-slate-300 text-slate-600 hover:border-teal-600 hover:text-teal-600 dark:border-slate-700 dark:text-slate-300 dark:hover:border-teal-400 dark:hover:text-teal-400 px-8 h-12 text-lg rounded-full bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm transition-all duration-300"
+              className="border-slate-300 text-slate-600 hover:border-teal-600 hover:text-teal-600 dark:border-slate-600 dark:text-slate-300 dark:hover:border-teal-500 dark:hover:text-teal-400 px-8 h-12 text-lg rounded-full bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm transition-all duration-300"
             >
               Join Waitlist
             </Button>
           </div>
 
           <div className="flex justify-center animate-bounce-slow animation-delay-1000">
-            <ChevronDown size={32} className="text-teal-600 dark:text-teal-400" />
+            <ChevronDown size={32} className="text-teal-600" />
           </div>
         </div>
       </section>
 
-      {/* Section 2: REPLACED Problem → Solution Transformation */}
+      {/* Section 2: Problem → Solution Transformation */}
       <section id="problem" className="py-32 px-4" ref={problemRef}>
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
-            <h2 className="text-5xl md:text-6xl font-bold text-slate-900 dark:text-slate-50 mb-6">
+            <h2 className="text-5xl md:text-6xl font-bold text-slate-900 dark:text-white mb-6">
               Your Prompts, Now Powered by Your Project.
             </h2>
-            <p className="text-xl text-slate-600 dark:text-slate-400 max-w-3xl mx-auto">
+            <p className="text-xl text-slate-600 dark:text-slate-300 max-w-3xl mx-auto">
               Stop copy-pasting outdated project details. Our Live Variables connect your prompts directly to your work,
               ensuring they are always accurate and context-aware.
             </p>
@@ -232,34 +232,27 @@ export default function HomeClient() {
           {/* BEFORE / AFTER Comparison */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-24">
             {/* BEFORE */}
-            <div className="border bg-slate-50 border-slate-300 dark:bg-slate-900 dark:border-slate-800 rounded-2xl p-6 h-full">
+            <div className="border bg-slate-50 border-slate-300 dark:bg-slate-900 dark:border-slate-700 rounded-2xl p-6 h-full transition-colors">
               <h3 className="text-2xl font-bold text-slate-800 dark:text-slate-200 mb-4 text-center">
                 The Old Way: Manual & Static
               </h3>
               <div className="bg-white dark:bg-slate-950 p-4 rounded-lg border border-slate-200 dark:border-slate-800 font-mono text-slate-600 dark:text-slate-400 text-sm space-y-2">
                 <p>
                   Write a bug report for sprint{" "}
-                  <span className="bg-yellow-200/80 text-yellow-900 dark:bg-yellow-900/50 dark:text-yellow-200 px-1 rounded">
-                    'Q4-Phoenix'
-                  </span>
-                  . The high-priority bugs I'm working on are{" "}
-                  <span className="bg-yellow-200/80 text-yellow-900 dark:bg-yellow-900/50 dark:text-yellow-200 px-1 rounded">
-                    'T-123'
-                  </span>{" "}
-                  and{" "}
-                  <span className="bg-yellow-200/80 text-yellow-900 dark:bg-yellow-900/50 dark:text-yellow-200 px-1 rounded">
-                    'T-129'
-                  </span>
-                  ... they are both still in progress...
+                  <span className="bg-yellow-200/80 text-yellow-900 px-1 rounded">'Q4-Phoenix'</span>. The
+                  high-priority bugs I'm working on are{" "}
+                  <span className="bg-yellow-200/80 text-yellow-900 px-1 rounded">'T-123'</span> and{" "}
+                  <span className="bg-yellow-200/80 text-yellow-900 px-1 rounded">'T-129'</span>... they are both still
+                  in progress...
                 </p>
-                <p className="text-red-500 dark:text-red-400 pt-2 text-xs opacity-80">
+                <p className="text-red-500 pt-2 text-xs opacity-80">
                   * Instantly outdated. Prone to errors. A waste of time.
                 </p>
               </div>
             </div>
 
             {/* AFTER */}
-            <div className="border-2 bg-white dark:bg-slate-950 border-teal-300 dark:border-teal-700 rounded-2xl p-6 h-full shadow-2xl shadow-teal-500/10 dark:shadow-teal-900/20">
+            <div className="border-2 bg-white dark:bg-slate-950 border-teal-300 dark:border-teal-700 rounded-2xl p-6 h-full shadow-2xl shadow-teal-500/10 transition-colors">
               <h3 className="text-2xl font-bold text-teal-700 dark:text-teal-400 mb-4 text-center">
                 The Nexd Way: Live & Automated
               </h3>
@@ -270,9 +263,9 @@ export default function HomeClient() {
                     Write a detailed bug report summary for the following tickets:
                   </span>
                 </div>
-                <div className="relative flex items-center gap-3 p-3 bg-gradient-to-br from-teal-50 to-cyan-50 dark:from-teal-950/40 dark:to-cyan-950/40 rounded-xl border-2 border-teal-300 dark:border-teal-700 z-10">
+                <div className="relative flex items-center gap-3 p-3 bg-gradient-to-br from-teal-50 to-cyan-50 dark:from-teal-950/50 dark:to-cyan-950/50 rounded-xl border-2 border-teal-300 dark:border-teal-700 z-10">
                   <div className="w-1.5 h-8 bg-teal-500 rounded-full" />
-                  <span className="text-teal-700 dark:text-teal-300 font-semibold">
+                  <span className="text-teal-700 dark:text-teal-400 font-semibold">
                     My High-Priority In-Progress Bugs
                   </span>
                 </div>
@@ -286,34 +279,36 @@ export default function HomeClient() {
 
           {/* EXPLANATION OF LIVE DATA */}
           <div className="text-center mt-16">
-            <h3 className="text-3xl font-bold text-slate-800 dark:text-slate-100 mb-4">
+            <h3 className="text-3xl font-bold text-slate-800 dark:text-slate-200 mb-4">
               What does "Live Data" actually mean?
             </h3>
-            <p className="text-lg text-slate-600 dark:text-slate-400 max-w-3xl mx-auto">
-              It means a single Live Variable can query your entire project to find exactly what you need, right now. It's
-              not just a placeholder—it's a powerful, real-time command.
+            <p className="text-lg text-slate-600 dark:text-slate-300 max-w-3xl mx-auto">
+              It means a single Live Variable can query your entire project to find exactly what you need, right now.
+              It's not just a placeholder—it's a powerful, real-time command.
             </p>
           </div>
 
           <div className="mt-12 flex flex-col lg:flex-row items-center justify-center gap-4 lg:gap-8">
             {/* Live Variable Block */}
-            <div className="relative flex items-center gap-3 p-3 bg-gradient-to-br from-teal-50 to-cyan-50 dark:from-teal-950/40 dark:to-cyan-950/40 rounded-xl border-2 border-teal-300 dark:border-teal-700 z-10 w-fit">
+            <div className="relative flex items-center gap-3 p-3 bg-gradient-to-br from-teal-50 to-cyan-50 dark:from-teal-950/50 dark:to-cyan-950/50 rounded-xl border-2 border-teal-300 dark:border-teal-700 z-10 w-fit">
               <div className="w-1.5 h-8 bg-teal-500 rounded-full" />
-              <span className="text-teal-700 dark:text-teal-300 font-semibold">My High-Priority In-Progress Bugs</span>
+              <span className="text-teal-700 dark:text-teal-400 font-semibold">
+                My High-Priority In-Progress Bugs
+              </span>
             </div>
 
             {/* Arrow */}
             <div className="flex-shrink-0">
               <ArrowRight
                 size={40}
-                className={`text-teal-400 dark:text-teal-600 transition-transform duration-700 hidden lg:block ${
+                className={`text-teal-400 transition-transform duration-700 hidden lg:block ${
                   problemVisible ? "scale-x-100" : "scale-x-0"
                 }`}
                 style={{ transitionDelay: problemVisible ? "500ms" : "0ms", transformOrigin: "left" }}
               />
               <ChevronDown
                 size={40}
-                className={`text-teal-400 dark:text-teal-600 transition-transform duration-700 lg:hidden ${
+                className={`text-teal-400 transition-transform duration-700 lg:hidden ${
                   problemVisible ? "scale-y-100" : "scale-y-0"
                 }`}
                 style={{ transitionDelay: problemVisible ? "500ms" : "0ms", transformOrigin: "top" }}
@@ -322,7 +317,7 @@ export default function HomeClient() {
 
             {/* Revealed Data Block */}
             <div
-              className={`bg-white dark:bg-slate-900 shadow-2xl rounded-lg border border-slate-200 dark:border-slate-800 p-4 w-full max-w-sm transition-all duration-500 ${
+              className={`bg-white dark:bg-slate-900 shadow-2xl rounded-lg border border-slate-200 dark:border-slate-700 p-4 w-full max-w-sm transition-all duration-500 ${
                 problemVisible ? "opacity-100 scale-100 translate-y-0" : "opacity-0 scale-95 translate-y-4"
               }`}
               style={{ transitionDelay: problemVisible ? "800ms" : "0ms" }}
@@ -330,7 +325,7 @@ export default function HomeClient() {
               <h4 className="font-bold text-slate-700 dark:text-slate-200 text-sm mb-2">
                 Pulls this data, live from your project:
               </h4>
-              <div className="text-left space-y-2 text-sm text-slate-600 dark:text-slate-300 bg-slate-50/70 dark:bg-slate-950/50 p-3 rounded-md border border-slate-200 dark:border-slate-800">
+              <div className="text-left space-y-2 text-sm text-slate-600 dark:text-slate-400 bg-slate-50/70 dark:bg-slate-800/50 p-3 rounded-md border border-slate-200 dark:border-slate-700">
                 <p className="font-semibold text-slate-500 dark:text-slate-400 text-xs">QUERY:</p>
                 <p>
                   <span className="font-medium text-slate-800 dark:text-slate-200">Tasks</span> WHERE{" "}
@@ -342,7 +337,7 @@ export default function HomeClient() {
                   <span className="text-orange-600 dark:text-orange-400">'Me'</span>
                 </p>
               </div>
-              <div className="text-left space-y-1 text-sm text-slate-600 dark:text-slate-400 mt-3">
+              <div className="text-left space-y-1 text-sm text-slate-600 dark:text-slate-300 mt-3">
                 <p className="font-semibold text-slate-500 dark:text-slate-400 text-xs">RESULT:</p>
                 <div className="flex items-center gap-2">
                   <div className="w-2 h-2 rounded-full bg-red-500 shrink-0" />
@@ -366,10 +361,10 @@ export default function HomeClient() {
       >
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-20">
-            <h2 className="text-5xl md:text-6xl font-bold text-slate-900 dark:text-slate-50 mb-6">
+            <h2 className="text-5xl md:text-6xl font-bold text-slate-900 dark:text-white mb-6">
               The First Prompt Engine Powered by Your Live Work.
             </h2>
-            <p className="text-xl text-slate-600 dark:text-slate-400 max-w-3xl mx-auto leading-relaxed">
+            <p className="text-xl text-slate-600 dark:text-slate-300 max-w-3xl mx-auto leading-relaxed">
               Our intelligent engine connects directly to your tasks, documents, and diagrams, giving your prompts
               perfect, real-time context.
             </p>
@@ -392,7 +387,7 @@ export default function HomeClient() {
             </div>
           </div>
 
-          <p className="text-lg text-slate-600 dark:text-slate-400 max-w-3xl mx-auto text-center leading-relaxed">
+          <p className="text-lg text-slate-600 dark:text-slate-300 max-w-3xl mx-auto text-center leading-relaxed">
             Pull active sprints, high-priority tasks, or recent documents. Your prompts are always up-to-date,
             automatically.
           </p>
@@ -403,10 +398,10 @@ export default function HomeClient() {
       <section id="features" className="py-32 px-4 relative" ref={whiteboardRef}>
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-20">
-            <h2 className="text-5xl md:text-6xl font-bold text-slate-900 dark:text-slate-50 mb-6">
+            <h2 className="text-5xl md:text-6xl font-bold text-slate-900 dark:text-white mb-6">
               From Visual Idea to Actionable Prompt.
             </h2>
-            <p className="text-xl text-slate-600 dark:text-slate-400 max-w-3xl mx-auto leading-relaxed">
+            <p className="text-xl text-slate-600 dark:text-slate-300 max-w-3xl mx-auto leading-relaxed">
               Turn your whiteboard sessions, system diagrams, and user flows directly into intelligent prompts. Stop
               translating; start generating.
             </p>
@@ -429,7 +424,7 @@ export default function HomeClient() {
             </div>
           </div>
 
-          <p className="text-lg text-slate-600 dark:text-slate-400 max-w-3xl mx-auto text-center leading-relaxed mt-16">
+          <p className="text-lg text-slate-600 dark:text-slate-300 max-w-3xl mx-auto text-center leading-relaxed mt-16">
             Go from brainstorming to execution in seconds. Your visual plan becomes a text-based command instantly.
           </p>
         </div>
@@ -439,76 +434,29 @@ export default function HomeClient() {
       <section id="views" className="py-32 px-4">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
-            <h2 className="text-4xl md:text-5xl lg:text-6xl font-black text-slate-900 dark:text-slate-50 mb-6 text-balance">
+            <h2 className="text-4xl md:text-5xl lg:text-6xl font-black text-slate-900 dark:text-white mb-6 text-balance">
               One Platform. Multiple Views.
             </h2>
-            <p className="text-xl md:text-2xl text-slate-600 dark:text-slate-400 max-w-3xl mx-auto leading-relaxed">
+            <p className="text-xl md:text-2xl text-slate-600 dark:text-slate-300 max-w-3xl mx-auto leading-relaxed">
               Work the way your team works. Switch seamlessly between views designed for every workflow.
             </p>
           </div>
 
           <div className="hidden md:flex justify-center mb-12">
             <div className="inline-flex bg-slate-100 dark:bg-slate-800 rounded-full p-2 gap-2">
-              <button
-                onClick={() => changeView("prompt-lab")}
-                className={`px-6 py-3 rounded-full font-medium transition-all text-base whitespace-nowrap ${
-                  activeView === "prompt-lab"
-                    ? "bg-teal-600 text-white shadow-lg"
-                    : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
-                }`}
-              >
-                Prompt Lab
-              </button>
-              <button
-                onClick={() => changeView("whiteboard")}
-                className={`px-6 py-3 rounded-full font-medium transition-all text-base whitespace-nowrap ${
-                  activeView === "whiteboard"
-                    ? "bg-teal-600 text-white shadow-lg"
-                    : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
-                }`}
-              >
-                Whiteboard
-              </button>
-              <button
-                onClick={() => changeView("kanban")}
-                className={`px-6 py-3 rounded-full font-medium transition-all text-base whitespace-nowrap ${
-                  activeView === "kanban"
-                    ? "bg-teal-600 text-white shadow-lg"
-                    : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
-                }`}
-              >
-                Kanban
-              </button>
-              <button
-                onClick={() => changeView("list")}
-                className={`px-6 py-3 rounded-full font-medium transition-all text-base whitespace-nowrap ${
-                  activeView === "list"
-                    ? "bg-teal-600 text-white shadow-lg"
-                    : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
-                }`}
-              >
-                List
-              </button>
-              <button
-                onClick={() => changeView("document")}
-                className={`px-6 py-3 rounded-full font-medium transition-all text-base whitespace-nowrap ${
-                  activeView === "document"
-                    ? "bg-teal-600 text-white shadow-lg"
-                    : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
-                }`}
-              >
-                Document
-              </button>
-              <button
-                onClick={() => changeView("timeline")}
-                className={`px-6 py-3 rounded-full font-medium transition-all text-base whitespace-nowrap ${
-                  activeView === "timeline"
-                    ? "bg-teal-600 text-white shadow-lg"
-                    : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
-                }`}
-              >
-                Timeline
-              </button>
+              {views.map((view) => (
+                <button
+                  key={view}
+                  onClick={() => changeView(view)}
+                  className={`px-6 py-3 rounded-full font-medium transition-all text-base whitespace-nowrap capitalize ${
+                    activeView === view
+                      ? "bg-teal-600 text-white shadow-lg"
+                      : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                  }`}
+                >
+                  {view.replace("-", " ")}
+                </button>
+              ))}
             </div>
           </div>
 
@@ -525,7 +473,7 @@ export default function HomeClient() {
           </div>
 
           <div
-            className="relative rounded-2xl overflow-hidden shadow-2xl border border-slate-200 dark:border-slate-800"
+            className="relative rounded-2xl overflow-hidden shadow-2xl border border-slate-200 dark:border-slate-700"
             onTouchStart={handleTouchStart}
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
@@ -555,7 +503,7 @@ export default function HomeClient() {
           </div>
 
           <div className="md:hidden flex justify-center gap-2 mt-8">
-            {views.map((view, index) => (
+            {views.map((view) => (
               <button
                 key={view}
                 onClick={() => changeView(view)}
@@ -578,32 +526,17 @@ export default function HomeClient() {
       <footer className="border-t border-slate-200 dark:border-slate-800 py-12 px-4">
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="flex items-center gap-2">
-            <Image
-              src="/landingpage/logo.png"
-              alt="nexd.pm"
-              width={1584}
-              height={424}
-              className="h-6 w-auto dark:brightness-0 dark:invert"
-            />
+            <Image src="/landingpage/logo.png" alt="nexd.pm" width={1584} height={424} className="h-6 w-auto" />
             <span className="text-slate-600 dark:text-slate-400 text-sm">© 2026 nexd.pm. All rights reserved.</span>
           </div>
           <div className="flex items-center gap-8">
-            <a
-              href="#"
-              className="text-sm text-slate-600 dark:text-slate-400 hover:text-teal-600 dark:hover:text-teal-400 transition-colors"
-            >
+            <a href="#" className="text-sm text-slate-600 dark:text-slate-400 hover:text-teal-600 dark:hover:text-teal-400 transition-colors">
               Privacy
             </a>
-            <a
-              href="#"
-              className="text-sm text-slate-600 dark:text-slate-400 hover:text-teal-600 dark:hover:text-teal-400 transition-colors"
-            >
+            <a href="#" className="text-sm text-slate-600 dark:text-slate-400 hover:text-teal-600 dark:hover:text-teal-400 transition-colors">
               Terms
             </a>
-            <a
-              href="#"
-              className="text-sm text-slate-600 dark:text-slate-400 hover:text-teal-600 dark:hover:text-teal-400 transition-colors"
-            >
+            <a href="#" className="text-sm text-slate-600 dark:text-slate-400 hover:text-teal-600 dark:hover:text-teal-400 transition-colors">
               Contact
             </a>
           </div>

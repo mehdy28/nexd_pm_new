@@ -1,6 +1,9 @@
+// tailwind.config.ts
 import type { Config } from "tailwindcss"
 
 const config: Config = {
+  // This is required for the toggle button to work
+  darkMode: ["class"], 
   content: [
     "./pages/**/*.{js,ts,jsx,tsx,mdx}",
     "./components/**/*.{js,ts,jsx,tsx,mdx}",
