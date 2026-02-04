@@ -1,4 +1,3 @@
-//next.config.mjs
 import path, { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
@@ -41,7 +40,7 @@ const nextConfig = {
         headers: [
           {
             key: 'Content-Security-Policy',
-            value: "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline' *.supademo.com https://www.googletagmanager.com; connect-src 'self' *.supademo.com https://www.google-analytics.com https://www.googletagmanager.com; img-src 'self' data: https://www.google-analytics.com https://www.googletagmanager.com; style-src 'self' 'unsafe-inline'; font-src 'self' data:; frame-src 'self' *.supademo.com;",
+            value: "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline' *.supademo.com https://www.googletagmanager.com https://apis.google.com; connect-src 'self' *.supademo.com https://www.google-analytics.com https://www.googletagmanager.com https://securetoken.googleapis.com https://identitytoolkit.googleapis.com https://*.googleapis.com; img-src 'self' data: https://www.google-analytics.com https://www.googletagmanager.com; style-src 'self' 'unsafe-inline'; font-src 'self' data:; frame-src 'self' *.supademo.com https://*.firebaseapp.com;",
           },
         ],
       },
