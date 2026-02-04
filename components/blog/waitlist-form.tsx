@@ -85,7 +85,7 @@ export function WaitlistForm({
   if (variant === "modal") {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-        <Card className="w-full max-w-md m-4 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl transition-colors">
+        <Card className="w-full max-w-md m-4 bg-white dark:bg-neutral-900 border-slate-200 dark:border-neutral-800 rounded-2xl shadow-xl transition-colors">
           <CardContent className="p-8">
             <div className="text-center mb-6">
               <div className="flex justify-center mb-4">
@@ -100,7 +100,7 @@ export function WaitlistForm({
               <h3 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">
                 Get Early Access to the Demo
               </h3>
-              <p className="text-slate-600 dark:text-slate-300">
+              <p className="text-slate-600 dark:text-neutral-400">
                 Join the waitlist to unlock the interactive demo and be first
                 to know when we launch.
               </p>
@@ -111,7 +111,7 @@ export function WaitlistForm({
                 <p className="text-2xl font-bold text-teal-800 dark:text-teal-400">
                   🎉 You're on the list!
                 </p>
-                <p className="text-lg text-slate-600 dark:text-slate-300 mt-2">
+                <p className="text-lg text-slate-600 dark:text-neutral-400 mt-2">
                   Thanks for your excitement! The demo will now load.
                 </p>
               </div>
@@ -120,7 +120,7 @@ export function WaitlistForm({
                 <p className="text-2xl font-bold text-yellow-800 dark:text-yellow-500">
                   👋 You're already in!
                 </p>
-                <p className="text-lg text-slate-600 dark:text-slate-300 mt-2">
+                <p className="text-lg text-slate-600 dark:text-neutral-400 mt-2">
                   We've got your info. The demo will now load.
                 </p>
               </div>
@@ -143,7 +143,7 @@ export function WaitlistForm({
                   onChange={(e) => setName(e.target.value)}
                   required
                   disabled={mutationLoading}
-                  className="w-full rounded-full h-12 px-5 border-2 border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white focus:border-teal-500"
+                  className="w-full rounded-full h-12 px-5 border-2 border-slate-300 dark:border-neutral-700 bg-white dark:bg-black text-slate-900 dark:text-white focus:border-teal-500"
                 />
                 <Input
                   type="email"
@@ -152,7 +152,7 @@ export function WaitlistForm({
                   onChange={(e) => setEmail(e.target.value)}
                   required
                   disabled={mutationLoading}
-                  className="w-full rounded-full h-12 px-5 border-2 border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white focus:border-teal-500"
+                  className="w-full rounded-full h-12 px-5 border-2 border-slate-300 dark:border-neutral-700 bg-white dark:bg-black text-slate-900 dark:text-white focus:border-teal-500"
                 />
 
                 {error && (
@@ -202,7 +202,7 @@ export function WaitlistForm({
             This is the Nexd-Level Prompt Management.
           </h2>
 
-          <p className="text-xl md:text-2xl text-slate-600 dark:text-slate-300 mb-12 max-w-2xl mx-auto leading-relaxed">
+          <p className="text-xl md:text-2xl text-slate-600 dark:text-neutral-400 mb-12 max-w-2xl mx-auto leading-relaxed">
             The waitlist is now open for teams who want to build, not just
             prompt.
           </p>
@@ -212,7 +212,7 @@ export function WaitlistForm({
               <p className="text-2xl font-bold text-teal-800 dark:text-teal-400">
                 🎉 You're on the list!
               </p>
-              <p className="text-lg text-slate-600 dark:text-slate-300 mt-2">
+              <p className="text-lg text-slate-600 dark:text-neutral-400 mt-2">
                 We'll reach out when we're ready to launch. Thanks for your
                 excitement!
               </p>
@@ -222,7 +222,7 @@ export function WaitlistForm({
               <p className="text-2xl font-bold text-yellow-800 dark:text-yellow-500">
                 👋 You're already in!
               </p>
-              <p className="text-lg text-slate-600 dark:text-slate-300 mt-2">
+              <p className="text-lg text-slate-600 dark:text-neutral-400 mt-2">
                 We've got your info. We'll be in touch soon.
               </p>
             </div>
@@ -232,7 +232,7 @@ export function WaitlistForm({
                 <AlertTriangle className="w-7 h-7 inline-block mr-2" />
                 Oops! An error occurred.
               </p>
-              <p className="text-lg text-slate-600 dark:text-slate-300 mt-2">
+              <p className="text-lg text-slate-600 dark:text-neutral-400 mt-2">
                 Something went wrong. Please refresh and try again.
               </p>
             </div>
@@ -247,7 +247,7 @@ export function WaitlistForm({
                     onChange={(e) => setName(e.target.value)}
                     required
                     disabled={mutationLoading}
-                    className="flex-1 h-12 px-6 text-base border-2 border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white focus:border-teal-500 rounded-full"
+                    className="flex-1 h-12 px-6 text-base border-2 border-slate-300 dark:border-neutral-700 bg-white dark:bg-black text-slate-900 dark:text-white focus:border-teal-500 rounded-full"
                   />
                   <Button
                     type="submit"
@@ -265,7 +265,7 @@ export function WaitlistForm({
                   onChange={(e) => setEmail(e.target.value)}
                   required
                   disabled={mutationLoading}
-                  className="h-12 px-6 text-base border-2 border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white focus:border-teal-500 rounded-full"
+                  className="h-12 px-6 text-base border-2 border-slate-300 dark:border-neutral-700 bg-white dark:bg-black text-slate-900 dark:text-white focus:border-teal-500 rounded-full"
                 />
               </div>
               {error && (
@@ -276,7 +276,7 @@ export function WaitlistForm({
             </form>
           )}
 
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-6">
+          <p className="text-sm text-slate-500 dark:text-neutral-500 mt-6">
             No spam. We'll only reach out when we're ready to launch.
           </p>
         </div>
@@ -286,14 +286,14 @@ export function WaitlistForm({
 
   if (variant === "sidebar") {
     return (
-      <Card className="bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-2xl transition-colors">
+      <Card className="bg-slate-50 dark:bg-neutral-900 border-slate-200 dark:border-neutral-800 rounded-2xl transition-colors">
         <CardContent className="p-6">
           <div className="text-center mb-4">
             <Sparkles className="w-8 h-8 text-teal-500 mx-auto mb-3" />
             <h3 className="font-bold text-slate-900 dark:text-white mb-2">
               Join the Revolution
             </h3>
-            <p className="text-sm text-slate-600 dark:text-slate-400">
+            <p className="text-sm text-slate-600 dark:text-neutral-400">
               Get early access to NEXD.PM and transform your project management.
             </p>
           </div>
@@ -333,7 +333,7 @@ export function WaitlistForm({
                 onChange={(e) => setName(e.target.value)}
                 required
                 disabled={mutationLoading}
-                className="text-sm rounded-full border-2 border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white focus:border-teal-500 h-10 px-4"
+                className="text-sm rounded-full border-2 border-slate-300 dark:border-neutral-700 bg-white dark:bg-black text-slate-900 dark:text-white focus:border-teal-500 h-10 px-4"
               />
               <Input
                 type="email"
@@ -342,7 +342,7 @@ export function WaitlistForm({
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 disabled={mutationLoading}
-                className="text-sm rounded-full border-2 border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white focus:border-teal-500 h-10 px-4"
+                className="text-sm rounded-full border-2 border-slate-300 dark:border-neutral-700 bg-white dark:bg-black text-slate-900 dark:text-white focus:border-teal-500 h-10 px-4"
               />
               {error && <p className="text-red-600 dark:text-red-400 text-xs">{error}</p>}
               <Button
@@ -362,12 +362,12 @@ export function WaitlistForm({
 
   if (variant === "inline") {
     return (
-      <div className="bg-gradient-to-r from-teal-50/50 to-cyan-50/50 dark:from-teal-950/30 dark:to-cyan-950/30 rounded-2xl p-6 border border-slate-200 dark:border-slate-800">
+      <div className="bg-gradient-to-r from-teal-50/50 to-cyan-50/50 dark:from-teal-950/30 dark:to-cyan-950/30 rounded-2xl p-6 border border-slate-200 dark:border-neutral-800">
         <div className="text-center mb-6">
           <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">
             Ready to Get Started?
           </h3>
-          <p className="text-slate-600 dark:text-slate-300">
+          <p className="text-slate-600 dark:text-neutral-400">
             Join thousands of teams already on the waitlist for NEXD.PM.
           </p>
         </div>
@@ -410,7 +410,7 @@ export function WaitlistForm({
                 onChange={(e) => setName(e.target.value)}
                 required
                 disabled={mutationLoading}
-                className="flex-1 rounded-full h-12 px-5 border-2 border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white focus:border-teal-500"
+                className="flex-1 rounded-full h-12 px-5 border-2 border-slate-300 dark:border-neutral-700 bg-white dark:bg-black text-slate-900 dark:text-white focus:border-teal-500"
               />
               <Input
                 type="email"
@@ -419,7 +419,7 @@ export function WaitlistForm({
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 disabled={mutationLoading}
-                className="flex-1 rounded-full h-12 px-5 border-2 border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white focus:border-teal-500"
+                className="flex-1 rounded-full h-12 px-5 border-2 border-slate-300 dark:border-neutral-700 bg-white dark:bg-black text-slate-900 dark:text-white focus:border-teal-500"
               />
             </div>
             {error && (
@@ -440,7 +440,7 @@ export function WaitlistForm({
     )
   }
 
-  // Full variant
+  // Full variant (Maintains teal background for consistency, no changes needed for black mode specifically here as it uses teal bg)
   return (
     <Card className="bg-gradient-to-r from-teal-600 to-cyan-700 text-white border-0 rounded-2xl">
       <CardContent className="p-8 text-center">

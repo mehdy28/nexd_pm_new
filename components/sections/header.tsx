@@ -26,7 +26,6 @@ export function Header() {
 
   // Theme Logic
   useEffect(() => {
-    // Check local storage or system preference
     if (
       localStorage.theme === "dark" ||
       (!("theme" in localStorage) && window.matchMedia("(prefers-color-scheme: dark)").matches)
@@ -80,7 +79,7 @@ export function Header() {
   return (
     <nav className="fixed top-0 left-1/2 -translate-x-1/2 z-50 pt-4 px-4 w-full max-w-full">
       <div
-        className={`rounded-full border border-teal-200/60 bg-white/95 dark:bg-slate-900/95 dark:border-teal-800/60 backdrop-blur-2xl shadow-xl transition-all duration-500 mx-auto px-6 py-3 flex items-center justify-between animate-fade-down ${
+        className={`rounded-full border border-teal-200/60 bg-white/95 dark:bg-black/90 dark:border-teal-900/60 backdrop-blur-2xl shadow-xl transition-all duration-500 mx-auto px-6 py-3 flex items-center justify-between animate-fade-down ${
           scrollY > 100 ? "max-w-md" : "max-w-4xl"
         }`}
         style={{
@@ -97,19 +96,19 @@ export function Header() {
           <div className="hidden md:flex items-center gap-8">
             <Link
               href="/#problem"
-              className="text-sm font-medium text-slate-700 dark:text-slate-200 hover:text-teal-600 dark:hover:text-teal-400 transition-colors"
+              className="text-sm font-medium text-slate-700 dark:text-neutral-300 hover:text-teal-600 dark:hover:text-teal-400 transition-colors"
             >
               Problem
             </Link>
             <Link
               href="/#solution"
-              className="text-sm font-medium text-slate-700 dark:text-slate-200 hover:text-teal-600 dark:hover:text-teal-400 transition-colors"
+              className="text-sm font-medium text-slate-700 dark:text-neutral-300 hover:text-teal-600 dark:hover:text-teal-400 transition-colors"
             >
               Solution
             </Link>
             <Link
               href="/#features"
-              className="text-sm font-medium text-slate-700 dark:text-slate-200 hover:text-teal-600 dark:hover:text-teal-400 transition-colors"
+              className="text-sm font-medium text-slate-700 dark:text-neutral-300 hover:text-teal-600 dark:hover:text-teal-400 transition-colors"
             >
               Features
             </Link>
@@ -121,13 +120,13 @@ export function Header() {
             </Link>
             <Link
               href="/#views"
-              className="text-sm font-medium text-slate-700 dark:text-slate-200 hover:text-teal-600 dark:hover:text-teal-400 transition-colors"
+              className="text-sm font-medium text-slate-700 dark:text-neutral-300 hover:text-teal-600 dark:hover:text-teal-400 transition-colors"
             >
               Views
             </Link>
             <Link
               href="/blog"
-              className="text-sm font-medium text-slate-700 dark:text-slate-200 hover:text-teal-600 dark:hover:text-teal-400 transition-colors"
+              className="text-sm font-medium text-slate-700 dark:text-neutral-300 hover:text-teal-600 dark:hover:text-teal-400 transition-colors"
             >
               Blog
             </Link>
@@ -138,7 +137,7 @@ export function Header() {
           {/* Dark Mode Toggle */}
           <button
             onClick={toggleTheme}
-            className="p-2 rounded-full text-slate-500 hover:text-teal-600 dark:text-slate-400 dark:hover:text-teal-400 transition-colors"
+            className="p-2 rounded-full text-slate-500 hover:text-teal-600 dark:text-neutral-400 dark:hover:text-teal-400 transition-colors"
             aria-label="Toggle dark mode"
           >
             {theme === "light" ? <Moon size={18} /> : <Sun size={18} />}
