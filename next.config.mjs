@@ -41,16 +41,13 @@ const nextConfig = {
         headers: [
           {
             key: 'Content-Security-Policy',
-            // Allow scripts from self, Supademo, and unsafe inline/eval scripts which Next.js might use in dev mode.
-            value: "script-src 'self' 'unsafe-eval' 'unsafe-inline' *.supademo.com;",
+            value: "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline' *.supademo.com https://www.googletagmanager.com; connect-src 'self' *.supademo.com https://www.google-analytics.com https://www.googletagmanager.com; img-src 'self' data: https://www.google-analytics.com https://www.googletagmanager.com; style-src 'self' 'unsafe-inline'; font-src 'self' data:; frame-src 'self' *.supademo.com;",
           },
         ],
       },
     ];
   },
   
-  // This is the corrected configuration. The key is now at the top level.
-  // This forces Vercel to include the 'blogs' directory in the serverless function.
   outputFileTracingIncludes: {
     '/blog/[slug]': ['./blogs/**/*'],
   },
