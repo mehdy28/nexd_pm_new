@@ -1,4 +1,3 @@
-//app/blog/[slug]/page.tsx
 import {
   getBlogPost,
   getRelatedPosts,
@@ -45,7 +44,7 @@ export default async function BlogPostPage({
   const relatedPosts = await getRelatedPosts(post.slug, post.tags);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-teal-50/30">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-teal-50/30 dark:from-black dark:via-black dark:to-teal-950/20 transition-colors duration-300">
       <Header />
 
       <main className="container mx-auto px-4 pt-40 pb-24">
@@ -54,7 +53,7 @@ export default async function BlogPostPage({
           <div className="mb-8">
             <Link
               href="/blog"
-              className="inline-flex items-center gap-2 text-sm text-teal-600 hover:text-teal-700 font-medium transition-colors"
+              className="inline-flex items-center gap-2 text-sm text-teal-600 dark:text-teal-400 hover:text-teal-700 dark:hover:text-teal-300 font-medium transition-colors"
             >
               <ArrowLeft className="w-4 h-4" />
               Back to all articles
@@ -68,17 +67,17 @@ export default async function BlogPostPage({
                 <Badge
                   key={tag}
                   variant="outline"
-                  className="text-sm bg-slate-100/80 border-slate-200 text-slate-700"
+                  className="text-sm bg-slate-100/80 dark:bg-neutral-800/80 border-slate-200 dark:border-neutral-700 text-slate-700 dark:text-neutral-300"
                 >
                   {tag}
                 </Badge>
               ))}
             </div>
-            <h1 className="text-4xl md:text-5xl font-black text-slate-900 mb-6 leading-tight text-balance">
+            <h1 className="text-4xl md:text-5xl font-black text-slate-900 dark:text-white mb-6 leading-tight text-balance">
               {post.title}
             </h1>
-            <p className="text-xl text-slate-600 mb-8 leading-relaxed text-balance">{post.description}</p>
-            <div className="flex flex-wrap items-center gap-x-6 gap-y-3 text-slate-500 border-t border-b border-slate-200 py-4 mb-12">
+            <p className="text-xl text-slate-600 dark:text-neutral-400 mb-8 leading-relaxed text-balance">{post.description}</p>
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-3 text-slate-500 dark:text-neutral-500 border-t border-b border-slate-200 dark:border-neutral-800 py-4 mb-12">
               <div className="flex items-center gap-2">
                 <User className="w-5 h-5" />
                 <span className="font-medium">{post.author}</span>
@@ -99,43 +98,43 @@ export default async function BlogPostPage({
               </div>
             </div>
             {/* Featured Image */}
-            <div className="aspect-video relative overflow-hidden rounded-xl shadow-2xl shadow-teal-500/10 border border-slate-200/80">
+            <div className="aspect-video relative overflow-hidden rounded-xl shadow-2xl shadow-teal-500/10 dark:shadow-teal-900/10 border border-slate-200/80 dark:border-neutral-800">
               <Image src={post.image || "/placeholder.svg"} alt={post.title} fill className="object-cover" />
             </div>
           </header>
 
           {/* Article Content */}
-          <div className="prose prose-lg max-w-none prose-slate">
+          <div className="prose prose-lg max-w-none prose-slate dark:prose-invert">
             <ReactMarkdown
               components={{
-                h1: ({ children }) => <h1 className="text-4xl font-bold text-slate-900 mt-12 mb-6">{children}</h1>,
-                h2: ({ children }) => <h2 className="text-3xl font-bold text-slate-900 mt-10 mb-4">{children}</h2>,
-                h3: ({ children }) => <h3 className="text-2xl font-bold text-slate-900 mt-8 mb-3">{children}</h3>,
-                p: ({ children }) => <p className="text-slate-700 leading-relaxed mb-6 text-lg">{children}</p>,
+                h1: ({ children }) => <h1 className="text-4xl font-bold text-slate-900 dark:text-white mt-12 mb-6">{children}</h1>,
+                h2: ({ children }) => <h2 className="text-3xl font-bold text-slate-900 dark:text-white mt-10 mb-4">{children}</h2>,
+                h3: ({ children }) => <h3 className="text-2xl font-bold text-slate-900 dark:text-neutral-200 mt-8 mb-3">{children}</h3>,
+                p: ({ children }) => <p className="text-slate-700 dark:text-neutral-300 leading-relaxed mb-6 text-lg">{children}</p>,
                 ul: ({ children }) => (
-                  <ul className="list-disc list-inside text-slate-700 mb-6 space-y-2 text-lg">{children}</ul>
+                  <ul className="list-disc list-inside text-slate-700 dark:text-neutral-300 mb-6 space-y-2 text-lg">{children}</ul>
                 ),
                 ol: ({ children }) => (
-                  <ol className="list-decimal list-inside text-slate-700 mb-6 space-y-2 text-lg">{children}</ol>
+                  <ol className="list-decimal list-inside text-slate-700 dark:text-neutral-300 mb-6 space-y-2 text-lg">{children}</ol>
                 ),
                 a: ({ node, ...props }) => (
                   <a
-                    className="text-teal-600 hover:text-teal-700 font-medium underline underline-offset-4 transition-colors"
+                    className="text-teal-600 dark:text-teal-400 hover:text-teal-700 dark:hover:text-teal-300 font-medium underline underline-offset-4 transition-colors"
                     {...props}
                   />
                 ),
                 blockquote: ({ children }) => (
-                  <blockquote className="border-l-4 border-teal-500 pl-6 italic text-slate-600 my-8 text-lg">
+                  <blockquote className="border-l-4 border-teal-500 pl-6 italic text-slate-600 dark:text-neutral-400 my-8 text-lg">
                     {children}
                   </blockquote>
                 ),
                 code: ({ children }) => (
-                  <code className="bg-slate-100 text-teal-700 px-2 py-1 rounded-md text-base font-mono">
+                  <code className="bg-slate-100 dark:bg-neutral-800 text-teal-700 dark:text-teal-400 px-2 py-1 rounded-md text-base font-mono">
                     {children}
                   </code>
                 ),
                 pre: ({ children }) => (
-                  <pre className="bg-slate-900 text-slate-100 p-6 rounded-lg overflow-x-auto my-8">{children}</pre>
+                  <pre className="bg-slate-900 dark:bg-black text-slate-100 dark:text-neutral-200 p-6 rounded-lg overflow-x-auto my-8 border border-transparent dark:border-neutral-800">{children}</pre>
                 ),
               }}
             >
@@ -150,12 +149,12 @@ export default async function BlogPostPage({
 
           {/* Related Posts */}
           {relatedPosts.length > 0 && (
-            <div className="mt-16 border-t border-slate-200 pt-12">
-              <h3 className="text-3xl font-bold text-slate-900 mb-8">Related Articles</h3>
+            <div className="mt-16 border-t border-slate-200 dark:border-neutral-800 pt-12">
+              <h3 className="text-3xl font-bold text-slate-900 dark:text-white mb-8">Related Articles</h3>
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {relatedPosts.map((relatedPost) => (
                   <Link key={relatedPost.slug} href={`/blog/${relatedPost.slug}`} className="group">
-                    <Card className="overflow-hidden bg-white/60 backdrop-blur-xl border border-slate-200/80 hover:shadow-xl hover:border-slate-300 transition-all duration-300 h-full">
+                    <Card className="overflow-hidden bg-white/60 dark:bg-neutral-900/60 backdrop-blur-xl border border-slate-200/80 dark:border-neutral-800 hover:shadow-xl hover:border-slate-300 dark:hover:border-neutral-700 transition-all duration-300 h-full">
                       <div className="aspect-[4/3] relative overflow-hidden">
                         <Image
                           src={relatedPost.image || "/placeholder.svg"}
@@ -170,17 +169,17 @@ export default async function BlogPostPage({
                             <Badge
                               key={tag}
                               variant="outline"
-                              className="text-xs bg-slate-100/80 border-slate-200 text-slate-700"
+                              className="text-xs bg-slate-100/80 dark:bg-neutral-800/80 border-slate-200 dark:border-neutral-700 text-slate-700 dark:text-neutral-300"
                             >
                               {tag}
                             </Badge>
                           ))}
                         </div>
-                        <h4 className="font-bold text-slate-900 mb-2 group-hover:text-teal-600 transition-colors line-clamp-2">
+                        <h4 className="font-bold text-slate-900 dark:text-white mb-2 group-hover:text-teal-600 dark:group-hover:text-teal-400 transition-colors line-clamp-2">
                           {relatedPost.title}
                         </h4>
-                        <p className="text-sm text-slate-600 line-clamp-2">{relatedPost.description}</p>
-                        <div className="flex items-center gap-2 mt-3 text-xs text-slate-500">
+                        <p className="text-sm text-slate-600 dark:text-neutral-400 line-clamp-2">{relatedPost.description}</p>
+                        <div className="flex items-center gap-2 mt-3 text-xs text-slate-500 dark:text-neutral-500">
                           <Clock className="w-3 h-3" />
                           {relatedPost.readTime}
                         </div>
