@@ -3,19 +3,18 @@
 import type React from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-// Updated imports to use only the required Lucide icons (Dashboard, Support, Logout) and a more meaningful icon for Models Management
-import { LayoutGrid, MessageCircle, BrainCircuit, LogOut } from "lucide-react" 
+import { LayoutGrid, MessageCircle, BrainCircuit, LogOut, Rocket } from "lucide-react" 
 import { cn } from "@/lib/utils"
 import Image from "next/image"
 import { useAuth } from "@/hooks/useAuth"
 
-// Navigation items definition based on request
+// Navigation items definition including Early Access
 const adminNavigation = [
   { name: "Dashboard", href: "/admin-dashboard", Icon: LayoutGrid },
   { name: "Customer Support", href: "/admin-support", Icon: MessageCircle },
   { name: "Models Management", href: "/model-profiles", Icon: BrainCircuit },
+  { name: "Early Access", href: "/early-access", Icon: Rocket },
 ]
-
 
 function IconButton({
   children,
@@ -61,7 +60,6 @@ function IconButton({
   )
 }
 
-// Renamed and updated the exported function
 export function AdminSidebar() {
   const pathname = usePathname()
   const { logout } = useAuth() 
@@ -74,19 +72,10 @@ export function AdminSidebar() {
     }
   }
 
-  // Removed getUserInitial
-
   return (
-
-
-
-
-
-
-
-<aside className="fixed inset-y-0 left-0 w-20 bg-[#19222d] border-r border-gray-700 shadow-strong z-30 flex flex-col items-center py-6">
-<div className="flex h-12 w-12 items-center justify-center rounded-xl bg-transparent shadow-medium hover:shadow-strong transition-all duration-200 hover:scale-105 overflow-hidden">
-        <Image src="/square_logo.png" alt="NEXD.PM" width={42} height={42} className="object-contain" />
+    <aside className="fixed inset-y-0 left-0 w-20 bg-[#19222d] border-r border-gray-700 shadow-strong z-30 flex flex-col items-center py-6">
+      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-transparent shadow-medium hover:shadow-strong transition-all duration-200 hover:scale-105 overflow-hidden">
+        <Image src="/square_logo.jpg" alt="NEXD.PM" width={62} height={62} className="object-contain" />
       </div>
 
       <nav className="flex flex-1 flex-col justify-center gap-4">
@@ -117,6 +106,6 @@ export function AdminSidebar() {
           <LogOut className="h-5 w-5 text-[#4ab5ae]" />
         </IconButton>
       </div>
-</aside>
+    </aside>
   )
 }
