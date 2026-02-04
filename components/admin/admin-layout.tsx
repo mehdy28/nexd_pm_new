@@ -37,10 +37,6 @@ export function AdminLayout({ children }: AdminLayoutProps) {
     }
   }, [currentUser, loading, router, pathname])
 
-  // Show loading overlay if authentication check is pending or if the user fails the role check.
-  if (loading || (pathname !== "/admin-register" && !currentUser) || (currentUser && currentUser.role !== "ADMIN")) {
-    return <LoadingOverlay />
-  }
 
   // Render the core Admin layout wrapped in a div instead of Fragment.
   return (
@@ -65,8 +61,6 @@ export function AdminLayout({ children }: AdminLayoutProps) {
       <div className="fixed left-20 right-0 top-0 bottom-0 bg-white overflow-hidden">
         <div className="h-full w-full overflow-auto bg-muted/30">{children}</div>
       </div>
-      <LoadingOverlay /> {/* You might keep this for route-specific loadings,
-                                 but the initial auth loading is handled above. */}
     </TopbarProvider>
   )
 }
