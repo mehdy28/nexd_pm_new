@@ -3,6 +3,7 @@ import { Geist, Manrope } from "next/font/google";
 import { metadata } from "./metadata"; // Import metadata
 import { Providers } from "./providers"; // Import the new client component
 import "./globals.scss";
+import { GoogleAnalytics } from "@next/third-parties/google";
 
 const geist = Geist({
   subsets: ["latin"],
@@ -30,6 +31,7 @@ export default function RootLayout({
     >
       <body className="font-sans">
         <Providers>{children}</Providers>
+        <GoogleAnalytics gaId={process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID || ""} />
       </body>
     </html>
   );
