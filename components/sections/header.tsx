@@ -58,7 +58,7 @@ export function Header() {
   return (
     <nav className="fixed top-0 left-1/2 -translate-x-1/2 z-50 pt-4 px-4 w-full max-w-full">
       <div
-        className={`rounded-full border border-teal-200/60 bg-white/95 backdrop-blur-2xl shadow-xl transition-all duration-500 mx-auto px-6 py-3 flex items-center justify-between animate-fade-down ${
+        className={`rounded-full border border-teal-200/60 dark:border-teal-800/60 bg-white/95 dark:bg-slate-950/80 backdrop-blur-2xl shadow-xl transition-all duration-500 mx-auto px-6 py-3 flex items-center justify-between animate-fade-down ${
           scrollY > 100 ? "max-w-md" : "max-w-4xl"
         }`}
         style={{
@@ -67,37 +67,52 @@ export function Header() {
       >
         <div className="flex items-center gap-2">
           <Link href="/">
-            <Image src="/landingpage/logo.png" alt="nexd.pm" width={1584} height={424} className="h-8 w-auto" />
+            <Image
+              src="/landingpage/logo.png"
+              alt="nexd.pm"
+              width={1584}
+              height={424}
+              className="h-8 w-auto dark:brightness-0 dark:invert"
+            />
           </Link>
         </div>
 
         {showLinks && (
           <div className="hidden md:flex items-center gap-8">
-            <Link href="/#problem" className="text-sm font-medium text-slate-700 hover:text-teal-600 transition-colors">
+            <Link
+              href="/#problem"
+              className="text-sm font-medium text-slate-700 dark:text-slate-200 hover:text-teal-600 dark:hover:text-teal-400 transition-colors"
+            >
               Problem
             </Link>
             <Link
               href="/#solution"
-              className="text-sm font-medium text-slate-700 hover:text-teal-600 transition-colors"
+              className="text-sm font-medium text-slate-700 dark:text-slate-200 hover:text-teal-600 dark:hover:text-teal-400 transition-colors"
             >
               Solution
             </Link>
             <Link
               href="/#features"
-              className="text-sm font-medium text-slate-700 hover:text-teal-600 transition-colors"
+              className="text-sm font-medium text-slate-700 dark:text-slate-200 hover:text-teal-600 dark:hover:text-teal-400 transition-colors"
             >
               Features
             </Link>
             <Link
               href="/demo"
-              className="text-sm font-medium text-teal-600 hover:text-teal-700 transition-colors bg-teal-100/50 rounded-full px-4 py-1.5"
+              className="text-sm font-medium text-teal-600 dark:text-teal-400 hover:text-teal-700 dark:hover:text-teal-300 transition-colors bg-teal-100/50 dark:bg-teal-900/30 rounded-full px-4 py-1.5"
             >
               Demo
             </Link>
-            <Link href="/#views" className="text-sm font-medium text-slate-700 hover:text-teal-600 transition-colors">
+            <Link
+              href="/#views"
+              className="text-sm font-medium text-slate-700 dark:text-slate-200 hover:text-teal-600 dark:hover:text-teal-400 transition-colors"
+            >
               Views
             </Link>
-            <Link href="/blog" className="text-sm font-medium text-slate-700 hover:text-teal-600 transition-colors">
+            <Link
+              href="/blog"
+              className="text-sm font-medium text-slate-700 dark:text-slate-200 hover:text-teal-600 dark:hover:text-teal-400 transition-colors"
+            >
               Blog
             </Link>
           </div>
